@@ -12,12 +12,14 @@ export async function runReconciliation() {
         const { data: mappings, error } = await supabase
             .from('sku_marketplace_mapping')
             .select(`
-        sku,
-        marketplace_id,
-        external_item_id,
-        external_variation_id,
-        inventory_snapshot(physical_stock)
-      `)
+                sku,
+                marketplace_id,
+                external_item_id,
+                external_variation_id,
+                skus (
+                    inventory_snapshot (physical_stock)
+                )
+            `)
             .eq('sync_status', 'active');
 
         if (error) throw error;
@@ -30,7 +32,10 @@ export async function runReconciliation() {
 
         for (const mapping of mappings) {
             try {
-                const snapshot = mapping.inventory_snapshot as any;
+                // Extraer el stock físico con la nueva estructura del JOIN
+                const skusData = mapping.skus || {};
+                const snapshot = Array.isArray(skusData) ? skusData[0]?.inventory_snapshot : skusData.inventory_snapshot;
+
                 const localStock = (Array.isArray(snapshot) ? snapshot[0]?.physical_stock : snapshot?.physical_stock) || 0;
                 const remoteStock = await meliAdapter.getStock(
                     mapping.marketplace_id,
