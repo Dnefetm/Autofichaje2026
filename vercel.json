@@ -1,6 +1,6 @@
 {
     "buildCommand": "npm run build --workspace=@gestor/dashboard",
-    "outputDirectory": "apps/dashboard/.next",
+    "outputDirectory": ".next",
     "framework": "nextjs",
     "installCommand": "npm install"
 }
