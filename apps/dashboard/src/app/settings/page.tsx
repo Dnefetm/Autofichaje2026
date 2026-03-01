@@ -54,8 +54,10 @@ function SettingsContent() {
     const [saving, setSaving] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [dbState, setDbState] = useState<'checking' | 'online' | 'error'>('checking');
+    const [localMeliId, setLocalMeliId] = useState<string | null>(null);
 
     useEffect(() => {
+        setLocalMeliId(localStorage.getItem('last_meli_id'));
         async function loadConfig() {
             try {
                 const res = await fetch('/api/settings/meli');
@@ -111,7 +113,9 @@ function SettingsContent() {
                 client_secret: data.settings?.client_secret || prev.client_secret
             }));
             setStatus('success');
-            localStorage.setItem('last_meli_id', data.id);
+            const newId = data.id;
+            localStorage.setItem('last_meli_id', newId);
+            setLocalMeliId(newId);
         } catch (err) {
             console.error('Error detallado:', err);
             setStatus('error');
@@ -193,7 +197,7 @@ function SettingsContent() {
                                         <button
                                             onClick={(e) => {
                                                 e.preventDefault();
-                                                const finalId = config.id || localStorage.getItem('last_meli_id');
+                                                const finalId = config.id || localMeliId;
                                                 if (!finalId) {
                                                     alert('Por favor, haz clic en "Guardar Llaves" primero para registrar la cuenta antes de vincular.');
                                                     return;
@@ -242,7 +246,7 @@ function SettingsContent() {
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4 text-sm">
                         <h4 className="font-bold text-slate-900">Estado de Conexión</h4>
                         <StatusItem label="Supabase DB" status={dbState === 'online' ? 'online' : (dbState === 'error' ? 'offline' : 'checking')} />
-                        <StatusItem label="Mercado Libre API" status={(config.client_id || localStorage.getItem('last_meli_id')) ? 'ready' : 'offline'} />
+                        <StatusItem label="Mercado Libre API" status={(config.client_id || localMeliId) ? 'ready' : 'offline'} />
                         <StatusItem label="Redis Cache" status="online" />
                     </div>
                 </div>
