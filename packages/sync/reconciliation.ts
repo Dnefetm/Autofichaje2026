@@ -33,7 +33,7 @@ export async function runReconciliation() {
         for (const mapping of mappings) {
             try {
                 // Extraer el stock físico con la nueva estructura del JOIN
-                const skusData = mapping.skus || {};
+                const skusData: any = mapping.skus || {};
                 const snapshot = Array.isArray(skusData) ? skusData[0]?.inventory_snapshot : skusData.inventory_snapshot;
 
                 const localStock = (Array.isArray(snapshot) ? snapshot[0]?.physical_stock : snapshot?.physical_stock) || 0;
