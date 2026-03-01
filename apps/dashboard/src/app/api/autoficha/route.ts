@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { processProductDocument } from '../../../../../../packages/sync/autoficha';
+import { processProductDocument } from '@gestor/sync/autoficha';
 
 export async function POST(req: NextRequest) {
     try {
@@ -15,7 +15,6 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json(result);
     } catch (error: any) {
-        console.error('Error in API Autoficha:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
