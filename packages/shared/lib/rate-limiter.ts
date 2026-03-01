@@ -2,10 +2,13 @@ import { Redis } from '@upstash/redis';
 import logger from './logger';
 
 // Cliente de Redis para Rate Limiting
-const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL!,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+let redis: Redis | null = null;
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+}
 
 /**
  * Rate Limiter distribuido usando Token Bucket en Redis
@@ -14,6 +17,8 @@ const redis = new Redis({
  * @param duration Ventana de tiempo en segundos
  */
 export async function checkRateLimit(accountId: string, limit: number, duration: number): Promise<boolean> {
+    if (!redis) return true; // Fail-open si no hay config 
+
     const key = `ratelimit:${accountId}`;
 
     try {
