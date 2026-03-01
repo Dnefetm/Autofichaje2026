@@ -3,6 +3,7 @@ import { runReconciliation } from '@gestor/sync/reconciliation';
 import logger from '@gestor/shared/lib/logger';
 import dotenv from 'dotenv';
 import path from 'path';
+import http from 'http';
 
 // Cargar variables de entorno
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
@@ -11,6 +12,16 @@ const RECONCILIATION_INTERVAL = 30 * 60 * 1000; // 30 minutos
 
 async function main() {
     logger.info('--- GESTOR WORKER ENGINE START ---');
+
+    // **RENDER HEALTH CHECK WORKAROUND**
+    // Render free tier requiere que sea un servicio 'web' y escuche un puerto.
+    const port = process.env.PORT || 8080;
+    http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Autofichaje Worker is alive and running 24/7');
+    }).listen(port, () => {
+        logger.info(`Health check web server is listening on port ${port} to satisfy Render Free Tier requirements.`);
+    });
 
     // Manejo de señales para apagado graceful
     process.on('SIGTERM', () => {
