@@ -98,7 +98,7 @@ function SettingsContent() {
             }
 
             if (data) {
-                console.log('Configuración guardada:', data);
+                console.log('Configuración guardada exitosamente:', data.id);
                 setConfig((prev: any) => ({
                     ...prev,
                     id: data.id,
@@ -106,6 +106,8 @@ function SettingsContent() {
                     client_secret: data.settings?.client_secret || prev.client_secret
                 }));
                 setStatus('success');
+                // Forzar un guardado local si es necesario para asegurar visualización inmediata
+                localStorage.setItem('last_meli_id', data.id);
             }
         } catch (err) {
             console.error('Error detallado:', err);

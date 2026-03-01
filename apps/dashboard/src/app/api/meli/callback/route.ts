@@ -1,22 +1,27 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabaseAdmin } from '@/lib/supabase';
+import { encrypt } from '../../../../../../packages/shared/lib/crypto';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     const marketplaceId = searchParams.get('state');
 
+    const clientId = "1828520903959176";
+    const clientSecret = "4YB5vjSGlbJkgp9ni4UwxUx5UdgRcJcU";
+    const redirectUri = "https://autofichaje2026-dashboard-1img.vercel.app/api/meli/callback";
+    const baseUrl = "https://autofichaje2026-dashboard-1img.vercel.app";
+
     console.log('--- MELI CALLBACK RECEIVED ---');
     console.log('Code:', code);
     console.log('State (MarketplaceId):', marketplaceId);
 
     if (!code) {
-        return NextResponse.json({ error: 'Falta código de autorización' }, { status: 400 });
+        return NextResponse.redirect(`${baseUrl}/settings?auth=error&msg=Falta+codigo+de+autorizacion`);
     }
 
     try {
-        // Si no viene state, buscamos la primera configuración de MeLi activa
         let finalMarketplaceId = marketplaceId;
         if (!finalMarketplaceId) {
             const { data: meliConfig } = await supabaseAdmin
@@ -32,19 +37,6 @@ export async function GET(request: Request) {
             throw new Error('No se especificó ni se encontró una configuración de Marketplace válida');
         }
 
-        // 1. Obtener Client ID y Secret de la DB
-        const { data: config } = await supabaseAdmin
-            .from('marketplace_configs')
-            .select('settings')
-            .eq('id', finalMarketplaceId)
-            .single();
-
-        if (!config) throw new Error('Configuración no encontrada en la base de datos');
-
-        const clientId = "1828520903959176";
-        const clientSecret = "4YB5vjSGlbJkgp9ni4UwxUx5UdgRcJcU";
-        const redirectUri = "https://autofichaje2026-dashboard-1img.vercel.app/api/meli/callback";
-
         // 2. Intercambiar código por tokens
         const response = await axios.post('https://api.mercadolibre.com/oauth/token', null, {
             params: {
@@ -57,7 +49,6 @@ export async function GET(request: Request) {
         });
 
         const { access_token, refresh_token, expires_in } = response.data;
-        const { encrypt } = await import('@/../../packages/shared/lib/crypto');
 
         // 3. Guardar tokens en la base de datos (Encriptados)
         const { error: tokenError } = await supabaseAdmin
@@ -75,9 +66,6 @@ export async function GET(request: Request) {
 
     } catch (error: any) {
         console.error('Error en MeLi Callback:', error.response?.data || error.message);
-        const host = request.headers.get('host');
-        const protocol = host?.includes('localhost') ? 'http' : 'https';
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`;
         return NextResponse.redirect(`${baseUrl}/settings?auth=error&msg=${encodeURIComponent(error.message)}`);
     }
 }
