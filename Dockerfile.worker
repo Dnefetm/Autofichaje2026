@@ -8,7 +8,6 @@ COPY package.json package-lock.json ./
 COPY apps/worker/package.json ./apps/worker/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/adapters/package.json ./packages/adapters/
-COPY packages/db/package.json ./packages/db/
 COPY packages/sync/package.json ./packages/sync/
 
 # 2. Install all dependencies (Workspaces)
