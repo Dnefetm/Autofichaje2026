@@ -5,8 +5,10 @@ import dotenv from 'dotenv';
 import path from 'path';
 import http from 'http';
 
-// Cargar variables de entorno
-dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+// Cargar variables de entorno (Solo local)
+if (process.env.NODE_ENV !== 'production') {
+    dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+}
 
 const RECONCILIATION_INTERVAL = 30 * 60 * 1000; // 30 minutos
 
