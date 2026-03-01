@@ -168,7 +168,14 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             if (skuError) throw skuError;
 
-            // 2. Crear el mapeo SKU <-> Marketplace
+            // 2. Inicializar inventario si no existe (Debe ir ANTES del mapeo por el Foreign Key)
+            await supabase.from('inventory_snapshot').upsert({
+                sku: skuString,
+                physical_stock: item.available_quantity,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'sku' });
+
+            // 3. Crear el mapeo SKU <-> Marketplace
             const { error: mapError } = await supabase.from('sku_marketplace_mapping').upsert({
                 sku: skuString,
                 marketplace_id: accountId,
@@ -178,13 +185,6 @@ export class MeliAdapter implements MarketplaceAdapter {
             });
 
             if (mapError) throw mapError;
-
-            // 3. Inicializar inventario si no existe
-            await supabase.from('inventory_snapshot').upsert({
-                sku: skuString,
-                physical_stock: item.available_quantity,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'sku' });
 
             logger.info({ sku: skuString, itemId: item.id }, 'Item sincronizado con éxito desde MeLi');
 
