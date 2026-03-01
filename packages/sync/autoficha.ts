@@ -2,14 +2,12 @@ import axios from 'axios';
 import { OpenAI } from 'openai';
 import { SKU } from '@gestor/shared';
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function processProductDocument(fileBuffer: Buffer, fileName: string): Promise<Partial<SKU>> {
+    // Instanciar OpenAI dentro de la función para evitar ejecución en build time
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
     // 1. OCR (Placeholder - En producción usaría Azure Vision API)
-    // Por ahora simularemos la extracción de texto del documento
-    const rawText = `Texto extraído de ${fileName}: Destornillador de precisión Victorinox. Punta magnética. Mango ergonómico. Largo 150mm. Acero inoxidable.`;
+    const rawText = `Texto extraido de ${fileName}: Destornillador de precisión Victorinox. Punta magnética. Mango ergonómico. Largo 150mm. Acero inoxidable.`;
 
     // 2. Estructuración con GPT-4o-mini
     const response = await openai.chat.completions.create({
@@ -36,9 +34,7 @@ export async function processProductDocument(fileBuffer: Buffer, fileName: strin
         description: structuredData.descripcion,
         metadata: {
             material: structuredData.material,
-            dimensiones: structuredData.dimensiones,
-            source_file: fileName
-        },
-        is_active: true
+            dimensions: structuredData.dimensiones,
+        }
     };
 }
