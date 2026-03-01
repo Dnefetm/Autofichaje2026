@@ -99,12 +99,12 @@ function SettingsContent() {
 
             if (data) {
                 console.log('Configuración guardada:', data);
-                setConfig({
-                    ...config,
+                setConfig((prev: any) => ({
+                    ...prev,
                     id: data.id,
-                    client_id: data.settings?.client_id || '',
-                    client_secret: data.settings?.client_secret || ''
-                });
+                    client_id: data.settings?.client_id || prev.client_id,
+                    client_secret: data.settings?.client_secret || prev.client_secret
+                }));
                 setStatus('success');
             }
         } catch (err) {
