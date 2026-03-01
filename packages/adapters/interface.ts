@@ -22,6 +22,8 @@ export interface MarketplaceAdapter {
 
     getRecentOrders(accountId: string, since: Date): Promise<any[]>;
 
+    getStock(accountId: string, itemId: string, variationId?: string): Promise<number>;
+
     // Mapping e IA (AUTOFICHAS)
-    syncCatalogItem(sku: SKU): Promise<void>;
+    syncCatalogItem(accountId: string, itemId: string): Promise<void>;
 }

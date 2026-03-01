@@ -127,6 +127,24 @@ export class MeliAdapter implements MarketplaceAdapter {
         }
     }
 
+    async getStock(accountId: string, itemId: string, variationId?: string): Promise<number> {
+        const accessToken = await this.getAccessToken(accountId);
+
+        try {
+            const url = `https://api.mercadolibre.com/items/${itemId}`;
+            const response = await axios.get(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+
+            if (variationId && response.data.variations) {
+                const variation = response.data.variations.find((v: any) => v.id.toString() === variationId.toString());
+                return variation ? variation.available_quantity : 0;
+            }
+            return response.data.available_quantity || 0;
+        } catch (error: any) {
+            logger.error({ accountId, itemId, error: error.response?.data || error.message }, 'Error obteniendo stock en MeLi');
+            return 0;
+        }
+    }
+
     async syncCatalogItem(accountId: string, itemId: string): Promise<void> {
         const accessToken = await this.getAccessToken(accountId);
 
@@ -173,6 +191,11 @@ export class MeliAdapter implements MarketplaceAdapter {
         } catch (error: any) {
             logger.error({ itemId, error: error.response?.data || error.message }, 'Error al sincronizar item individual de MeLi');
         }
+    }
+
+    async getRecentOrders(accountId: string, since: Date): Promise<any[]> {
+        // FIXME: Implement real logic for getRecentOrders when orders sync is built
+        return [];
     }
 
     async refreshToken(accountId: string): Promise<void> {
