@@ -41,20 +41,16 @@ export async function GET(request: Request) {
 
         if (!config) throw new Error('Configuración no encontrada en la base de datos');
 
-        const { client_id, client_secret } = config.settings;
-        const host = request.headers.get('host');
-        const protocol = host?.includes('localhost') ? 'http' : 'https';
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`;
-
-        // El redirect URI debe coincidir EXACTAMENTE con el configurado en MeLi
-        const redirectUri = `${baseUrl}/api/meli/callback`;
+        const clientId = "1828520903959176";
+        const clientSecret = "4YB5vjSGlbJkgp9ni4UwxUx5UdgRcJcU";
+        const redirectUri = "https://autofichaje2026-dashboard-1img.vercel.app/api/meli/callback";
 
         // 2. Intercambiar código por tokens
         const response = await axios.post('https://api.mercadolibre.com/oauth/token', null, {
             params: {
                 grant_type: 'authorization_code',
-                client_id: client_id,
-                client_secret: client_secret,
+                client_id: clientId,
+                client_secret: clientSecret,
                 code: code,
                 redirect_uri: redirectUri
             }

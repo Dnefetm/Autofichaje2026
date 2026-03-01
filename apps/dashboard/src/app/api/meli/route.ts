@@ -27,23 +27,14 @@ export async function GET(request: Request) {
 
     if (!config) return NextResponse.json({ error: 'Configuración no encontrada' }, { status: 404 });
 
-    const clientId = process.env.MELI_CLIENT_ID || config.settings?.client_id;
+    const clientId = "1828520903959176";
+    const redirectUri = "https://autofichaje2026-dashboard-1img.vercel.app/api/meli/callback";
 
-    if (!clientId) {
-        return NextResponse.json({ error: 'Client ID no configurado' }, { status: 400 });
-    }
-
-    return redirectToMeli(marketplaceId, clientId, request);
+    return redirectToMeli(marketplaceId, clientId, redirectUri);
 }
 
-function redirectToMeli(marketplaceId: string, clientId: string, request: Request) {
-    const host = request.headers.get('host');
-    const protocol = host?.includes('localhost') ? 'http' : 'https';
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`;
-    const redirectUri = encodeURIComponent(`${baseUrl}/api/meli/callback`);
-
-    // IMPORTANTE: El state DEBE ser el marketplaceId para saber a qué cuenta asociar el token al volver
-    const authUrl = `https://auth.mercadolibre.com.mx/authorization?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${marketplaceId}`;
+function redirectToMeli(marketplaceId: string, clientId: string, redirectUri: string) {
+    const authUrl = `https://auth.mercadolibre.com.mx/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${marketplaceId}`;
 
     console.log('Redirecting to MeLi with ClientID:', clientId, 'State:', marketplaceId);
     return NextResponse.redirect(authUrl);
