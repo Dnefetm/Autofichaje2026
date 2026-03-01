@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase'; // Asumiendo que crearé este helper en dashboard
+import { supabase } from '@/lib/supabase';
 import { Redis } from '@upstash/redis';
+import { logger } from '@/lib/logger';
 
 const redis = new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL!,
