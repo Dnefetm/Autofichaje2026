@@ -1,6 +1,7 @@
 import { supabase } from '@gestor/shared/lib/supabase';
 import logger from '@gestor/shared/lib/logger';
 import axios from 'axios';
+import { encrypt, decrypt } from '@gestor/shared';
 
 export class MeliTokenManager {
     private static MELI_API_URL = 'https://api.mercadolibre.com/oauth/token';
@@ -57,7 +58,7 @@ export class MeliTokenManager {
             params.append('grant_type', 'refresh_token');
             params.append('client_id', config.settings.client_id);
             params.append('client_secret', config.settings.client_secret);
-            params.append('refresh_token', refresh_token);
+            params.append('refresh_token', decrypt(refresh_token));
 
             const response = await axios.post(this.MELI_API_URL, params);
 
@@ -65,8 +66,8 @@ export class MeliTokenManager {
 
             await supabase.from('marketplace_tokens').upsert({
                 marketplace_id,
-                access_token,
-                refresh_token: new_refresh_token,
+                access_token: encrypt(access_token),
+                refresh_token: encrypt(new_refresh_token),
                 expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
                 updated_at: new Date().toISOString()
             });

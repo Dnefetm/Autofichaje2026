@@ -60,6 +60,12 @@ async function processJob(job: any) {
             case 'activate_listing':
                 await meliAdapter.activateListing(job.payload.marketplace_id, job.payload.external_item_id);
                 break;
+            case 'sync_account_catalog':
+                await handleAccountCatalogSync(job);
+                break;
+            case 'sync_item':
+                await meliAdapter.syncCatalogItem(job.payload.marketplace_id, job.payload.external_item_id);
+                break;
             default:
                 logger.warn({ type: job.type }, 'Tipo de job no soportado aún');
         }
@@ -120,4 +126,25 @@ async function handleSyncPrice(job: any) {
     await meliAdapter.updatePrice(marketplace_id, [
         { itemId: mapping.external_item_id, variationId: mapping.external_variation_id, price: newPrice }
     ]);
+}
+
+async function handleAccountCatalogSync(job: any) {
+    const { marketplace_id } = job.payload;
+    logger.info({ marketplace_id }, 'Iniciando sincronización masiva de catálogo');
+
+    const itemIds = await meliAdapter.getAccountItems(marketplace_id);
+
+    logger.info({ marketplace_id, count: itemIds.length }, 'Items encontrados para sincronizar');
+
+    for (const itemId of itemIds) {
+        await supabase.from('jobs').insert({
+            type: 'sync_item',
+            payload: {
+                marketplace_id,
+                external_item_id: itemId
+            },
+            status: 'pending',
+            scheduled_at: new Date().toISOString()
+        });
+    }
 }

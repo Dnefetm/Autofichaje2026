@@ -77,6 +77,7 @@ function SettingsContent() {
         setSaving(true);
         setStatus('idle');
         try {
+            console.log('Guardando configuración...', config);
             const { data, error } = await supabase
                 .from('marketplace_configs')
                 .upsert({
@@ -91,11 +92,23 @@ function SettingsContent() {
                 .select()
                 .single();
 
-            if (error) throw error;
-            if (data) setConfig({ ...config, id: data.id });
-            setStatus('success');
+            if (error) {
+                console.error('Error en upsert:', error);
+                throw error;
+            }
+
+            if (data) {
+                console.log('Configuración guardada:', data);
+                setConfig({
+                    ...config,
+                    id: data.id,
+                    client_id: data.settings?.client_id || '',
+                    client_secret: data.settings?.client_secret || ''
+                });
+                setStatus('success');
+            }
         } catch (err) {
-            console.error(err);
+            console.error('Error detallado:', err);
             setStatus('error');
         } finally {
             setSaving(false);
@@ -171,9 +184,9 @@ function SettingsContent() {
                                     <span className="text-sm text-slate-600">Sincronización activa</span>
                                 </div>
                                 <div className="flex gap-3">
-                                    {config.id && (
+                                    {config.client_id && config.client_secret && (
                                         <a
-                                            href={`/api/auth/meli?marketplace_id=${config.id}`}
+                                            href={`/api/meli?marketplace_id=${config.id || ''}`}
                                             className="px-6 py-2 bg-yellow-400 hover:bg-yellow-500 text-slate-900 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm"
                                         >
                                             <LinkIcon className="w-4 h-4" />

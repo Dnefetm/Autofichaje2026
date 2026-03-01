@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS inventory_snapshot (
 -- 5. Configuración de Cuentas de Marketplace (GESTOR)
 CREATE TABLE IF NOT EXISTS marketplace_configs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    marketplace TEXT NOT NULL, -- 'meli', 'amazon', 'walmart', 'coppel', 'tiktok'
+    marketplace TEXT NOT NULL UNIQUE, -- 'meli', 'amazon', 'walmart', 'coppel', 'tiktok'
     account_name TEXT NOT NULL,
     is_active BOOLEAN DEFAULT true,
     settings JSONB DEFAULT '{}'::jsonb, -- rate limits, etc

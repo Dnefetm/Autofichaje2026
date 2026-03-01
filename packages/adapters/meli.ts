@@ -4,6 +4,7 @@ import { SKU } from '@gestor/shared';
 import { supabase } from '@gestor/shared/lib/supabase';
 import { checkRateLimit } from '@gestor/shared/lib/rate-limiter';
 import logger from '@gestor/shared/lib/logger';
+import { decrypt } from '@gestor/shared';
 
 export class MeliAdapter implements MarketplaceAdapter {
     readonly capabilities: MarketplaceCapabilities = {
@@ -24,7 +25,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             throw new Error(`No se pudo obtener el access_token para la cuenta ${accountId}`);
         }
 
-        return data.access_token;
+        return decrypt(data.access_token);
     }
 
     async updateStock(accountId: string, items: Array<{ itemId: string; variationId?: string; quantity: number }>): Promise<any> {
@@ -99,34 +100,82 @@ export class MeliAdapter implements MarketplaceAdapter {
         });
     }
 
-    async getRecentOrders(accountId: string, since: Date): Promise<any[]> {
-        // Implementación mínima para polling si fuera necesario
-        return [];
-    }
-
-    async getStock(accountId: string, itemId: string, variationId?: string): Promise<number> {
+    async getAccountItems(accountId: string): Promise<string[]> {
         const accessToken = await this.getAccessToken(accountId);
-        const url = `https://api.mercadolibre.com/items/${itemId}`;
+        let itemIds: string[] = [];
+        let scrollId: string | null = null;
 
-        const response = await axios.get(url, {
-            headers: { Authorization: `Bearer ${accessToken}` }
-        });
+        try {
+            // Obtener el user_id de MeLi
+            const meResponse = await axios.get('https://api.mercadolibre.com/users/me', {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            const userId = meResponse.data.id;
 
-        if (variationId) {
-            const variation = response.data.variations.find((v: any) => v.id.toString() === variationId.toString());
-            if (!variation) throw new Error(`Variación ${variationId} no encontrada en item ${itemId}`);
-            return variation.available_quantity;
+            // Búsqueda de items del usuario
+            const searchUrl = `https://api.mercadolibre.com/users/${userId}/items/search`;
+            const response = await axios.get(searchUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: { status: 'active', limit: 50 }
+            });
+
+            itemIds = response.data.results || [];
+            return itemIds;
+        } catch (error: any) {
+            logger.error({ accountId, error: error.response?.data || error.message }, 'Error al obtener items de la cuenta MeLi');
+            throw error;
         }
-
-        return response.data.available_quantity;
     }
 
-    async syncCatalogItem(sku: SKU): Promise<void> {
-        // Lógica para crear/actualizar publicación basada en ficha técnica
-        logger.info({ sku: sku.sku }, 'Sincronizando item de catálogo con MeLi (Pendiente implementación completa)');
+    async syncCatalogItem(accountId: string, itemId: string): Promise<void> {
+        const accessToken = await this.getAccessToken(accountId);
+
+        try {
+            const response = await axios.get(`https://api.mercadolibre.com/items/${itemId}`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+
+            const item = response.data;
+            const skuString = item.seller_custom_field || item.id;
+
+            // 1. Crear/Actualizar el SKU en el catálogo maestro
+            const { error: skuError } = await supabase.from('skus').upsert({
+                sku: skuString,
+                name: item.title,
+                images: item.pictures?.map((p: any) => p.url) || [],
+                description: item.descriptions?.[0]?.id || '', // Habría que hacer un GET extra para el texto
+                is_active: true,
+                updated_at: new Date().toISOString()
+            });
+
+            if (skuError) throw skuError;
+
+            // 2. Crear el mapeo SKU <-> Marketplace
+            const { error: mapError } = await supabase.from('sku_marketplace_mapping').upsert({
+                sku: skuString,
+                marketplace_id: accountId,
+                external_item_id: item.id,
+                sync_status: 'active',
+                last_sync_at: new Date().toISOString()
+            });
+
+            if (mapError) throw mapError;
+
+            // 3. Inicializar inventario si no existe
+            await supabase.from('inventory_snapshot').upsert({
+                sku: skuString,
+                physical_stock: item.available_quantity,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'sku' });
+
+            logger.info({ sku: skuString, itemId: item.id }, 'Item sincronizado con éxito desde MeLi');
+
+        } catch (error: any) {
+            logger.error({ itemId, error: error.response?.data || error.message }, 'Error al sincronizar item individual de MeLi');
+        }
     }
 
     async refreshToken(accountId: string): Promise<void> {
-        // Ya lo maneja MeliTokenManager de forma proactiva, pero se puede llamar manualmente aquí
+        // Implementación directa si se requiere refresco manual
     }
 }
