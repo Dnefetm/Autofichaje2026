@@ -56,18 +56,22 @@ function SettingsContent() {
 
     useEffect(() => {
         async function loadConfig() {
-            const { data } = await supabase
-                .from('marketplace_configs')
-                .select('*')
-                .eq('marketplace', 'meli')
-                .single();
+            try {
+                const res = await fetch('/api/settings/meli');
+                if (!res.ok) throw new Error('Failed to fetch loadConfig');
+                const data = await res.json();
 
-            if (data) {
-                setConfig({
-                    ...data,
-                    client_id: data.settings?.client_id || '',
-                    client_secret: data.settings?.client_secret || ''
-                });
+                if (data && data.id) {
+                    setConfig({
+                        ...data,
+                        client_id: data.settings?.client_id || '',
+                        client_secret: data.settings?.client_secret || ''
+                    });
+                    // Guardamos respaldo local de inmediato
+                    localStorage.setItem('last_meli_id', data.id);
+                }
+            } catch (err) {
+                console.error('Load config error:', err);
             }
         }
         loadConfig();
@@ -78,37 +82,33 @@ function SettingsContent() {
         setStatus('idle');
         try {
             console.log('Guardando configuración...', config);
-            const { data, error } = await supabase
-                .from('marketplace_configs')
-                .upsert({
+            const res = await fetch('/api/settings/meli', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                     account_name: config.account_name,
-                    marketplace: 'meli',
-                    is_active: config.is_active,
-                    settings: {
-                        client_id: config.client_id,
-                        client_secret: config.client_secret
-                    }
-                }, { onConflict: 'marketplace' })
-                .select()
-                .single();
+                    client_id: config.client_id,
+                    client_secret: config.client_secret,
+                    is_active: config.is_active
+                })
+            });
 
-            if (error) {
-                console.error('Error en upsert:', error);
-                throw error;
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error || 'Failed to save');
             }
 
-            if (data) {
-                console.log('Configuración guardada exitosamente:', data.id);
-                setConfig((prev: any) => ({
-                    ...prev,
-                    id: data.id,
-                    client_id: data.settings?.client_id || prev.client_id,
-                    client_secret: data.settings?.client_secret || prev.client_secret
-                }));
-                setStatus('success');
-                // Forzar un guardado local si es necesario para asegurar visualización inmediata
-                localStorage.setItem('last_meli_id', data.id);
-            }
+            const data = await res.json();
+
+            console.log('Configuración guardada exitosamente:', data.id);
+            setConfig((prev: any) => ({
+                ...prev,
+                id: data.id,
+                client_id: data.settings?.client_id || prev.client_id,
+                client_secret: data.settings?.client_secret || prev.client_secret
+            }));
+            setStatus('success');
+            localStorage.setItem('last_meli_id', data.id);
         } catch (err) {
             console.error('Error detallado:', err);
             setStatus('error');
