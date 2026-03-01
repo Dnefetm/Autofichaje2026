@@ -186,7 +186,7 @@ function SettingsContent() {
                                     <span className="text-sm text-slate-600">Sincronización activa</span>
                                 </div>
                                 <div className="flex gap-3">
-                                    {config.client_id && config.client_secret && (
+                                    {config.id && (
                                         <button
                                             onClick={(e) => {
                                                 e.preventDefault();
@@ -195,6 +195,10 @@ function SettingsContent() {
                                                     alert('Por favor, haz clic en "Guardar Llaves" primero para registrar la cuenta antes de vincular.');
                                                     return;
                                                 }
+                                                // Prevenir múltiples clics
+                                                const btn = e.currentTarget;
+                                                btn.disabled = true;
+                                                btn.innerHTML = 'Redirigiendo...';
                                                 window.location.href = `/api/meli?marketplace_id=${finalId}`;
                                             }}
                                             className="px-6 py-2 bg-yellow-400 hover:bg-yellow-500 text-slate-900 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm"
