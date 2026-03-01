@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabaseAdmin } from '@/lib/supabase';
-import { encrypt } from '../../../../../../packages/shared/lib/crypto';
+import { encrypt } from '@gestor/shared/lib/crypto';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
