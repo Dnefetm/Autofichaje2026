@@ -53,6 +53,7 @@ function SettingsContent() {
     });
     const [saving, setSaving] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [dbState, setDbState] = useState<'checking' | 'online' | 'error'>('checking');
 
     useEffect(() => {
         async function loadConfig() {
@@ -70,8 +71,10 @@ function SettingsContent() {
                     // Guardamos respaldo local de inmediato
                     localStorage.setItem('last_meli_id', data.id);
                 }
+                setDbState('online');
             } catch (err) {
                 console.error('Load config error:', err);
+                setDbState('error');
             }
         }
         loadConfig();
@@ -238,8 +241,8 @@ function SettingsContent() {
                 <div className="space-y-4">
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4 text-sm">
                         <h4 className="font-bold text-slate-900">Estado de Conexión</h4>
-                        <StatusItem label="Supabase DB" status={status === 'success' ? 'online' : 'checking'} />
-                        <StatusItem label="Mercado Libre API" status={config.client_id ? 'ready' : 'offline'} />
+                        <StatusItem label="Supabase DB" status={dbState === 'online' ? 'online' : (dbState === 'error' ? 'offline' : 'checking')} />
+                        <StatusItem label="Mercado Libre API" status={(config.client_id || localStorage.getItem('last_meli_id')) ? 'ready' : 'offline'} />
                         <StatusItem label="Redis Cache" status="online" />
                     </div>
                 </div>
