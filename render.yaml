@@ -1,0 +1,20 @@
+services:
+  - type: worker
+    name: autofichaje-worker
+    env: docker
+    dockerfilePath: ./Dockerfile.worker
+    autoDeploy: true
+    region: ohio
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Si Redis no estรก activo ni requerido dรฉjalo como un placeholder, el fail-open evitarรก caรญdas
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

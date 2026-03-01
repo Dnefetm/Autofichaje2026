@@ -1,0 +1,25 @@
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# 1. Copy package files to leverage Docker layer caching
+COPY package.json package-lock.json ./
+COPY apps/worker/package.json ./apps/worker/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/adapters/package.json ./packages/adapters/
+COPY packages/db/package.json ./packages/db/
+COPY packages/sync/package.json ./packages/sync/
+
+# 2. Install all dependencies (Workspaces)
+RUN npm ci
+
+# 3. Copy the rest of the source code
+COPY . .
+
+# 4. Set environment variable
+ENV NODE_ENV=production
+
+# 5. Start the worker directly via ts-node to resolve monorepo aliases naturally
+WORKDIR /app/apps/worker
+CMD ["npx", "ts-node", "src/index.ts"]
