@@ -1,0 +1,10 @@
+{
+    "name": "@gestor/sync",
+    "version": "1.0.0",
+    "main": "index.ts",
+    "dependencies": {
+        "@gestor/shared": "1.0.0",
+        "axios": "^1.13.5",
+        "openai": "^4.0.0"
+    }
+}

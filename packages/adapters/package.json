@@ -1,0 +1,9 @@
+{
+  "name": "@gestor/adapters",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@gestor/shared": "1.0.0",
+    "axios": "^1.13.5"
+  }
+}

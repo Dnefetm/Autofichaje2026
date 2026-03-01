@@ -1,0 +1,35 @@
+{
+  "name": "gestor-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "start": "npm run start --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.97.0",
+    "@upstash/redis": "^1.36.2",
+    "axios": "^1.13.5",
+    "dotenv": "^17.3.1",
+    "ioredis": "^5.9.3",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3"
+  }
+}
