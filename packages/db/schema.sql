@@ -48,11 +48,12 @@ CREATE TABLE IF NOT EXISTS inventory_snapshot (
 -- 5. Configuración de Cuentas de Marketplace (GESTOR)
 CREATE TABLE IF NOT EXISTS marketplace_configs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    marketplace TEXT NOT NULL UNIQUE, -- 'meli', 'amazon', 'walmart', 'coppel', 'tiktok'
+    marketplace TEXT NOT NULL, -- 'meli', 'amazon', 'walmart', 'coppel', 'tiktok'
     account_name TEXT NOT NULL,
     is_active BOOLEAN DEFAULT true,
     settings JSONB DEFAULT '{}'::jsonb, -- rate limits, etc
-    created_at TIMESTAMPTZ DEFAULT now()
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(marketplace, account_name)
 );
 
 -- 6. Mapeo SKU-Marketplace (GESTOR)
@@ -64,7 +65,7 @@ CREATE TABLE IF NOT EXISTS sku_marketplace_mapping (
     external_variation_id TEXT,
     sync_status TEXT DEFAULT 'active',
     last_sync_at TIMESTAMPTZ,
-    UNIQUE(sku, marketplace_id, external_variation_id)
+    UNIQUE(marketplace_id, external_item_id, external_variation_id)
 );
 
 -- 7. Precios por Marketplace (GESTOR + AUTOFICHAS)
