@@ -63,12 +63,12 @@ export function SkuCard({
                 )}
 
                 {/* Badges Overlay */}
-                <div className="absolute top-3 right-3 z-10">
+                <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
                     <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => onToggleSelection?.(product.sku)}
-                        className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer pointer-events-auto"
                     />
                 </div>
 
