@@ -12,21 +12,45 @@ export default function CatalogPage() {
     const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
-    const [editingSku, setEditingSku] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
 
+    // Paginación y Stats Globales
+    const [page, setPage] = useState(0);
+    const [totalCount, setTotalCount] = useState(0);
+    const [globalMappedCount, setGlobalMappedCount] = useState(0);
+    const PAGE_SIZE = 48; // Múltiplo de 2, 3 y 4 (columnas)
+
     useEffect(() => {
-        fetchProducts();
+        fetchProducts(page);
+    }, [page]);
+
+    useEffect(() => {
+        fetchStats();
     }, []);
 
     // Removed MOCK_PRODUCTS to stop hiding real errors
 
-    async function fetchProducts() {
+    async function fetchStats() {
+        try {
+            const { count: mappedCount } = await supabase
+                .from('sku_marketplace_mapping')
+                .select('*', { count: 'exact', head: true });
+
+            setGlobalMappedCount(mappedCount || 0);
+        } catch (err) {
+            console.error('Error fetching stats:', err);
+        }
+    }
+
+    async function fetchProducts(currentPage: number) {
         setLoading(true);
         setFetchError(null);
         try {
-            const { data, error } = await supabase
+            const from = currentPage * PAGE_SIZE;
+            const to = from + PAGE_SIZE - 1;
+
+            const { data, error, count } = await supabase
                 .from('skus')
                 .select(`
                   sku, 
@@ -34,8 +58,9 @@ export default function CatalogPage() {
                   brand, 
                   inventory_snapshot(physical_stock),
                   sku_marketplace_mapping(marketplace_id, external_item_id)
-                `)
-                .limit(100);
+                `, { count: 'exact' })
+                .order('created_at', { ascending: false })
+                .range(from, to);
 
             if (error) {
                 console.error("Supabase Error:", error);
@@ -43,10 +68,11 @@ export default function CatalogPage() {
                 setProducts([]);
             } else {
                 setProducts(data || []);
+                setTotalCount(count || 0);
             }
         } catch (err: any) {
             console.error('Network/Client Error:', err);
-            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '¡LA VARIABLE NEXT_PUBLIC_SUPABASE_URL NO ESTÁ DEFINIDA EN VERCEL!';
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '¡LA VARIABLE NO ESTÁ DEFINIDA EN VERCEL!';
             setFetchError(`${err.message || 'Error catastrófico de red'}\nURL: ${supabaseUrl}`);
             setProducts([]);
         } finally {
@@ -89,7 +115,7 @@ export default function CatalogPage() {
                     <p className="text-slate-500">Conectado a Supabase Realtime.</p>
                 </div>
                 <button
-                    onClick={fetchProducts}
+                    onClick={() => { fetchProducts(page); fetchStats(); }}
                     className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
                     title="Refrescar datos"
                 >
@@ -99,9 +125,9 @@ export default function CatalogPage() {
 
             {/* Grid de Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <StatCard label="Total SKUs" value={products.length.toString()} icon={<Package />} color="blue" />
-                <StatCard label="En Sync" value={products.filter(p => Array.isArray(p.sku_marketplace_mapping) ? p.sku_marketplace_mapping.length > 0 : !!p.sku_marketplace_mapping).length.toString()} icon={<TrendingUp />} color="green" />
-                <StatCard label="Sin Mapeo" value={products.filter(p => !(Array.isArray(p.sku_marketplace_mapping) ? p.sku_marketplace_mapping.length > 0 : !!p.sku_marketplace_mapping)).length.toString()} icon={<AlertCircle />} color="amber" />
+                <StatCard label="Total SKUs (Global)" value={totalCount.toString()} icon={<Package />} color="blue" />
+                <StatCard label="Mapeos Activos" value={globalMappedCount.toString()} icon={<TrendingUp />} color="green" />
+                <StatCard label="Mostrando en esta pág." value={products.length.toString()} icon={<Filter />} color="amber" />
             </div>
 
             {/* Búsqueda y Filtros */}
@@ -147,6 +173,31 @@ export default function CatalogPage() {
                             onStockUpdate={handleStockUpdate}
                         />
                     ))}
+                </div>
+            )}
+
+            {/* Pagination Controls */}
+            {!loading && !fetchError && totalCount > PAGE_SIZE && (
+                <div className="flex items-center justify-between pt-6 border-t border-slate-200">
+                    <p className="text-sm text-slate-500">
+                        Mostrando {page * PAGE_SIZE + 1} a {Math.min((page + 1) * PAGE_SIZE, totalCount)} de {totalCount} SKUs
+                    </p>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setPage(p => Math.max(0, p - 1))}
+                            disabled={page === 0}
+                            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Anterior
+                        </button>
+                        <button
+                            onClick={() => setPage(p => p + 1)}
+                            disabled={(page + 1) * PAGE_SIZE >= totalCount}
+                            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Siguiente
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
