@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS document_sources (
 
 -- 4. Inventario Snapshot (GESTOR)
 CREATE TABLE IF NOT EXISTS inventory_snapshot (
-    sku TEXT PRIMARY KEY REFERENCES skus(sku) ON DELETE CASCADE,
+    sku TEXT PRIMARY KEY REFERENCES skus(sku) ON DELETE RESTRICT,
     physical_stock INTEGER DEFAULT 0,
     dropship_stock INTEGER DEFAULT 0,
     reserved_stock INTEGER DEFAULT 0,
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS marketplace_configs (
 -- 6. Mapeo SKU-Marketplace (GESTOR)
 CREATE TABLE IF NOT EXISTS sku_marketplace_mapping (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sku TEXT REFERENCES skus(sku) ON DELETE CASCADE,
+    sku TEXT REFERENCES skus(sku) ON DELETE RESTRICT,
     marketplace_id UUID REFERENCES marketplace_configs(id),
     external_item_id TEXT NOT NULL,
     external_variation_id TEXT,
@@ -150,3 +150,13 @@ CREATE TABLE IF NOT EXISTS system_alerts (
     metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- 14. Vistas Operativas (GESTOR)
+CREATE OR REPLACE VIEW calculated_publishable_stock AS
+SELECT 
+    sku,
+    physical_stock,
+    reserved_stock,
+    dropship_stock,
+    GREATEST(0, physical_stock + dropship_stock - reserved_stock) as calculated_available_stock
+FROM inventory_snapshot;
