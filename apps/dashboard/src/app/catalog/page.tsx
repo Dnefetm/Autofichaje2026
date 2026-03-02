@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 export default function CatalogPage() {
     const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [editingSku, setEditingSku] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
@@ -19,32 +20,11 @@ export default function CatalogPage() {
         fetchProducts();
     }, []);
 
-    const MOCK_PRODUCTS = [
-        {
-            sku: 'HERR-001',
-            nombre: 'Destornillador Phillips Pro',
-            marca: 'Stanley',
-            inventory_snapshot: { physical_stock: 15 },
-            sku_marketplace_mapping: [{ marketplace_id: 'meli_1' }]
-        },
-        {
-            sku: 'HERR-002',
-            nombre: 'Martillo de Carpintero 16oz',
-            marca: 'Truper',
-            inventory_snapshot: { physical_stock: 2 },
-            sku_marketplace_mapping: []
-        },
-        {
-            sku: 'ELEC-045',
-            nombre: 'Taladro Percutor 20V',
-            marca: 'Dewalt',
-            inventory_snapshot: { physical_stock: 8 },
-            sku_marketplace_mapping: [{ marketplace_id: 'meli_1' }]
-        }
-    ];
+    // Removed MOCK_PRODUCTS to stop hiding real errors
 
     async function fetchProducts() {
         setLoading(true);
+        setFetchError(null);
         try {
             const { data, error } = await supabase
                 .from('skus')
@@ -57,14 +37,17 @@ export default function CatalogPage() {
                 `)
                 .limit(100);
 
-            if (error || !data || data.length === 0) {
-                setProducts(MOCK_PRODUCTS);
+            if (error) {
+                console.error("Supabase Error:", error);
+                setFetchError(error.message || JSON.stringify(error));
+                setProducts([]);
             } else {
-                setProducts(data);
+                setProducts(data || []);
             }
-        } catch (err) {
-            console.error('Error fetching products:', err);
-            setProducts(MOCK_PRODUCTS);
+        } catch (err: any) {
+            console.error('Network/Client Error:', err);
+            setFetchError(err.message || 'Error catastrófico de red');
+            setProducts([]);
         } finally {
             setLoading(false);
         }
@@ -126,11 +109,21 @@ export default function CatalogPage() {
                 setFilterStatus={setFilterStatus}
             />
 
-            {/* Grid de Productos */}
+            {/* Grid de Productos o Errores */}
             {loading ? (
                 <div className="py-20 text-center text-slate-400 flex flex-col items-center gap-4">
                     <RefreshCw className="w-8 h-8 animate-spin text-indigo-200" />
                     <p>Sincronizando catálogo maestro...</p>
+                </div>
+            ) : fetchError ? (
+                <div className="py-20 text-center bg-rose-50 rounded-xl border border-rose-200 shadow-sm flex flex-col items-center gap-4">
+                    <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center">
+                        <AlertCircle className="w-8 h-8 text-rose-500" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-rose-900">Error de Base de Datos</h3>
+                        <p className="text-rose-500 max-w-lg mt-1 whitespace-pre-wrap">{fetchError}</p>
+                    </div>
                 </div>
             ) : filteredProducts.length === 0 ? (
                 <div className="py-20 text-center bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-4">
@@ -139,7 +132,7 @@ export default function CatalogPage() {
                     </div>
                     <div>
                         <h3 className="text-lg font-bold text-slate-900">No se encontraron productos</h3>
-                        <p className="text-slate-500 max-w-sm mt-1">Intenta ajustar tus filtros de búsqueda. Si es la primera vez, los productos tardarán unos minutos en aparecer mientras el worker los descarga.</p>
+                        <p className="text-slate-500 max-w-sm mt-1">Intenta ajustar tus filtros de búsqueda. O revisa que la base de datos realmente tenga SKUs.</p>
                     </div>
                 </div>
             ) : (
