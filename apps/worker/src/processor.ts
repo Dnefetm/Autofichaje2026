@@ -8,40 +8,43 @@ const meliAdapter = new MeliAdapter();
 const POLLING_INTERVAL = 5000; // 5 segundos
 
 export async function startProcessor() {
-    logger.info('Iniciando procesador de jobs...');
+    logger.info('Iniciando procesador avanzado de jobs (Batch & Pessimistic Locking)...');
+
+    const BATCH_SIZE = 5; // Empezamos conservadores (5 paralelos) para cuidar la memoria del Free Tier y el Rate Limit
+    const EMPTY_QUEUE_INTERVAL = 5000; // Si no hay nada, esperar 5s
+    const CONSECUTIVE_PULL_DELAY = 1000; // Si hay más, procesar el siguiente lote después de 1s
 
     while (true) {
         try {
-            const { data: job, error } = await supabase
-                .from('jobs')
-                .select('*')
-                .eq('status', 'pending')
-                .order('scheduled_at', { ascending: true })
-                .limit(1)
-                .single();
+            // Reemplazamos el peligroso SELECT con el robusto RPC que asigna y bloquea
+            const { data: jobs, error } = await supabase.rpc('claim_jobs', { batch_size_limit: BATCH_SIZE });
 
-            if (error && error.code !== 'PGRST116') {
-                logger.error({ error }, 'Error al consultar la tabla de jobs');
+            if (error) {
+                logger.error({ error }, 'Error al consultar el RPC claim_jobs');
             }
 
-            if (job) {
-                await processJob(job);
+            if (jobs && jobs.length > 0) {
+                logger.info({ batchCount: jobs.length }, 'Lote de jobs asignado. Procesando...');
+
+                // Procesar concurrente usando allSettled para evitar que 1 fallo tire el batch entero
+                await Promise.allSettled(jobs.map((job: any) => processJob(job)));
+
+                // Tras completar un batch full, esperar un instante por sanidad del Node Event Loop
+                await new Promise((resolve) => setTimeout(resolve, CONSECUTIVE_PULL_DELAY));
             } else {
                 // No hay jobs pendientes, esperar el intervalo
-                await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL));
+                await new Promise((resolve) => setTimeout(resolve, EMPTY_QUEUE_INTERVAL));
             }
         } catch (err) {
-            logger.error({ err }, 'Error inesperado en el bucle principal');
-            await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL));
+            logger.error({ err }, 'Error inesperado en el bucle principal del Worker');
+            await new Promise((resolve) => setTimeout(resolve, EMPTY_QUEUE_INTERVAL));
         }
     }
 }
 
 async function processJob(job: any) {
-    logger.info({ jobId: job.id, type: job.type }, 'Procesando job');
-
-    // 1. Marcar como procesando
-    await supabase.from('jobs').update({ status: 'processing', processed_at: new Date().toISOString() }).eq('id', job.id);
+    // 1. Ya NO marcamos como "processing". El RPC de Postgres ya lo marcó de forma atómica.
+    logger.info({ jobId: job.id, type: job.type }, 'Ejecutando job claimado');
 
     try {
         // 2. Ejecutar lógica según el tipo
@@ -77,7 +80,16 @@ async function processJob(job: any) {
         const nextAttempt = job.attempts + 1;
         const isFinalFailure = nextAttempt >= job.max_attempts;
 
-        logger.error({ jobId: job.id, attempts: nextAttempt, error: error.message || error }, 'Error procesando job');
+        // 3. Evaluar fallo definitivo para Dead-Letter Queue / Alertas
+        if (isFinalFailure) {
+            await supabase.from('system_alerts').insert({
+                level: 'warning',
+                type: 'job_dlq',
+                message: `El Job ${job.id} de tipo ${job.type} fracasó definitivamente tras ${job.max_attempts} intentos. Revisa el log de errores.`,
+                metadata: { job_id: job.id, final_error: error.message || error }
+            });
+            logger.warn({ jobId: job.id }, 'Job enviado al DLQ de System Alerts');
+        }
 
         await supabase.from('jobs').update({
             status: isFinalFailure ? 'failed' : 'pending',
