@@ -4,7 +4,7 @@ import { SKU } from '@gestor/shared';
 import { supabase } from '@gestor/shared/lib/supabase';
 import { checkRateLimit } from '@gestor/shared/lib/rate-limiter';
 import logger from '@gestor/shared/lib/logger';
-import { decrypt } from '@gestor/shared';
+import { decrypt, encrypt } from '@gestor/shared';
 
 export class MeliAdapter implements MarketplaceAdapter {
     readonly capabilities: MarketplaceCapabilities = {
@@ -17,12 +17,36 @@ export class MeliAdapter implements MarketplaceAdapter {
     private async getAccessToken(accountId: string): Promise<string> {
         const { data, error } = await supabase
             .from('marketplace_tokens')
-            .select('access_token')
+            .select('access_token, refresh_token, expires_at')
             .eq('marketplace_id', accountId)
             .single();
 
         if (error || !data) {
             throw new Error(`No se pudo obtener el access_token para la cuenta ${accountId}`);
+        }
+
+        const expiresAt = new Date(data.expires_at).valueOf();
+        const now = Date.now();
+        const marginMs = 5 * 60 * 1000; // 5 minutos de seguridad
+
+        if (now >= expiresAt - marginMs) {
+            logger.info({ accountId }, 'El token de MeLi ha expirado (o está a punto). Ejecutando auto-refresh...');
+            try {
+                await this.refreshToken(accountId);
+
+                // Si el refresh fue exitoso, traemos la nueva info actualizada de la BD
+                const { data: newData, error: newError } = await supabase
+                    .from('marketplace_tokens')
+                    .select('access_token')
+                    .eq('marketplace_id', accountId)
+                    .single();
+
+                if (newError || !newData) throw newError;
+                return decrypt(newData.access_token);
+            } catch (err) {
+                logger.error({ accountId, err }, 'Fallo crítico al intentar renovar el token automáticamente');
+                throw new Error(`Token expirado y no se pudo renovar: ${accountId}`);
+            }
         }
 
         return decrypt(data.access_token);
@@ -224,6 +248,60 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     async refreshToken(accountId: string): Promise<void> {
-        // Implementación directa si se requiere refresco manual
+        // Extraemos el refresh_token
+        const { data, error } = await supabase
+            .from('marketplace_tokens')
+            .select('refresh_token')
+            .eq('marketplace_id', accountId)
+            .single();
+
+        if (error || !data || !data.refresh_token) {
+            throw new Error(`No hay refresh_token guardado para la cuenta ${accountId}`);
+        }
+
+        const decryptedRefresh = decrypt(data.refresh_token);
+
+        // Disparamos contra MeLi
+        try {
+            const url = 'https://api.mercadolibre.com/oauth/token';
+            const payload = new URLSearchParams({
+                grant_type: 'refresh_token',
+                client_id: process.env.MELI_CLIENT_ID || '',
+                client_secret: process.env.MELI_CLIENT_SECRET || '',
+                refresh_token: decryptedRefresh
+            });
+
+            const response = await axios.post(url, payload.toString(), {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json'
+                }
+            });
+
+            const creds = response.data;
+            const new_access_token = creds.access_token;
+            const new_refresh_token = creds.refresh_token; // A veces el refresh_token rota, hay que guardarlo
+            const expires_in = creds.expires_in;
+
+            const expires_at = new Date(Date.now() + expires_in * 1000).toISOString();
+
+            // Guardar nuevos tokens encriptados
+            const { error: upsertError } = await supabase
+                .from('marketplace_tokens')
+                .update({
+                    access_token: encrypt(new_access_token),
+                    refresh_token: encrypt(new_refresh_token),
+                    expires_at: expires_at,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('marketplace_id', accountId);
+
+            if (upsertError) throw upsertError;
+
+            logger.info({ accountId }, 'Token de acceso MeLi renovado y encriptado exitosamente en BD.');
+        } catch (oauthErr: any) {
+            logger.error({ accountId, error: oauthErr.response?.data || oauthErr.message }, 'Fallo en la comunicación con MeLi /oauth/token');
+            throw oauthErr;
+        }
     }
 }
