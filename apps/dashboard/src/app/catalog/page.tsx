@@ -68,8 +68,10 @@ export default function CatalogPage() {
 
         if (!matchesSearch) return false;
 
-        const isMapped = p.sku_marketplace_mapping?.length > 0;
-        const stock = p.inventory_snapshot?.physical_stock || 0;
+        const isMapped = Array.isArray(p.sku_marketplace_mapping) ? p.sku_marketplace_mapping.length > 0 : !!p.sku_marketplace_mapping;
+
+        const snapshot = Array.isArray(p.inventory_snapshot) ? p.inventory_snapshot[0] : p.inventory_snapshot;
+        const stock = snapshot?.physical_stock || 0;
 
         switch (filterStatus) {
             case 'mapped': return isMapped;
@@ -98,8 +100,8 @@ export default function CatalogPage() {
             {/* Grid de Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard label="Total SKUs" value={products.length.toString()} icon={<Package />} color="blue" />
-                <StatCard label="En Sync" value={products.filter(p => p.sku_marketplace_mapping?.length > 0).length.toString()} icon={<TrendingUp />} color="green" />
-                <StatCard label="Sin Mapeo" value={products.filter(p => !p.sku_marketplace_mapping?.length).length.toString()} icon={<AlertCircle />} color="amber" />
+                <StatCard label="En Sync" value={products.filter(p => Array.isArray(p.sku_marketplace_mapping) ? p.sku_marketplace_mapping.length > 0 : !!p.sku_marketplace_mapping).length.toString()} icon={<TrendingUp />} color="green" />
+                <StatCard label="Sin Mapeo" value={products.filter(p => !(Array.isArray(p.sku_marketplace_mapping) ? p.sku_marketplace_mapping.length > 0 : !!p.sku_marketplace_mapping)).length.toString()} icon={<AlertCircle />} color="amber" />
             </div>
 
             {/* Búsqueda y Filtros */}

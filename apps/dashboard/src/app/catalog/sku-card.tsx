@@ -5,13 +5,17 @@ import { dashboardService } from '@/lib/dashboard-service';
 
 export function SkuCard({ product, onStockUpdate }: { product: any, onStockUpdate: (sku: string, newStock: number) => void }) {
     const [editing, setEditing] = useState(false);
-    const [newStock, setNewStock] = useState<number>(product.inventory_snapshot?.physical_stock || 0);
+
+    // Safety check arrays vs objects for inventory
+    const snapshot = Array.isArray(product.inventory_snapshot) ? product.inventory_snapshot[0] : product.inventory_snapshot;
+    const [newStock, setNewStock] = useState<number>(snapshot?.physical_stock || 0);
+
     const [saving, setSaving] = useState(false);
 
     // MOCK Images if not available (assuming Supabase will give us images array later)
     const image = product.images?.[0] || null;
 
-    const isMapped = product.sku_marketplace_mapping?.length > 0;
+    const isMapped = Array.isArray(product.sku_marketplace_mapping) ? product.sku_marketplace_mapping.length > 0 : !!product.sku_marketplace_mapping;
     const isLowStock = newStock <= 2;
 
     const handleSave = async () => {
