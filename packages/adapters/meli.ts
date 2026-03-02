@@ -103,7 +103,8 @@ export class MeliAdapter implements MarketplaceAdapter {
     async getAccountItems(accountId: string): Promise<string[]> {
         const accessToken = await this.getAccessToken(accountId);
         let itemIds: string[] = [];
-        let scrollId: string | null = null;
+        let scrollId: string | undefined = undefined;
+        let hasMore = true;
 
         try {
             // Obtener el user_id de MeLi
@@ -112,14 +113,38 @@ export class MeliAdapter implements MarketplaceAdapter {
             });
             const userId = meResponse.data.id;
 
-            // Búsqueda de items del usuario
+            // Búsqueda de items del usuario con iteración (Scroll / Paginación)
             const searchUrl = `https://api.mercadolibre.com/users/${userId}/items/search`;
-            const response = await axios.get(searchUrl, {
-                headers: { Authorization: `Bearer ${accessToken}` },
-                params: { status: 'active', limit: 50 }
-            });
 
-            itemIds = response.data.results || [];
+            while (hasMore) {
+                // Respetar Rate Limits antes de cada página
+                await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 1);
+
+                const params: any = { status: 'active', limit: 100, search_type: 'scan' };
+                if (scrollId) {
+                    params.scroll_id = scrollId;
+                }
+
+                const response = await axios.get(searchUrl, {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                    params
+                });
+
+                const results = response.data.results || [];
+
+                if (results.length > 0) {
+                    itemIds = itemIds.concat(results);
+                }
+
+                // MeLi API documentation states scroll_id changes/remains and we must stop when results are empty.
+                if (response.data.scroll_id && results.length > 0) {
+                    scrollId = response.data.scroll_id;
+                } else {
+                    hasMore = false;
+                }
+            }
+
+            logger.info({ accountId, itemCount: itemIds.length }, 'Finalizada extracción paginada de items MeLi');
             return itemIds;
         } catch (error: any) {
             logger.error({ accountId, error: error.response?.data || error.message }, 'Error al obtener items de la cuenta MeLi');
