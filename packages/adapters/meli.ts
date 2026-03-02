@@ -217,12 +217,16 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             if (skuError) throw skuError;
 
-            // 2. Inicializar inventario si no existe (Debe ir ANTES del mapeo por el Foreign Key)
-            await supabase.from('inventory_snapshot').upsert({
-                sku: skuString,
-                physical_stock: item.available_quantity,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'sku' });
+            // 2. Inicializar inventario solo si NO existe (Debe ir ANTES del mapeo por FK). 
+            // NUNCA sobrescribir con el stock de MeLi aquí, proteger la bodega física (Audit Phase 1).
+            const { error: invError } = await supabase.rpc('safe_initialize_inventory', { sku_code: skuString });
+
+            // Alternativa si no queremos crear RPC: intentamos insertar un registro con stock 0 ignorando conflictos
+            // Esto garantiza que el FK mapping nunca falle, pero tampoco destruye datos reales
+            const { error: insertError } = await supabase.from('inventory_snapshot')
+                .insert({ sku: skuString, physical_stock: 0 });
+            // Ignoramos insertError deliberadamente. Si falla (usualmente por UNIQUE constraint),
+            // significa que el inventario real ya existe y es intocable.
 
             // 3. Crear el mapeo SKU <-> Marketplace
             const { error: mapError } = await supabase.from('sku_marketplace_mapping').upsert({
@@ -231,14 +235,14 @@ export class MeliAdapter implements MarketplaceAdapter {
                 external_item_id: item.id,
                 sync_status: 'active',
                 last_sync_at: new Date().toISOString()
-            });
+            }, { onConflict: 'marketplace_id,external_item_id,external_variation_id' });
 
             if (mapError) throw mapError;
 
-            logger.info({ sku: skuString, itemId: item.id }, 'Item sincronizado con éxito desde MeLi');
+            logger.info({ sku: skuString, itemId: item.id }, 'Mapeo sincronizado con MeLi (Inventario Físico protegido)');
 
         } catch (error: any) {
-            logger.error({ itemId, error: error.response?.data || error.message }, 'Error al sincronizar item individual de MeLi');
+            logger.error({ itemId, error: error.response?.data || error.message }, 'Error al sincronizar mapeo de MeLi');
         }
     }
 
