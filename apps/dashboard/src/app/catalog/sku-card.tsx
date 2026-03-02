@@ -32,7 +32,7 @@ export function SkuCard({ product, onStockUpdate }: { product: any, onStockUpdat
             {/* Image Section */}
             <div className="aspect-square bg-slate-100 flex items-center justify-center relative overflow-hidden">
                 {image ? (
-                    <img src={image} alt={product.nombre} className="w-full h-full object-cover" />
+                    <img src={image} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
                     <div className="flex flex-col items-center justify-center text-slate-400 gap-2">
                         <ImageIcon className="w-8 h-8 opacity-50" />
@@ -57,10 +57,10 @@ export function SkuCard({ product, onStockUpdate }: { product: any, onStockUpdat
             {/* Content Section */}
             <div className="p-5 flex-1 flex flex-col">
                 <div className="mb-1">
-                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">{product.marca || 'GENERIC'}</span>
+                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">{product.brand || 'GENERIC'}</span>
                 </div>
                 <h3 className="font-bold text-slate-900 text-sm leading-snug line-clamp-2 mb-4 flex-1">
-                    {product.nombre}
+                    {product.name}
                 </h3>
 
                 <div className="grid grid-cols-2 gap-4 items-end mt-auto pt-4 border-t border-slate-100">

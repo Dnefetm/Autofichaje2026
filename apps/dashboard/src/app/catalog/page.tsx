@@ -50,12 +50,12 @@ export default function CatalogPage() {
                 .from('skus')
                 .select(`
                   sku, 
-                  nombre, 
-                  marca, 
+                  name, 
+                  brand, 
                   inventory_snapshot(physical_stock),
                   sku_marketplace_mapping(marketplace_id, external_item_id)
                 `)
-                .limit(20);
+                .limit(100);
 
             if (error || !data || data.length === 0) {
                 setProducts(MOCK_PRODUCTS);
@@ -79,8 +79,8 @@ export default function CatalogPage() {
     const filteredProducts = products.filter(p => {
         const matchesSearch =
             p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (p.marca && p.marca.toLowerCase().includes(searchQuery.toLowerCase()));
+            p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.brand && p.brand.toLowerCase().includes(searchQuery.toLowerCase()));
 
         if (!matchesSearch) return false;
 
