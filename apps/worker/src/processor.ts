@@ -63,6 +63,9 @@ async function processJob(job: any) {
             case 'activate_listing':
                 await meliAdapter.activateListing(job.payload.marketplace_id, job.payload.external_item_id);
                 break;
+            case 'bulk_update_price':
+                await handleBulkUpdatePrice(job);
+                break;
             case 'sync_account_catalog':
                 await handleAccountCatalogSync(job);
                 break;
@@ -70,7 +73,7 @@ async function processJob(job: any) {
                 await meliAdapter.syncCatalogItem(job.payload.marketplace_id, job.payload.external_item_id);
                 break;
             default:
-                logger.warn({ type: job.type }, 'Tipo de job no soportado aún');
+                throw new Error(`Tipo de job no soportado aún: ${job.type}`);
         }
 
         // 3. Marcar como completado
@@ -119,9 +122,14 @@ async function handleSyncStock(job: any) {
 
     logger.info({ sku, availableStock, marketplace_id }, 'Sincronizando stock real (Pack-Aware)');
 
-    await meliAdapter.updateStock(marketplace_id, [
+    const results = await meliAdapter.updateStock(marketplace_id, [
         { itemId: mapping.external_item_id, variationId: mapping.external_variation_id, quantity: availableStock }
     ]);
+
+    const errors = results.filter((r: any) => r.status === 'error');
+    if (errors.length > 0) {
+        throw new Error(`MercadoLibre API Error (Stock): ${JSON.stringify(errors)}`);
+    }
 }
 
 async function handleSyncPrice(job: any) {
@@ -135,9 +143,87 @@ async function handleSyncPrice(job: any) {
 
     if (!mapping) throw new Error(`Mapping no encontrado para SKU ${sku}`);
 
-    await meliAdapter.updatePrice(marketplace_id, [
+    const results = await meliAdapter.updatePrice(marketplace_id, [
         { itemId: mapping.external_item_id, variationId: mapping.external_variation_id, price: newPrice }
     ]);
+
+    const errors = results.filter((r: any) => r.status === 'error');
+    if (errors.length > 0) {
+        throw new Error(`MercadoLibre API Error (Price): ${JSON.stringify(errors)}`);
+    }
+}
+
+async function handleBulkUpdatePrice(job: any) {
+    const { skus, operation, value, marketplace_id } = job.payload;
+    logger.info({ count: skus.length, operation, value }, 'Procesando lote masivo de edición de precios');
+
+    // 1. Obtener los precios base actuales de todos los SKUs seleccionados
+    const { data: currentPrices, error } = await supabase
+        .from('marketplace_prices')
+        .select('sku, sale_price')
+        .in('sku', skus)
+        .eq('marketplace_id', marketplace_id);
+
+    if (error) throw new Error(`Fallo al consultar precios actuales: ${error.message}`);
+
+    const updates = [];
+    const individualSyncJobs = [];
+
+    for (const sku of skus) {
+        let newPrice = 0;
+
+        if (operation === 'fixed') {
+            newPrice = value;
+        } else if (operation === 'percentage') {
+            const currentRecord = currentPrices?.find(p => p.sku === sku);
+            // Si no tenía precio registrado antes, asumimos 0 (o podríamos fallar/omitir).
+            // Usaremos 0 como punto de quiebre seguro.
+            const basePrice = currentRecord?.sale_price || 0;
+            if (basePrice <= 0) {
+                logger.warn({ sku }, 'No se puede aplicar porcentaje a un SKU sin precio base. Omitiendo.');
+                continue;
+            }
+            // value puede ser 15 (aumento 15%) o -10 (descuento 10%)
+            const multiplier = 1 + (value / 100);
+            newPrice = parseFloat((basePrice * multiplier).toFixed(2));
+        }
+
+        updates.push({
+            sku,
+            marketplace_id,
+            sale_price: newPrice,
+            updated_at: new Date().toISOString()
+        });
+
+        // Generamos sub-tareas individuales. Así MeLi API se ataca controladamente
+        // y si 1 falla por "Precio muy alto", el resto no se frena.
+        individualSyncJobs.push({
+            type: 'sync_price',
+            payload: { sku, newPrice, marketplace_id },
+            status: 'pending',
+            scheduled_at: new Date().toISOString()
+        });
+    }
+
+    // 2. Ejecutar la actualización local atómica
+    if (updates.length > 0) {
+        const { error: upsertError } = await supabase
+            .from('marketplace_prices')
+            .upsert(updates, { onConflict: 'sku,marketplace_id' });
+
+        if (upsertError) throw new Error(`Error actualizando Precios Locales: ${upsertError.message}`);
+
+        // 3. Encolar los dispatches hacia Mercado Libre
+        const { error: jobsError } = await supabase
+            .from('jobs')
+            .insert(individualSyncJobs);
+
+        if (jobsError) throw new Error(`Error encolando sub-tareas de Sync Price: ${jobsError.message}`);
+
+        logger.info({ updatedCount: updates.length }, 'Cálculo masivo terminado. Sub-tareas de red encoladas exitosamente.');
+    } else {
+        logger.warn('El lote de edición masiva no generó ningún cambio válido (¿precios en cero?)');
+    }
 }
 
 async function handleAccountCatalogSync(job: any) {
