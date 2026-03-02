@@ -3,7 +3,17 @@ import { Package, TrendingUp, AlertCircle, Save, Edit2, Image as ImageIcon } fro
 import { cn } from '@/lib/utils';
 import { dashboardService } from '@/lib/dashboard-service';
 
-export function SkuCard({ product, onStockUpdate }: { product: any, onStockUpdate: (sku: string, newStock: number) => void }) {
+export function SkuCard({
+    product,
+    onStockUpdate,
+    isSelected = false,
+    onToggleSelection
+}: {
+    product: any,
+    onStockUpdate: (sku: string, newStock: number) => void,
+    isSelected?: boolean,
+    onToggleSelection?: (sku: string) => void
+}) {
     const [editing, setEditing] = useState(false);
 
     // Safety check arrays vs objects for inventory
@@ -32,9 +42,17 @@ export function SkuCard({ product, onStockUpdate }: { product: any, onStockUpdat
     };
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
+        <div
+            className={cn(
+                "bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-all",
+                isSelected ? "border-indigo-500 ring-1 ring-indigo-500" : "border-slate-200"
+            )}
+        >
             {/* Image Section */}
-            <div className="aspect-square bg-slate-100 flex items-center justify-center relative overflow-hidden">
+            <div
+                className="aspect-square bg-slate-100 flex items-center justify-center relative overflow-hidden cursor-pointer"
+                onClick={() => onToggleSelection?.(product.sku)}
+            >
                 {image ? (
                     <img src={image} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
@@ -45,7 +63,16 @@ export function SkuCard({ product, onStockUpdate }: { product: any, onStockUpdat
                 )}
 
                 {/* Badges Overlay */}
-                <div className="absolute top-3 left-3 flex flex-col gap-2">
+                <div className="absolute top-3 right-3 z-10">
+                    <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleSelection?.(product.sku)}
+                        className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                </div>
+
+                <div className="absolute top-3 left-3 flex flex-col gap-2 pointer-events-none">
                     {isMapped ? (
                         <span className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold bg-yellow-400 text-yellow-900 shadow-sm">
                             Mercado Libre

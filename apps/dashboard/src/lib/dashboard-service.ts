@@ -29,6 +29,33 @@ export const dashboardService = {
         return data;
     },
 
+    async triggerBulkPriceUpdate(skus: string[], operation: 'percentage' | 'fixed', value: number, marketplaceId: string) {
+        const { data, error } = await supabase.from('jobs').insert({
+            type: 'bulk_update_price',
+            payload: {
+                skus,
+                operation,
+                value,
+                marketplace_id: marketplaceId
+            },
+            status: 'pending',
+            scheduled_at: new Date().toISOString()
+        });
+
+        if (error) throw error;
+        return data;
+    },
+
+    async getMarketplaceConfigs() {
+        const { data, error } = await supabase
+            .from('marketplace_configs')
+            .select('*')
+            .eq('is_active', true);
+
+        if (error) throw error;
+        return data;
+    },
+
     async getRecentJobs() {
         const { data, error } = await supabase
             .from('jobs')
