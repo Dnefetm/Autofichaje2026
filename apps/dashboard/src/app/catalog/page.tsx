@@ -46,7 +46,8 @@ export default function CatalogPage() {
             }
         } catch (err: any) {
             console.error('Network/Client Error:', err);
-            setFetchError(err.message || 'Error catastrófico de red');
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '¡LA VARIABLE NEXT_PUBLIC_SUPABASE_URL NO ESTÁ DEFINIDA EN VERCEL!';
+            setFetchError(`${err.message || 'Error catastrófico de red'}\nURL: ${supabaseUrl}`);
             setProducts([]);
         } finally {
             setLoading(false);
