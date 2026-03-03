@@ -2,11 +2,6 @@ import { supabase } from '@gestor/shared/lib/supabase';
 import logger from '@gestor/shared/lib/logger';
 
 export const AutomationManager = {
-    /**
-     * Evalúa si un SKU debe ser pausado o activado en sus marketplaces
-     * @param sku El SKU a evaluar
-     * @param currentStock El stock disponible actual
-     */
     async evaluateStockRules(sku: string, currentStock: number) {
         logger.info({ sku, currentStock }, 'Evaluando reglas de automatización de stock');
 
@@ -19,6 +14,44 @@ export const AutomationManager = {
 
         // 2. Generación de alertas
         await this.checkAlertRules(sku, currentStock);
+
+        // 3. Cascada a Kits/Bundles dependientes
+        await this.evaluateDependentBundles(sku);
+    },
+
+    async evaluateDependentBundles(componentSku: string) {
+        // Encontrar todos los bundles que contienen este componente
+        const { data: bundles } = await supabase
+            .from('bundle_components')
+            .select('bundle_sku')
+            .eq('component_sku', componentSku);
+
+        if (!bundles || bundles.length === 0) return;
+
+        logger.info({ componentSku, bundleCount: bundles.length }, 'Disparando cálculo en cascada para Bundles');
+
+        const bundleSkus = bundles.map((b: any) => b.bundle_sku);
+
+        // Encontrar todos los mapeos de esos bundles en Marketplaces para actualizar su stock
+        const { data: mappings } = await supabase
+            .from('sku_marketplace_mapping')
+            .select('sku, marketplace_id, external_item_id')
+            .in('sku', bundleSkus);
+
+        if (!mappings || mappings.length === 0) return;
+
+        const jobsToInsert = mappings.map((mapping: any) => ({
+            type: 'sync_stock',
+            payload: {
+                sku: mapping.sku,
+                marketplace_id: mapping.marketplace_id,
+                external_item_id: mapping.external_item_id
+            },
+            status: 'pending',
+            scheduled_at: new Date().toISOString()
+        }));
+
+        await supabase.from('jobs').insert(jobsToInsert);
     },
 
     async checkAlertRules(sku: string, currentStock: number) {
