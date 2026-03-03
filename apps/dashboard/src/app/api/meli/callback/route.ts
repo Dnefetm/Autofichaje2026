@@ -22,22 +22,7 @@ export async function GET(request: Request) {
     }
 
     try {
-        let finalMarketplaceId = marketplaceId;
-        if (!finalMarketplaceId) {
-            const { data: meliConfig } = await supabaseAdmin
-                .from('marketplace_configs')
-                .select('id')
-                .in('marketplace', ['meli', 'mercadolibre'])
-                .limit(1)
-                .single();
-            finalMarketplaceId = meliConfig?.id;
-        }
-
-        if (!finalMarketplaceId) {
-            throw new Error('No se especificó ni se encontró una configuración de Marketplace válida');
-        }
-
-        // 2. Intercambiar código por tokens
+        // 1. Intercambiar código por tokens
         const response = await axios.post('https://api.mercadolibre.com/oauth/token', null, {
             params: {
                 grant_type: 'authorization_code',
@@ -50,7 +35,31 @@ export async function GET(request: Request) {
 
         const { access_token, refresh_token, expires_in } = response.data;
 
-        // 3. Guardar tokens en la base de datos (Encriptados)
+        // 2. Obtener identidad del Vendedor (User Me)
+        const userRes = await axios.get('https://api.mercadolibre.com/users/me', {
+            headers: { Authorization: `Bearer ${access_token}` }
+        });
+
+        const sellerId = userRes.data.id;
+        const nickname = userRes.data.nickname;
+
+        // 3. Crear o actualizar la configuración de esta Tienda automáticamente
+        const { data: config, error: configError } = await supabaseAdmin
+            .from('marketplace_configs')
+            .upsert({
+                marketplace: 'mercadolibre',
+                account_name: nickname || `Tienda ${sellerId}`,
+                is_active: true,
+                settings: { seller_id: sellerId, email: userRes.data.email }
+            }, { onConflict: 'marketplace, account_name' })
+            .select('id')
+            .single();
+
+        if (configError) throw configError;
+
+        const finalMarketplaceId = config.id;
+
+        // 4. Guardar tokens en la base de datos (Encriptados)
         const { error: tokenError } = await supabaseAdmin
             .from('marketplace_tokens')
             .upsert({
