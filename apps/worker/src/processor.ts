@@ -83,6 +83,21 @@ async function processJob(job: any) {
         await supabase.from('jobs').update({ status: 'completed' }).eq('id', job.id);
         logger.info({ jobId: job.id }, 'Job completado con éxito');
     } catch (error: any) {
+        const errMessage = error.message || JSON.stringify(error);
+
+        // --- Manejo Especial: Rate Limit ---
+        // Si es un rate limit, retrocedemos pacíficamente en lugar de acumular fallos
+        if (errMessage.includes('Rate limit excedido')) {
+            logger.warn({ jobId: job.id }, 'Rate Limit alcanzado, se re-encolará pacíficamente (15s backoff)');
+            await supabase.from('jobs').update({
+                status: 'pending',
+                // No incrementamos 'attempts' para no causar un fallo final
+                scheduled_at: new Date(Date.now() + 15000).toISOString(),
+                error_log: 'Rate Limit. Pausado temporalmente.'
+            }).eq('id', job.id);
+            return;
+        }
+
         const nextAttempt = job.attempts + 1;
         const isFinalFailure = nextAttempt >= job.max_attempts;
 
@@ -92,15 +107,16 @@ async function processJob(job: any) {
                 level: 'warning',
                 type: 'job_dlq',
                 message: `El Job ${job.id} de tipo ${job.type} fracasó definitivamente tras ${job.max_attempts} intentos. Revisa el log de errores.`,
-                metadata: { job_id: job.id, final_error: error.message || error }
+                metadata: { job_id: job.id, final_error: errMessage }
             });
             logger.warn({ jobId: job.id }, 'Job enviado al DLQ de System Alerts');
         }
 
+        // Manejo normal de fallos
         await supabase.from('jobs').update({
             status: isFinalFailure ? 'failed' : 'pending',
             attempts: nextAttempt,
-            error_log: error.message || JSON.stringify(error),
+            error_log: errMessage,
             scheduled_at: new Date(Date.now() + Math.pow(2, nextAttempt) * 1000).toISOString()
         }).eq('id', job.id);
     }
@@ -114,20 +130,28 @@ async function handleSyncStock(job: any) {
     // 1. Calcular el stock real considerando si es un PACK/BUNDLE
     const availableStock = await SKU_Service.calculateAvailableStock(sku);
 
-    const { data: mapping } = await supabase
+    // Un SKU puede estar mapeado a MÚLTIPLES publicaciones (Vitrinas) en la misma tienda
+    const { data: mappings } = await supabase
         .from('sku_marketplace_mapping')
         .select('external_item_id, external_variation_id')
         .eq('sku', sku)
-        .eq('marketplace_id', marketplace_id)
-        .single();
+        .eq('marketplace_id', marketplace_id);
 
-    if (!mapping) throw new Error(`Mapping no encontrado para SKU ${sku}`);
+    if (!mappings || mappings.length === 0) {
+        logger.warn({ sku, marketplace_id }, 'Mapping no encontrado para SKU, la pieza no se oferta en MeLi. Ignorando.');
+        return; // Salida pacífica, no lanzar throw Error para no atascar el Worker status ni asustar al usuario.
+    }
 
-    logger.info({ sku, availableStock, marketplace_id }, 'Sincronizando stock real (Pack-Aware)');
+    logger.info({ sku, availableStock, marketplace_id, affectedListings: mappings.length }, 'Sincronizando stock real (Pack-Aware) a múltiples vitrinas');
 
-    const results = await meliAdapter.updateStock(marketplace_id, [
-        { itemId: mapping.external_item_id, variationId: mapping.external_variation_id, quantity: availableStock }
-    ]);
+    const updates = mappings.map(m => ({
+        itemId: m.external_item_id,
+        variationId: m.external_variation_id,
+        quantity: availableStock
+    }));
+
+    // Enviar batch a Mercado Libre (El rate limit internamente frena si es necesario)
+    const results = await meliAdapter.updateStock(marketplace_id, updates);
 
     const errors = results.filter((r: any) => r.status === 'error');
     if (errors.length > 0) {
@@ -275,7 +299,8 @@ async function handleSyncStockMapped(job: any) {
     if (mappings && mappings.length > 0) {
         maxKits = 999999;
         for (const map of mappings) {
-            const sku = map.articulos?.sku;
+            const articulosData = map.articulos as any;
+            const sku = Array.isArray(articulosData) ? articulosData[0]?.sku : articulosData?.sku;
             const qtyNeeded = map.cantidad_requerida;
 
             if (!sku) continue;
