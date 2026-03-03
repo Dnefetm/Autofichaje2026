@@ -91,6 +91,7 @@ function SettingsContent() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    id: config.id, // Pasamos el ID para actualizar el registro correcto en entorno multi-cuenta
                     account_name: config.account_name,
                     client_id: config.client_id,
                     client_secret: config.client_secret,
