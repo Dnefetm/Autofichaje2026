@@ -77,5 +77,48 @@ export const dashboardService = {
 
         if (error) throw error;
         return data;
+    },
+
+    async searchSKUs(query: string) {
+        const { data, error } = await supabase
+            .from('skus')
+            .select('sku, name, images')
+            .ilike('sku', `%${query}%`)
+            .limit(10);
+        if (error) throw error;
+        return data;
+    },
+
+    async getBundleComponents(bundleSku: string) {
+        const { data, error } = await supabase
+            .from('bundle_components')
+            .select('*, skus(name, images)')
+            .eq('bundle_sku', bundleSku);
+        if (error) throw error;
+        return data;
+    },
+
+    async saveBundle(bundleSku: string, components: Array<{ component_sku: string, quantity: number }>) {
+        // 1. Borrar componentes actuales
+        await supabase.from('bundle_components').delete().eq('bundle_sku', bundleSku);
+
+        // 2. Insertar nuevos componentes
+        if (components.length > 0) {
+            const mapped = components.map(c => ({
+                bundle_sku: bundleSku,
+                component_sku: c.component_sku,
+                quantity: c.quantity
+            }));
+            const { error } = await supabase.from('bundle_components').insert(mapped);
+            if (error) throw error;
+        }
+
+        // 3. Encolar un trabajo para recalcular el stock del bundle recién creado o editado
+        await supabase.from('jobs').insert({
+            type: 'sync_stock',
+            payload: { sku: bundleSku },
+            status: 'pending',
+            scheduled_at: new Date().toISOString()
+        });
     }
 };

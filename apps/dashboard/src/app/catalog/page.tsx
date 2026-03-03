@@ -8,6 +8,7 @@ import { CatalogFilters } from './filters';
 import { SkuCard } from './sku-card';
 import { BulkEditModal } from './bulk-edit-modal';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 export default function CatalogPage() {
     const [products, setProducts] = useState<any[]>([]);
@@ -137,16 +138,24 @@ export default function CatalogPage() {
         <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex justify-between items-end">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Catálogo Maestro</h2>
-                    <p className="text-slate-500">Conectado a Supabase Realtime.</p>
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">Catálogo Maestro</h2>
+                    <p className="text-slate-500 text-sm">Gestiona tu inventario y sincroniza con marketplaces.</p>
                 </div>
-                <button
-                    onClick={() => { fetchProducts(page); fetchStats(); }}
-                    className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                    title="Refrescar datos"
-                >
-                    <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
-                </button>
+                <div className="flex gap-3">
+                    <Link
+                        href="/catalog/bundles"
+                        className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm"
+                    >
+                        <Package className="w-4 h-4" />
+                        Constructor de Kits
+                    </Link>                   <button
+                        onClick={() => { fetchProducts(page); fetchStats(); }}
+                        className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                        title="Refrescar datos"
+                    >
+                        <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
+                    </button>
+                </div>
             </div>
 
             {/* Grid de Stats */}
