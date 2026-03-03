@@ -27,7 +27,7 @@ export async function GET(request: Request) {
             const { data: meliConfig } = await supabaseAdmin
                 .from('marketplace_configs')
                 .select('id')
-                .eq('marketplace', 'meli')
+                .in('marketplace', ['meli', 'mercadolibre'])
                 .limit(1)
                 .single();
             finalMarketplaceId = meliConfig?.id;

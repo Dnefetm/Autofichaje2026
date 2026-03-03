@@ -1,0 +1,1 @@
+﻿../../packages/sync/reconciliation.ts(37,103): error TS2339: Property 'inventory_snapshot' does not exist on type 'never'.

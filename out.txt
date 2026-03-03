@@ -1,0 +1,7 @@
+ERROR:
+{
+  "message": "TypeError: fetch failed",
+  "details": "TypeError: fetch failed\n\nCaused by: Error: getaddrinfo ENOTFOUND placeholder-url.supabase.co (ENOTFOUND)\nError: getaddrinfo ENOTFOUND placeholder-url.supabase.co\n    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)",
+  "hint": "",
+  "code": ""
+}
