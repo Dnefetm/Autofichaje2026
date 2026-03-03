@@ -7,35 +7,36 @@ import path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 async function triggerSync() {
-    // 1. Obtener la cuenta de MeLi configurada
-    const { data: config, error } = await supabase
+    // 1. Obtener TODAS las cuentas de MeLi configuradas
+    const { data: configs, error } = await supabase
         .from('marketplace_configs')
         .select('id, account_name')
-        .eq('marketplace', 'meli')
-        .single();
+        .eq('marketplace', 'meli');
 
-    if (error || !config) {
-        console.error('No se encontró una cuenta de MeLi configurada. Por favor vincúlala primero en el Dashboard.');
+    if (error || !configs || configs.length === 0) {
+        console.error('No se encontraron cuentas de MeLi configuradas. Por favor vincúlalas primero en el Dashboard.');
         return;
     }
 
-    console.log(`Disparando sincronización para: ${config.account_name} (${config.id})`);
+    console.log(`Encontradas ${configs.length} tiendas de Mercado Libre. Generando trabajos de sincronización...`);
 
-    // 2. Insertar el job de sincronización masiva
-    const { error: jobError } = await supabase.from('jobs').insert({
+    // 2. Insertar los jobs de sincronización masiva
+    const jobsToInsert = configs.map(config => ({
         type: 'sync_account_catalog',
         payload: {
             marketplace_id: config.id
         },
         status: 'pending',
         scheduled_at: new Date().toISOString()
-    });
+    }));
+
+    const { error: jobError } = await supabase.from('jobs').insert(jobsToInsert);
 
     if (jobError) {
-        console.error('Error al crear el job:', jobError);
+        console.error('Error al crear los jobs:', jobError);
     } else {
-        console.log('--- JOB CREADO CON ÉXITO ---');
-        console.log('El worker procesará tu catálogo en unos segundos.');
+        console.log('--- JOBS CREADOS CON ÉXITO ---');
+        console.log(`El worker procesará ${configs.length} tiendas en unos segundos.`);
     }
 }
 

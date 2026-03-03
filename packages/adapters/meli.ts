@@ -198,46 +198,26 @@ export class MeliAdapter implements MarketplaceAdapter {
             });
 
             const item = response.data;
-            const skuString = item.seller_custom_field || item.id;
 
-            // 1. Crear/Actualizar el SKU en el catálogo maestro
-            const { error: skuError } = await supabase.from('skus').upsert({
-                sku: skuString,
-                name: item.title,
-                images: item.pictures?.map((p: any) => p.url) || [],
-                description: item.descriptions?.[0]?.id || '', // Habría que hacer un GET extra para el texto
-                is_active: true,
-                updated_at: new Date().toISOString()
-            });
-
-            if (skuError) throw skuError;
-
-            // 2. Inicializar inventario solo si NO existe (Debe ir ANTES del mapeo por FK). 
-            // NUNCA sobrescribir con el stock de MeLi aquí, proteger la bodega física (Audit Phase 1).
-            const { error: invError } = await supabase.rpc('safe_initialize_inventory', { sku_code: skuString });
-
-            // Alternativa si no queremos crear RPC: intentamos insertar un registro con stock 0 ignorando conflictos
-            // Esto garantiza que el FK mapping nunca falle, pero tampoco destruye datos reales
-            const { error: insertError } = await supabase.from('inventory_snapshot')
-                .insert({ sku: skuString, physical_stock: 0 });
-            // Ignoramos insertError deliberadamente. Si falla (usualmente por UNIQUE constraint),
-            // significa que el inventario real ya existe y es intocable.
-
-            // 3. Crear el mapeo SKU <-> Marketplace
-            const { error: mapError } = await supabase.from('sku_marketplace_mapping').upsert({
-                sku: skuString,
+            // 1. Insertar o actualizar la Vitrina en publicaciones_externas (Aislado del inventario físico)
+            const { error: pubError } = await supabase.from('publicaciones_externas').upsert({
                 marketplace_id: accountId,
                 external_item_id: item.id,
-                sync_status: 'active',
-                last_sync_at: new Date().toISOString()
+                titulo: item.title,
+                precio_venta: item.price,
+                stock_publicado: item.available_quantity,
+                status_externo: item.status,
+                url_imagen: item.pictures?.[0]?.url || item.thumbnail,
+                permalink: item.permalink,
+                actualizado_el: new Date().toISOString()
             }, { onConflict: 'marketplace_id,external_item_id,external_variation_id' });
 
-            if (mapError) throw mapError;
+            if (pubError) throw pubError;
 
-            logger.info({ sku: skuString, itemId: item.id }, 'Mapeo sincronizado con MeLi (Inventario Físico protegido)');
+            logger.info({ itemId: item.id }, 'Publicación de MeLi almacenada en el Catálogo Virtual');
 
         } catch (error: any) {
-            logger.error({ itemId, error: error.response?.data || error.message }, 'Error al sincronizar mapeo de MeLi');
+            logger.error({ itemId, error: error.response?.data || error.message }, 'Error al sincronizar publicación de MeLi');
         }
     }
 

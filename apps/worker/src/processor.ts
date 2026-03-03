@@ -57,6 +57,9 @@ async function processJob(job: any) {
             case 'sync_price':
                 await handleSyncPrice(job);
                 break;
+            case 'sync_stock_mapped':
+                await handleSyncStockMapped(job);
+                break;
             case 'pause_listing':
                 await meliAdapter.pauseListing(job.payload.marketplace_id, job.payload.external_item_id);
                 break;
@@ -245,4 +248,68 @@ async function handleAccountCatalogSync(job: any) {
             scheduled_at: new Date().toISOString()
         });
     }
+}
+
+async function handleSyncStockMapped(job: any) {
+    const { publicacion_id } = job.payload;
+
+    // 1. Obtener publicación
+    const { data: pub, error: pubErr } = await supabase
+        .from('publicaciones_externas')
+        .select('marketplace_id, external_item_id')
+        .eq('id', publicacion_id)
+        .single();
+
+    if (pubErr || !pub) throw new Error(`Publicación externa no encontrada: ${publicacion_id}`);
+
+    // 2. Traer ensamble y snapshot físico
+    const { data: mappings, error: mapErr } = await supabase
+        .from('mapeo_publicacion_articulo')
+        .select('cantidad_requerida, articulos(sku)')
+        .eq('publicacion_id', publicacion_id);
+
+    if (mapErr) throw new Error(`Error obteniendo ensamble: ${mapErr.message}`);
+
+    let maxKits = 0;
+
+    if (mappings && mappings.length > 0) {
+        maxKits = 999999;
+        for (const map of mappings) {
+            const sku = map.articulos?.sku;
+            const qtyNeeded = map.cantidad_requerida;
+
+            if (!sku) continue;
+
+            // Obtenemos snapshot físico (Phase 1 rule)
+            const { data: inv } = await supabase
+                .from('inventory_snapshot')
+                .select('physical_stock')
+                .eq('sku', sku)
+                .single();
+
+            const physicalStock = inv?.physical_stock || 0;
+            const reachableKits = Math.floor(physicalStock / qtyNeeded);
+
+            if (reachableKits < maxKits) {
+                maxKits = reachableKits;
+            }
+        }
+    }
+
+    logger.info({ publicacion_id, maxKits, external_id: pub.external_item_id }, 'Sincronizando stock calculado hacia ML (Ensamble)');
+
+    // 3. Emitir petición real a Mercado Libre API
+    const results = await meliAdapter.updateStock(pub.marketplace_id, [
+        { itemId: pub.external_item_id, quantity: maxKits }
+    ]);
+
+    const errors = results.filter((r: any) => r.status === 'error');
+    if (errors.length > 0) {
+        throw new Error(`MeLi API Sync Kit Error: ${JSON.stringify(errors)}`);
+    }
+
+    // 4. Salvar estado virtual local para mantener consistencia UI
+    await supabase.from('publicaciones_externas')
+        .update({ stock_publicado: maxKits, actualizado_el: new Date().toISOString() })
+        .eq('id', publicacion_id);
 }

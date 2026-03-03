@@ -71,6 +71,19 @@ export async function GET(request: Request) {
 
         if (tokenError) throw tokenError;
 
+        // 5. Automatización: Encolar sincronización del Catálogo Virtual de inmediato (En la Nube)
+        // Esto evita que el usuario tenga que correr scripts manuales en la terminal
+        await supabaseAdmin.from('jobs').insert({
+            type: 'sync_account_catalog',
+            payload: {
+                marketplace_id: finalMarketplaceId
+            },
+            status: 'pending',
+            scheduled_at: new Date().toISOString()
+        });
+
+        console.log(`[Cloud] Job de Sincronización Masiva Creado para Tienda: ${finalMarketplaceId}`);
+
         return NextResponse.redirect(`${baseUrl}/settings?auth=success`);
 
     } catch (error: any) {

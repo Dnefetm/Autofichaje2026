@@ -1,11 +1,12 @@
 import React from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, Database, Activity, Settings, Package, PlusCircle, RefreshCcw } from 'lucide-react';
+import { LayoutDashboard, Database, Activity, Settings, Package, PlusCircle, RefreshCcw, Store } from 'lucide-react';
 
 export default function Sidebar() {
     const menuItems = [
         { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
         { name: 'Catálogo Maestro', icon: Package, href: '/catalog' },
+        { name: 'Vitrinas MeLi', icon: Store, href: '/catalog/virtual' },
         { name: 'Crear con IA', icon: PlusCircle, href: '/autoficha' },
         { name: 'Monitor Sync', icon: Activity, href: '/monitor' },
         { name: 'Operaciones', icon: Database, href: '/operations' },
