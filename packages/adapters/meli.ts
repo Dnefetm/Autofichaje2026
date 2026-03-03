@@ -127,7 +127,8 @@ export class MeliAdapter implements MarketplaceAdapter {
     async getAccountItems(accountId: string): Promise<string[]> {
         const accessToken = await this.getAccessToken(accountId);
         let itemIds: string[] = [];
-        let scrollId: string | undefined = undefined;
+        let offset = 0;
+        const limit = 50;
         let hasMore = true;
 
         try {
@@ -137,33 +138,27 @@ export class MeliAdapter implements MarketplaceAdapter {
             });
             const userId = meResponse.data.id;
 
-            // Búsqueda de items del usuario con iteración (Scroll / Paginación)
+            // Búsqueda de items del usuario con iteración (Offset / Paginación)
             const searchUrl = `https://api.mercadolibre.com/users/${userId}/items/search`;
 
             while (hasMore) {
                 // Respetar Rate Limits antes de cada página
                 await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 1);
 
-                const params: any = { status: 'active', limit: 100, search_type: 'scan' };
-                if (scrollId) {
-                    params.scroll_id = scrollId;
-                }
-
                 const response = await axios.get(searchUrl, {
                     headers: { Authorization: `Bearer ${accessToken}` },
-                    params
+                    params: { offset, limit }
                 });
 
                 const results = response.data.results || [];
 
                 if (results.length > 0) {
                     itemIds = itemIds.concat(results);
+                    offset += limit;
                 }
 
-                // MeLi API documentation states scroll_id changes/remains and we must stop when results are empty.
-                if (response.data.scroll_id && results.length > 0) {
-                    scrollId = response.data.scroll_id;
-                } else {
+                // Si la API devuelve menos items que el límite, hemos llegado al final.
+                if (results.length < limit || response.data.paging?.total <= offset) {
                     hasMore = false;
                 }
             }
