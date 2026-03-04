@@ -221,6 +221,52 @@ export class MeliAdapter implements MarketplaceAdapter {
         }
     }
 
+    // --- NUEVA FUNCIÓN SERVERLESS: BATCH SYNC ---
+    async syncCatalogBatch(accountId: string, itemIds: string[]): Promise<number> {
+        if (itemIds.length === 0) return 0;
+        const accessToken = await this.getAccessToken(accountId);
+
+        try {
+            // Mercado Libre permite MultiGET hasta 50 items usando /items?ids=MLM1,MLM2
+            const idsParam = itemIds.join(',');
+            const response = await axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+
+            const itemsPayload = response.data
+                .filter((res: any) => res.code === 200 && res.body)
+                .map((res: any) => {
+                    const item = res.body;
+                    return {
+                        marketplace_id: accountId,
+                        external_item_id: item.id,
+                        titulo: item.title,
+                        precio_venta: item.price,
+                        stock_publicado: item.available_quantity,
+                        status_externo: item.status,
+                        url_imagen: item.pictures?.[0]?.url || item.thumbnail,
+                        permalink: item.permalink,
+                        actualizado_el: new Date().toISOString()
+                    };
+                });
+
+            if (itemsPayload.length === 0) return 0;
+
+            const { error: pubError } = await supabase.from('publicaciones_externas').upsert(
+                itemsPayload,
+                { onConflict: 'marketplace_id,external_item_id,external_variation_id' }
+            );
+
+            if (pubError) throw pubError;
+
+            logger.info({ accountId, synced_count: itemsPayload.length }, 'Bloque de Publicaciones de MeLi almacenadas (Batch)');
+            return itemsPayload.length;
+        } catch (error: any) {
+            logger.error({ accountId, error: error.response?.data || error.message }, 'Error masivo al sincronizar publicaciones de MeLi');
+            return 0;
+        }
+    }
+
     async getRecentOrders(accountId: string, since: Date): Promise<any[]> {
         // FIXME: Implement real logic for getRecentOrders when orders sync is built
         return [];
