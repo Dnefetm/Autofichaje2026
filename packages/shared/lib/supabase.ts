@@ -1,10 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-import path from 'path';
 
-// Cargar variables de entorno desde la raíz del monorepo (solo local)
-if (process.env.NODE_ENV !== 'production') {
-    dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+// Cargar variables de entorno solo en Node local, Vercel ya las tiene
+if (process.env.NODE_ENV !== 'production' && typeof window === 'undefined') {
+    try {
+        const dotenv = require('dotenv');
+        const path = require('path');
+        dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+    } catch (e) {
+        // Ignorar en entorno de Vercel
+    }
 }
 
 const supabaseUrl = process.env.SUPABASE_URL!;

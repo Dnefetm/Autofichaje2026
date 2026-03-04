@@ -39,7 +39,7 @@ export async function GET(request: Request) {
         });
 
         const { access_token, refresh_token, expires_in } = response.data;
-        const { encrypt } = await import('@/../../packages/shared/lib/crypto'); // Ajuste de importación dinámica para Next.js
+        const { encrypt } = await import('@gestor/shared/lib/crypto'); // Ajuste de importación dinámica para Next.js
 
         // 3. Guardar tokens en la base de datos (Encriptados)
         const { error: tokenError } = await supabaseAdmin
