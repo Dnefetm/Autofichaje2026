@@ -12,6 +12,14 @@ export default function VirtualCatalogPage() {
     const [selectedListing, setSelectedListing] = useState<any | null>(null);
 
     const [syncing, setSyncing] = useState(false);
+    const [syncProgress, setSyncProgress] = useState<string | null>(null);
+    const [debugLogs, setDebugLogs] = useState<string[]>([]);
+
+    const addLog = (msg: string) => {
+        const time = new Date().toLocaleTimeString();
+        setDebugLogs(prev => [...prev, `[${time}] ${msg}`]);
+        setSyncProgress(msg);
+    };
 
     useEffect(() => {
         loadListings();
@@ -41,13 +49,81 @@ export default function VirtualCatalogPage() {
 
     async function handleForceSync() {
         setSyncing(true);
+        setDebugLogs([]);
+        addLog('Iniciando sincronización Serverless...');
+
         try {
-            const res = await fetch('/api/sync/manual', { method: 'POST' });
-            const result = await res.json();
-            if (!res.ok) throw new Error(result.error || result.message);
-            alert(`Sincronización forzada encolada en Background. El worker leerá las tiendas.`);
+            // 1. Obtener tiendas del usuario conectadas (Front-end bypass)
+            addLog('Conectando a base de datos (tiendas)...');
+            const { data: configs, error: configsErr } = await supabase
+                .from('marketplace_configs')
+                .select('id, account_name')
+                .eq('is_active', true);
+
+            if (configsErr) throw configsErr;
+            if (!configs || configs.length === 0) {
+                addLog('ERROR: No hay tiendas activas vinculadas.');
+                setSyncing(false);
+                return;
+            }
+
+            let totalGeneral = 0;
+
+            for (const config of configs) {
+                let hasMore = true;
+                let currentOffset = 0;
+
+                addLog(`Tienda encontrada: ${config.account_name}`);
+
+                // Relays Infinitos
+                while (hasMore) {
+                    addLog(`Solicitando a Serverless API -> Tienda: ${config.account_name} | Pág: ${currentOffset}`);
+
+                    const res = await fetch('/api/sync/manual', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ accountId: config.id, offset: currentOffset })
+                    });
+
+                    // Atrapando el Error Crudo 500 de Vercel
+                    const text = await res.text();
+                    let result;
+                    try {
+                        result = JSON.parse(text);
+                    } catch (e) {
+                        throw new Error(`CRASH VERCEL (HTML 500): ${text.substring(0, 200)}`);
+                    }
+
+                    if (!res.ok) {
+                        throw new Error(`Error de Servidor: ${result.error || result.message}`);
+                    }
+
+                    const delta = result.totalProcessed || result.processedSoFar || 0;
+                    if (delta > 0) {
+                        totalGeneral += delta;
+                        addLog(`+${delta} artículos depositados.`);
+                    }
+
+                    if (result.hasMore) {
+                        hasMore = true;
+                        currentOffset = result.nextOffset;
+                        addLog(`Vercel solicitó PAUSA estratégica. Relevando hacia offset ${currentOffset}...`);
+                        // Esperar un poco entre saltos para respirar rate limits
+                        await new Promise(r => setTimeout(r, 800));
+                    } else {
+                        addLog(`Tienda ${config.account_name} terminada al 100%.`);
+                        hasMore = false;
+                    }
+                }
+            }
+
+            addLog(`¡Éxito Total! ${totalGeneral} ítems guardados.`);
+            setTimeout(() => setSyncProgress(null), 4000);
+            loadListings(); // Recargar visualmente el catálogo
+
         } catch (error: any) {
-            alert(`Error forzando sincronización: ${error.message}`);
+            console.error(error);
+            addLog(`❌ ABORTO: ${error.message}`);
         } finally {
             setSyncing(false);
         }
