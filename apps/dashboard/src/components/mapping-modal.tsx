@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@gestor/shared/lib/supabase';
-import { X, Search, Plus, Trash2, Package } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { X, Search, Package, Save, RefreshCw } from 'lucide-react';
 
 interface MappingModalProps {
     listing: any;
