@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@gestor/shared/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { Search, Filter, RefreshCw, AlertCircle, CheckCircle2, Link2 } from 'lucide-react';
 import MappingModal from '@/components/mapping-modal';
 
