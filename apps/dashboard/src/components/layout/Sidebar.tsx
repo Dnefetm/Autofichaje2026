@@ -6,7 +6,7 @@ export default function Sidebar() {
     const menuItems = [
         { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
         { name: 'Catálogo Maestro', icon: Package, href: '/catalog' },
-        { name: 'Vitrinas MeLi', icon: Store, href: '/catalog/virtual' },
+        { name: 'Vitrinas MeLi', icon: Store, href: '/catalog/external' },
         { name: 'Crear con IA', icon: PlusCircle, href: '/autoficha' },
         { name: 'Monitor Sync', icon: Activity, href: '/monitor' },
         { name: 'Operaciones', icon: Database, href: '/operations' },
