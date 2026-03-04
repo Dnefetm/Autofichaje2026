@@ -11,6 +11,8 @@ export default function VirtualCatalogPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedListing, setSelectedListing] = useState<any | null>(null);
 
+    const [syncing, setSyncing] = useState(false);
+
     useEffect(() => {
         loadListings();
     }, []);
@@ -37,6 +39,20 @@ export default function VirtualCatalogPage() {
         }
     }
 
+    async function handleForceSync() {
+        setSyncing(true);
+        try {
+            const res = await fetch('/api/sync/manual', { method: 'POST' });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || result.message);
+            alert(`Sincronización forzada encolada en Background. El worker leerá las tiendas.`);
+        } catch (error: any) {
+            alert(`Error forzando sincronización: ${error.message}`);
+        } finally {
+            setSyncing(false);
+        }
+    }
+
     const filteredListings = listings.filter(l =>
         l.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         l.external_item_id.toLowerCase().includes(searchTerm.toLowerCase())
@@ -54,13 +70,23 @@ export default function VirtualCatalogPage() {
                             Anuncios descargados. Debes mapearlos a productos de tu Bodega (Catálogo Maestro).
                         </p>
                     </div>
-                    <button
-                        onClick={loadListings}
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 shadow-sm"
-                    >
-                        <RefreshCw className="w-4 h-4" />
-                        Actualizar Vista
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleForceSync}
+                            disabled={syncing}
+                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 border border-transparent text-white rounded-lg hover:bg-indigo-700 shadow-sm disabled:opacity-50"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                            {syncing ? 'Forzando Sync...' : 'Forzar Sincronización ML'}
+                        </button>
+                        <button
+                            onClick={loadListings}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 shadow-sm"
+                        >
+                            <RefreshCw className="w-4 h-4" />
+                            Actualizar Vista
+                        </button>
+                    </div>
                 </div>
 
                 {/* Buscador y Filtros */}

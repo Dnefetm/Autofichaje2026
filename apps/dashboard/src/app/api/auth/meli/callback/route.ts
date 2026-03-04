@@ -53,6 +53,18 @@ export async function GET(request: Request) {
 
         if (tokenError) throw tokenError;
 
+        // --- MITIGACIÓN: Despacho automático del Worker al vincular cuenta ---
+        await supabaseAdmin.from('jobs').insert({
+            type: 'sync_account_catalog',
+            payload: {
+                marketplace_id: marketplaceId
+            },
+            status: 'pending',
+            scheduled_at: new Date().toISOString()
+        });
+        console.log(`[Cloud] Worker despachado para forzar sincronización del Catálogo Virtual (Vitrinas) con ID: ${marketplaceId}`);
+        // ---------------------------------------------------------------------
+
         // Redirigir de vuelta a settings con éxito
         return NextResponse.redirect(`${baseUrl}/settings?auth=success`);
 
