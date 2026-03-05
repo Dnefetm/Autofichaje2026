@@ -3,7 +3,7 @@ import axios from 'axios';
 
 /**
  * Obtiene un access_token válido para una cuenta de MeLi.
- * Si el token actual está expirado, lo refresca automáticamente.
+ * Si el token actual está expirado, lo refresca automáticamente usando env vars centralizadas.
  * Usa lock optimista para evitar race conditions en concurrencia.
  * 
  * @param accountId - ID de marketplace_configs
@@ -33,18 +33,13 @@ export async function getValidAccessToken(
         return decrypt(tokenRow.access_token);
     }
 
-    // 3. Token expirado → refrescar usando refresh_token
-    const { data: config, error: configError } = await supabaseAdmin
-        .from('marketplace_configs')
-        .select('settings')
-        .eq('id', accountId)
-        .single();
-
-    if (configError || !config) {
-        throw new Error('Configuración de la cuenta no encontrada para ejecutar refresh.');
+    // 3. Token expirado → refrescar usando credenciales centralizadas de la APP
+    const client_id = process.env.MELI_CLIENT_ID;
+    const client_secret = process.env.MELI_CLIENT_SECRET;
+    if (!client_id || !client_secret) {
+        throw new Error('MELI_CLIENT_ID o MELI_CLIENT_SECRET no configurados en env vars.');
     }
 
-    const { client_id, client_secret } = config.settings;
     const currentRefreshToken = decrypt(tokenRow.refresh_token);
 
     let freshTokens;
@@ -60,10 +55,9 @@ export async function getValidAccessToken(
         freshTokens = response.data;
     } catch (err: any) {
         const meliError = err.response?.data?.error;
-        if (meliError === 'invalid_grant') {
+        if (meliError === 'invalid_grant' || err.response?.status === 400) {
             throw new Error(
-                'El refresh_token de esta cuenta ha sido invalidado por Mercado Libre. ' +
-                'Debes re-autorizar la cuenta manualmente desde /settings → Vincular.'
+                'Token de refresh inválido. Re-autorizar cuenta en /settings'
             );
         }
         throw new Error(`Error al refrescar token de MeLi: ${err.response?.data?.message || err.message}`);
@@ -72,8 +66,8 @@ export async function getValidAccessToken(
     const { access_token, refresh_token: newRefreshToken, expires_in } = freshTokens;
     const newExpiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
 
-    // 4. Lock optimista: solo actualizar si expires_at no cambió (otro request no lo refrescó antes)
-    const { data: updateResult, error: updateError } = await supabaseAdmin
+    // 4. Lock optimista: solo actualizar si expires_at no cambió
+    await supabaseAdmin
         .from('marketplace_tokens')
         .update({
             access_token: encrypt(access_token),
@@ -81,12 +75,7 @@ export async function getValidAccessToken(
             expires_at: newExpiresAt,
         })
         .eq('marketplace_id', accountId)
-        .eq('expires_at', tokenRow.expires_at); // Lock optimista: solo si nadie más lo actualizó
-
-    if (updateError) {
-        console.warn('[meli-token] Error al guardar tokens refrescados:', updateError.message);
-        // Aun así devolvemos el token fresco — ya fue validado por MeLi
-    }
+        .eq('expires_at', tokenRow.expires_at);
 
     // Devolvemos el access_token sin cifrar (directo de la respuesta de MeLi)
     return access_token;

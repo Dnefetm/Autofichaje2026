@@ -12,16 +12,13 @@ export async function GET(request: Request) {
     }
 
     try {
-        // 1. Obtener Client ID y Secret de la DB
-        const { data: config } = await supabaseAdmin
-            .from('marketplace_configs')
-            .select('settings')
-            .eq('id', marketplaceId)
-            .single();
+        // 1. Obtener credenciales de la APP desde env vars (centralizadas)
+        const client_id = process.env.MELI_CLIENT_ID;
+        const client_secret = process.env.MELI_CLIENT_SECRET;
+        if (!client_id || !client_secret) {
+            throw new Error('Faltan MELI_CLIENT_ID o MELI_CLIENT_SECRET en env vars');
+        }
 
-        if (!config) throw new Error('Configuración no encontrada');
-
-        const { client_id, client_secret } = config.settings;
         const host = request.headers.get('host');
         const protocol = host?.includes('localhost') ? 'http' : 'https';
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`;

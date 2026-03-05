@@ -68,8 +68,16 @@ function SettingsContent() {
     }
 
     const handleLinkNewStore = () => {
-        // Redirige directamente al orquestador de OAuth
-        window.location.href = '/api/meli';
+        // Buscar cuenta que necesite autorización (sin tokens)
+        const needsAuth = configs.find((c: any) => !c.marketplace_tokens || c.marketplace_tokens.length === 0);
+        if (needsAuth) {
+            window.location.href = `/api/auth/meli?marketplace_id=${needsAuth.id}`;
+        } else if (configs.length > 0) {
+            // Todas tienen tokens, re-vincular la primera (para refrescar)
+            window.location.href = `/api/auth/meli?marketplace_id=${configs[0].id}`;
+        } else {
+            alert('Primero crea una configuración de tienda en la base de datos.');
+        }
     };
 
     return (
@@ -130,6 +138,10 @@ function SettingsContent() {
 function StoreCard({ config }: { config: any }) {
     const hasToken = config.marketplace_tokens && config.marketplace_tokens.length > 0;
 
+    const handleReauth = () => {
+        window.location.href = `/api/auth/meli?marketplace_id=${config.id}`;
+    };
+
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex items-center justify-between p-5 hover:border-slate-300 transition-colors">
             <div className="flex items-center gap-4">
@@ -156,6 +168,12 @@ function StoreCard({ config }: { config: any }) {
                         <AlertCircle className="w-3.5 h-3.5" /> Faltan Permisos
                     </span>
                 )}
+                <button
+                    onClick={handleReauth}
+                    className="px-3 py-1 text-sm bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg border border-amber-300 transition-colors"
+                >
+                    {hasToken ? 'Re-autorizar' : 'Vincular Cuenta'}
+                </button>
             </div>
         </div>
     );

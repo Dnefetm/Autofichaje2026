@@ -278,6 +278,28 @@ export default function VirtualCatalogPage() {
 
             </div>
 
+            {/* Consola de Debug - Logs en Vivo */}
+            {debugLogs.length > 0 && (
+                <div className="fixed bottom-0 left-64 right-0 bg-slate-900 border-t border-slate-700 p-4 max-h-60 overflow-y-auto z-40">
+                    <div className="flex justify-between items-center mb-2">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Consola de Sincronización</h4>
+                        <button
+                            onClick={() => setDebugLogs([])}
+                            className="text-xs text-slate-500 hover:text-slate-300"
+                        >
+                            Limpiar
+                        </button>
+                    </div>
+                    <div className="font-mono text-xs space-y-0.5">
+                        {debugLogs.map((log, i) => (
+                            <div key={i} className={log.includes('❌') || log.includes('ERROR') ? 'text-red-400' : log.includes('✓') || log.includes('Éxito') ? 'text-green-400' : 'text-green-300'}>
+                                {log}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Modal de Mapeo Flotante */}
             {selectedListing && (
                 <MappingModal
