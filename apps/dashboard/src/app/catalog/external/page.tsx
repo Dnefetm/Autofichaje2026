@@ -75,15 +75,17 @@ export default function VirtualCatalogPage() {
 
                 addLog(`Tienda encontrada: ${config.account_name}`);
 
-                // Relays Infinitos
+                // Relays Infinitos con scroll (modo scan de MeLi)
                 let currentScrollId: string | null = null;
+                let relayCount = 0;
                 while (hasMore) {
-                    addLog(`Solicitando a Serverless API -> Tienda: ${config.account_name} | Pág: ${currentOffset}`);
+                    relayCount++;
+                    addLog(`Solicitando a Serverless API -> Tienda: ${config.account_name} | Relay #${relayCount}`);
 
                     const res = await fetch('/api/sync/manual', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ accountId: config.id, offset: currentOffset, scrollId: currentScrollId })
+                        body: JSON.stringify({ accountId: config.id, scrollId: currentScrollId })
                     });
 
                     // Atrapando el Error Crudo 500 de Vercel
@@ -102,18 +104,16 @@ export default function VirtualCatalogPage() {
                     const delta = result.totalProcessed || result.processedSoFar || 0;
                     if (delta > 0) {
                         totalGeneral += delta;
-                        addLog(`+${delta} artículos depositados.`);
+                        addLog(`+${delta} artículos depositados. Total acumulado: ${totalGeneral}`);
                     }
 
                     if (result.hasMore) {
                         hasMore = true;
-                        currentOffset = result.nextOffset;
                         currentScrollId = result.scrollId || null;
-                        addLog(`Vercel solicitó PAUSA estratégica. Relevando hacia offset ${currentOffset}...`);
-                        // Esperar un poco entre saltos para respirar rate limits
+                        addLog(`Vercel solicitó PAUSA estratégica. Relevando con scroll_id...`);
                         await new Promise(r => setTimeout(r, 800));
                     } else {
-                        addLog(`Tienda ${config.account_name} terminada al 100%.`);
+                        addLog(`✓ Tienda ${config.account_name} terminada al 100%.`);
                         hasMore = false;
                     }
                 }

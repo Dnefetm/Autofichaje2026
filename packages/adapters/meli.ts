@@ -248,15 +248,21 @@ export class MeliAdapter implements MarketplaceAdapter {
                 .filter((res: any) => res.code === 200 && res.body)
                 .map((res: any) => {
                     const item = res.body;
+                    // DEUDA TÉCNICA: Items con variaciones (tallas/colores) se guardan como una sola fila
+                    // con variation_id '0'. El stock y precio mostrado es el del item padre, no de cada
+                    // variación individual. Para manejar variaciones real, iterar item.variations[]
+                    // y crear una fila por cada una.
                     return {
                         marketplace_id: accountId,
                         external_item_id: item.id,
+                        external_variation_id: '0',
                         titulo: item.title,
                         precio_venta: item.price,
                         stock_publicado: item.available_quantity,
                         status_externo: item.status,
                         url_imagen: item.pictures?.[0]?.url || item.thumbnail,
                         permalink: item.permalink,
+                        // Nota: creado_el y created_at son columnas legacy, no se usan en lógica de negocio
                         actualizado_el: new Date().toISOString()
                     };
                 });

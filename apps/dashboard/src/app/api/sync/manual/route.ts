@@ -13,7 +13,6 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const accountId = body.accountId;
-        let currentOffset = body.offset || 0;
 
         if (!accountId) {
             return NextResponse.json({ error: 'accountId es requerido' }, { status: 400 });
@@ -30,20 +29,22 @@ export async function POST(request: Request) {
         });
         const userId = meResponse.data.id;
 
-        const limit = 50;
+        // 3. Paginación con search_type=scan (único modo que soporta >1000 items)
+        const limit = 100; // Máximo permitido por MeLi en modo scan
         let itemIdsProcessed = 0;
         let hasMore = true;
-        let scrollId = body.scrollId || null; // Para relay entre invocaciones Serverless
+        let scrollId = body.scrollId || null;
+        // Solo la primera petición de la cadena completa lleva search_type=scan
+        let isFirstRequest = !scrollId;
 
         while (hasMore) {
-            // Reloj Verificador
+            // Reloj — cortar antes del timeout de Vercel
             if (Date.now() - START_TIME > MAX_EXECUTION_MS) {
-                logger.info({ accountId, scrollId }, 'Time-Aware BATCHING PAUSE: Cortando antes del Timeout de Vercel');
+                logger.info({ accountId, scrollId, itemIdsProcessed }, 'BATCHING PAUSE: Cortando antes del Timeout de Vercel');
                 return NextResponse.json({
                     message: 'Sincronización en pausa estratégica',
                     hasMore: true,
                     scrollId,
-                    nextOffset: currentOffset, // Mantener compatibilidad con frontend
                     processedSoFar: itemIdsProcessed
                 });
             }
@@ -53,14 +54,14 @@ export async function POST(request: Request) {
             const searchUrl = `https://api.mercadolibre.com/users/${userId}/items/search`;
             const params: any = { limit };
 
-            if (scrollId) {
-                // Usar scroll_id para continuar paginación sin límite de offset
+            if (isFirstRequest) {
+                // Primera petición: activar modo scan
+                params.search_type = 'scan';
+                isFirstRequest = false;
+            } else if (scrollId) {
+                // Siguientes: solo scroll_id (sin offset, sin search_type)
                 params.scroll_id = scrollId;
-            } else if (currentOffset > 0 && currentOffset < 1000) {
-                // Primera invocación con offset < 1000: seguir con offset normal
-                params.offset = currentOffset;
             }
-            // Si es la primera invocación (offset=0, sin scrollId), no pasar ninguno de los dos
 
             const response = await axios.get(searchUrl, {
                 headers: { Authorization: `Bearer ${accessToken}` },
@@ -71,14 +72,12 @@ export async function POST(request: Request) {
             // Capturar scroll_id para la siguiente iteración
             scrollId = response.data.scroll_id || scrollId;
 
-            if (results.length > 0) {
+            // En modo scan, results vacío = fin de la lista (paging.total no aplica)
+            if (results.length === 0) {
+                hasMore = false;
+            } else {
                 const synced = await meli.syncCatalogBatch(accountId, results);
                 itemIdsProcessed += synced;
-                currentOffset += limit;
-            }
-
-            if (results.length < limit || response.data.paging?.total <= currentOffset) {
-                hasMore = false;
             }
         }
 
