@@ -225,33 +225,39 @@ export class MeliAdapter implements MarketplaceAdapter {
     async syncCatalogBatch(accountId: string, itemIds: string[]): Promise<number> {
         if (itemIds.length === 0) return 0;
         const accessToken = await this.getAccessToken(accountId);
+        return this.syncCatalogBatchFast(accountId, accessToken, itemIds);
+    }
+
+    // --- VERSIÓN OPTIMIZADA: recibe token, multiGETs en paralelo ---
+    async syncCatalogBatchFast(accountId: string, accessToken: string, itemIds: string[]): Promise<number> {
+        if (itemIds.length === 0) return 0;
 
         try {
-            // MeLi permite máximo 20 IDs en MultiGET /items?ids=
+            // MeLi permite máximo 20 IDs en MultiGET — paralelizar todos los chunks
             const CHUNK_SIZE = 20;
-            const allResults: any[] = [];
-
+            const chunks: string[][] = [];
             for (let i = 0; i < itemIds.length; i += CHUNK_SIZE) {
-                const chunk = itemIds.slice(i, i + CHUNK_SIZE);
-                const idsParam = chunk.join(',');
-
-                await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 1);
-
-                const response = await axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}`, {
-                    headers: { Authorization: `Bearer ${accessToken}` }
-                });
-
-                allResults.push(...response.data);
+                chunks.push(itemIds.slice(i, i + CHUNK_SIZE));
             }
+
+            // Disparar todos los multiGETs en paralelo (Promise.all)
+            const chunkResponses = await Promise.all(
+                chunks.map(chunk => {
+                    const idsParam = chunk.join(',');
+                    return axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}`, {
+                        headers: { Authorization: `Bearer ${accessToken}` }
+                    });
+                })
+            );
+
+            const allResults = chunkResponses.flatMap(r => r.data);
 
             const itemsPayload = allResults
                 .filter((res: any) => res.code === 200 && res.body)
                 .map((res: any) => {
                     const item = res.body;
                     // DEUDA TÉCNICA: Items con variaciones (tallas/colores) se guardan como una sola fila
-                    // con variation_id '0'. El stock y precio mostrado es el del item padre, no de cada
-                    // variación individual. Para manejar variaciones real, iterar item.variations[]
-                    // y crear una fila por cada una.
+                    // con variation_id '0'. Para manejar variaciones real, iterar item.variations[].
                     return {
                         marketplace_id: accountId,
                         external_item_id: item.id,
@@ -262,7 +268,6 @@ export class MeliAdapter implements MarketplaceAdapter {
                         status_externo: item.status,
                         url_imagen: item.pictures?.[0]?.url || item.thumbnail,
                         permalink: item.permalink,
-                        // Nota: creado_el y created_at son columnas legacy, no se usan en lógica de negocio
                         actualizado_el: new Date().toISOString()
                     };
                 });
@@ -276,13 +281,14 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             if (pubError) throw pubError;
 
-            logger.info({ accountId, synced_count: itemsPayload.length }, 'Bloque de Publicaciones de MeLi almacenadas (Batch)');
+            logger.info({ accountId, synced_count: itemsPayload.length }, 'Batch Fast Sync completado');
             return itemsPayload.length;
         } catch (error: any) {
-            logger.error({ accountId, error: error.response?.data || error.message }, 'Error masivo al sincronizar publicaciones de MeLi');
+            logger.error({ accountId, error: error.response?.data || error.message }, 'Error en syncCatalogBatchFast');
             return 0;
         }
     }
+
 
     async getRecentOrders(accountId: string, since: Date): Promise<any[]> {
         // FIXME: Implement real logic for getRecentOrders when orders sync is built

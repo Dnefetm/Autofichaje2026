@@ -71,24 +71,27 @@ export default function VirtualCatalogPage() {
 
             for (const config of configs) {
                 let hasMore = true;
-                let currentOffset = 0;
 
                 addLog(`Tienda encontrada: ${config.account_name}`);
 
-                // Relays Infinitos con scroll (modo scan de MeLi)
+                // Relays con scroll (modo scan de MeLi) — cachea userId entre relays
                 let currentScrollId: string | null = null;
+                let cachedUserId: string | null = null;
                 let relayCount = 0;
                 while (hasMore) {
                     relayCount++;
-                    addLog(`Solicitando a Serverless API -> Tienda: ${config.account_name} | Relay #${relayCount}`);
+                    addLog(`Relay #${relayCount} → ${config.account_name}`);
 
                     const res = await fetch('/api/sync/manual', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ accountId: config.id, scrollId: currentScrollId })
+                        body: JSON.stringify({
+                            accountId: config.id,
+                            scrollId: currentScrollId,
+                            userId: cachedUserId
+                        })
                     });
 
-                    // Atrapando el Error Crudo 500 de Vercel
                     const text = await res.text();
                     let result;
                     try {
@@ -101,19 +104,22 @@ export default function VirtualCatalogPage() {
                         throw new Error(`Error de Servidor: ${result.error || result.message}`);
                     }
 
+                    // Cachear userId para siguientes relays
+                    if (result.userId) cachedUserId = result.userId;
+
                     const delta = result.totalProcessed || result.processedSoFar || 0;
                     if (delta > 0) {
                         totalGeneral += delta;
-                        addLog(`+${delta} artículos depositados. Total acumulado: ${totalGeneral}`);
+                        addLog(`+${delta} ítems depositados. Total: ${totalGeneral}`);
                     }
 
                     if (result.hasMore) {
                         hasMore = true;
                         currentScrollId = result.scrollId || null;
-                        addLog(`Vercel solicitó PAUSA estratégica. Relevando con scroll_id...`);
-                        await new Promise(r => setTimeout(r, 800));
+                        addLog(`Pausa estratégica. Relevando...`);
+                        await new Promise(r => setTimeout(r, 100));
                     } else {
-                        addLog(`✓ Tienda ${config.account_name} terminada al 100%.`);
+                        addLog(`✓ ${config.account_name} completa.`);
                         hasMore = false;
                     }
                 }
