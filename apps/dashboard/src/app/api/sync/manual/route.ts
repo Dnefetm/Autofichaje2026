@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { checkRateLimit } from '@gestor/shared/lib/rate-limiter';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import logger from '@gestor/shared/lib/logger';
+import { getValidAccessToken } from '@gestor/shared/lib/meli-token';
 import axios from 'axios';
 
 export async function POST(request: Request) {
@@ -20,26 +21,10 @@ export async function POST(request: Request) {
 
         const meli = new MeliAdapter();
 
-        // 1. Obtener User ID con acceso local al token (Simulando getAccountItems paginado manual)
-        // En lugar de llamar getAccountItems() que no podemos interrumpir por dentro de a gratis,
-        // haremos la lógica de iteración aquí en el propio route.ts para controlarla con reloj:
+        // 1. Obtener token válido (refresca automáticamente si expiró)
+        const accessToken = await getValidAccessToken(accountId, supabaseAdmin);
 
-        const { data: tokenData, error: tokenError } = await supabaseAdmin
-            .from('marketplace_tokens')
-            .select('access_token')
-            .eq('marketplace_id', accountId)
-            .single();
-
-        if (tokenError || !tokenData) throw new Error('Cuenta no vinculada o sin tokens en BD');
-        // Usar accesor del adaptador es óptimo, pero por tiempo extraemos manual. Ojo: decrypt está empaquetado.
-        // Dado que el adaptador de MeLi ya tiene métodos, mejor aprovechemos la clase.
-
-        // Truco: Para no duplicar código decrypt, hacemos bypass si la clase lo permite, o 
-        // más fácil recabamos la lista de IDs primero.
-
-        const { decrypt } = await import('@gestor/shared/lib/crypto');
-        const accessToken = decrypt(tokenData.access_token);
-
+        // 2. Obtener userId de MeLi
         const meResponse = await axios.get('https://api.mercadolibre.com/users/me', {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
