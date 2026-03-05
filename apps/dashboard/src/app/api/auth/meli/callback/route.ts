@@ -35,8 +35,27 @@ export async function GET(request: Request) {
             }
         });
 
-        const { access_token, refresh_token, expires_in } = response.data;
-        const { encrypt } = await import('@gestor/shared/lib/crypto'); // Ajuste de importación dinámica para Next.js
+        const { access_token, refresh_token, expires_in, user_id: meliUserId } = response.data;
+        const { encrypt } = await import('@gestor/shared/lib/crypto');
+
+        // Auto-guardar seller_id en marketplace_configs.settings
+        if (meliUserId) {
+            const { data: currentConfig } = await supabaseAdmin
+                .from('marketplace_configs')
+                .select('settings')
+                .eq('id', marketplaceId)
+                .single();
+
+            const updatedSettings = {
+                ...(currentConfig?.settings || {}),
+                seller_id: String(meliUserId)
+            };
+
+            await supabaseAdmin
+                .from('marketplace_configs')
+                .update({ settings: updatedSettings })
+                .eq('id', marketplaceId);
+        }
 
         // 3. Guardar tokens en la base de datos (Encriptados)
         const { error: tokenError } = await supabaseAdmin
