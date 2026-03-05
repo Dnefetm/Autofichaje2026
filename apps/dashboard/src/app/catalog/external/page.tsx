@@ -107,6 +107,11 @@ export default function VirtualCatalogPage() {
                     // Cachear userId para siguientes relays
                     if (result.userId) cachedUserId = result.userId;
 
+                    // Mostrar diagnóstico del backend
+                    if (result.diagnosticLogs) {
+                        result.diagnosticLogs.forEach((dl: string) => addLog(`🔍 ${dl}`));
+                    }
+
                     const delta = result.totalProcessed || result.processedSoFar || 0;
                     if (delta > 0) {
                         totalGeneral += delta;
@@ -119,7 +124,7 @@ export default function VirtualCatalogPage() {
                         addLog(`Pausa estratégica. Relevando...`);
                         await new Promise(r => setTimeout(r, 100));
                     } else {
-                        addLog(`✓ ${config.account_name} completa.`);
+                        addLog(`✓ ${config.account_name} completa. Iteraciones totales: ${result.totalIterations || '?'}`);
                         hasMore = false;
                     }
                 }
