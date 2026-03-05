@@ -227,13 +227,24 @@ export class MeliAdapter implements MarketplaceAdapter {
         const accessToken = await this.getAccessToken(accountId);
 
         try {
-            // Mercado Libre permite MultiGET hasta 50 items usando /items?ids=MLM1,MLM2
-            const idsParam = itemIds.join(',');
-            const response = await axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}`, {
-                headers: { Authorization: `Bearer ${accessToken}` }
-            });
+            // MeLi permite máximo 20 IDs en MultiGET /items?ids=
+            const CHUNK_SIZE = 20;
+            const allResults: any[] = [];
 
-            const itemsPayload = response.data
+            for (let i = 0; i < itemIds.length; i += CHUNK_SIZE) {
+                const chunk = itemIds.slice(i, i + CHUNK_SIZE);
+                const idsParam = chunk.join(',');
+
+                await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 1);
+
+                const response = await axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}`, {
+                    headers: { Authorization: `Bearer ${accessToken}` }
+                });
+
+                allResults.push(...response.data);
+            }
+
+            const itemsPayload = allResults
                 .filter((res: any) => res.code === 200 && res.body)
                 .map((res: any) => {
                     const item = res.body;

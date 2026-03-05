@@ -33,15 +33,17 @@ export async function POST(request: Request) {
         const limit = 50;
         let itemIdsProcessed = 0;
         let hasMore = true;
+        let scrollId = body.scrollId || null; // Para relay entre invocaciones Serverless
 
         while (hasMore) {
             // Reloj Verificador
             if (Date.now() - START_TIME > MAX_EXECUTION_MS) {
-                logger.info({ accountId, currentOffset }, 'Time-Aware BATCHING PAUSE: Cortando antes del Timeout de Vercel');
+                logger.info({ accountId, scrollId }, 'Time-Aware BATCHING PAUSE: Cortando antes del Timeout de Vercel');
                 return NextResponse.json({
                     message: 'Sincronización en pausa estratégica',
                     hasMore: true,
-                    nextOffset: currentOffset,
+                    scrollId,
+                    nextOffset: currentOffset, // Mantener compatibilidad con frontend
                     processedSoFar: itemIdsProcessed
                 });
             }
@@ -49,14 +51,27 @@ export async function POST(request: Request) {
             await checkRateLimit(accountId, 10, 1);
 
             const searchUrl = `https://api.mercadolibre.com/users/${userId}/items/search`;
+            const params: any = { limit };
+
+            if (scrollId) {
+                // Usar scroll_id para continuar paginación sin límite de offset
+                params.scroll_id = scrollId;
+            } else if (currentOffset > 0 && currentOffset < 1000) {
+                // Primera invocación con offset < 1000: seguir con offset normal
+                params.offset = currentOffset;
+            }
+            // Si es la primera invocación (offset=0, sin scrollId), no pasar ninguno de los dos
+
             const response = await axios.get(searchUrl, {
                 headers: { Authorization: `Bearer ${accessToken}` },
-                params: { offset: currentOffset, limit }
+                params
             });
 
             const results = response.data.results || [];
+            // Capturar scroll_id para la siguiente iteración
+            scrollId = response.data.scroll_id || scrollId;
+
             if (results.length > 0) {
-                // Bajar masivamente hacia Supabase a través de nuestro nuevo Método Batch
                 const synced = await meli.syncCatalogBatch(accountId, results);
                 itemIdsProcessed += synced;
                 currentOffset += limit;

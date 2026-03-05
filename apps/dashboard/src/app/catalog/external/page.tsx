@@ -76,13 +76,14 @@ export default function VirtualCatalogPage() {
                 addLog(`Tienda encontrada: ${config.account_name}`);
 
                 // Relays Infinitos
+                let currentScrollId: string | null = null;
                 while (hasMore) {
                     addLog(`Solicitando a Serverless API -> Tienda: ${config.account_name} | Pág: ${currentOffset}`);
 
                     const res = await fetch('/api/sync/manual', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ accountId: config.id, offset: currentOffset })
+                        body: JSON.stringify({ accountId: config.id, offset: currentOffset, scrollId: currentScrollId })
                     });
 
                     // Atrapando el Error Crudo 500 de Vercel
@@ -107,6 +108,7 @@ export default function VirtualCatalogPage() {
                     if (result.hasMore) {
                         hasMore = true;
                         currentOffset = result.nextOffset;
+                        currentScrollId = result.scrollId || null;
                         addLog(`Vercel solicitó PAUSA estratégica. Relevando hacia offset ${currentOffset}...`);
                         // Esperar un poco entre saltos para respirar rate limits
                         await new Promise(r => setTimeout(r, 800));
