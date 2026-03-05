@@ -51,17 +51,12 @@ export async function POST(request: Request) {
             iterationCount++;
             const searchUrl = `https://api.mercadolibre.com/users/${userId}/items/search`;
 
-            // Construir params: 
-            // - Primera petición de la cadena completa: search_type=scan (sin scroll_id)
-            // - Siguientes peticiones: scroll_id (sin search_type, sin offset)
-            const params: any = { limit };
+            // search_type=scan SIEMPRE — MeLi lo requiere en TODAS las peticiones
+            // Sin él, MeLi ignora el scroll_id y reinicia desde offset 0
+            const params: any = { limit, search_type: 'scan' };
 
             if (scrollId) {
-                // Siempre que tengamos un scroll_id, usarlo
                 params.scroll_id = scrollId;
-            } else {
-                // Solo la primera vez (sin scroll_id previo): activar scan
-                params.search_type = 'scan';
             }
 
             const response = await axios.get(searchUrl, {
