@@ -15,21 +15,31 @@ export default function CatalogPage() {
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
 
     // Paginación y Stats Globales
     const [page, setPage] = useState(0);
     const [totalCount, setTotalCount] = useState(0);
     const [globalMappedCount, setGlobalMappedCount] = useState(0);
-    const PAGE_SIZE = 48; // Múltiplo de 2, 3 y 4 (columnas)
+    const PAGE_SIZE = 48;
 
     // Mass Edit State
     const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set());
     const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
+    // Debounce de búsqueda (400ms)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+            setPage(0);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
     useEffect(() => {
         fetchProducts(page);
-    }, [page]);
+    }, [page, debouncedSearch]);
 
     useEffect(() => {
         fetchStats();
@@ -56,7 +66,7 @@ export default function CatalogPage() {
             const from = currentPage * PAGE_SIZE;
             const to = from + PAGE_SIZE - 1;
 
-            const { data, error, count } = await supabase
+            let query = supabase
                 .from('articulos')
                 .select(`
                   articulo_id, 
@@ -65,8 +75,14 @@ export default function CatalogPage() {
                   inventory_snapshot(physical_stock),
                   mapeo_publicacion_articulo(publicacion_id)
                 `, { count: 'exact' })
-                .order('creado_el', { ascending: false })
-                .range(from, to);
+                .order('creado_el', { ascending: false });
+
+            // Búsqueda server-side
+            if (debouncedSearch.length >= 2) {
+                query = query.or(`nombre.ilike.%${debouncedSearch}%,marca.ilike.%${debouncedSearch}%,articulo_id.ilike.%${debouncedSearch}%`);
+            }
+
+            const { data, error, count } = await query.range(from, to);
 
             if (error) {
                 console.error("Supabase Error:", error);
@@ -113,14 +129,9 @@ export default function CatalogPage() {
         }
     };
 
+    // Filtrado client-side solo para estado (mapped/unmapped/low_stock)
+    // La búsqueda de texto ya es server-side
     const filteredProducts = products.filter(p => {
-        const matchesSearch =
-            p.articulo_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (p.marca && p.marca.toLowerCase().includes(searchQuery.toLowerCase()));
-
-        if (!matchesSearch) return false;
-
         const isMapped = Array.isArray(p.mapeo_publicacion_articulo) ? p.mapeo_publicacion_articulo.length > 0 : !!p.mapeo_publicacion_articulo;
 
         const snapshot = Array.isArray(p.inventory_snapshot) ? p.inventory_snapshot[0] : p.inventory_snapshot;
