@@ -20,7 +20,7 @@ export function CatalogFilters({
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Buscar por código SKU, nombre de producto o marca..."
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition-colors"
+                    className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition-colors text-slate-900 placeholder:text-slate-400"
                 />
             </div>
 
@@ -29,7 +29,7 @@ export function CatalogFilters({
                 <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="w-full md:w-48 px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white cursor-pointer"
+                    className="w-full md:w-48 px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white cursor-pointer text-slate-900"
                 >
                     <option value="all">Todos los productos</option>
                     <option value="mapped">Vinculados (MeLi)</option>

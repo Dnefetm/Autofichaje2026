@@ -53,13 +53,26 @@ function SettingsContent() {
 
     async function loadConfigs() {
         try {
+            // Intentar via API route (usa service key)
             const res = await fetch('/api/settings/meli');
-            if (!res.ok) throw new Error('Failed to fetch configs');
-            const data = await res.json();
-
-            if (Array.isArray(data)) {
-                setConfigs(data);
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    setConfigs(data);
+                    setDbState('online');
+                    return;
+                }
             }
+
+            // Fallback: query directa a Supabase (por si el filtro de marketplace no coincide)
+            const { data: directData, error } = await supabase
+                .from('marketplace_configs')
+                .select('*, marketplace_tokens(access_token, updated_at, expires_at)')
+                .eq('is_active', true)
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+            setConfigs(directData || []);
             setDbState('online');
         } catch (err) {
             console.error('Load config error:', err);

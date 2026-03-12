@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Filter, RefreshCw, AlertCircle, CheckCircle2, Link2 } from 'lucide-react';
+import { Search, RefreshCw, AlertCircle, CheckCircle2, Link2 } from 'lucide-react';
 import MappingModal from '@/components/mapping-modal';
 
 export default function VirtualCatalogPage() {
@@ -10,6 +10,12 @@ export default function VirtualCatalogPage() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedListing, setSelectedListing] = useState<any | null>(null);
+    const [mapeoFilter, setMapeoFilter] = useState<'all' | 'unmapped' | 'mapped'>('all');
+
+    // Paginación
+    const [page, setPage] = useState(0);
+    const [totalCount, setTotalCount] = useState(0);
+    const PAGE_SIZE = 100;
 
     const [syncing, setSyncing] = useState(false);
     const [syncProgress, setSyncProgress] = useState<string | null>(null);
@@ -23,23 +29,36 @@ export default function VirtualCatalogPage() {
 
     useEffect(() => {
         loadListings();
-    }, []);
+    }, [page, mapeoFilter]);
 
     async function loadListings() {
         setLoading(true);
         try {
-            // Unimos con marketplace_configs para saber de qué tienda es cada publicación
-            const { data, error } = await supabase
+            const from = page * PAGE_SIZE;
+            const to = from + PAGE_SIZE - 1;
+
+            let query = supabase
                 .from('publicaciones_externas')
                 .select(`
                     *,
                     marketplace:marketplace_configs (account_name)
-                `)
-                .order('esta_mapeado', { ascending: true }) // Mostrar los desmapeados primero
-                .order('creado_el', { ascending: false });
+                `, { count: 'exact' })
+                .order('esta_mapeado', { ascending: true })
+                .order('creado_el', { ascending: false })
+                .range(from, to);
+
+            // Filtrar por estado de mapeo si no es 'all'
+            if (mapeoFilter === 'unmapped') {
+                query = query.eq('esta_mapeado', false);
+            } else if (mapeoFilter === 'mapped') {
+                query = query.eq('esta_mapeado', true);
+            }
+
+            const { data, error, count } = await query;
 
             if (error) throw error;
             setListings(data || []);
+            setTotalCount(count || 0);
         } catch (error) {
             console.error('Error fetching listings:', error);
         } finally {
@@ -179,21 +198,36 @@ export default function VirtualCatalogPage() {
                 </div>
 
                 {/* Buscador y Filtros */}
-                <div className="flex gap-4 items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                    <div className="flex-1 relative">
-                        <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input
-                            type="text"
-                            placeholder="Buscar por MLM o título de la publicación..."
-                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-indigo-500"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                <div className="flex flex-col gap-4">
+                    <div className="flex gap-4 items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                        <div className="flex-1 relative">
+                            <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Buscar por MLM o título de la publicación..."
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
                     </div>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200">
-                        <Filter className="w-4 h-4" />
-                        Filtros
-                    </button>
+                    {/* Filtro por estado de mapeo */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Filtrar:</span>
+                        {(['all', 'unmapped', 'mapped'] as const).map(f => (
+                            <button
+                                key={f}
+                                onClick={() => { setMapeoFilter(f); setPage(0); }}
+                                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                                    mapeoFilter === f
+                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                                }`}
+                            >
+                                {f === 'all' ? `Todos (${totalCount})` : f === 'unmapped' ? 'Sin Mapear' : 'Mapeados'}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Tabla de Resultados */}
@@ -289,8 +323,32 @@ export default function VirtualCatalogPage() {
                     </div>
                 </div>
 
-            </div>
+                {/* Pagination Controls */}
+                {!loading && totalCount > PAGE_SIZE && (
+                    <div className="flex items-center justify-between pt-4">
+                        <p className="text-sm text-slate-500">
+                            Mostrando {page * PAGE_SIZE + 1} a {Math.min((page + 1) * PAGE_SIZE, totalCount)} de {totalCount}
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setPage(p => Math.max(0, p - 1))}
+                                disabled={page === 0}
+                                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Anterior
+                            </button>
+                            <button
+                                onClick={() => setPage(p => p + 1)}
+                                disabled={(page + 1) * PAGE_SIZE >= totalCount}
+                                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Siguiente
+                            </button>
+                        </div>
+                    </div>
+                )}
 
+            </div>
             {/* Consola de Debug - Logs en Vivo */}
             {debugLogs.length > 0 && (
                 <div className="fixed bottom-0 left-64 right-0 bg-slate-900 border-t border-slate-700 p-4 max-h-60 overflow-y-auto z-40">
