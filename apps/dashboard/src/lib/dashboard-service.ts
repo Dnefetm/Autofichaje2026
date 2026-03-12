@@ -12,7 +12,7 @@ export const dashboardService = {
         return data;
     },
 
-    async triggerStockUpdate(sku: string, newStock: number, marketplaceId: string) {
+    async triggerStockUpdate(sku: string, newStock: number, marketplaceId?: string) {
         // 1. Insertar el job en la cola
         const { data, error } = await supabase.from('jobs').insert({
             type: 'sync_stock',
