@@ -40,7 +40,7 @@ export default function CatalogPage() {
     async function fetchStats() {
         try {
             const { count: mappedCount } = await supabase
-                .from('sku_marketplace_mapping')
+                .from('mapeo_publicacion_articulo')
                 .select('*', { count: 'exact', head: true });
 
             setGlobalMappedCount(mappedCount || 0);
@@ -57,15 +57,15 @@ export default function CatalogPage() {
             const to = from + PAGE_SIZE - 1;
 
             const { data, error, count } = await supabase
-                .from('skus')
+                .from('articulos')
                 .select(`
-                  sku, 
-                  name, 
-                  brand, 
+                  articulo_id, 
+                  nombre, 
+                  marca, 
                   inventory_snapshot(physical_stock),
-                  sku_marketplace_mapping(marketplace_id, external_item_id)
+                  mapeo_publicacion_articulo(publicacion_id)
                 `, { count: 'exact' })
-                .order('created_at', { ascending: false })
+                .order('creado_el', { ascending: false })
                 .range(from, to);
 
             if (error) {
@@ -88,7 +88,7 @@ export default function CatalogPage() {
 
     const handleStockUpdate = (sku: string, newStock: number) => {
         setProducts(prev => prev.map(p =>
-            p.sku === sku ? { ...p, inventory_snapshot: { physical_stock: newStock } } : p
+            p.articulo_id === sku ? { ...p, inventory_snapshot: { physical_stock: newStock } } : p
         ));
     };
 
@@ -108,20 +108,20 @@ export default function CatalogPage() {
         if (selectedSkus.size === filteredProducts.length && filteredProducts.length > 0) {
             setSelectedSkus(new Set()); // deselect all
         } else {
-            const allPageSkus = filteredProducts.map(p => p.sku);
+            const allPageSkus = filteredProducts.map(p => p.articulo_id);
             setSelectedSkus(new Set(allPageSkus));
         }
     };
 
     const filteredProducts = products.filter(p => {
         const matchesSearch =
-            p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (p.brand && p.brand.toLowerCase().includes(searchQuery.toLowerCase()));
+            p.articulo_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            p.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.marca && p.marca.toLowerCase().includes(searchQuery.toLowerCase()));
 
         if (!matchesSearch) return false;
 
-        const isMapped = Array.isArray(p.sku_marketplace_mapping) ? p.sku_marketplace_mapping.length > 0 : !!p.sku_marketplace_mapping;
+        const isMapped = Array.isArray(p.mapeo_publicacion_articulo) ? p.mapeo_publicacion_articulo.length > 0 : !!p.mapeo_publicacion_articulo;
 
         const snapshot = Array.isArray(p.inventory_snapshot) ? p.inventory_snapshot[0] : p.inventory_snapshot;
         const stock = snapshot?.physical_stock || 0;
@@ -203,10 +203,10 @@ export default function CatalogPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredProducts.map((product) => (
                         <SkuCard
-                            key={product.sku}
+                            key={product.articulo_id}
                             product={product}
                             onStockUpdate={handleStockUpdate}
-                            isSelected={selectedSkus.has(product.sku)}
+                            isSelected={selectedSkus.has(product.articulo_id)}
                             onToggleSelection={handleToggleSelection}
                         />
                     ))}

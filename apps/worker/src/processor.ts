@@ -130,48 +130,99 @@ async function handleSyncStock(job: any) {
     // 1. Calcular el stock real considerando si es un PACK/BUNDLE
     const availableStock = await SKU_Service.calculateAvailableStock(sku);
 
-    // Un SKU puede estar mapeado a MÚLTIPLES publicaciones (Vitrinas) en la misma tienda
+    // 2. Buscar todas las publicaciones donde este artículo está mapeado (solo fuentes de stock)
     const { data: mappings } = await supabase
-        .from('sku_marketplace_mapping')
-        .select('external_item_id, external_variation_id')
-        .eq('sku', sku)
-        .eq('marketplace_id', marketplace_id);
+        .from('mapeo_publicacion_articulo')
+        .select(`
+            publicacion_id,
+            cantidad_requerida,
+            publicaciones_externas!inner (
+                id,
+                marketplace_id,
+                external_item_id,
+                es_fuente_stock
+            )
+        `)
+        .eq('articulo_id', sku);
 
     if (!mappings || mappings.length === 0) {
-        logger.warn({ sku, marketplace_id }, 'Mapping no encontrado para SKU, la pieza no se oferta en MeLi. Ignorando.');
-        return; // Salida pacífica, no lanzar throw Error para no atascar el Worker status ni asustar al usuario.
+        logger.warn({ sku, marketplace_id }, 'Ningún mapeo encontrado para artículo. Ignorando.');
+        return;
     }
 
-    logger.info({ sku, availableStock, marketplace_id, affectedListings: mappings.length }, 'Sincronizando stock real (Pack-Aware) a múltiples vitrinas');
+    // Filtrar solo publicaciones que son fuente de stock y pertenecen al marketplace solicitado
+    const fuentesStock = mappings.filter((m: any) => {
+        const pub = m.publicaciones_externas;
+        return pub?.es_fuente_stock === true &&
+            (!marketplace_id || pub?.marketplace_id === marketplace_id);
+    });
 
-    const updates = mappings.map(m => ({
-        itemId: m.external_item_id,
-        variationId: m.external_variation_id,
-        quantity: availableStock
-    }));
+    if (fuentesStock.length === 0) {
+        logger.warn({ sku, marketplace_id }, 'Artículo mapeado pero ninguna publicación es fuente de stock. Ignorando.');
+        return;
+    }
 
-    // Enviar batch a Mercado Libre (El rate limit internamente frena si es necesario)
-    const results = await meliAdapter.updateStock(marketplace_id, updates);
+    logger.info({ sku, availableStock, affectedListings: fuentesStock.length }, 'Sincronizando stock real a vitrinas mapeadas');
 
-    const errors = results.filter((r: any) => r.status === 'error');
-    if (errors.length > 0) {
-        throw new Error(`MercadoLibre API Error (Stock): ${JSON.stringify(errors)}`);
+    // Para cada publicación mapeada, recalcular el stock del kit completo
+    for (const mapping of fuentesStock) {
+        const pub = mapping.publicaciones_externas as any;
+        const pubId = pub.id;
+
+        // Traer TODOS los componentes de esta publicación para calcular stock de kit
+        const { data: allComponents } = await supabase
+            .from('mapeo_publicacion_articulo')
+            .select('articulo_id, cantidad_requerida')
+            .eq('publicacion_id', pubId);
+
+        let maxKits = 999999;
+        if (allComponents && allComponents.length > 0) {
+            for (const comp of allComponents) {
+                const compStock = await SKU_Service.calculateAvailableStock(comp.articulo_id);
+                const reachableKits = Math.floor(compStock / comp.cantidad_requerida);
+                if (reachableKits < maxKits) maxKits = reachableKits;
+            }
+        } else {
+            maxKits = availableStock;
+        }
+
+        const results = await meliAdapter.updateStock(pub.marketplace_id, [
+            { itemId: pub.external_item_id, quantity: Math.max(0, maxKits) }
+        ]);
+
+        const errors = results.filter((r: any) => r.status === 'error');
+        if (errors.length > 0) {
+            logger.error({ sku, pubId, errors }, 'Error sincronizando stock a MeLi');
+        }
+
+        // Actualizar stock local
+        await supabase.from('publicaciones_externas')
+            .update({ stock_publicado: Math.max(0, maxKits), actualizado_el: new Date().toISOString() })
+            .eq('id', pubId);
     }
 }
 
 async function handleSyncPrice(job: any) {
     const { sku, newPrice, marketplace_id } = job.payload;
-    const { data: mapping } = await supabase
-        .from('sku_marketplace_mapping')
-        .select('external_item_id, external_variation_id')
-        .eq('sku', sku)
-        .eq('marketplace_id', marketplace_id)
-        .single();
 
-    if (!mapping) throw new Error(`Mapping no encontrado para SKU ${sku}`);
+    // Buscar publicaciones donde este artículo está mapeado
+    const { data: mappings } = await supabase
+        .from('mapeo_publicacion_articulo')
+        .select(`
+            publicaciones_externas!inner (
+                marketplace_id,
+                external_item_id
+            )
+        `)
+        .eq('articulo_id', sku);
+
+    const pubs = mappings?.map((m: any) => m.publicaciones_externas).filter(Boolean) || [];
+    const targetPub = pubs.find((p: any) => p.marketplace_id === marketplace_id);
+
+    if (!targetPub) throw new Error(`Mapeo no encontrado para artículo ${sku} en marketplace ${marketplace_id}`);
 
     const results = await meliAdapter.updatePrice(marketplace_id, [
-        { itemId: mapping.external_item_id, variationId: mapping.external_variation_id, price: newPrice }
+        { itemId: targetPub.external_item_id, price: newPrice }
     ]);
 
     const errors = results.filter((r: any) => r.status === 'error');
@@ -277,19 +328,24 @@ async function handleAccountCatalogSync(job: any) {
 async function handleSyncStockMapped(job: any) {
     const { publicacion_id } = job.payload;
 
-    // 1. Obtener publicación
+    // 1. Obtener publicación y verificar que es fuente de stock
     const { data: pub, error: pubErr } = await supabase
         .from('publicaciones_externas')
-        .select('marketplace_id, external_item_id')
+        .select('marketplace_id, external_item_id, es_fuente_stock, tipo_publicacion')
         .eq('id', publicacion_id)
         .single();
 
     if (pubErr || !pub) throw new Error(`Publicación externa no encontrada: ${publicacion_id}`);
 
+    if (!pub.es_fuente_stock) {
+        logger.info({ publicacion_id, tipo: pub.tipo_publicacion }, 'Publicación no es fuente de stock (espejo/derivada). Omitiendo sync.');
+        return;
+    }
+
     // 2. Traer ensamble y snapshot físico
     const { data: mappings, error: mapErr } = await supabase
         .from('mapeo_publicacion_articulo')
-        .select('cantidad_requerida, articulos(sku)')
+        .select('cantidad_requerida, articulo_id')
         .eq('publicacion_id', publicacion_id);
 
     if (mapErr) throw new Error(`Error obteniendo ensamble: ${mapErr.message}`);
@@ -299,8 +355,7 @@ async function handleSyncStockMapped(job: any) {
     if (mappings && mappings.length > 0) {
         maxKits = 999999;
         for (const map of mappings) {
-            const articulosData = map.articulos as any;
-            const sku = Array.isArray(articulosData) ? articulosData[0]?.sku : articulosData?.sku;
+            const sku = map.articulo_id;
             const qtyNeeded = map.cantidad_requerida;
 
             if (!sku) continue;

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { X, Search, Package, Save, RefreshCw } from 'lucide-react';
+import { X, Search, Package, Save, RefreshCw, Plus, Trash2 } from 'lucide-react';
 
 interface MappingModalProps {
     listing: any;
@@ -31,8 +31,8 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                 .select(`
                     id,
                     cantidad_requerida,
-                    sku_articulo,
-                    articulos (nombre, sku)
+                    articulo_id,
+                    articulos (nombre, articulo_id)
                 `)
                 .eq('publicacion_id', listing.id);
 
@@ -41,7 +41,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             if (data) {
                 const mapped = data.map((d: any) => ({
                     mapping_id: d.id,
-                    sku: d.sku_articulo,
+                    sku: d.articulo_id,
                     name: d.articulos?.nombre || 'Producto Desconocido',
                     quantity: d.cantidad_requerida
                 }));
@@ -70,20 +70,25 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
         try {
             const { data, error } = await supabase
                 .from('articulos')
-                .select('sku, nombre')
-                .or(`sku.ilike.%${searchTerm}%,nombre.ilike.%${searchTerm}%`)
+                .select('articulo_id, nombre')
+                .or(`articulo_id.ilike.%${searchTerm}%,nombre.ilike.%${searchTerm}%`)
                 .limit(10);
 
-            if (error) throw error;
+            if (error) {
+                console.error('Error buscando artículos:', error.message);
+                setSearchResults([]);
+                return;
+            }
             setSearchResults(data || []);
         } catch (error) {
             console.error('Error buscando artículos físicos:', error);
+            setSearchResults([]);
         }
     }
 
     function handleAddSku(product: any) {
-        if (selectedSkus.find(s => s.sku === product.sku)) return; // Ya existe
-        setSelectedSkus([...selectedSkus, { sku: product.sku, name: product.nombre, quantity: 1, mapping_id: null }]);
+        if (selectedSkus.find(s => s.sku === product.articulo_id)) return; // Ya existe
+        setSelectedSkus([...selectedSkus, { sku: product.articulo_id, name: product.nombre, quantity: 1, mapping_id: null }]);
         setSearchTerm(''); // Limpiar buscador
     }
 
@@ -115,7 +120,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             // 2. Insertar nuevos mapeos (El armado del Kit o Sencillo)
             const inserts = selectedSkus.map(s => ({
                 publicacion_id: listing.id,
-                sku_articulo: s.sku,
+                articulo_id: s.sku,
                 cantidad_requerida: s.quantity
             }));
 
@@ -197,13 +202,13 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto overflow-hidden">
                                     {searchResults.map(res => (
                                         <button
-                                            key={res.sku}
+                                            key={res.articulo_id}
                                             className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 last:border-0"
                                             onClick={() => handleAddSku(res)}
                                         >
                                             <div>
                                                 <p className="font-medium text-slate-800 text-sm">{res.nombre}</p>
-                                                <p className="text-xs text-slate-500">{res.sku}</p>
+                                                <p className="text-xs text-slate-500">{res.articulo_id}</p>
                                             </div>
                                             <Plus className="w-4 h-4 text-indigo-600" />
                                         </button>

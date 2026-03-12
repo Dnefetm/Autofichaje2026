@@ -1,32 +1,12 @@
 -- SCHEMA UNIFICADO: GESTOR + AUTOFICHAS
+-- Actualizado: tabla 'skus' y 'categories' eliminadas.
+-- Catálogo maestro ahora en 'articulos' (ver v13_migration.sql).
+-- FKs redirigidas a articulos(articulo_id).
 
--- 1. Categorías (AUTOFICHAS)
-CREATE TABLE IF NOT EXISTS categories (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    parent_id UUID REFERENCES categories(id),
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 2. SKUs Core (Catálogo Maestro)
-CREATE TABLE IF NOT EXISTS skus (
-    sku TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    brand TEXT,
-    category_id UUID REFERENCES categories(id),
-    description TEXT,
-    images TEXT[], -- URLs
-    is_active BOOLEAN DEFAULT true,
-    metadata JSONB DEFAULT '{}'::jsonb, -- Atributos técnicos dinámicos (AUTOFICHAS Part 2)
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 3. Fuentes de Documentos (AUTOFICHAS)
+-- 1. Fuentes de Documentos (AUTOFICHAS)
 CREATE TABLE IF NOT EXISTS document_sources (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sku TEXT REFERENCES skus(sku),
+    sku TEXT REFERENCES articulos(articulo_id) ON DELETE SET NULL,
     source_type TEXT NOT NULL, -- 'pdf', 'image', 'url'
     source_url TEXT NOT NULL,
     ocr_raw_text TEXT,
@@ -35,31 +15,30 @@ CREATE TABLE IF NOT EXISTS document_sources (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 4. Inventario Snapshot (GESTOR)
+-- 2. Inventario Snapshot (GESTOR)
 CREATE TABLE IF NOT EXISTS inventory_snapshot (
-    sku TEXT PRIMARY KEY REFERENCES skus(sku) ON DELETE RESTRICT,
+    sku TEXT PRIMARY KEY REFERENCES articulos(articulo_id) ON DELETE RESTRICT,
     physical_stock INTEGER DEFAULT 0,
     dropship_stock INTEGER DEFAULT 0,
     reserved_stock INTEGER DEFAULT 0,
-    -- total_stock e available_stock generados por lógica de aplicación o triggers
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 5. Configuración de Cuentas de Marketplace (GESTOR)
+-- 3. Configuración de Cuentas de Marketplace (GESTOR)
 CREATE TABLE IF NOT EXISTS marketplace_configs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     marketplace TEXT NOT NULL, -- 'meli', 'amazon', 'walmart', 'coppel', 'tiktok'
     account_name TEXT NOT NULL,
     is_active BOOLEAN DEFAULT true,
-    settings JSONB DEFAULT '{}'::jsonb, -- rate limits, etc
+    settings JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT now(),
     UNIQUE(marketplace, account_name)
 );
 
--- 6. Mapeo SKU-Marketplace (GESTOR)
+-- 4. Mapeo SKU-Marketplace (GESTOR)
 CREATE TABLE IF NOT EXISTS sku_marketplace_mapping (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sku TEXT REFERENCES skus(sku) ON DELETE RESTRICT,
+    sku TEXT REFERENCES articulos(articulo_id) ON DELETE CASCADE,
     marketplace_id UUID REFERENCES marketplace_configs(id),
     external_item_id TEXT NOT NULL,
     external_variation_id TEXT,
@@ -68,12 +47,12 @@ CREATE TABLE IF NOT EXISTS sku_marketplace_mapping (
     UNIQUE(marketplace_id, external_item_id, external_variation_id)
 );
 
--- 7. Precios por Marketplace (GESTOR + AUTOFICHAS)
+-- 5. Precios por Marketplace (GESTOR + AUTOFICHAS)
 CREATE TABLE IF NOT EXISTS marketplace_prices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sku TEXT REFERENCES skus(sku),
+    sku TEXT REFERENCES articulos(articulo_id) ON DELETE CASCADE,
     marketplace_id UUID REFERENCES marketplace_configs(id),
-    base_price NUMERIC(12, 2), -- Precio costo / base
+    base_price NUMERIC(12, 2),
     sale_price NUMERIC(12, 2) NOT NULL,
     shipping_cost NUMERIC(12, 2) DEFAULT 0,
     currency TEXT DEFAULT 'MXN',
@@ -81,12 +60,12 @@ CREATE TABLE IF NOT EXISTS marketplace_prices (
     UNIQUE(sku, marketplace_id)
 );
 
--- 8. Cola de Trabajos (GESTOR)
+-- 6. Cola de Trabajos (GESTOR)
 CREATE TABLE IF NOT EXISTS jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    type TEXT NOT NULL, -- 'sync_stock', 'sync_price', 'create_listing', 'ocr_process'
+    type TEXT NOT NULL,
     payload JSONB NOT NULL,
-    status TEXT DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'failed'
+    status TEXT DEFAULT 'pending',
     attempts INTEGER DEFAULT 0,
     max_attempts INTEGER DEFAULT 3,
     scheduled_at TIMESTAMPTZ DEFAULT now(),
@@ -96,7 +75,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 9. Logs de Sincronización (GESTOR)
+-- 7. Logs de Sincronización (GESTOR)
 CREATE TABLE IF NOT EXISTS sync_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     job_id UUID REFERENCES jobs(id),
@@ -108,18 +87,18 @@ CREATE TABLE IF NOT EXISTS sync_logs (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 10. Transacciones de Inventario (GESTOR)
+-- 8. Transacciones de Inventario (GESTOR)
 CREATE TABLE IF NOT EXISTS inventory_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sku TEXT REFERENCES skus(sku),
+    sku TEXT REFERENCES articulos(articulo_id) ON DELETE CASCADE,
     delta INTEGER NOT NULL,
-    source TEXT NOT NULL, -- 'sale', 'refund', 'adjustment', 'dropship_update'
-    reference_id TEXT, -- Order ID o Job ID
+    source TEXT NOT NULL,
+    reference_id TEXT,
     resulting_stock INTEGER NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 11. Tokens OAuth (GESTOR)
+-- 9. Tokens OAuth (GESTOR)
 CREATE TABLE IF NOT EXISTS marketplace_tokens (
     marketplace_id UUID PRIMARY KEY REFERENCES marketplace_configs(id),
     access_token TEXT NOT NULL,
@@ -128,22 +107,22 @@ CREATE TABLE IF NOT EXISTS marketplace_tokens (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 12. Bundles / Kits (GESTOR)
+-- 10. Bundles / Kits (GESTOR)
 CREATE TABLE IF NOT EXISTS bundle_components (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    bundle_sku TEXT REFERENCES skus(sku),
-    component_sku TEXT REFERENCES skus(sku),
+    bundle_sku TEXT REFERENCES articulos(articulo_id) ON DELETE CASCADE,
+    component_sku TEXT REFERENCES articulos(articulo_id) ON DELETE CASCADE,
     quantity INTEGER DEFAULT 1,
     UNIQUE(bundle_sku, component_sku)
 );
 
--- 13. Alertas de Sistema (GESTOR)
+-- 11. Alertas de Sistema (GESTOR)
 CREATE TABLE IF NOT EXISTS system_alerts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    level TEXT NOT NULL, -- 'info', 'warning', 'critical'
-    type TEXT NOT NULL, -- 'low_stock', 'sync_error', 'token_expired'
+    level TEXT NOT NULL,
+    type TEXT NOT NULL,
     message TEXT NOT NULL,
-    sku TEXT REFERENCES skus(sku),
+    sku TEXT REFERENCES articulos(articulo_id) ON DELETE SET NULL,
     marketplace_id UUID REFERENCES marketplace_configs(id),
     is_resolved BOOLEAN DEFAULT false,
     resolved_at TIMESTAMPTZ,
@@ -151,7 +130,7 @@ CREATE TABLE IF NOT EXISTS system_alerts (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 14. Vistas Operativas (GESTOR)
+-- 12. Vistas Operativas (GESTOR)
 CREATE OR REPLACE VIEW calculated_publishable_stock AS
 SELECT 
     sku,

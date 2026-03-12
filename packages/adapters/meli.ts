@@ -6,6 +6,38 @@ import { checkRateLimit } from '@gestor/shared/lib/rate-limiter';
 import logger from '@gestor/shared/lib/logger';
 import { decrypt, encrypt } from '@gestor/shared';
 
+/**
+ * Clasifica el tipo de publicación de MeLi a partir de los datos de la API.
+ * Tipos: 'tradicional' | 'catalogo' | 'tradicional_derivada' | 'catalogo_derivada'
+ */
+function clasificarPublicacion(item: any): {
+    tipo_publicacion: string;
+    id_publicacion_padre: string | null;
+    es_fuente_stock: boolean;
+    id_producto_catalogo: string | null;
+} {
+    const isCatalog = item.catalog_listing === true ||
+        item.listing_type_id === 'gold_product_page';
+    const hasParent = !!item.parent_item_id;
+
+    let tipo_publicacion = 'tradicional';
+    if (isCatalog && hasParent) {
+        tipo_publicacion = 'catalogo_derivada';
+    } else if (isCatalog) {
+        tipo_publicacion = 'catalogo';
+    } else if (hasParent) {
+        tipo_publicacion = 'tradicional_derivada';
+    }
+    // else: 'tradicional' (padre) — default
+
+    return {
+        tipo_publicacion,
+        id_publicacion_padre: item.parent_item_id || null,
+        es_fuente_stock: tipo_publicacion === 'tradicional', // Solo padre tradicional
+        id_producto_catalogo: item.catalog_product_id || null,
+    };
+}
+
 export class MeliAdapter implements MarketplaceAdapter {
     readonly capabilities: MarketplaceCapabilities = {
         supportsBulkStock: false,
@@ -199,6 +231,9 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             const item = response.data;
 
+            // Clasificar tipo de publicación (Tradicional, Catálogo, Derivada, etc.)
+            const clasificacion = clasificarPublicacion(item);
+
             // 1. Insertar o actualizar la Vitrina en publicaciones_externas (Aislado del inventario físico)
             const { error: pubError } = await supabase.from('publicaciones_externas').upsert({
                 marketplace_id: accountId,
@@ -209,12 +244,16 @@ export class MeliAdapter implements MarketplaceAdapter {
                 status_externo: item.status,
                 url_imagen: item.pictures?.[0]?.url || item.thumbnail,
                 permalink: item.permalink,
+                tipo_publicacion: clasificacion.tipo_publicacion,
+                id_publicacion_padre: clasificacion.id_publicacion_padre,
+                es_fuente_stock: clasificacion.es_fuente_stock,
+                id_producto_catalogo: clasificacion.id_producto_catalogo,
                 actualizado_el: new Date().toISOString()
             }, { onConflict: 'marketplace_id,external_item_id,external_variation_id' });
 
             if (pubError) throw pubError;
 
-            logger.info({ itemId: item.id }, 'Publicación de MeLi almacenada en el Catálogo Virtual');
+            logger.info({ itemId: item.id, tipo: clasificacion.tipo_publicacion }, 'Publicación de MeLi almacenada en el Catálogo Virtual');
 
         } catch (error: any) {
             logger.error({ itemId, error: error.response?.data || error.message }, 'Error al sincronizar publicación de MeLi');
@@ -256,6 +295,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 .filter((res: any) => res.code === 200 && res.body)
                 .map((res: any) => {
                     const item = res.body;
+                    const clasificacion = clasificarPublicacion(item);
                     // DEUDA TÉCNICA: Items con variaciones (tallas/colores) se guardan como una sola fila
                     // con variation_id '0'. Para manejar variaciones real, iterar item.variations[].
                     return {
@@ -268,6 +308,10 @@ export class MeliAdapter implements MarketplaceAdapter {
                         status_externo: item.status,
                         url_imagen: item.pictures?.[0]?.url || item.thumbnail,
                         permalink: item.permalink,
+                        tipo_publicacion: clasificacion.tipo_publicacion,
+                        id_publicacion_padre: clasificacion.id_publicacion_padre,
+                        es_fuente_stock: clasificacion.es_fuente_stock,
+                        id_producto_catalogo: clasificacion.id_producto_catalogo,
                         actualizado_el: new Date().toISOString()
                     };
                 });

@@ -23,9 +23,9 @@ export default function BundlesPage() {
                     if (data && data.length > 0) {
                         setComponents(data.map((c: any) => ({
                             sku: c.component_sku,
-                            name: c.skus?.name || 'Producto Desconocido',
+                            name: c.articulos?.nombre || 'Producto Desconocido',
                             quantity: c.quantity,
-                            image: c.skus?.images?.[0]
+                            image: c.articulos?.imagenes?.[0]
                         })));
                     } else {
                         // Si era un bundle y lo borraron, no limpiamos inmediatamente para permitir edición
@@ -49,7 +49,7 @@ export default function BundlesPage() {
         const doSearch = async () => {
             setIsSearching(true);
             try {
-                const results = await dashboardService.searchSKUs(searchQuery);
+                const results = await dashboardService.searchArticulos(searchQuery);
                 setSearchResults(results || []);
             } catch (err) {
                 console.error("Error buscando SKUs:", err);
@@ -66,10 +66,10 @@ export default function BundlesPage() {
         if (components.find(c => c.sku === skuData.sku)) return; // Ya existe
 
         setComponents([...components, {
-            sku: skuData.sku,
-            name: skuData.name,
+            sku: skuData.articulo_id,
+            name: skuData.nombre,
             quantity: 1,
-            image: skuData.images?.[0]
+            image: skuData.imagenes?.[0]
         }]);
         setSearchQuery("");
         setSearchResults([]);
@@ -241,17 +241,17 @@ export default function BundlesPage() {
                         ) : searchResults.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-2">
                                 {searchResults.map((result) => (
-                                    <div key={result.sku} className="flex gap-3 p-3 bg-white border border-slate-200 rounded-lg hover:border-indigo-300 transition-colors items-center group">
-                                        {result.images?.[0] ? (
-                                            <img src={result.images[0]} alt="" className="w-12 h-12 rounded bg-slate-100 object-cover" />
+                                    <div key={result.articulo_id} className="flex gap-3 p-3 bg-white border border-slate-200 rounded-lg hover:border-indigo-300 transition-colors items-center group">
+                                        {result.imagenes?.[0] ? (
+                                            <img src={result.imagenes[0]} alt="" className="w-12 h-12 rounded bg-slate-100 object-cover" />
                                         ) : (
                                             <div className="w-12 h-12 rounded bg-slate-100 flex items-center justify-center">
                                                 <Package className="w-5 h-5 text-slate-300" />
                                             </div>
                                         )}
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold text-slate-800 truncate" title={result.name}>{result.name}</p>
-                                            <p className="text-xs text-slate-500 font-mono">{result.sku}</p>
+                                            <p className="text-sm font-bold text-slate-800 truncate" title={result.nombre}>{result.nombre}</p>
+                                            <p className="text-xs text-slate-500 font-mono">{result.articulo_id}</p>
                                         </div>
                                         <button
                                             onClick={() => addComponent(result)}

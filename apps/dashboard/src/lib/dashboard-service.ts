@@ -1,10 +1,10 @@
 import { supabase } from '@/lib/supabase';
-import { SKU, Job } from '@gestor/shared';
+import { Articulo, Job } from '@gestor/shared';
 
 export const dashboardService = {
-    async getSKUs() {
+    async getArticulos() {
         const { data, error } = await supabase
-            .from('skus')
+            .from('articulos')
             .select('*, inventory_snapshot(physical_stock), marketplace_prices(sale_price)')
             .limit(50);
 
@@ -79,11 +79,11 @@ export const dashboardService = {
         return data;
     },
 
-    async searchSKUs(query: string) {
+    async searchArticulos(query: string) {
         const { data, error } = await supabase
-            .from('skus')
-            .select('sku, name, images')
-            .ilike('sku', `%${query}%`)
+            .from('articulos')
+            .select('articulo_id, nombre, imagenes')
+            .ilike('articulo_id', `%${query}%`)
             .limit(10);
         if (error) throw error;
         return data;
@@ -92,7 +92,7 @@ export const dashboardService = {
     async getBundleComponents(bundleSku: string) {
         const { data, error } = await supabase
             .from('bundle_components')
-            .select('*, skus(name, images)')
+            .select('*, articulos!bundle_components_component_sku_fkey(nombre, imagenes)')
             .eq('bundle_sku', bundleSku);
         if (error) throw error;
         return data;

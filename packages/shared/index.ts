@@ -1,24 +1,29 @@
 export type MarketplaceAccount = 'meli' | 'amazon' | 'walmart' | 'coppel' | 'tiktok';
 
-export interface Category {
-    id: string;
-    name: string;
-    parent_id?: string;
-    created_at: string;
+export interface Articulo {
+    articulo_id: string;
+    nombre: string;
+    marca?: string;
+    modelo?: string;
+    variante?: string;
+    categoria?: string;
+    descripcion?: string;
+    codigo_universal?: string;
+    codigo_sat?: string;
+    imagenes: string[];
+    activo: boolean;
+    atributos_especificos: Record<string, any>;
+    creado_el: string;
+    actualizado_el: string;
+    // Logística
+    peso_kg?: number;
+    largo_cm?: number;
+    ancho_cm?: number;
+    alto_cm?: number;
 }
 
-export interface SKU {
-    sku: string;
-    name: string;
-    brand?: string;
-    category_id?: string;
-    description?: string;
-    images: string[];
-    is_active: boolean;
-    metadata: Record<string, any>; // Atributos dinámicos de AUTOFICHAS
-    created_at: string;
-    updated_at: string;
-}
+/** @deprecated Usa Articulo */
+export type SKU = Articulo;
 
 export interface InventorySnapshot {
     sku: string;

@@ -23,16 +23,16 @@ export function SkuCard({
     const [saving, setSaving] = useState(false);
 
     // MOCK Images if not available (assuming Supabase will give us images array later)
-    const image = product.images?.[0] || null;
+    const image = product.imagenes?.[0] || null;
 
-    const isMapped = Array.isArray(product.sku_marketplace_mapping) ? product.sku_marketplace_mapping.length > 0 : !!product.sku_marketplace_mapping;
+    const isMapped = Array.isArray(product.mapeo_publicacion_articulo) ? product.mapeo_publicacion_articulo.length > 0 : !!product.mapeo_publicacion_articulo;
     const isLowStock = newStock <= 2;
 
     const handleSave = async () => {
         setSaving(true);
         try {
-            await dashboardService.triggerStockUpdate(product.sku, newStock, 'meli_account_1');
-            onStockUpdate(product.sku, newStock);
+            await dashboardService.triggerStockUpdate(product.articulo_id, newStock, 'meli_account_1');
+            onStockUpdate(product.articulo_id, newStock);
             setEditing(false);
         } catch (err) {
             alert('Error al intentar actualizar el stock');
@@ -51,10 +51,10 @@ export function SkuCard({
             {/* Image Section */}
             <div
                 className="aspect-square bg-slate-100 flex items-center justify-center relative overflow-hidden cursor-pointer"
-                onClick={() => onToggleSelection?.(product.sku)}
+                onClick={() => onToggleSelection?.(product.articulo_id)}
             >
                 {image ? (
-                    <img src={image} alt={product.name} className="w-full h-full object-cover" />
+                    <img src={image} alt={product.nombre} className="w-full h-full object-cover" />
                 ) : (
                     <div className="flex flex-col items-center justify-center text-slate-400 gap-2">
                         <ImageIcon className="w-8 h-8 opacity-50" />
@@ -67,7 +67,7 @@ export function SkuCard({
                     <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => onToggleSelection?.(product.sku)}
+                        onChange={() => onToggleSelection?.(product.articulo_id)}
                         className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer pointer-events-auto"
                     />
                 </div>
@@ -88,17 +88,17 @@ export function SkuCard({
             {/* Content Section */}
             <div className="p-5 flex-1 flex flex-col">
                 <div className="mb-1">
-                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">{product.brand || 'GENERIC'}</span>
+                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">{product.marca || 'GENERIC'}</span>
                 </div>
                 <h3 className="font-bold text-slate-900 text-sm leading-snug line-clamp-2 mb-4 flex-1">
-                    {product.name}
+                    {product.nombre}
                 </h3>
 
                 <div className="grid grid-cols-2 gap-4 items-end mt-auto pt-4 border-t border-slate-100">
                     <div>
                         <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">SKU</p>
                         <p className="text-xs font-mono font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded w-fit">
-                            {product.sku}
+                            {product.articulo_id}
                         </p>
                     </div>
 

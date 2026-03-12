@@ -1,4 +1,5 @@
 -- FUNCIONES Y TRIGGERS: GESTOR + AUTOFICHAS
+-- Actualizado: tabla 'skus' eliminada, ahora se usa 'articulos'
 
 -- 1. Trigger para actualizar la columna updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -9,8 +10,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_skus_updated_at BEFORE UPDATE ON skus FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON categories FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+CREATE TRIGGER update_articulos_updated_at BEFORE UPDATE ON articulos FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 CREATE TRIGGER update_inventory_snapshot_updated_at BEFORE UPDATE ON inventory_snapshot FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 CREATE TRIGGER update_marketplace_prices_updated_at BEFORE UPDATE ON marketplace_prices FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
@@ -60,12 +60,12 @@ $$ LANGUAGE plpgsql;
 -- 3. Vista para stock disponible consolidado (Considerando reservas y buffers)
 CREATE OR REPLACE VIEW view_available_stock AS
 SELECT 
-    s.sku,
-    s.name,
+    a.articulo_id AS sku,
+    a.nombre AS name,
     i.physical_stock,
     i.dropship_stock,
     i.reserved_stock,
     (i.physical_stock + i.dropship_stock) as total_stock,
     ((i.physical_stock + i.dropship_stock) - i.reserved_stock) as net_available_stock
-FROM skus s
-JOIN inventory_snapshot i ON s.sku = i.sku;
+FROM articulos a
+JOIN inventory_snapshot i ON a.articulo_id = i.sku;

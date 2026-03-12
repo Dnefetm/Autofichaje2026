@@ -47,22 +47,23 @@ export class SKU_Service {
         return (stockData.physical_stock || 0) + (stockData.dropship_stock || 0) - (stockData.reserved_stock || 0);
     }
 
-    static async createSKU(data: any) {
-        logger.info({ sku: data.sku }, 'Creando SKU con lógica unificada');
-        const { error } = await supabase.from('skus').insert({
-            sku: data.sku,
-            name: data.name,
-            brand: data.brand,
-            description: data.description,
-            is_active: true
+    static async createArticulo(data: any) {
+        const articuloId = data.articulo_id || data.sku;
+        logger.info({ articulo_id: articuloId }, 'Creando artículo con lógica unificada');
+        const { error } = await supabase.from('articulos').insert({
+            articulo_id: articuloId,
+            nombre: data.nombre || data.name,
+            marca: data.marca || data.brand,
+            descripcion: data.descripcion || data.description,
+            activo: true
         });
         if (error) throw error;
 
-        await supabase.from('inventory_snapshot').insert({ sku: data.sku });
+        await supabase.from('inventory_snapshot').insert({ sku: articuloId });
     }
 
-    static async updateTechnicalSpecs(sku: string, specs: any) {
-        await supabase.from('skus').update({ metadata: specs }).eq('sku', sku);
+    static async updateTechnicalSpecs(articuloId: string, specs: any) {
+        await supabase.from('articulos').update({ atributos_especificos: specs }).eq('articulo_id', articuloId);
     }
 
     static async getInventory(sku: string) {

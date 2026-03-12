@@ -32,26 +32,35 @@ export const AutomationManager = {
 
         const bundleSkus = bundles.map((b: any) => b.bundle_sku);
 
-        // Encontrar todos los mapeos de esos bundles en Marketplaces para actualizar su stock
+        // Encontrar publicaciones mapeadas a esos bundles via tabla puente
         const { data: mappings } = await supabase
-            .from('sku_marketplace_mapping')
-            .select('sku, marketplace_id, external_item_id')
-            .in('sku', bundleSkus);
+            .from('mapeo_publicacion_articulo')
+            .select(`
+                articulo_id,
+                publicacion_id,
+                publicaciones_externas!inner (
+                    id, marketplace_id, external_item_id, es_fuente_stock
+                )
+            `)
+            .in('articulo_id', bundleSkus);
 
         if (!mappings || mappings.length === 0) return;
 
-        const jobsToInsert = mappings.map((mapping: any) => ({
-            type: 'sync_stock',
+        // Solo encolar sync para publicaciones fuente de stock
+        const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas?.es_fuente_stock === true);
+
+        const jobsToInsert = fuentesStock.map((mapping: any) => ({
+            type: 'sync_stock_mapped',
             payload: {
-                sku: mapping.sku,
-                marketplace_id: mapping.marketplace_id,
-                external_item_id: mapping.external_item_id
+                publicacion_id: mapping.publicaciones_externas.id
             },
             status: 'pending',
             scheduled_at: new Date().toISOString()
         }));
 
-        await supabase.from('jobs').insert(jobsToInsert);
+        if (jobsToInsert.length > 0) {
+            await supabase.from('jobs').insert(jobsToInsert);
+        }
     },
 
     async checkAlertRules(sku: string, currentStock: number) {
@@ -85,27 +94,33 @@ export const AutomationManager = {
     },
 
     async enqueueMarketplaceAction(sku: string, action: 'pause' | 'activate') {
-        // Buscar todos los mapeos de este SKU
+        // Buscar publicaciones mapeadas a este artículo via tabla puente
         const { data: mappings } = await supabase
-            .from('sku_marketplace_mapping')
-            .select('marketplace_id, external_item_id, sync_status')
-            .eq('sku', sku);
+            .from('mapeo_publicacion_articulo')
+            .select(`
+                publicaciones_externas!inner (
+                    id, marketplace_id, external_item_id, es_fuente_stock, status_externo
+                )
+            `)
+            .eq('articulo_id', sku);
 
         if (!mappings || mappings.length === 0) return;
 
         for (const mapping of mappings) {
-            // Evitar encolar si ya está en el estado deseado (simplificado)
-            if (action === 'pause' && mapping.sync_status === 'paused') continue;
-            if (action === 'activate' && mapping.sync_status === 'active') continue;
+            const pub = (mapping as any).publicaciones_externas;
+            if (!pub?.es_fuente_stock) continue;
 
-            logger.info({ sku, action, marketplace: mapping.marketplace_id }, 'Encolando acción automática');
+            // Evitar encolar si ya está en el estado deseado
+            if (action === 'pause' && pub.status_externo === 'paused') continue;
+            if (action === 'activate' && pub.status_externo === 'active') continue;
+
+            logger.info({ sku, action, marketplace: pub.marketplace_id }, 'Encolando acción automática');
 
             await supabase.from('jobs').insert({
                 type: action === 'pause' ? 'pause_listing' : 'activate_listing',
                 payload: {
-                    sku,
-                    marketplace_id: mapping.marketplace_id,
-                    external_item_id: mapping.external_item_id
+                    marketplace_id: pub.marketplace_id,
+                    external_item_id: pub.external_item_id
                 },
                 status: 'pending',
                 scheduled_at: new Date().toISOString()

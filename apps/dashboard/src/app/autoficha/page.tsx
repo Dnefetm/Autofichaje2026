@@ -38,13 +38,13 @@ export default function AutofichaPage() {
     const handleSave = async () => {
         if (!result) return;
         try {
-            // 1. Guardar en tabla SKUs
-            const { error: skuError } = await supabase.from('skus').insert({
-                sku: result.sku,
+            // 1. Guardar en tabla Articulos
+            const { error: skuError } = await supabase.from('articulos').insert({
+                articulo_id: result.sku,
                 nombre: result.nombre,
                 marca: result.marca,
-                description: result.description,
-                metadata: result.metadata
+                descripcion: result.description,
+                atributos_especificos: result.metadata
             });
 
             if (skuError) throw skuError;

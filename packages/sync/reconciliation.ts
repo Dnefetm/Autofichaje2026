@@ -5,82 +5,92 @@ import logger from '@gestor/shared/lib/logger';
 const meliAdapter = new MeliAdapter();
 
 export async function runReconciliation() {
-    logger.info('Iniciando proceso de reconciliación de inventario...');
+    logger.info('Iniciando proceso de reconciliación de inventario (v2 — mapeo_publicacion_articulo)...');
 
     try {
-        // 1. Obtener mapeos activos de MeLi
-        const { data: mappings, error } = await supabase
-            .from('sku_marketplace_mapping')
-            .select(`
-                sku,
-                marketplace_id,
-                external_item_id,
-                external_variation_id,
-                skus (
-                    inventory_snapshot (physical_stock)
-                )
-            `)
-            .eq('sync_status', 'active');
+        // 1. Obtener publicaciones que son fuente de stock y están mapeadas
+        const { data: publicaciones, error } = await supabase
+            .from('publicaciones_externas')
+            .select('id, marketplace_id, external_item_id, stock_publicado')
+            .eq('es_fuente_stock', true)
+            .eq('esta_mapeado', true);
 
         if (error) throw error;
-        if (!mappings || mappings.length === 0) {
-            logger.info('No hay productos activos para reconciliar.');
+        if (!publicaciones || publicaciones.length === 0) {
+            logger.info('No hay publicaciones fuente-de-stock mapeadas para reconciliar.');
             return;
         }
 
-        logger.info({ count: mappings.length }, 'Procesando productos para reconciliación');
+        logger.info({ count: publicaciones.length }, 'Publicaciones fuente-de-stock a reconciliar');
 
-        for (const mapping of mappings) {
+        for (const pub of publicaciones) {
             try {
-                // Extraer el stock físico con la nueva estructura del JOIN
-                const skusData: any = mapping.skus || {};
-                const snapshot = Array.isArray(skusData) ? skusData[0]?.inventory_snapshot : skusData.inventory_snapshot;
+                // 2. Calcular stock local basado en ensamble (Kit-Aware)
+                const { data: componentes } = await supabase
+                    .from('mapeo_publicacion_articulo')
+                    .select('articulo_id, cantidad_requerida')
+                    .eq('publicacion_id', pub.id);
 
-                const localStock = (Array.isArray(snapshot) ? snapshot[0]?.physical_stock : snapshot?.physical_stock) || 0;
+                if (!componentes || componentes.length === 0) continue;
+
+                let localStock = 999999;
+                for (const comp of componentes) {
+                    const { data: inv } = await supabase
+                        .from('inventory_snapshot')
+                        .select('physical_stock')
+                        .eq('sku', comp.articulo_id)
+                        .single();
+
+                    const physicalStock = inv?.physical_stock || 0;
+                    const reachableKits = Math.floor(physicalStock / comp.cantidad_requerida);
+                    if (reachableKits < localStock) localStock = reachableKits;
+                }
+                localStock = Math.max(0, localStock === 999999 ? 0 : localStock);
+
+                // 3. Obtener stock remoto de MeLi
                 const remoteStock = await meliAdapter.getStock(
-                    mapping.marketplace_id,
-                    mapping.external_item_id,
-                    mapping.external_variation_id
+                    pub.marketplace_id,
+                    pub.external_item_id
                 );
 
                 if (localStock !== remoteStock) {
                     logger.warn({
-                        sku: mapping.sku,
+                        publicacion_id: pub.id,
+                        external_item_id: pub.external_item_id,
                         localStock,
                         remoteStock,
-                        marketplace: mapping.marketplace_id
+                        marketplace: pub.marketplace_id
                     }, 'Discrepancia de stock detectada');
 
-                    // 1. Registrar discrepancia en logs
+                    // Registrar discrepancia en logs
                     await supabase.from('sync_logs').insert({
-                        marketplace_id: mapping.marketplace_id,
+                        marketplace_id: pub.marketplace_id,
                         operation: 'reconciliation_fix',
                         items_count: 1,
                         error_details: {
-                            sku: mapping.sku,
+                            publicacion_id: pub.id,
+                            external_item_id: pub.external_item_id,
                             expected: localStock,
                             found: remoteStock,
-                            message: 'Discrepancia detectada durante reconciliación automática'
+                            message: 'Discrepancia detectada durante reconciliación automática (v2)'
                         }
                     });
 
-                    // 2. Corregir MeLi (Prioridad: La base de datos local es la verdad)
+                    // Corregir MeLi — la base local es la verdad
                     await supabase.from('jobs').insert({
-                        type: 'sync_stock',
+                        type: 'sync_stock_mapped',
                         payload: {
-                            sku: mapping.sku,
-                            newStock: localStock,
-                            marketplace_id: mapping.marketplace_id
+                            publicacion_id: pub.id
                         },
                         status: 'pending'
                     });
                 }
             } catch (err: any) {
-                logger.error({ sku: mapping.sku, error: err.message }, 'Error reconciliando producto');
+                logger.error({ publicacion_id: pub.id, error: err.message }, 'Error reconciliando publicación');
             }
         }
 
-        logger.info('Reconciliación finalizada.');
+        logger.info('Reconciliación v2 finalizada.');
     } catch (err) {
         logger.error({ err }, 'Fallo crítico en el servicio de reconciliación');
     }
