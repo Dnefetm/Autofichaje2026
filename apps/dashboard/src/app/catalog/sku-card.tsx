@@ -31,7 +31,7 @@ export function SkuCard({
     const handleSave = async () => {
         setSaving(true);
         try {
-            await dashboardService.triggerStockUpdate(product.articulo_id, newStock, 'meli_account_1');
+            await dashboardService.triggerStockUpdate(product.articulo_id, newStock, undefined);
             onStockUpdate(product.articulo_id, newStock);
             setEditing(false);
         } catch (err) {
