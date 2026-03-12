@@ -9,6 +9,7 @@ export default function VirtualCatalogPage() {
     const [listings, setListings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedListing, setSelectedListing] = useState<any | null>(null);
     const [mapeoFilter, setMapeoFilter] = useState<'all' | 'unmapped' | 'mapped'>('all');
 
@@ -16,6 +17,15 @@ export default function VirtualCatalogPage() {
     const [page, setPage] = useState(0);
     const [totalCount, setTotalCount] = useState(0);
     const PAGE_SIZE = 100;
+
+    // Debounce de búsqueda (400ms)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            setPage(0);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
     const [syncing, setSyncing] = useState(false);
     const [syncProgress, setSyncProgress] = useState<string | null>(null);
@@ -29,7 +39,7 @@ export default function VirtualCatalogPage() {
 
     useEffect(() => {
         loadListings();
-    }, [page, mapeoFilter]);
+    }, [page, mapeoFilter, debouncedSearch]);
 
     async function loadListings() {
         setLoading(true);
@@ -52,6 +62,11 @@ export default function VirtualCatalogPage() {
                 query = query.eq('esta_mapeado', false);
             } else if (mapeoFilter === 'mapped') {
                 query = query.eq('esta_mapeado', true);
+            }
+
+            // Búsqueda server-side por título o MLM
+            if (debouncedSearch.length >= 2) {
+                query = query.or(`titulo.ilike.%${debouncedSearch}%,external_item_id.ilike.%${debouncedSearch}%`);
             }
 
             const { data, error, count } = await query;
@@ -161,10 +176,7 @@ export default function VirtualCatalogPage() {
         }
     }
 
-    const filteredListings = listings.filter(l =>
-        l.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        l.external_item_id.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Búsqueda es server-side, no se necesita filtrado client-side
 
     return (
         <div className="flex-1 overflow-auto bg-slate-50 min-h-screen">
@@ -251,14 +263,14 @@ export default function VirtualCatalogPage() {
                                             Cargando catálogo virtual...
                                         </td>
                                     </tr>
-                                ) : filteredListings.length === 0 ? (
+                                ) : listings.length === 0 ? (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
                                             No se encontraron publicaciones. Enciende el script de sincronización.
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredListings.map(listing => (
+                                    listings.map(listing => (
                                         <tr key={listing.id} className="hover:bg-slate-50 transition-colors group">
                                             {/* Estado Mapeo */}
                                             <td className="px-6 py-4">
