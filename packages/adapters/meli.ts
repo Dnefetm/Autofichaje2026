@@ -340,7 +340,7 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     async refreshToken(accountId: string): Promise<void> {
-        // Extraemos el refresh_token
+        // 1. Extraer refresh_token actual
         const { data, error } = await supabase
             .from('marketplace_tokens')
             .select('refresh_token')
@@ -351,15 +351,30 @@ export class MeliAdapter implements MarketplaceAdapter {
             throw new Error(`No hay refresh_token guardado para la cuenta ${accountId}`);
         }
 
+        // 2. Leer credenciales POR CUENTA desde marketplace_configs.settings
+        const { data: config } = await supabase
+            .from('marketplace_configs')
+            .select('settings')
+            .eq('id', accountId)
+            .single();
+
+        const clientId = config?.settings?.client_id || process.env.MELI_CLIENT_ID || '';
+        const clientSecret = config?.settings?.client_secret || process.env.MELI_CLIENT_SECRET || '';
+
+        if (!clientId || !clientSecret) {
+            throw new Error(`Faltan credenciales OAuth para la cuenta ${accountId}. Configura client_id/client_secret en marketplace_configs.settings o en las env vars.`);
+        }
+
         const decryptedRefresh = decrypt(data.refresh_token);
 
-        // Disparamos contra MeLi
         try {
+            logger.info({ accountId }, 'Renovando token de Mercado Libre...');
+
             const url = 'https://api.mercadolibre.com/oauth/token';
             const payload = new URLSearchParams({
                 grant_type: 'refresh_token',
-                client_id: process.env.MELI_CLIENT_ID || '',
-                client_secret: process.env.MELI_CLIENT_SECRET || '',
+                client_id: clientId,
+                client_secret: clientSecret,
                 refresh_token: decryptedRefresh
             });
 
@@ -372,13 +387,12 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             const creds = response.data;
             const new_access_token = creds.access_token;
-            const new_refresh_token = creds.refresh_token; // A veces el refresh_token rota, hay que guardarlo
+            const new_refresh_token = creds.refresh_token;
             const expires_in = creds.expires_in;
-
             const expires_at = new Date(Date.now() + expires_in * 1000).toISOString();
 
-            // Guardar nuevos tokens encriptados
-            const { error: upsertError } = await supabase
+            // Guardar AMBOS tokens (MeLi rota el refresh_token en cada uso)
+            const { error: updateError } = await supabase
                 .from('marketplace_tokens')
                 .update({
                     access_token: encrypt(new_access_token),
@@ -388,7 +402,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 })
                 .eq('marketplace_id', accountId);
 
-            if (upsertError) throw upsertError;
+            if (updateError) throw updateError;
 
             logger.info({ accountId }, 'Token de acceso MeLi renovado y encriptado exitosamente en BD.');
         } catch (oauthErr: any) {
@@ -397,3 +411,4 @@ export class MeliAdapter implements MarketplaceAdapter {
         }
     }
 }
+
