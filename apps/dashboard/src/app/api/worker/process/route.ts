@@ -170,12 +170,14 @@ async function processOneJob(job: any, meli: MeliAdapter) {
         }).eq('id', job.id);
 
         if (isFinal) {
-            await supabaseAdmin.from('system_alerts').insert({
-                level: 'warning',
-                type: 'job_dlq',
-                message: `Job ${job.id} (${job.type}) fracasó tras ${nextAttempt} intentos.`,
-                metadata: { job_id: job.id, final_error: error.message }
-            }).catch(() => {}); // No fallar si system_alerts no existe
+            try {
+                await supabaseAdmin.from('system_alerts').insert({
+                    level: 'warning',
+                    type: 'job_dlq',
+                    message: `Job ${job.id} (${job.type}) fracasó tras ${nextAttempt} intentos.`,
+                    metadata: { job_id: job.id, final_error: error.message }
+                });
+            } catch (_) { /* No fallar si system_alerts no existe */ }
         }
 
         throw error;
@@ -206,40 +208,58 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
     const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas?.es_fuente_stock === true);
     if (fuentesStock.length === 0) return;
 
+    const failedVitrinas: string[] = [];
+    let successCount = 0;
+
     for (const mapping of fuentesStock) {
         const pub = mapping.publicaciones_externas as any;
 
-        // Calcular stock kit-aware (dividir por cantidad_requerida)
-        const { data: allComponents } = await supabaseAdmin
-            .from('mapeo_publicacion_articulo')
-            .select('articulo_id, cantidad_requerida')
-            .eq('publicacion_id', pub.id);
+        try {
+            // Calcular stock kit-aware (dividir por cantidad_requerida)
+            const { data: allComponents } = await supabaseAdmin
+                .from('mapeo_publicacion_articulo')
+                .select('articulo_id, cantidad_requerida')
+                .eq('publicacion_id', pub.id);
 
-        let maxKits = availableStock;
-        if (allComponents && allComponents.length > 0) {
-            maxKits = 999999;
-            for (const comp of allComponents) {
-                const compStock = await SKU_Service.calculateAvailableStock(comp.articulo_id);
-                maxKits = Math.min(maxKits, Math.floor(compStock / comp.cantidad_requerida));
+            let maxKits = availableStock;
+            if (allComponents && allComponents.length > 0) {
+                maxKits = 999999;
+                for (const comp of allComponents) {
+                    const compStock = await SKU_Service.calculateAvailableStock(comp.articulo_id);
+                    maxKits = Math.min(maxKits, Math.floor(compStock / comp.cantidad_requerida));
+                }
             }
+
+            const finalStock = Math.max(0, maxKits);
+
+            // Enviar a MeLi
+            const results = await meli.updateStock(pub.marketplace_id, [{ itemId: pub.external_item_id, quantity: finalStock }]);
+            const errors = results.filter((r: any) => r.status === 'error');
+            if (errors.length > 0) {
+                const firstError = errors[0].error;
+                const errMsg = typeof firstError === 'object' ? JSON.stringify(firstError) : firstError;
+                throw new Error(`MeLi API: ${errMsg}`);
+            }
+
+            // Actualizar stock local en publicaciones_externas
+            await supabaseAdmin.from('publicaciones_externas')
+                .update({ stock_publicado: finalStock, actualizado_el: new Date().toISOString() })
+                .eq('id', pub.id);
+
+            successCount++;
+        } catch (err: any) {
+            // Registrar fallo pero CONTINUAR con las demás vitrinas
+            failedVitrinas.push(`${pub.external_item_id}: ${err.message}`);
+            console.warn(`[handleSyncStock] Fallo vitrina ${pub.external_item_id}, continuando con las demás:`, err.message);
         }
-
-        const finalStock = Math.max(0, maxKits);
-
-        // Enviar a MeLi — si falla, LANZAR error para que el job haga retry
-        const results = await meli.updateStock(pub.marketplace_id, [{ itemId: pub.external_item_id, quantity: finalStock }]);
-        const errors = results.filter((r: any) => r.status === 'error');
-        if (errors.length > 0) {
-            const firstError = errors[0].error;
-            const errMsg = typeof firstError === 'object' ? JSON.stringify(firstError) : firstError;
-            throw new Error(`MeLi updateStock failed for ${pub.external_item_id}: ${errMsg}`);
-        }
-
-        // Actualizar stock local en publicaciones_externas
-        await supabaseAdmin.from('publicaciones_externas')
-            .update({ stock_publicado: finalStock, actualizado_el: new Date().toISOString() })
-            .eq('id', pub.id);
     }
+
+    // Si TODAS fallaron, lanzar error para que el job haga retry
+    if (successCount === 0 && failedVitrinas.length > 0) {
+        throw new Error(`Todas las vitrinas fallaron: ${failedVitrinas.join(' | ')}`);
+    }
+    // Si algunas fallaron pero otras sí: el job se marca como completed (arriba)
+    // Las vitrinas fallidas se reintentan en el próximo ciclo del cron
 }
 
 async function handleSyncPrice(job: any, meli: MeliAdapter) {

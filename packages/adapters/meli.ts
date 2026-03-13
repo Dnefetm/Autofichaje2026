@@ -43,7 +43,7 @@ export class MeliAdapter implements MarketplaceAdapter {
         supportsBulkStock: false,
         supportsBulkPrice: false,
         supportsWebhooks: true,
-        maxStockUpdateRate: 10,
+        maxStockUpdateRate: 50, // 50 req / 5 seg — MeLi permite más, el bottleneck real es su API response time
     };
 
     private async getAccessToken(accountId: string): Promise<string> {
@@ -89,8 +89,8 @@ export class MeliAdapter implements MarketplaceAdapter {
         const results = [];
 
         for (const item of items) {
-            // Respetar Rate Limit (10 req/seg)
-            const canProceed = await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 1);
+            // Respetar Rate Limit (50 req/5seg)
+            const canProceed = await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
             if (!canProceed) {
                 throw new Error(`Rate limit excedido para la cuenta ${accountId} en Mercado Libre`);
             }
@@ -120,7 +120,7 @@ export class MeliAdapter implements MarketplaceAdapter {
         const results = [];
 
         for (const item of items) {
-            await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 1);
+            await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
 
             try {
                 const url = `https://api.mercadolibre.com/items/${item.itemId}`;
@@ -175,7 +175,7 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             while (hasMore) {
                 // Respetar Rate Limits antes de cada página
-                await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 1);
+                await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
 
                 const response = await axios.get(searchUrl, {
                     headers: { Authorization: `Bearer ${accessToken}` },
