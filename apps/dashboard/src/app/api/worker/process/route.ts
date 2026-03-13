@@ -196,7 +196,7 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
         .from('mapeo_publicacion_articulo')
         .select(`
             publicacion_id, cantidad_requerida,
-            publicaciones_externas!inner (id, marketplace_id, external_item_id, es_fuente_stock)
+            publicaciones_externas!inner (id, marketplace_id, external_item_id, es_fuente_stock, status_externo)
         `)
         .eq('articulo_id', sku);
 
@@ -242,8 +242,32 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
             }
 
             // Actualizar stock local en publicaciones_externas
+            const updateData: any = { stock_publicado: finalStock, actualizado_el: new Date().toISOString() };
+
+            // Auto-activar si hay stock y está pausada
+            if (finalStock > 0 && pub.status_externo === 'paused') {
+                try {
+                    await meli.activateListing(pub.marketplace_id, pub.external_item_id);
+                    updateData.status_externo = 'active';
+                    console.log(`[handleSyncStock] Vitrina ${pub.external_item_id} reactivada (stock: ${finalStock})`);
+                } catch (activateErr: any) {
+                    console.warn(`[handleSyncStock] No se pudo reactivar ${pub.external_item_id}:`, activateErr.message);
+                }
+            }
+
+            // Auto-pausar si no hay stock y está activa
+            if (finalStock === 0 && pub.status_externo === 'active') {
+                try {
+                    await meli.pauseListing(pub.marketplace_id, pub.external_item_id);
+                    updateData.status_externo = 'paused';
+                    console.log(`[handleSyncStock] Vitrina ${pub.external_item_id} pausada (stock: 0)`);
+                } catch (pauseErr: any) {
+                    console.warn(`[handleSyncStock] No se pudo pausar ${pub.external_item_id}:`, pauseErr.message);
+                }
+            }
+
             await supabaseAdmin.from('publicaciones_externas')
-                .update({ stock_publicado: finalStock, actualizado_el: new Date().toISOString() })
+                .update(updateData)
                 .eq('id', pub.id);
 
             successCount++;
