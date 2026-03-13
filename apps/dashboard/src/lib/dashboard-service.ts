@@ -13,7 +13,21 @@ export const dashboardService = {
     },
 
     async triggerStockUpdate(sku: string, newStock: number, marketplaceId?: string) {
-        // Deduplicación: si ya hay un job pending para este SKU, actualizar en vez de duplicar
+        // 1. UPSERT inmediato en inventory_snapshot — stock local independiente de MeLi
+        const { error: snapshotError } = await supabase
+            .from('inventory_snapshot')
+            .upsert({
+                sku,
+                physical_stock: newStock,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'sku' });
+
+        if (snapshotError) {
+            console.error('Error writing inventory_snapshot:', snapshotError);
+            throw snapshotError;
+        }
+
+        // 2. Deduplicación: si ya hay un job pending para este SKU, actualizar en vez de duplicar
         const { data: existing } = await supabase
             .from('jobs')
             .select('id')
@@ -24,7 +38,6 @@ export const dashboardService = {
             .maybeSingle();
 
         if (existing) {
-            // Actualizar el payload del job existente
             const { error } = await supabase.from('jobs').update({
                 payload: { sku, newStock, marketplace_id: marketplaceId },
                 scheduled_at: new Date().toISOString()
@@ -33,7 +46,7 @@ export const dashboardService = {
             return existing;
         }
 
-        // No hay duplicado: insertar nuevo
+        // 3. No hay duplicado: insertar nuevo job para sync a MeLi
         const { data, error } = await supabase.from('jobs').insert({
             type: 'sync_stock',
             payload: { sku, newStock, marketplace_id: marketplaceId },
