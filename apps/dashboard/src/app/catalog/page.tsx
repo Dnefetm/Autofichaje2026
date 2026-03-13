@@ -69,9 +69,13 @@ export default function CatalogPage() {
             let query = supabase
                 .from('articulos')
                 .select(`
-                  articulo_id, 
-                  nombre, 
-                  marca, 
+                  articulo_id,
+                  nombre,
+                  marca,
+                  modelo,
+                  variante,
+                  codigo_universal,
+                  imagenes,
                   inventory_snapshot(physical_stock),
                   mapeo_publicacion_articulo(publicacion_id)
                 `, { count: 'exact' })

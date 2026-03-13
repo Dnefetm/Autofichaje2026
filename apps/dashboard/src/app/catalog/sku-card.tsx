@@ -15,17 +15,21 @@ export function SkuCard({
     onToggleSelection?: (sku: string) => void
 }) {
     const [editing, setEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     // Safety check arrays vs objects for inventory
     const snapshot = Array.isArray(product.inventory_snapshot) ? product.inventory_snapshot[0] : product.inventory_snapshot;
-    const [newStock, setNewStock] = useState<number>(snapshot?.physical_stock || 0);
+    const currentStock = snapshot?.physical_stock ?? 0;
 
-    const [saving, setSaving] = useState(false);
+    // String state permite al usuario borrar el campo completamente (input controlado)
+    const [stockInput, setStockInput] = useState<string>(String(currentStock));
+    const parsedInput = parseInt(stockInput, 10);
+    const newStock = isNaN(parsedInput) ? 0 : Math.max(0, parsedInput);
 
-    // MOCK Images if not available (assuming Supabase will give us images array later)
     const image = product.imagenes?.[0] || null;
-
-    const isMapped = Array.isArray(product.mapeo_publicacion_articulo) ? product.mapeo_publicacion_articulo.length > 0 : !!product.mapeo_publicacion_articulo;
+    const isMapped = Array.isArray(product.mapeo_publicacion_articulo)
+        ? product.mapeo_publicacion_articulo.length > 0
+        : !!product.mapeo_publicacion_articulo;
     const isLowStock = newStock <= 2;
 
     const handleSave = async () => {
@@ -33,6 +37,7 @@ export function SkuCard({
         try {
             await dashboardService.triggerStockUpdate(product.articulo_id, newStock, undefined);
             onStockUpdate(product.articulo_id, newStock);
+            setStockInput(String(newStock)); // sincronizar input string tras guardar
             setEditing(false);
         } catch (err) {
             alert('Error al intentar actualizar el stock');
@@ -44,26 +49,32 @@ export function SkuCard({
     return (
         <div
             className={cn(
-                "bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-all",
-                isSelected ? "border-indigo-500 ring-1 ring-indigo-500" : "border-slate-200"
+                "bg-white rounded-xl border overflow-hidden flex flex-col group hover:shadow-md transition-all",
+                isSelected
+                    ? "border-indigo-400 ring-2 ring-indigo-400 shadow-md"
+                    : "border-slate-200 shadow-sm"
             )}
         >
             {/* Image Section */}
             <div
-                className="aspect-square bg-slate-100 flex items-center justify-center relative overflow-hidden cursor-pointer"
+                className="aspect-square bg-gray-50/80 flex items-center justify-center relative overflow-hidden cursor-pointer"
                 onClick={() => onToggleSelection?.(product.articulo_id)}
             >
                 {image ? (
-                    <img src={image} alt={product.nombre} className="w-full h-full object-cover" />
+                    <img
+                        src={image}
+                        alt={product.nombre}
+                        className="w-full h-full object-contain"
+                    />
                 ) : (
-                    <div className="flex flex-col items-center justify-center text-slate-400 gap-2">
-                        <ImageIcon className="w-8 h-8 opacity-50" />
+                    <div className="flex flex-col items-center justify-center text-slate-300 gap-2">
+                        <ImageIcon className="w-12 h-12 opacity-50" />
                         <span className="text-xs font-medium">Sin Imagen</span>
                     </div>
                 )}
 
-                {/* Badges Overlay */}
-                <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
+                {/* Checkbox — top right */}
+                <div className="absolute top-2 right-2 z-10" onClick={(e) => e.stopPropagation()}>
                     <input
                         type="checkbox"
                         checked={isSelected}
@@ -72,74 +83,107 @@ export function SkuCard({
                     />
                 </div>
 
-                <div className="absolute top-3 left-3 flex flex-col gap-2 pointer-events-none">
+                {/* MeLi / Desvinculado badge — top left */}
+                <div className="absolute top-2 left-2 pointer-events-none">
                     {isMapped ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold bg-yellow-400 text-yellow-900 shadow-sm">
-                            Mercado Libre
+                        <span className="text-xs bg-yellow-400 text-yellow-900 font-bold px-2 py-0.5 rounded-md shadow-sm">
+                            MeLi
                         </span>
                     ) : (
-                        <span className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold bg-slate-800 text-white shadow-sm">
-                            Desvinculado
+                        <span className="text-xs bg-slate-800 text-white font-bold px-2 py-0.5 rounded-md shadow-sm">
+                            Sin vincular
                         </span>
                     )}
                 </div>
             </div>
 
             {/* Content Section */}
-            <div className="p-5 flex-1 flex flex-col">
-                <div className="mb-1">
-                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">{product.marca || 'GENERIC'}</span>
-                </div>
-                <h3 className="font-bold text-slate-900 text-sm leading-snug line-clamp-2 mb-4 flex-1">
+            <div className="p-3 flex flex-col gap-1 flex-1">
+                <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                    {product.marca || 'GENERIC'}
+                </p>
+                <h3 className="text-sm font-bold text-slate-900 leading-snug line-clamp-2">
                     {product.nombre}
                 </h3>
 
-                <div className="grid grid-cols-2 gap-4 items-end mt-auto pt-4 border-t border-slate-100">
-                    <div>
-                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">SKU</p>
-                        <p className="text-xs font-mono font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded w-fit">
+                {/* Identifiers */}
+                <div className="mt-1 flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-bold uppercase text-slate-400 w-16 shrink-0">SKU</span>
+                        <span className="text-[10px] font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded truncate">
                             {product.articulo_id}
-                        </p>
+                        </span>
                     </div>
-
-                    <div className="text-right flex flex-col items-end">
-                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Stock Físico</p>
-                        {editing ? (
-                            <div className="flex items-center gap-1">
-                                <input
-                                    type="number"
-                                    value={newStock}
-                                    onChange={(e) => setNewStock(parseInt(e.target.value) || 0)}
-                                    className="w-16 px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-center"
-                                    autoFocus
-                                />
-                                <button
-                                    onClick={handleSave}
-                                    disabled={saving}
-                                    className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
-                                >
-                                    <Save className="w-4 h-4" />
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-2 group/edit cursor-pointer" onClick={() => setEditing(true)}>
-                                <span className={cn(
-                                    "text-xl font-black",
-                                    isLowStock ? "text-rose-600" : "text-emerald-600"
-                                )}>
-                                    {newStock}
-                                </span>
-                                <Edit2 className="w-3 h-3 text-slate-300 group-hover/edit:text-indigo-600 transition-colors" />
-                            </div>
-                        )}
-                    </div>
+                    {product.modelo && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-bold uppercase text-slate-400 w-16 shrink-0">Modelo</span>
+                            <span className="text-[10px] text-slate-600 truncate">{product.modelo}</span>
+                        </div>
+                    )}
+                    {product.codigo_universal && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-bold uppercase text-slate-400 w-16 shrink-0">UPC/EAN</span>
+                            <span className="text-[10px] font-mono text-slate-600 truncate">{product.codigo_universal}</span>
+                        </div>
+                    )}
+                    {product.variante && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-bold uppercase text-slate-400 w-16 shrink-0">Variante</span>
+                            <span className="text-[10px] text-slate-600 truncate">{product.variante}</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Sync Action */}
-            <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+            {/* Stock Control */}
+            <div className="px-3 pb-3 border-t border-slate-100 pt-2 mt-auto">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                        {isLowStock && <AlertCircle className="w-3 h-3 text-amber-500" />}
+                        <p className={cn(
+                            "text-[10px] uppercase font-bold",
+                            isLowStock ? "text-amber-500" : "text-slate-400"
+                        )}>
+                            Stock Físico
+                        </p>
+                    </div>
+
+                    {editing ? (
+                        <div className="flex items-center gap-1">
+                            <input
+                                type="number"
+                                value={stockInput}
+                                onChange={(e) => setStockInput(e.target.value)}
+                                className="w-16 px-2 py-1 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-center"
+                                autoFocus
+                                onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                            />
+                            <button
+                                onClick={handleSave}
+                                disabled={saving}
+                                className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                            >
+                                <Save className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-1.5 group/edit cursor-pointer" onClick={() => setEditing(true)}>
+                            <span className={cn(
+                                "text-xl font-black",
+                                isLowStock ? "text-rose-600" : "text-emerald-600"
+                            )}>
+                                {newStock}
+                            </span>
+                            <Edit2 className="w-3 h-3 text-slate-300 group-hover/edit:text-indigo-600 transition-colors" />
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Action Footer */}
+            <div className="px-3 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
                 <button className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 transition-colors">
-                    Ver Ficha Técnica
+                    Ver Ficha
                 </button>
                 {isMapped && (
                     <button className="text-xs font-bold text-slate-500 hover:text-emerald-600 flex items-center gap-1.5 transition-colors">
