@@ -76,14 +76,24 @@ export async function runReconciliation() {
                         }
                     });
 
-                    // Corregir MeLi — la base local es la verdad
-                    await supabase.from('jobs').insert({
-                        type: 'sync_stock_mapped',
-                        payload: {
-                            publicacion_id: pub.id
-                        },
-                        status: 'pending'
-                    });
+                    // Deduplicación: no crear job si ya hay uno pending para esta publicación
+                    const { data: existingJob } = await supabase
+                        .from('jobs')
+                        .select('id')
+                        .eq('type', 'sync_stock_mapped')
+                        .eq('status', 'pending')
+                        .contains('payload', { publicacion_id: pub.id })
+                        .maybeSingle();
+
+                    if (!existingJob) {
+                        await supabase.from('jobs').insert({
+                            type: 'sync_stock_mapped',
+                            payload: {
+                                publicacion_id: pub.id
+                            },
+                            status: 'pending'
+                        });
+                    }
                 }
             } catch (err: any) {
                 logger.error({ publicacion_id: pub.id, error: err.message }, 'Error reconciliando publicación');

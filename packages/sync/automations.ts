@@ -49,14 +49,24 @@ export const AutomationManager = {
         // Solo encolar sync para publicaciones fuente de stock
         const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas?.es_fuente_stock === true);
 
-        const jobsToInsert = fuentesStock.map((mapping: any) => ({
-            type: 'sync_stock_mapped',
-            payload: {
-                publicacion_id: mapping.publicaciones_externas.id
-            },
-            status: 'pending',
-            scheduled_at: new Date().toISOString()
-        }));
+        // Deduplicación: no crear jobs para publicaciones que ya tienen uno pending
+        const { data: existingJobs } = await supabase
+            .from('jobs')
+            .select('payload')
+            .eq('type', 'sync_stock_mapped')
+            .eq('status', 'pending');
+        const pendingPubIds = new Set((existingJobs || []).map((j: any) => j.payload?.publicacion_id));
+
+        const jobsToInsert = fuentesStock
+            .filter((m: any) => !pendingPubIds.has(m.publicaciones_externas.id))
+            .map((mapping: any) => ({
+                type: 'sync_stock_mapped',
+                payload: {
+                    publicacion_id: mapping.publicaciones_externas.id
+                },
+                status: 'pending',
+                scheduled_at: new Date().toISOString()
+            }));
 
         if (jobsToInsert.length > 0) {
             await supabase.from('jobs').insert(jobsToInsert);

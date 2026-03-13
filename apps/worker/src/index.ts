@@ -36,15 +36,13 @@ async function main() {
         process.exit(0);
     });
 
-    // Tarea programada: Reconciliación
-    setInterval(async () => {
-        await runReconciliation();
-    }, RECONCILIATION_INTERVAL);
-
-    // Iniciar reconciliación inmediata al arrancar (opcional, pero recomendado para validar)
-    runReconciliation().catch(err => logger.error({ err }, 'Error en reconciliación inicial'));
-
-    await startProcessor();
+    // ============================================================
+    // RENDER WORKER DESACTIVADO
+    // Toda la lógica de jobs migró a Vercel cron (/api/worker/process)
+    // ejecutado cada 1 min por cron-job.org
+    // Este proceso solo mantiene el health check para Render.
+    // ============================================================
+    logger.info('Worker de Render DESACTIVADO. Jobs procesados por Vercel cron (/api/worker/process).');
 }
 
 main().catch((err) => {

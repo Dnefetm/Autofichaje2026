@@ -4,6 +4,7 @@ import { MeliAdapter } from '@gestor/adapters/meli';
 import { MeliTokenManager } from '@gestor/adapters/meli-tokens';
 import { SKU_Service } from '@gestor/shared/sku-service';
 import { AutomationManager } from '@gestor/sync/automations';
+import { runReconciliation } from '@gestor/sync/reconciliation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Vercel Hobby permite hasta 60s
@@ -83,6 +84,17 @@ export async function GET(req: NextRequest) {
             await new Promise(r => setTimeout(r, 3000));
         }
         results.jobsProcessed = jobs.length;
+
+        // 5. Reconciliación periódica (~cada 30 min)
+        const currentMinute = new Date().getMinutes();
+        if (currentMinute === 0 || currentMinute === 30) {
+            try {
+                await runReconciliation();
+                (results as any).reconciliation = 'executed';
+            } catch (reconErr: any) {
+                results.errors.push(`Reconciliation failed: ${reconErr.message}`);
+            }
+        }
 
     } catch (err: any) {
         results.errors.push(`Fatal: ${err.message}`);
