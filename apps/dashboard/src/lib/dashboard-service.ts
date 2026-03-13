@@ -13,14 +13,30 @@ export const dashboardService = {
     },
 
     async triggerStockUpdate(sku: string, newStock: number, marketplaceId?: string) {
-        // 1. Insertar el job en la cola
+        // Deduplicación: si ya hay un job pending para este SKU, actualizar en vez de duplicar
+        const { data: existing } = await supabase
+            .from('jobs')
+            .select('id')
+            .eq('type', 'sync_stock')
+            .eq('status', 'pending')
+            .contains('payload', { sku })
+            .limit(1)
+            .maybeSingle();
+
+        if (existing) {
+            // Actualizar el payload del job existente
+            const { error } = await supabase.from('jobs').update({
+                payload: { sku, newStock, marketplace_id: marketplaceId },
+                scheduled_at: new Date().toISOString()
+            }).eq('id', existing.id);
+            if (error) throw error;
+            return existing;
+        }
+
+        // No hay duplicado: insertar nuevo
         const { data, error } = await supabase.from('jobs').insert({
             type: 'sync_stock',
-            payload: {
-                sku,
-                newStock,
-                marketplace_id: marketplaceId
-            },
+            payload: { sku, newStock, marketplace_id: marketplaceId },
             status: 'pending',
             scheduled_at: new Date().toISOString()
         });
@@ -113,12 +129,23 @@ export const dashboardService = {
             if (error) throw error;
         }
 
-        // 3. Encolar un trabajo para recalcular el stock del bundle recién creado o editado
-        await supabase.from('jobs').insert({
-            type: 'sync_stock',
-            payload: { sku: bundleSku },
-            status: 'pending',
-            scheduled_at: new Date().toISOString()
-        });
+        // 3. Encolar un trabajo para recalcular el stock del bundle (con deduplicación)
+        const { data: existingJob } = await supabase
+            .from('jobs')
+            .select('id')
+            .eq('type', 'sync_stock')
+            .eq('status', 'pending')
+            .contains('payload', { sku: bundleSku })
+            .limit(1)
+            .maybeSingle();
+
+        if (!existingJob) {
+            await supabase.from('jobs').insert({
+                type: 'sync_stock',
+                payload: { sku: bundleSku },
+                status: 'pending',
+                scheduled_at: new Date().toISOString()
+            });
+        }
     }
 };
