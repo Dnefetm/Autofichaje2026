@@ -38,6 +38,8 @@ export async function GET(request: Request) {
         const { access_token, refresh_token, expires_in, user_id: meliUserId } = response.data;
         const { encrypt } = await import('@gestor/shared/lib/crypto');
 
+        console.log(`[OAuth Callback] Token exchange OK for marketplace ${marketplaceId}. MeLi user_id: ${meliUserId}. expires_in: ${expires_in}s`);
+
         // Auto-guardar seller_id en marketplace_configs.settings
         if (meliUserId) {
             const { data: currentConfig } = await supabaseAdmin
@@ -55,19 +57,29 @@ export async function GET(request: Request) {
                 .from('marketplace_configs')
                 .update({ settings: updatedSettings })
                 .eq('id', marketplaceId);
+
+            console.log(`[OAuth Callback] seller_id ${meliUserId} saved to marketplace_configs.settings`);
         }
 
-        // 3. Guardar tokens en la base de datos (Encriptados)
+        // 3. Guardar tokens en la DB (Encriptados) — con onConflict explícito
+        const tokenData = {
+            marketplace_id: marketplaceId,
+            access_token: encrypt(access_token),
+            refresh_token: encrypt(refresh_token),
+            expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
         const { error: tokenError } = await supabaseAdmin
             .from('marketplace_tokens')
-            .upsert({
-                marketplace_id: marketplaceId,
-                access_token: encrypt(access_token),
-                refresh_token: encrypt(refresh_token),
-                expires_at: new Date(Date.now() + expires_in * 1000).toISOString()
-            });
+            .upsert(tokenData, { onConflict: 'marketplace_id' });
 
-        if (tokenError) throw tokenError;
+        if (tokenError) {
+            console.error(`[OAuth Callback] ERROR persisting tokens:`, JSON.stringify(tokenError));
+            throw tokenError;
+        }
+
+        console.log(`[OAuth Callback] Tokens persisted OK for ${marketplaceId}. updated_at: ${tokenData.updated_at}`);
 
         // --- MITIGACIÓN: Despacho automático del Worker al vincular cuenta ---
         await supabaseAdmin.from('jobs').insert({
@@ -78,7 +90,7 @@ export async function GET(request: Request) {
             status: 'pending',
             scheduled_at: new Date().toISOString()
         });
-        console.log(`[Cloud] Worker despachado para forzar sincronización del Catálogo Virtual (Vitrinas) con ID: ${marketplaceId}`);
+        console.log(`[OAuth Callback] Worker despachado para sync catálogo con ID: ${marketplaceId}`);
         // ---------------------------------------------------------------------
 
         // Redirigir de vuelta a settings con éxito
