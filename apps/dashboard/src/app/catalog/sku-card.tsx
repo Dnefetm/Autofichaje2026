@@ -3,6 +3,26 @@ import { Package, TrendingUp, AlertCircle, Save, Edit2, Image as ImageIcon } fro
 import { cn } from '@/lib/utils';
 import { dashboardService } from '@/lib/dashboard-service';
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+
+/**
+ * Convierte un path relativo de Storage (ej: "Articulos_Images/file.jpg")
+ * a una URL publica completa de Supabase Storage.
+ * Si ya es una URL completa (http/https), la retorna tal cual.
+ */
+function getPublicImageUrl(rawPath: string | null | undefined): string | null {
+    if (!rawPath) return null;
+    // Si ya es URL completa, retornar tal cual
+    if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) return rawPath;
+    // Path relativo: "Bucket/file.jpg" -> URL publica
+    // El primer segmento es el bucket name
+    const slashIndex = rawPath.indexOf('/');
+    if (slashIndex === -1) return null;
+    const bucket = rawPath.substring(0, slashIndex);
+    const filePath = rawPath.substring(slashIndex + 1);
+    return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${encodeURIComponent(filePath)}`;
+}
+
 export function SkuCard({
     product,
     onStockUpdate,
@@ -16,6 +36,7 @@ export function SkuCard({
 }) {
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [imgError, setImgError] = useState(false);
 
     // Safety check arrays vs objects for inventory
     const snapshot = Array.isArray(product.inventory_snapshot) ? product.inventory_snapshot[0] : product.inventory_snapshot;
@@ -26,10 +47,13 @@ export function SkuCard({
     const parsedInput = parseInt(stockInput, 10);
     const newStock = isNaN(parsedInput) ? 0 : Math.max(0, parsedInput);
 
-    const image = product.imagenes?.[0] || null;
+    const rawImage = product.imagenes?.[0] || null;
+    const image = getPublicImageUrl(rawImage);
+
     const isMapped = Array.isArray(product.mapeo_publicacion_articulo)
         ? product.mapeo_publicacion_articulo.length > 0
         : !!product.mapeo_publicacion_articulo;
+
     const isLowStock = newStock <= 2;
 
     const handleSave = async () => {
@@ -60,11 +84,12 @@ export function SkuCard({
                 className="aspect-square bg-gray-50/80 flex items-center justify-center relative overflow-hidden cursor-pointer"
                 onClick={() => onToggleSelection?.(product.articulo_id)}
             >
-                {image ? (
+                {image && !imgError ? (
                     <img
                         src={image}
                         alt={product.nombre}
                         className="w-full h-full object-contain"
+                        onError={() => setImgError(true)}
                     />
                 ) : (
                     <div className="flex flex-col items-center justify-center text-slate-300 gap-2">
@@ -73,7 +98,7 @@ export function SkuCard({
                     </div>
                 )}
 
-                {/* Checkbox — top right */}
+                {/* Checkbox - top right */}
                 <div className="absolute top-2 right-2 z-10" onClick={(e) => e.stopPropagation()}>
                     <input
                         type="checkbox"
@@ -83,7 +108,7 @@ export function SkuCard({
                     />
                 </div>
 
-                {/* MeLi / Desvinculado badge — top left */}
+                {/* MeLi / Desvinculado badge - top left */}
                 <div className="absolute top-2 left-2 pointer-events-none">
                     {isMapped ? (
                         <span className="text-xs bg-yellow-400 text-yellow-900 font-bold px-2 py-0.5 rounded-md shadow-sm">
@@ -144,10 +169,9 @@ export function SkuCard({
                             "text-[10px] uppercase font-bold",
                             isLowStock ? "text-amber-500" : "text-slate-400"
                         )}>
-                            Stock Físico
+                            Stock Fisico
                         </p>
                     </div>
-
                     {editing ? (
                         <div className="flex items-center gap-1">
                             <input
