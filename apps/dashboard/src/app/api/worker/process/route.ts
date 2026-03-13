@@ -85,9 +85,9 @@ export async function GET(req: NextRequest) {
         }
         results.jobsProcessed = jobs.length;
 
-        // 5. Reconciliación periódica (~cada 30 min)
+        // 5. Reconciliación periódica (~cada 30 min, ventana de 2 min por si cron tiene latencia)
         const currentMinute = new Date().getMinutes();
-        if (currentMinute === 0 || currentMinute === 30) {
+        if (currentMinute % 30 < 2) {
             try {
                 await runReconciliation();
                 (results as any).reconciliation = 'executed';
