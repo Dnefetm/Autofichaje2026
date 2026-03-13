@@ -92,7 +92,9 @@ export class MeliAdapter implements MarketplaceAdapter {
             // Respetar Rate Limit (50 req/5seg)
             const canProceed = await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
             if (!canProceed) {
-                throw new Error(`Rate limit excedido para la cuenta ${accountId} en Mercado Libre`);
+                // Skipear este item, no abortar todo el batch
+                results.push({ itemId: item.itemId, status: 'error', error: `Rate limit excedido para cuenta ${accountId}` });
+                continue;
             }
 
             try {

@@ -22,18 +22,18 @@ export async function checkRateLimit(accountId: string, limit: number, duration:
     const key = `ratelimit:${accountId}`;
 
     try {
-        const current = await redis.get<number>(key) || 0;
+        // Pipeline atómico: incr + expire SIEMPRE (no solo cuando current === 0)
+        // Esto evita keys huérfanas sin TTL por race conditions
+        const pipeline = redis.pipeline();
+        pipeline.incr(key);
+        pipeline.expire(key, duration);
+        const results = await pipeline.exec();
 
-        if (current >= limit) {
-            logger.warn({ accountId, key }, 'Rate limit alcanzado');
+        const count = results[0] as number;
+
+        if (count > limit) {
+            logger.warn({ accountId, key, count, limit }, 'Rate limit alcanzado');
             return false;
-        }
-
-        await redis.incr(key);
-
-        // Establecer expiración si es la primera petición en la ventana
-        if (current === 0) {
-            await redis.expire(key, duration);
         }
 
         return true;
