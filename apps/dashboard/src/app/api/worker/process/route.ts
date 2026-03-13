@@ -127,6 +127,36 @@ async function processOneJob(job: any, meli: MeliAdapter) {
     } catch (error: any) {
         const errMessage = (error.message || JSON.stringify(error)).toLowerCase();
 
+        // Auth/permission errors (403, forbidden) → fallo inmediato, no reintentar
+        // Estos no se arreglan solos — requieren re-autenticación manual
+        const isAuthError = errMessage.includes('403') ||
+            errMessage.includes('forbidden') ||
+            errMessage.includes('not authorized') ||
+            errMessage.includes('token expirado') ||
+            errMessage.includes('no se pudo renovar');
+
+        if (isAuthError) {
+            await supabaseAdmin.from('jobs').update({
+                status: 'failed',
+                attempts: (job.attempts || 0) + 1,
+                error_log: `AUTH ERROR (requiere re-autenticación en /settings): ${error.message}`
+            }).eq('id', job.id);
+            return;
+        }
+
+        // Items no modificables (fulfillment, catálogo bloqueado) → fallo inmediato
+        const isNotModifiable = errMessage.includes('not_modifiable') ||
+            errMessage.includes('not modifiable');
+
+        if (isNotModifiable) {
+            await supabaseAdmin.from('jobs').update({
+                status: 'failed',
+                attempts: (job.attempts || 0) + 1,
+                error_log: `ITEM NO MODIFICABLE (fulfillment/catálogo): ${error.message}`
+            }).eq('id', job.id);
+            return;
+        }
+
         // Rate Limit detection — covers internal rate limiter AND MeLi HTTP 429
         const isRateLimit = errMessage.includes('rate limit') ||
             errMessage.includes('too_many_requests') ||
@@ -138,7 +168,6 @@ async function processOneJob(job: any, meli: MeliAdapter) {
             const maxRateLimitRetries = 10;
 
             if (attempts >= maxRateLimitRetries) {
-                // Demasiados rate limits — marcar como failed
                 await supabaseAdmin.from('jobs').update({
                     status: 'failed',
                     attempts,
@@ -147,7 +176,6 @@ async function processOneJob(job: any, meli: MeliAdapter) {
                 return;
             }
 
-            // Backoff exponencial: 2min, 5min, 10min, 15min max
             const backoffMs = Math.min(attempts * 2 * 60 * 1000, 15 * 60 * 1000);
             await supabaseAdmin.from('jobs').update({
                 status: 'pending',
