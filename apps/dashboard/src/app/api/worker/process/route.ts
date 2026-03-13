@@ -125,26 +125,47 @@ async function processOneJob(job: any, meli: MeliAdapter) {
         await supabaseAdmin.from('jobs').update({ status: 'completed' }).eq('id', job.id);
 
     } catch (error: any) {
-        const errMessage = error.message || JSON.stringify(error);
+        const errMessage = (error.message || JSON.stringify(error)).toLowerCase();
 
-        // Rate Limit → re-encolar pacíficamente
-        if (errMessage.includes('Rate limit')) {
+        // Rate Limit detection — covers internal rate limiter AND MeLi HTTP 429
+        const isRateLimit = errMessage.includes('rate limit') ||
+            errMessage.includes('too_many_requests') ||
+            errMessage.includes('429') ||
+            errMessage.includes('too many requests');
+
+        if (isRateLimit) {
+            const attempts = (job.attempts || 0) + 1;
+            const maxRateLimitRetries = 10;
+
+            if (attempts >= maxRateLimitRetries) {
+                // Demasiados rate limits — marcar como failed
+                await supabaseAdmin.from('jobs').update({
+                    status: 'failed',
+                    attempts,
+                    error_log: `Rate Limit persistente tras ${attempts} intentos. Abortado.`
+                }).eq('id', job.id);
+                return;
+            }
+
+            // Backoff exponencial: 2min, 5min, 10min, 15min max
+            const backoffMs = Math.min(attempts * 2 * 60 * 1000, 15 * 60 * 1000);
             await supabaseAdmin.from('jobs').update({
                 status: 'pending',
-                scheduled_at: new Date(Date.now() + 15000).toISOString(),
-                error_log: 'Rate Limit. Pausado temporalmente.'
+                attempts,
+                scheduled_at: new Date(Date.now() + backoffMs).toISOString(),
+                error_log: `Rate Limit. Reintento ${attempts}/${maxRateLimitRetries} en ${Math.round(backoffMs/60000)}min.`
             }).eq('id', job.id);
             return;
         }
 
         // Fallo normal con retry exponencial
         const nextAttempt = (job.attempts || 0) + 1;
-        const isFinal = nextAttempt >= (job.max_attempts || 3);
+        const isFinal = nextAttempt >= (job.max_attempts || 5);
 
         await supabaseAdmin.from('jobs').update({
             status: isFinal ? 'failed' : 'pending',
             attempts: nextAttempt,
-            error_log: errMessage,
+            error_log: error.message || errMessage,
             scheduled_at: new Date(Date.now() + Math.pow(2, nextAttempt) * 1000).toISOString()
         }).eq('id', job.id);
 
@@ -152,12 +173,12 @@ async function processOneJob(job: any, meli: MeliAdapter) {
             await supabaseAdmin.from('system_alerts').insert({
                 level: 'warning',
                 type: 'job_dlq',
-                message: `Job ${job.id} (${job.type}) fracasó tras ${job.max_attempts || 3} intentos.`,
-                metadata: { job_id: job.id, final_error: errMessage }
-            });
+                message: `Job ${job.id} (${job.type}) fracasó tras ${nextAttempt} intentos.`,
+                metadata: { job_id: job.id, final_error: error.message }
+            }).catch(() => {}); // No fallar si system_alerts no existe
         }
 
-        throw error; // Para que allSettled lo capture
+        throw error;
     }
 }
 
@@ -177,7 +198,10 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
         `)
         .eq('articulo_id', sku);
 
-    if (!mappings || mappings.length === 0) return;
+    if (!mappings || mappings.length === 0) {
+        // No hay mapeos — nada que sincronizar a MeLi, pero el stock local ya está guardado
+        return;
+    }
 
     const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas?.es_fuente_stock === true);
     if (fuentesStock.length === 0) return;
@@ -185,7 +209,7 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
     for (const mapping of fuentesStock) {
         const pub = mapping.publicaciones_externas as any;
 
-        // Calcular stock kit-aware
+        // Calcular stock kit-aware (dividir por cantidad_requerida)
         const { data: allComponents } = await supabaseAdmin
             .from('mapeo_publicacion_articulo')
             .select('articulo_id, cantidad_requerida')
@@ -201,7 +225,17 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
         }
 
         const finalStock = Math.max(0, maxKits);
-        await meli.updateStock(pub.marketplace_id, [{ itemId: pub.external_item_id, quantity: finalStock }]);
+
+        // Enviar a MeLi — si falla, LANZAR error para que el job haga retry
+        const results = await meli.updateStock(pub.marketplace_id, [{ itemId: pub.external_item_id, quantity: finalStock }]);
+        const errors = results.filter((r: any) => r.status === 'error');
+        if (errors.length > 0) {
+            const firstError = errors[0].error;
+            const errMsg = typeof firstError === 'object' ? JSON.stringify(firstError) : firstError;
+            throw new Error(`MeLi updateStock failed for ${pub.external_item_id}: ${errMsg}`);
+        }
+
+        // Actualizar stock local en publicaciones_externas
         await supabaseAdmin.from('publicaciones_externas')
             .update({ stock_publicado: finalStock, actualizado_el: new Date().toISOString() })
             .eq('id', pub.id);
