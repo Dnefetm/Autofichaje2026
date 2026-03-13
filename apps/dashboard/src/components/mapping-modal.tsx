@@ -117,6 +117,15 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
 
             if (delError) throw delError;
 
+            // 1b. Garantizar que cada SKU mapeado tiene fila en inventory_snapshot
+            // (artículos importados via sync_item nunca pasan por createArticulo)
+            const snapshotUpserts = selectedSkus.map(s => ({
+                sku: s.sku,
+                physical_stock: 0,
+                updated_at: new Date().toISOString()
+            }));
+            await supabase.from('inventory_snapshot').upsert(snapshotUpserts, { onConflict: 'sku', ignoreDuplicates: true });
+
             // 2. Insertar nuevos mapeos (El armado del Kit o Sencillo)
             const inserts = selectedSkus.map(s => ({
                 publicacion_id: listing.id,

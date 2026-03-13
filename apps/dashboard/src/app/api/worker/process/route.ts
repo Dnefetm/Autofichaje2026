@@ -263,7 +263,7 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
         .from('mapeo_publicacion_articulo')
         .select(`
             publicacion_id, cantidad_requerida,
-            publicaciones_externas!inner (id, marketplace_id, external_item_id, es_fuente_stock, status_externo)
+            publicaciones_externas!inner (id, marketplace_id, external_item_id, es_fuente_stock, status_externo, sync_disabled)
         `)
         .eq('articulo_id', sku);
 
@@ -282,6 +282,13 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
         const pub = mapping.publicaciones_externas as any;
 
         try {
+            // Saltar publicaciones deshabilitadas permanentemente (fulfillment, catálogo)
+            if (pub.sync_disabled === true) {
+                console.log(`[handleSyncStock] Saltando ${pub.external_item_id} — sync_disabled=true`);
+                successCount++; // No contar como fallo
+                continue;
+            }
+
             // Calcular stock kit-aware (dividir por cantidad_requerida)
             const { data: allComponents } = await supabaseAdmin
                 .from('mapeo_publicacion_articulo')
@@ -339,9 +346,22 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
 
             successCount++;
         } catch (err: any) {
+            const errMsg = err.message || '';
+
+            // Si MeLi rechaza permanentemente (fulfillment/catálogo) → marcar sync_disabled
+            if (errMsg.toLowerCase().includes('not_modifiable') || errMsg.toLowerCase().includes('not modifiable')) {
+                console.warn(`[handleSyncStock] ${pub.external_item_id} es no-modificable — marcando sync_disabled=true`);
+                await supabaseAdmin.from('publicaciones_externas').update({
+                    sync_disabled: true,
+                    sync_disabled_reason: `MeLi rechaza modificación: ${errMsg.slice(0, 200)}`
+                }).eq('id', pub.id);
+                successCount++; // No es un fallo del sistema, es una limitación de MeLi
+                continue;
+            }
+
             // Registrar fallo pero CONTINUAR con las demás vitrinas
-            failedVitrinas.push(`${pub.external_item_id}: ${err.message}`);
-            console.warn(`[handleSyncStock] Fallo vitrina ${pub.external_item_id}, continuando con las demás:`, err.message);
+            failedVitrinas.push(`${pub.external_item_id}: ${errMsg}`);
+            console.warn(`[handleSyncStock] Fallo vitrina ${pub.external_item_id}, continuando:`, errMsg);
         }
     }
 
