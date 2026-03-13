@@ -117,6 +117,22 @@ async function processOneJob(job: any, meli: MeliAdapter) {
             case 'sync_item':
                 await meli.syncCatalogItem(job.payload.marketplace_id, job.payload.external_item_id);
                 break;
+            case 'sync_account_catalog': {
+                // Sync completo de una cuenta — se crea al re-vincular OAuth
+                const accountId = job.payload.marketplace_id;
+                const itemIds = await meli.getAccountItems(accountId);
+                console.log(`[sync_account_catalog] Syncing ${itemIds.length} items for account ${accountId}`);
+                for (const itemId of itemIds) {
+                    try {
+                        await meli.syncCatalogItem(accountId, itemId);
+                    } catch (err: any) {
+                        console.warn(`[sync_account_catalog] Failed to sync ${itemId}:`, err.message);
+                    }
+                    // Throttle: 1 segundo entre items para no saturar MeLi
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+                break;
+            }
             default:
                 throw new Error(`Tipo de job no soportado: ${job.type}`);
         }
