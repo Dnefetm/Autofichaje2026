@@ -8,7 +8,7 @@ import { AutomationManager } from '@gestor/sync/automations';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Vercel Hobby permite hasta 60s
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 3; // Conservador para evitar rate limits de MeLi
 
 /**
  * Worker Cron Endpoint — Reemplaza el polling de Render.
@@ -67,19 +67,20 @@ export async function GET(req: NextRequest) {
             return NextResponse.json(results);
         }
 
-        // Procesar cada job con allSettled para no perder el batch si uno falla
+        // Procesar jobs SECUENCIALMENTE con delay entre cada uno
+        // (Promise.allSettled causaba ráfagas que saturaban el rate limiter)
         const meliAdapter = new MeliAdapter();
-        const jobPromises = jobs.map((job: any) => processOneJob(job, meliAdapter));
-        const settled = await Promise.allSettled(jobPromises);
 
-        for (let i = 0; i < settled.length; i++) {
-            const result = settled[i];
-            const job = jobs[i];
-            if (result.status === 'fulfilled') {
+        for (const job of jobs) {
+            try {
+                await processOneJob(job, meliAdapter);
                 results.jobResults.push({ id: job.id, type: job.type, status: 'ok' });
-            } else {
-                results.jobResults.push({ id: job.id, type: job.type, status: 'error', error: result.reason?.message });
+            } catch (err: any) {
+                results.jobResults.push({ id: job.id, type: job.type, status: 'error', error: err.message });
             }
+
+            // 3 segundos de respiro entre jobs para no saturar MeLi
+            await new Promise(r => setTimeout(r, 3000));
         }
         results.jobsProcessed = jobs.length;
 
@@ -94,6 +95,16 @@ export async function GET(req: NextRequest) {
 // Procesamiento de un solo job
 // ========================================
 async function processOneJob(job: any, meli: MeliAdapter) {
+    // Protección anti-zombis: si el job ya agotó sus intentos, matarlo inmediatamente
+    const maxAttempts = job.max_attempts || 10;
+    if ((job.attempts || 0) >= maxAttempts) {
+        await supabaseAdmin.from('jobs').update({
+            status: 'failed',
+            error_log: `Zombie killed: attempts ${job.attempts} >= max_attempts ${maxAttempts}`
+        }).eq('id', job.id);
+        return;
+    }
+
     try {
         switch (job.type) {
             case 'sync_stock':
