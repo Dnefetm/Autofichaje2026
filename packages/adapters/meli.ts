@@ -295,15 +295,14 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             const itemsPayload = allResults
                 .filter((res: any) => res.code === 200 && res.body)
-                .map((res: any) => {
+                .flatMap((res: any) => {
                     const item = res.body;
                     const clasificacion = clasificarPublicacion(item);
-                    // DEUDA TÉCNICA: Items con variaciones (tallas/colores) se guardan como una sola fila
-                    // con variation_id '0'. Para manejar variaciones real, iterar item.variations[].
-                    return {
+
+                    // Campos comunes a todas las filas de este ítem (o variaciones)
+                    const base = {
                         marketplace_id: accountId,
                         external_item_id: item.id,
-                        external_variation_id: '0',
                         titulo: item.title,
                         precio_venta: item.price,
                         stock_publicado: item.available_quantity,
@@ -314,8 +313,42 @@ export class MeliAdapter implements MarketplaceAdapter {
                         id_publicacion_padre: clasificacion.id_publicacion_padre,
                         es_fuente_stock: clasificacion.es_fuente_stock,
                         id_producto_catalogo: clasificacion.id_producto_catalogo,
-                        actualizado_el: new Date().toISOString()
+                        actualizado_el: new Date().toISOString(),
+                        // --- Campos enriquecidos V17 ---
+                        sold_quantity: item.sold_quantity || 0,
+                        listing_type_id: item.listing_type_id || null,
+                        logistic_type: item.shipping?.logistic_type || null,
+                        free_shipping: item.shipping?.free_shipping ?? false,
+                        health: item.health ?? null,
+                        tags: item.tags || [],
+                        original_price: item.original_price ?? null,
+                        category_id: item.category_id || null,
+                        domain_id: item.domain_id || null,
+                        condition: item.condition || null,
+                        brand: item.attributes?.find((a: any) => a.id === 'BRAND')?.value_name || null,
+                        seller_sku: item.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name || null,
+                        sub_status: item.sub_status || [],
+                        channels: item.channels || [],
+                        meli_created_at: item.date_created || null,
+                        meli_updated_at: item.last_updated || null,
+                        deal_ids: item.deal_ids || [],
+                        warranty: item.warranty || null,
+                        currency_id: item.currency_id || null,
+                        initial_quantity: item.initial_quantity ?? null,
                     };
+
+                    // Resolución de deuda técnica: variaciones
+                    if (item.variations && item.variations.length > 0) {
+                        return item.variations.map((variation: any) => ({
+                            ...base,
+                            external_variation_id: variation.id.toString(),
+                            stock_publicado: variation.available_quantity ?? item.available_quantity,
+                            precio_venta: variation.price ?? item.price,
+                        }));
+                    }
+
+                    // Sin variaciones: fila única con external_variation_id='0'
+                    return [{ ...base, external_variation_id: '0' }];
                 });
 
             if (itemsPayload.length === 0) return 0;
