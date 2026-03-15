@@ -368,12 +368,67 @@ export class MeliAdapter implements MarketplaceAdapter {
                         external_variation_id: '0',
                         variation_attributes: null,
                         variation_picture_ids: null,
-                        seller_custom_field: null,
+                        seller_custom_field: item.seller_custom_field || null,
                     }];
                 });
 
             if (itemsPayload.length === 0) return 0;
 
+            // V21 — Enriquecer SKU de variaciones desde /items/{id}/variations
+            // El multi-GET no retorna seller_custom_field confiablemente en variaciones.
+            // Solo llamar para items cuyas variaciones NO tuvieron seller_custom_field.
+            const itemsNeedingSkuFetch = allResults
+                .filter((res: any) => res.code === 200 && res.body)
+                .filter((res: any) => {
+                    const item = res.body;
+                    return item.variations?.length > 0 &&
+                        item.variations.every((v: any) => !v.seller_custom_field);
+                })
+                .map((res: any) => res.body.id);
+
+            if (itemsNeedingSkuFetch.length > 0) {
+                const CONCURRENCY = 20;
+                // Agrupar en chunks para no superar rate limit
+                for (let i = 0; i < itemsNeedingSkuFetch.length; i += CONCURRENCY) {
+                    const chunk = itemsNeedingSkuFetch.slice(i, i + CONCURRENCY);
+                    await Promise.all(chunk.map(async (itemId: string) => {
+                        try {
+                            const varResp = await axios.get(
+                                `https://api.mercadolibre.com/items/${itemId}/variations`,
+                                { headers: { Authorization: `Bearer ${accessToken}` } }
+                            );
+                            const varDetails: any[] = varResp.data;
+                            // Construir mapa varId -> seller_custom_field
+                            const skuByVarId = new Map<string, string | null>();
+                            for (const vd of varDetails) {
+                                const sku =
+                                    vd.seller_custom_field ||
+                                    vd.attribute_combinations?.find((a: any) => a.id === 'SELLER_SKU')?.value_name ||
+                                    null;
+                                skuByVarId.set(vd.id.toString(), sku);
+                            }
+                            // Parchear el itemsPayload ya construido
+                            for (const row of itemsPayload) {
+                                if (
+                                    row.external_item_id === itemId &&
+                                    row.external_variation_id !== '0'
+                                ) {
+                                    const sku = skuByVarId.get(row.external_variation_id) ?? null;
+                                    if (sku) {
+                                        row.seller_custom_field = sku;
+                                        row.seller_sku = sku;
+                                    }
+                                }
+                            }
+                        } catch (varErr: any) {
+                            logger.warn(
+                                { itemId, error: varErr.message },
+                                'No se pudo obtener SKU de variaciones — se usará campo del padre'
+                            );
+                        }
+                    }));
+                }
+            }
             const { error: pubError } = await supabase.from('publicaciones_externas').upsert(
                 itemsPayload,
                 { onConflict: 'marketplace_id,external_item_id,external_variation_id' }

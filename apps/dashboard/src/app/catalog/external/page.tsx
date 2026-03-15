@@ -111,29 +111,62 @@ function BundleBadge({ isBundle }: { isBundle: boolean }) {
     );
 }
 
-// ─── Agrupación de variantes (por external_item_id) ──────────────────────────
+// ─── Agrupación principal: tradicionales como cabezas, catálogos como hijos ───────────
 interface GroupedListing {
-    parent: any;
-    variations: any[];   // variantes del mismo external_item_id
+    parent: any;               // Siempre la tradicional (o catálogo huérfano sin par)
+    variations: any[];         // Variaciones del mismo external_item_id
+    catalogChildren: any[];    // Publicaciones de catálogo vinculadas vía par_item_id
 }
 
-// Agrupa solo por external_item_id (variaciones de un mismo producto).
-// La asociación Tradicional↔Catálogo ya viene de BD vía par_item_id.
 function groupByItemId(listings: any[]): GroupedListing[] {
-    const map = new Map<string, GroupedListing>();
+    // Paso 1 — agrupar por external_item_id (maneja variaciones de un mismo item)
+    const byItemId = new Map<string, GroupedListing>();
     for (const l of listings) {
         const key = l.external_item_id;
-        if (!map.has(key)) {
-            map.set(key, { parent: l, variations: [] });
+        if (!byItemId.has(key)) {
+            byItemId.set(key, { parent: l, variations: [], catalogChildren: [] });
         }
-        const grp = map.get(key)!;
+        const grp = byItemId.get(key)!;
         if (l.external_variation_id && l.external_variation_id !== '0') {
             grp.variations.push(l);
         } else {
-            grp.parent = l;
+            // Preferir la tradicional como parent si ambos tipos son posibles
+            if (
+                grp.parent.tipo_publicacion !== 'tradicional' &&
+                l.tipo_publicacion === 'tradicional'
+            ) {
+                grp.parent = l;
+            } else if (grp.parent.tipo_publicacion === l.tipo_publicacion) {
+                grp.parent = l; // usa el último procesado (date order)
+            }
         }
     }
-    return Array.from(map.values());
+
+    // Paso 2 — para cada catálogo con par_item_id:
+    //   busca el grupo de su par tradicional y añádelo como catalogChild.
+    //   Si el par no está en está página → se queda como grupo independiente.
+    const absorbed = new Set<string>();  // external_item_ids de catálogos absorbidos
+
+    for (const [itemId, grp] of byItemId) {
+        const p = grp.parent;
+        if (
+            (p.tipo_publicacion === 'catalogo' || p.tipo_publicacion === 'catalogo_derivada') &&
+            p.par_item_id
+        ) {
+            const tradGrp = byItemId.get(p.par_item_id);
+            if (tradGrp) {
+                // La tradicional sí está en la página: absorberla
+                tradGrp.catalogChildren.push(p);
+                absorbed.add(itemId);
+            }
+            // Si no está → el catálogo sigue siendo su propio grupo (247 huérfanos)
+        }
+    }
+
+    // Paso 3 — construir resultado: excluir los catálogos absorbidos
+    return Array.from(byItemId.entries())
+        .filter(([id]) => !absorbed.has(id))
+        .map(([, grp]) => grp);
 }
 
 // ─── Componente de fila ──────────────────────────────────────────────────────
@@ -194,16 +227,6 @@ function ListingRow({
                             {listing.listing_type_id && <ListingTypeBadge type={listing.listing_type_id} />}
                             {listing.tipo_publicacion && <TipoBadge tipo={listing.tipo_publicacion} />}
                             <BundleBadge isBundle={listing.es_bundle || listing.tags?.includes('bundle')} />
-                            {listing.par_item_id && (
-                                <Link
-                                    href={`/catalog/external?parSearch=${listing.par_item_id}`}
-                                    className="inline-flex items-center gap-0.5 text-[10px] text-purple-600 hover:text-purple-800 font-semibold"
-                                    title={`Par: ${listing.par_item_id}`}
-                                >
-                                    <Layers className="w-3 h-3" />
-                                    {listing.tipo_publicacion === 'tradicional' ? 'Ver Catálogo' : 'Ver Trad.'}
-                                </Link>
-                            )}
                             {listing.condition && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">
                                     {listing.condition === 'new' ? 'Nuevo' : 'Usado'}
@@ -310,7 +333,8 @@ function ListingRow({
 // ─── Fila de grupo con variantes ────────────────────────────────────────────────
 function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMapear: (l: any) => void }) {
     const [expanded, setExpanded] = useState(false);
-    const { parent, variations } = group;
+    const [catalogExpanded, setCatalogExpanded] = useState(false);
+    const { parent, variations, catalogChildren } = group;
 
     // Compute aggregate values for parent when there are real variations
     const totalStock = variations.length > 0
@@ -387,17 +411,17 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                         })()}
                                     </button>
                                 )}
-                                <BundleBadge isBundle={parent.es_bundle || parent.tags?.includes('bundle')} />
-                                {parent.par_item_id && (
-                                    <Link
-                                        href={`/catalog/external?parSearch=${parent.par_item_id}`}
-                                        className="inline-flex items-center gap-0.5 text-[10px] text-purple-600 hover:text-purple-800 font-semibold"
-                                        title={`Par: ${parent.par_item_id}`}
+                                {catalogChildren.length > 0 && (
+                                    <button
+                                        onClick={() => setCatalogExpanded(o => !o)}
+                                        className="inline-flex items-center gap-0.5 text-[10px] text-purple-600 hover:text-purple-800 font-semibold transition-colors"
                                     >
                                         <Layers className="w-3 h-3" />
-                                        {parent.tipo_publicacion === 'tradicional' ? 'Ver Catálogo' : 'Ver Trad.'}
-                                    </Link>
+                                        {catalogExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                        {catalogChildren.length} catálogo{catalogChildren.length > 1 ? 's' : ''}
+                                    </button>
                                 )}
+                                <BundleBadge isBundle={parent.es_bundle || parent.tags?.includes('bundle')} />
                             </div>
                         </div>
                     </div>
@@ -499,6 +523,55 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                     </tr>
                 );
             })}
+
+            {/* Publicaciones de catálogo hijas — expandibles, fondo púrpura */}
+            {catalogExpanded && catalogChildren.map(cc => (
+                <tr key={cc.id} className="bg-purple-50/60 border-t border-purple-100">
+                    <td className="px-4 py-2 pl-10 align-top">
+                        <div className="flex flex-col gap-0.5">
+                            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[cc.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+                                {statusLabels[cc.status_externo] || cc.status_externo}
+                            </span>
+                            <TipoBadge tipo={cc.tipo_publicacion} />
+                        </div>
+                    </td>
+                    <td className="px-4 py-2 align-top" colSpan={2}>
+                        <div className="flex items-center gap-2">
+                            <Layers className="w-3 h-3 text-purple-400 shrink-0" />
+                            <div>
+                                <Link
+                                    href={`/catalog/external/${cc.id}`}
+                                    className="text-xs font-medium text-slate-700 hover:text-purple-700 transition-colors line-clamp-1"
+                                >
+                                    {cc.titulo?.slice(0, 55)}{cc.titulo?.length > 55 ? '…' : ''}
+                                </Link>
+                                <p className="text-[10px] font-mono text-slate-400">{cc.external_item_id}</p>
+                                {cc.listing_type_id && <ListingTypeBadge type={cc.listing_type_id} />}
+                            </div>
+                        </div>
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                        <span className="text-xs font-semibold text-slate-800">
+                            {cc.precio_venta ? `$${Number(cc.precio_venta).toLocaleString('es-MX')}` : '—'}
+                        </span>
+                        {cc.sold_quantity > 0 && <p className="text-[10px] text-slate-400">{cc.sold_quantity} vend.</p>}
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                        <span className="text-xs text-slate-700">{cc.stock_publicado ?? '—'}</span>
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                        <HealthBar value={cc.health} />
+                    </td>
+                    <td className="px-4 py-2 align-top text-right">
+                        <Link
+                            href={`/catalog/external/${cc.id}`}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-semibold rounded-lg border border-purple-200 transition-colors"
+                        >
+                            Ver ficha →
+                        </Link>
+                    </td>
+                </tr>
+            ))}
 
         </> 
     );
