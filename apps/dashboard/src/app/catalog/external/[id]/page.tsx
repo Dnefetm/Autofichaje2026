@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import {
     ArrowLeft, ExternalLink, Link2, Package, Truck, RefreshCw,
     CheckCircle2, AlertCircle, Tag, BarChart2, ShieldCheck, Zap,
-    Clock, Globe, DollarSign, Pencil, X, Check, Loader2, ToggleLeft, ToggleRight
+    Clock, Globe, DollarSign, Pencil, X, Check, Loader2, ToggleLeft, ToggleRight, Layers
 } from 'lucide-react';
 import Link from 'next/link';
 import { use } from 'react';
@@ -32,6 +32,18 @@ const logisticConfig: Record<string, { label: string; color: string }> = {
     drop_off: { label: 'Drop-off', color: 'bg-gray-100 text-gray-700' },
     cross_docking: { label: 'Cross-Docking', color: 'bg-teal-100 text-teal-800' },
     self_service: { label: 'Self Service', color: 'bg-orange-100 text-orange-800' },
+};
+
+const listingTypeConfig: Record<string, { label: string; color: string }> = {
+    gold_special: { label: 'Clásica (~16%)',  color: 'bg-gray-100 text-gray-700' },
+    gold_pro:     { label: 'Premium (~32%)', color: 'bg-amber-100 text-amber-800' },
+    free:         { label: 'Gratuita',        color: 'bg-green-100 text-green-700' },
+};
+
+const tipoPubConfig: Record<string, { label: string; color: string }> = {
+    tradicional:       { label: 'Tradicional',  color: 'bg-blue-100 text-blue-800' },
+    catalogo:          { label: 'Catálogo',     color: 'bg-purple-100 text-purple-800' },
+    catalogo_derivada: { label: 'Cat. Derivada', color: 'bg-purple-100 text-purple-700' },
 };
 
 function HealthBar({ value }: { value: number | null }) {
@@ -233,6 +245,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [pub, setPub] = useState<any>(null);
     const [mapeos, setMapeos] = useState<any[]>([]);
     const [variantes, setVariantes] = useState<any[]>([]);
+    const [asociadas, setAsociadas] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showMappingModal, setShowMappingModal] = useState(false);
 
@@ -263,6 +276,17 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         .eq('external_item_id', pubData.external_item_id)
                         .neq('id', id);
                     setVariantes(varData || []);
+                }
+
+                // Publicaciones asociadas por id_producto_catalogo
+                if (pubData.id_producto_catalogo && pubData.marketplace_id) {
+                    const { data: asocData } = await supabase
+                        .from('publicaciones_externas')
+                        .select('id, external_item_id, tipo_publicacion, listing_type_id, status_externo, precio_venta, stock_publicado, sold_quantity, permalink')
+                        .eq('id_producto_catalogo', pubData.id_producto_catalogo)
+                        .eq('marketplace_id', pubData.marketplace_id)
+                        .neq('id', id);
+                    setAsociadas(asocData || []);
                 }
             }
         } finally {
@@ -317,6 +341,18 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap gap-2 mb-2">
                                 <StatusToggle id={id} current={pub.status_externo} disabled={pub.sync_disabled || false} />
+                                {/* Tipo de publicación */}
+                                {pub.tipo_publicacion && tipoPubConfig[pub.tipo_publicacion] && (
+                                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', tipoPubConfig[pub.tipo_publicacion].color)}>
+                                        {tipoPubConfig[pub.tipo_publicacion].label}
+                                    </span>
+                                )}
+                                {/* Comisión */}
+                                {pub.listing_type_id && listingTypeConfig[pub.listing_type_id] && (
+                                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', listingTypeConfig[pub.listing_type_id].color)}>
+                                        {listingTypeConfig[pub.listing_type_id].label}
+                                    </span>
+                                )}
                                 {pub.esta_mapeado ? (
                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
                                         <CheckCircle2 className="w-3.5 h-3.5" /> Mapeado
@@ -419,6 +455,35 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         <Section title="Identificadores" icon={<Tag className="w-4 h-4" />}>
                             <InfoRow label="Item ID" value={<span className="font-mono text-xs">{pub.external_item_id}</span>} />
                             <InfoRow label="Variación ID" value={isVariant ? <span className="font-mono text-xs">{pub.external_variation_id}</span> : null} />
+                            <InfoRow
+                                label="Tipo"
+                                value={pub.tipo_publicacion && tipoPubConfig[pub.tipo_publicacion]
+                                    ? <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold', tipoPubConfig[pub.tipo_publicacion].color)}>{tipoPubConfig[pub.tipo_publicacion].label}</span>
+                                    : pub.tipo_publicacion
+                                }
+                            />
+                            <InfoRow
+                                label="Comisión"
+                                value={pub.listing_type_id && listingTypeConfig[pub.listing_type_id]
+                                    ? <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold', listingTypeConfig[pub.listing_type_id].color)}>{listingTypeConfig[pub.listing_type_id].label}</span>
+                                    : pub.listing_type_id
+                                }
+                            />
+                            <InfoRow
+                                label="ID Producto Cat."
+                                value={pub.id_producto_catalogo
+                                    ? (
+                                        <a
+                                            href={`https://www.mercadolibre.com.mx/p/${pub.id_producto_catalogo}`}
+                                            target="_blank" rel="noreferrer"
+                                            className="font-mono text-xs text-indigo-600 hover:underline"
+                                        >
+                                            {pub.id_producto_catalogo} ↗
+                                        </a>
+                                    )
+                                    : null
+                                }
+                            />
                             <InfoRow label="Categoría" value={pub.category_id} />
                             <InfoRow label="Dominio" value={pub.domain_id} />
                             <InfoRow label="Marca" value={pub.brand} />
@@ -448,7 +513,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             <InfoRow label="Precio actual" value={<span className="font-bold">{fmt(pub.precio_venta)}</span>} />
                             <InfoRow label="Precio original" value={pub.original_price ? <span className="line-through text-slate-400">{fmt(pub.original_price)}</span> : null} />
                             <InfoRow label="Moneda" value={pub.currency_id} />
-                            <InfoRow label="Tipo de pub." value={pub.listing_type_id} />
+                            <InfoRow label="Comisión" value={pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id].label : pub.listing_type_id} />
                             <InfoRow label="Ventas totales" value={pub.sold_quantity != null ? `${pub.sold_quantity} unidades` : null} />
                             <InfoRow label="Cantidad inicial" value={pub.initial_quantity != null ? `${pub.initial_quantity} uds.` : null} />
                             <InfoRow label="Deals" value={pub.deal_ids?.length > 0 ? pub.deal_ids.join(', ') : null} />
@@ -593,6 +658,71 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                     </td>
                                                 </tr>
                                             ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </Section>
+                        )}
+
+                        {/* Publicaciones Asociadas (mismo id_producto_catalogo) */}
+                        {asociadas.length > 0 && (
+                            <Section title={`Publicaciones Asociadas (${asociadas.length + 1})`} icon={<Layers className="w-4 h-4" />}>
+                                <div className="-mx-5 overflow-x-auto">
+                                    <table className="w-full text-xs">
+                                        <thead className="bg-slate-50">
+                                            <tr>
+                                                <th className="px-4 py-2 text-left font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Item ID</th>
+                                                <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Tipo</th>
+                                                <th className="px-3 py-2 text-right font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Precio</th>
+                                                <th className="px-3 py-2 text-right font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Stock</th>
+                                                <th className="px-3 py-2 text-right font-semibold text-slate-500 uppercase text-[10px] tracking-wider"> </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {/* Fila actual */}
+                                            <tr className="bg-indigo-50">
+                                                <td className="px-4 py-2 font-mono text-[10px] font-bold text-indigo-700">{pub.external_item_id}</td>
+                                                <td className="px-3 py-2">
+                                                    {pub.tipo_publicacion && tipoPubConfig[pub.tipo_publicacion] && (
+                                                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-semibold', tipoPubConfig[pub.tipo_publicacion].color)}>
+                                                            {tipoPubConfig[pub.tipo_publicacion].label}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2 text-right font-semibold text-slate-800">{fmt(pub.precio_venta)}</td>
+                                                <td className="px-3 py-2 text-right text-slate-700">{pub.stock_publicado ?? '—'}</td>
+                                                <td className="px-3 py-2 text-right"><span className="text-[10px] text-indigo-500 font-semibold">actual</span></td>
+                                            </tr>
+                                            {/* Hermanas */}
+                                            {asociadas.map(a => {
+                                                const tipoCfg = a.tipo_publicacion ? tipoPubConfig[a.tipo_publicacion] : null;
+                                                const ltCfg = a.listing_type_id ? listingTypeConfig[a.listing_type_id] : null;
+                                                return (
+                                                    <tr key={a.id} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="px-4 py-2">
+                                                            <div>
+                                                                <p className="font-mono text-[10px] text-slate-600">{a.external_item_id}</p>
+                                                                <span className={cn('text-[10px] px-1 py-0.5 rounded font-semibold border', statusColors[a.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+                                                                    {statusLabels[a.status_externo] || a.status_externo}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            <div className="flex flex-col gap-0.5">
+                                                                {tipoCfg && <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-semibold', tipoCfg.color)}>{tipoCfg.label}</span>}
+                                                                {ltCfg && <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium', ltCfg.color)}>{ltCfg.label}</span>}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2 text-right font-semibold text-slate-800">{fmt(a.precio_venta)}</td>
+                                                        <td className="px-3 py-2 text-right text-slate-700">{a.stock_publicado ?? '—'}</td>
+                                                        <td className="px-3 py-2 text-right">
+                                                            <Link href={`/catalog/external/${a.id}`} className="text-[10px] text-purple-600 hover:text-purple-800 font-semibold hover:underline">
+                                                                Ver →
+                                                            </Link>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>

@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 export interface FilterState {
     marketplace_id: string | null;
+    tipoPublicacion: string[];
     statusExterno: string[];
     mapeoFilter: 'all' | 'unmapped' | 'mapped';
     brands: string[];
@@ -25,6 +26,7 @@ export interface FilterState {
 
 export const defaultFilters: FilterState = {
     marketplace_id: null,
+    tipoPublicacion: [],
     statusExterno: [],
     mapeoFilter: 'all',
     brands: [],
@@ -101,6 +103,7 @@ function RadioItem({ label, selected, onChange }: { label: string; selected: boo
 function countActive(filters: FilterState): number {
     let c = 0;
     if (filters.marketplace_id) c++;
+    if (filters.tipoPublicacion.length > 0) c++;
     if (filters.statusExterno.length > 0) c++;
     if (filters.mapeoFilter !== 'all') c++;
     if (filters.brands.length > 0) c++;
@@ -229,6 +232,22 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                     ))}
                 </Accordion>
 
+                {/* Tipo de Publicación */}
+                <Accordion title="Tipo de Publicación" defaultOpen>
+                    {([
+                        { val: 'tradicional',       label: 'Tradicional' },
+                        { val: 'catalogo',          label: 'Catálogo' },
+                        { val: 'catalogo_derivada', label: 'Cat. Derivada' },
+                    ]).map(({ val, label }) => (
+                        <CheckItem
+                            key={val}
+                            label={label}
+                            checked={filters.tipoPublicacion.includes(val)}
+                            onChange={() => set({ tipoPublicacion: toggleArr(filters.tipoPublicacion, val) })}
+                        />
+                    ))}
+                </Accordion>
+
                 {/* Mapeo */}
                 <Accordion title="Mapeo a Bodega" defaultOpen>
                     {(['all', 'mapped', 'unmapped'] as const).map(m => (
@@ -258,9 +277,13 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                     />
                 </Accordion>
 
-                {/* Tipo de publicación */}
-                <Accordion title="Tipo de Publicación">
-                    {Object.entries(listingTypeLabels).map(([val, label]) => (
+                {/* Comisión (listing_type_id) */}
+                <Accordion title="Comisión">
+                    {([
+                        { val: 'gold_special', label: 'Clásica (~16%)' },
+                        { val: 'gold_pro',     label: 'Premium (~32%)' },
+                        { val: 'free',         label: 'Gratuita' },
+                    ]).map(({ val, label }) => (
                         <CheckItem
                             key={val}
                             label={label}
