@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { MeliAdapter } from '@packages/adapters/meli';
-
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { supabaseAdmin } from '@/lib/supabase';
+import { MeliAdapter } from '@gestor/adapters/meli';
 
 // Campos editables permitidos
 const ALLOWED_FIELDS = ['price', 'stock', 'status'] as const;
