@@ -111,62 +111,29 @@ function BundleBadge({ isBundle }: { isBundle: boolean }) {
     );
 }
 
-// ─── Agrupación principal: tradicionales como cabezas, catálogos como hijos ───────────
+// ─── Agrupación: solo variaciones del mismo external_item_id ─────────────────────
+// Los catálogos con par se excluyen de la query principal (server-side).
+// Los hijos de catálogo se cargan lazy cuando el usuario expande la fila.
 interface GroupedListing {
-    parent: any;               // Siempre la tradicional (o catálogo huérfano sin par)
-    variations: any[];         // Variaciones del mismo external_item_id
-    catalogChildren: any[];    // Publicaciones de catálogo vinculadas vía par_item_id
+    parent: any;
+    variations: any[];  // variaciones del mismo external_item_id
 }
 
 function groupByItemId(listings: any[]): GroupedListing[] {
-    // Paso 1 — agrupar por external_item_id (maneja variaciones de un mismo item)
-    const byItemId = new Map<string, GroupedListing>();
+    const map = new Map<string, GroupedListing>();
     for (const l of listings) {
         const key = l.external_item_id;
-        if (!byItemId.has(key)) {
-            byItemId.set(key, { parent: l, variations: [], catalogChildren: [] });
+        if (!map.has(key)) {
+            map.set(key, { parent: l, variations: [] });
         }
-        const grp = byItemId.get(key)!;
+        const grp = map.get(key)!;
         if (l.external_variation_id && l.external_variation_id !== '0') {
             grp.variations.push(l);
         } else {
-            // Preferir la tradicional como parent si ambos tipos son posibles
-            if (
-                grp.parent.tipo_publicacion !== 'tradicional' &&
-                l.tipo_publicacion === 'tradicional'
-            ) {
-                grp.parent = l;
-            } else if (grp.parent.tipo_publicacion === l.tipo_publicacion) {
-                grp.parent = l; // usa el último procesado (date order)
-            }
+            grp.parent = l;
         }
     }
-
-    // Paso 2 — para cada catálogo con par_item_id:
-    //   busca el grupo de su par tradicional y añádelo como catalogChild.
-    //   Si el par no está en está página → se queda como grupo independiente.
-    const absorbed = new Set<string>();  // external_item_ids de catálogos absorbidos
-
-    for (const [itemId, grp] of byItemId) {
-        const p = grp.parent;
-        if (
-            (p.tipo_publicacion === 'catalogo' || p.tipo_publicacion === 'catalogo_derivada') &&
-            p.par_item_id
-        ) {
-            const tradGrp = byItemId.get(p.par_item_id);
-            if (tradGrp) {
-                // La tradicional sí está en la página: absorberla
-                tradGrp.catalogChildren.push(p);
-                absorbed.add(itemId);
-            }
-            // Si no está → el catálogo sigue siendo su propio grupo (247 huérfanos)
-        }
-    }
-
-    // Paso 3 — construir resultado: excluir los catálogos absorbidos
-    return Array.from(byItemId.entries())
-        .filter(([id]) => !absorbed.has(id))
-        .map(([, grp]) => grp);
+    return Array.from(map.values());
 }
 
 // ─── Componente de fila ──────────────────────────────────────────────────────
@@ -333,8 +300,33 @@ function ListingRow({
 // ─── Fila de grupo con variantes ────────────────────────────────────────────────
 function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMapear: (l: any) => void }) {
     const [expanded, setExpanded] = useState(false);
+    // Lazy-load de catálogos: se consultan la primera vez que se expande
     const [catalogExpanded, setCatalogExpanded] = useState(false);
-    const { parent, variations, catalogChildren } = group;
+    const [catalogChildren, setCatalogChildren] = useState<any[] | null>(null); // null = no cargado aún
+    const [catalogLoading, setCatalogLoading] = useState(false);
+    const { parent, variations } = group;
+
+    // Cuenta de hijos de catálogo desde catalog_count (campo precalculado) o indica que existen
+    // Mostramos el badge si la pub tradicional tiene al menos 1 catálogo vinculado (catalog_count > 0)
+    const hasCatalogChildren = (parent.catalog_count ?? 0) > 0;
+    const catalogCount = parent.catalog_count ?? 0;
+
+    async function toggleCatalog() {
+        if (!catalogExpanded && catalogChildren === null) {
+            // Primera vez que se abre: cargar desde Supabase
+            setCatalogLoading(true);
+            const { data } = await supabase
+                .from('publicaciones_externas')
+                .select('id, external_item_id, titulo, tipo_publicacion, status_externo, listing_type_id, precio_venta, sold_quantity, stock_publicado, health')
+                .eq('par_item_id', parent.external_item_id)
+                .in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
+                .eq('external_variation_id', '0')
+                .order('status_externo', { ascending: true });
+            setCatalogChildren(data || []);
+            setCatalogLoading(false);
+        }
+        setCatalogExpanded(o => !o);
+    }
 
     // Compute aggregate values for parent when there are real variations
     const totalStock = variations.length > 0
@@ -411,14 +403,16 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                         })()}
                                     </button>
                                 )}
-                                {catalogChildren.length > 0 && (
+                                {/* Badge de catálogos hijos — lazy load */}
+                                {hasCatalogChildren && (
                                     <button
-                                        onClick={() => setCatalogExpanded(o => !o)}
-                                        className="inline-flex items-center gap-0.5 text-[10px] text-purple-600 hover:text-purple-800 font-semibold transition-colors"
+                                        onClick={toggleCatalog}
+                                        disabled={catalogLoading}
+                                        className="inline-flex items-center gap-0.5 text-[10px] text-purple-600 hover:text-purple-800 font-semibold transition-colors disabled:opacity-60"
                                     >
                                         <Layers className="w-3 h-3" />
                                         {catalogExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                        {catalogChildren.length} catálogo{catalogChildren.length > 1 ? 's' : ''}
+                                        {catalogLoading ? 'Cargando…' : `${catalogCount} catálogo${catalogCount !== 1 ? 's' : ''}`}
                                     </button>
                                 )}
                                 <BundleBadge isBundle={parent.es_bundle || parent.tags?.includes('bundle')} />
@@ -524,8 +518,8 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                 );
             })}
 
-            {/* Publicaciones de catálogo hijas — expandibles, fondo púrpura */}
-            {catalogExpanded && catalogChildren.map(cc => (
+            {/* Publicaciones de catálogo hijas — lazy-loaded, fondo púrpura */}
+            {catalogExpanded && (catalogChildren || []).map(cc => (
                 <tr key={cc.id} className="bg-purple-50/60 border-t border-purple-100">
                     <td className="px-4 py-2 pl-10 align-top">
                         <div className="flex flex-col gap-0.5">
@@ -663,11 +657,25 @@ export default function VirtualCatalogPage() {
 
             let query = supabase
                 .from('publicaciones_externas')
-                .select(`*, par_item_id, es_bundle, marketplace:marketplace_configs(account_name)`, { count: 'exact' })
+                .select(`*, par_item_id, es_bundle, catalog_count, marketplace:marketplace_configs(account_name)`, { count: 'exact' })
                 .order(filters.sortBy, { ascending: filters.sortDir === 'asc' })
                 .order('external_item_id', { ascending: true })
                 .order('external_variation_id', { ascending: true })
                 .range(from, to);
+
+            // ─── Exclusión server-side de catálogos con par ──────────────────────────
+            // Excluir publicaciones de catálogo que son hijas de una tradicional (tienen par_item_id).
+            // Condición: par_item_id IS NULL  →  incluir (huérfanos de catálogo + todas las tradicionales)
+            // Solo aplica cuando el usuario NO filtra explícitamente por tipo catálogo.
+            if (filters.tipoPublicacion.length === 0 || !filters.tipoPublicacion.some(t => t.startsWith('catalogo'))) {
+                // Muestra filas que sean: tradicionales (no-catálogo)  OR  catálogos sin par (huérfanos)
+                query = query.or(
+                    'tipo_publicacion.eq.tradicional,' +
+                    'tipo_publicacion.is.null,' +
+                    'and(tipo_publicacion.eq.catalogo,par_item_id.is.null),' +
+                    'and(tipo_publicacion.eq.catalogo_derivada,par_item_id.is.null)'
+                );
+            }
 
             // Marketplace (vidriera)
             if (filters.marketplace_id) query = query.eq('marketplace_id', filters.marketplace_id);

@@ -339,10 +339,20 @@ export class MeliAdapter implements MarketplaceAdapter {
                         es_bundle: (item.tags || []).includes('bundle'),
                     };
 
-                    // Resolución de variaciones: una fila por variación con todos sus atributos
+                    // Items con variaciones:
+                    // • Fila padre (variation_id='0'): datos de nivel item (brand, SKU, stock tot., precio base)
+                    // • Filas de variación: datos individuales (stock/precio/attrs por variante)
                     if (item.variations && item.variations.length > 0) {
                         const parentSellerSku = item.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name || null;
-                        return item.variations.map((variation: any) => ({
+                        const parentRow = {
+                            ...base,
+                            external_variation_id: '0',
+                            variation_attributes: null,
+                            variation_picture_ids: null,
+                            seller_custom_field: item.seller_custom_field || null,
+                            seller_sku: parentSellerSku,
+                        };
+                        const variationRows = item.variations.map((variation: any) => ({
                             ...base,
                             external_variation_id: variation.id.toString(),
                             stock_publicado: variation.available_quantity ?? item.available_quantity,
@@ -360,6 +370,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                             // seller_sku para variante: seller_custom_field → SELLER_SKU del padre → null
                             seller_sku: variation.seller_custom_field || parentSellerSku || null,
                         }));
+                        return [parentRow, ...variationRows];
                     }
 
                     // Sin variaciones: fila única — campos de variante en NULL
@@ -439,14 +450,21 @@ export class MeliAdapter implements MarketplaceAdapter {
             // V20: recalcular par_item_id para los items de este batch que tengan id_producto_catalogo
             const syncedItemIds = [...new Set(itemsPayload.map((r: any) => r.external_item_id))];
             if (syncedItemIds.length > 0) {
-                // Ejecutar como RPC para poder usar SQL de JOIN complejo.
-                // Si falla (no crítico), solo se loggea — el backfill del sync completo lo corrige.
+                // par_item_id RPC
                 const { error: parError } = await supabase.rpc('recalcular_par_item_id', {
                     p_account_id: accountId,
                     p_item_ids: syncedItemIds,
                 });
                 if (parError) {
                     logger.warn({ accountId, error: parError.message }, 'par_item_id RPC no disponible — se actualizará en el próximo sync completo');
+                }
+                // V22: catalog_count RPC
+                const { error: ccError } = await supabase.rpc('recalcular_catalog_count', {
+                    p_account_id: accountId,
+                    p_item_ids: syncedItemIds,
+                });
+                if (ccError) {
+                    logger.warn({ accountId, error: ccError.message }, 'catalog_count RPC no disponible');
                 }
             }
 
