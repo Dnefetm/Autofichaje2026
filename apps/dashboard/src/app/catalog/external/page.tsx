@@ -182,8 +182,11 @@ function ListingRow({
             {/* 3 — MARCA / SKU */}
             <td className="px-4 py-3 align-top">
                 {listing.brand && <p className="text-xs font-semibold text-slate-700">{listing.brand}</p>}
-                {listing.seller_sku && <p className="text-[10px] font-mono text-slate-400 mt-0.5">{listing.seller_sku}</p>}
-                {!listing.brand && !listing.seller_sku && <span className="text-[10px] text-slate-300">—</span>}
+                {/* Mostrar seller_custom_field (SKU variante) con fallback a seller_sku (SKU padre) */}
+                {(listing.seller_custom_field || listing.seller_sku) && (
+                    <p className="text-[10px] font-mono text-slate-400 mt-0.5">{listing.seller_custom_field || listing.seller_sku}</p>
+                )}
+                {!listing.brand && !listing.seller_custom_field && !listing.seller_sku && <span className="text-[10px] text-slate-300">—</span>}
             </td>
 
             {/* 4 — PRECIO / VENTAS */}
@@ -328,6 +331,20 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                     >
                                         {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                                         +{variations.length} variantes
+                                        {!expanded && (() => {
+                                            // Extraer nombres de atributos que difieren entre variantes
+                                            const allAttrs = variations.flatMap(v => v.variation_attributes || []);
+                                            const byName: Record<string, Set<string>> = {};
+                                            for (const a of allAttrs) {
+                                                if (!byName[a.name]) byName[a.name] = new Set();
+                                                byName[a.name].add(a.value_name);
+                                            }
+                                            const summary = Object.entries(byName)
+                                                .filter(([, vals]) => vals.size > 1)
+                                                .map(([name, vals]) => `${name}: ${[...vals].join(', ')}`)
+                                                .join(' · ');
+                                            return summary ? <span className="text-slate-500 font-normal"> ({summary})</span> : null;
+                                        })()}
                                     </button>
                                 )}
                             </div>
@@ -338,8 +355,10 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                 {/* 3 — MARCA / SKU */}
                 <td className="px-4 py-3 align-top">
                     {parent.brand && <p className="text-xs font-semibold text-slate-700">{parent.brand}</p>}
-                    {parent.seller_sku && <p className="text-[10px] font-mono text-slate-400 mt-0.5">{parent.seller_sku}</p>}
-                    {!parent.brand && !parent.seller_sku && <span className="text-[10px] text-slate-300">—</span>}
+                    {(parent.seller_custom_field || parent.seller_sku) && (
+                        <p className="text-[10px] font-mono text-slate-400 mt-0.5">{parent.seller_custom_field || parent.seller_sku}</p>
+                    )}
+                    {!parent.brand && !parent.seller_custom_field && !parent.seller_sku && <span className="text-[10px] text-slate-300">—</span>}
                 </td>
 
                 {/* 4 — PRECIO / VENTAS */}
@@ -387,26 +406,49 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
             </tr>
 
             {/* Filas de variantes expandidas */}
-            {expanded && variations.map(v => (
-                <tr key={v.id} className="bg-slate-50/50 border-t border-slate-100">
-                    {/* variation indent */}
-                    <td className="px-4 py-2 pl-10 align-top">
-                        <span className="text-[10px] text-slate-400 font-mono">#{v.external_variation_id}</span>
-                    </td>
-                    <td className="px-4 py-2 align-top text-xs text-slate-600 pl-10" colSpan={2}>
-                        Variante {v.external_variation_id}
-                    </td>
-                    <td className="px-4 py-2 align-top">
-                        <span className="text-xs font-semibold text-slate-800">
-                            {v.precio_venta ? `$${Number(v.precio_venta).toLocaleString('es-MX')}` : '—'}
-                        </span>
-                    </td>
-                    <td className="px-4 py-2 align-top">
-                        <span className="text-xs text-slate-700">{v.stock_publicado ?? '—'}</span>
-                    </td>
-                    <td colSpan={2} />
-                </tr>
-            ))}
+            {expanded && variations.map(v => {
+                const attrs: { name: string; value_name: string }[] = v.variation_attributes || [];
+                const pricesDiffer = prices.length > 1 && (Math.max(...prices) - Math.min(...prices)) > 0;
+                const stocksDiffer = variations.some(x => x.stock_publicado !== v.stock_publicado);
+                return (
+                    <tr key={v.id} className="bg-indigo-50/30 border-t border-slate-100">
+                        {/* Estado + ID */}
+                        <td className="px-4 py-2 pl-12 align-top">
+                            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[v.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+                                {statusLabels[v.status_externo] || v.status_externo}
+                            </span>
+                        </td>
+                        {/* Atributos */}
+                        <td className="px-4 py-2 align-top" colSpan={2}>
+                            {attrs.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                    {attrs.map(a => (
+                                        <span key={a.name} className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium">
+                                            {a.name}: <span className="font-bold">{a.value_name}</span>
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <span className="text-[10px] text-slate-400 font-mono">#{v.external_variation_id}</span>
+                            )}
+                            {v.seller_custom_field && (
+                                <p className="text-[10px] font-mono text-slate-400 mt-0.5">{v.seller_custom_field}</p>
+                            )}
+                        </td>
+                        {/* Precio (resaltado si difiere) */}
+                        <td className={cn('px-4 py-2 align-top', pricesDiffer && 'bg-amber-50')}>
+                            <span className="text-xs font-semibold text-slate-800">
+                                {v.precio_venta ? `$${Number(v.precio_venta).toLocaleString('es-MX')}` : '—'}
+                            </span>
+                        </td>
+                        {/* Stock (resaltado si difiere) */}
+                        <td className={cn('px-4 py-2 align-top', stocksDiffer && 'bg-amber-50')}>
+                            <span className="text-xs text-slate-700">{v.stock_publicado ?? '—'}</span>
+                        </td>
+                        <td colSpan={2} />
+                    </tr>
+                );
+            })}
         </>
     );
 }
@@ -432,6 +474,7 @@ export default function VirtualCatalogPage() {
 
     // Facets
     const [facets, setFacets] = useState<{ brands: any[]; domains: any[] }>({ brands: [], domains: [] });
+    const [marketplaces, setMarketplaces] = useState<{ id: string; account_name: string; count?: number }[]>([]);
 
     const addLog = (msg: string) => {
         const time = new Date().toLocaleTimeString();
@@ -448,7 +491,22 @@ export default function VirtualCatalogPage() {
     useEffect(() => { setPage(0); }, [filters]);
 
     useEffect(() => { loadListings(); }, [page, debouncedSearch, filters]);
-    useEffect(() => { loadFacets(); }, []);
+    useEffect(() => { loadFacets(); loadMarketplaces(); }, []);
+
+    async function loadMarketplaces() {
+        const { data } = await supabase
+            .from('marketplace_configs')
+            .select('id, account_name')
+            .eq('is_active', true);
+        if (!data || data.length === 0) return;
+        // Obtener conteos por marketplace
+        const counts = await Promise.all(
+            data.map(m => supabase.from('publicaciones_externas')
+                .select('id', { count: 'exact', head: true })
+                .eq('marketplace_id', m.id))
+        );
+        setMarketplaces(data.map((m, i) => ({ ...m, count: counts[i].count || 0 })));
+    }
 
     async function loadFacets() {
         const [brandsResult, domainsResult] = await Promise.all([
@@ -486,6 +544,8 @@ export default function VirtualCatalogPage() {
                 .order('external_variation_id', { ascending: true })
                 .range(from, to);
 
+            // Marketplace (vidriera)
+            if (filters.marketplace_id) query = query.eq('marketplace_id', filters.marketplace_id);
             // Estado
             if (filters.statusExterno.length > 0 && filters.statusExterno.length < 4) {
                 query = query.in('status_externo', filters.statusExterno);
@@ -644,7 +704,7 @@ export default function VirtualCatalogPage() {
                 {/* Layout: Sidebar + Tabla */}
                 <div className="flex gap-5 items-start">
                     {showFilters && (
-                        <FiltersSidebar filters={filters} onChange={setFilters} facets={facets} />
+                        <FiltersSidebar filters={filters} onChange={setFilters} facets={facets} marketplaces={marketplaces} />
                     )}
 
                     <div className="flex-1 min-w-0">

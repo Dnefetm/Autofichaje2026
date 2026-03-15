@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, X, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface FilterState {
+    marketplace_id: string | null;
     statusExterno: string[];
     mapeoFilter: 'all' | 'unmapped' | 'mapped';
     brands: string[];
@@ -23,6 +24,7 @@ export interface FilterState {
 }
 
 export const defaultFilters: FilterState = {
+    marketplace_id: null,
     statusExterno: [],
     mapeoFilter: 'all',
     brands: [],
@@ -49,6 +51,7 @@ interface FiltersSidebarProps {
         brands: FacetItem[];
         domains: FacetItem[];
     };
+    marketplaces: { id: string; account_name: string; count?: number }[];
 }
 
 function Accordion({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
@@ -97,6 +100,7 @@ function RadioItem({ label, selected, onChange }: { label: string; selected: boo
 
 function countActive(filters: FilterState): number {
     let c = 0;
+    if (filters.marketplace_id) c++;
     if (filters.statusExterno.length > 0) c++;
     if (filters.mapeoFilter !== 'all') c++;
     if (filters.brands.length > 0) c++;
@@ -112,7 +116,7 @@ function countActive(filters: FilterState): number {
     return c;
 }
 
-export function FiltersSidebar({ filters, onChange, facets }: FiltersSidebarProps) {
+export function FiltersSidebar({ filters, onChange, facets, marketplaces }: FiltersSidebarProps) {
     const set = (patch: Partial<FilterState>) => onChange({ ...filters, ...patch });
 
     const toggleArr = <T extends string>(arr: T[], val: T): T[] =>
@@ -157,6 +161,35 @@ export function FiltersSidebar({ filters, onChange, facets }: FiltersSidebarProp
             </div>
 
             <div className="px-3 py-2">
+                {/* Vidriera (cuenta de MeLi) */}
+                {marketplaces.length > 1 && (
+                    <Accordion title="Vidriera" defaultOpen>
+                        <RadioItem
+                            label="Todas"
+                            selected={filters.marketplace_id === null}
+                            onChange={() => set({ marketplace_id: null })}
+                        />
+                        {marketplaces.map(m => (
+                            <label key={m.id} className="flex items-center justify-between gap-2 group cursor-pointer">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="radio"
+                                        checked={filters.marketplace_id === m.id}
+                                        onChange={() => set({ marketplace_id: m.id })}
+                                        className="w-3.5 h-3.5 text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                                    />
+                                    <span className={cn('text-xs', filters.marketplace_id === m.id ? 'text-slate-900 font-semibold' : 'text-slate-600 group-hover:text-slate-900')}>
+                                        {m.account_name}
+                                    </span>
+                                </div>
+                                {m.count !== undefined && (
+                                    <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{m.count.toLocaleString()}</span>
+                                )}
+                            </label>
+                        ))}
+                    </Accordion>
+                )}
+
                 {/* Ordenar */}
                 <Accordion title="Ordenar por" defaultOpen>
                     <select

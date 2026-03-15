@@ -337,18 +337,34 @@ export class MeliAdapter implements MarketplaceAdapter {
                         initial_quantity: item.initial_quantity ?? null,
                     };
 
-                    // Resolución de deuda técnica: variaciones
+                    // Resolución de variaciones: una fila por variación con todos sus atributos
                     if (item.variations && item.variations.length > 0) {
                         return item.variations.map((variation: any) => ({
                             ...base,
                             external_variation_id: variation.id.toString(),
                             stock_publicado: variation.available_quantity ?? item.available_quantity,
                             precio_venta: variation.price ?? item.price,
+                            // Atributos de diferenciación de la variante (COLOR, TALLA, etc.)
+                            variation_attributes: variation.attribute_combinations?.length
+                                ? variation.attribute_combinations
+                                : null,
+                            // Fotos específicas de la variante
+                            variation_picture_ids: variation.picture_ids?.length
+                                ? variation.picture_ids
+                                : null,
+                            // SKU específico de la variante (distinto del seller_sku del padre)
+                            seller_custom_field: variation.seller_custom_field || null,
                         }));
                     }
 
-                    // Sin variaciones: fila única con external_variation_id='0'
-                    return [{ ...base, external_variation_id: '0' }];
+                    // Sin variaciones: fila única — campos de variante en NULL
+                    return [{
+                        ...base,
+                        external_variation_id: '0',
+                        variation_attributes: null,
+                        variation_picture_ids: null,
+                        seller_custom_field: null,
+                    }];
                 });
 
             if (itemsPayload.length === 0) return 0;

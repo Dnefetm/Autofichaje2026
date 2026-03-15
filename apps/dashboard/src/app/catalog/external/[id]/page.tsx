@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
     ArrowLeft, ExternalLink, Link2, Package, Truck, RefreshCw,
     CheckCircle2, AlertCircle, Tag, BarChart2, ShieldCheck, Zap,
-    Clock, Globe, DollarSign
+    Clock, Globe, DollarSign, Pencil, X, Check, Loader2, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { use } from 'react';
@@ -56,8 +56,8 @@ function HealthBar({ value }: { value: number | null }) {
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
     return (
         <div className="flex items-start justify-between py-2.5 border-b border-slate-100 last:border-0">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0 w-32">{label}</span>
-            <div className="text-sm text-slate-800 text-right">{value || <span className="text-slate-300">—</span>}</div>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0 w-36">{label}</span>
+            <div className="text-sm text-slate-800 text-right flex-1 break-words">{value || <span className="text-slate-300">—</span>}</div>
         </div>
     );
 }
@@ -70,6 +70,158 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
                 <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">{title}</h2>
             </div>
             <div className="px-5 py-2">{children}</div>
+        </div>
+    );
+}
+
+// ─── Campo editable inline ────────────────────────────────────────────────────
+type SaveState = 'idle' | 'saving' | 'ok' | 'error';
+
+function EditableField({
+    id,
+    field,
+    value,
+    label,
+    type = 'number',
+}: {
+    id: string;
+    field: 'price' | 'stock';
+    value: number | null;
+    label: string;
+    type?: 'number' | 'text';
+}) {
+    const [editing, setEditing] = useState(false);
+    const [inputVal, setInputVal] = useState(String(value ?? ''));
+    const [saveState, setSaveState] = useState<SaveState>('idle');
+    const [localValue, setLocalValue] = useState(value);
+    const [errorMsg, setErrorMsg] = useState('');
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const fmt = (n: number | null) => n != null
+        ? field === 'price' ? `$${Number(n).toLocaleString('es-MX')}` : `${n} uds.`
+        : '—';
+
+    const startEdit = () => { setEditing(true); setInputVal(String(localValue ?? '')); setTimeout(() => inputRef.current?.select(), 50); };
+    const cancelEdit = () => { setEditing(false); setSaveState('idle'); };
+
+    const save = async () => {
+        const numVal = Number(inputVal);
+        if (isNaN(numVal) || numVal < 0) { setErrorMsg('Valor inválido'); return; }
+        setSaveState('saving');
+        setErrorMsg('');
+        try {
+            const res = await fetch(`/api/catalog/external/${id}/update`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ field, value: numVal }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error desconocido');
+            setLocalValue(numVal);
+            setSaveState('ok');
+            setTimeout(() => { setEditing(false); setSaveState('idle'); }, 1200);
+        } catch (err: any) {
+            setSaveState('error');
+            setErrorMsg(err.message);
+        }
+    };
+
+    if (editing) {
+        return (
+            <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1.5">
+                    <input
+                        ref={inputRef}
+                        type={type}
+                        value={inputVal}
+                        onChange={e => setInputVal(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancelEdit(); }}
+                        className="w-28 text-sm border-2 border-indigo-400 rounded-lg px-2 py-1 focus:ring-0 outline-none font-semibold"
+                        disabled={saveState === 'saving'}
+                    />
+                    {saveState === 'saving' ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                    ) : saveState === 'ok' ? (
+                        <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                        <>
+                            <button onClick={save} className="p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"><Check className="w-3.5 h-3.5" /></button>
+                            <button onClick={cancelEdit} className="p-1.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"><X className="w-3.5 h-3.5" /></button>
+                        </>
+                    )}
+                </div>
+                {saveState === 'error' && (
+                    <p className="text-[10px] text-red-500 max-w-48 leading-tight">{errorMsg}</p>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex items-center gap-2 group">
+            <span className="text-sm font-bold text-slate-900">{fmt(localValue)}</span>
+            <button
+                onClick={startEdit}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-indigo-600"
+                title={`Editar ${label}`}
+            >
+                <Pencil className="w-3.5 h-3.5" />
+            </button>
+        </div>
+    );
+}
+
+// ─── Toggle de status inline ──────────────────────────────────────────────────
+function StatusToggle({ id, current, disabled }: { id: string; current: string; disabled: boolean }) {
+    const [status, setStatus] = useState(current);
+    const [saving, setSaving] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
+
+    const canToggle = status === 'active' || status === 'paused';
+
+    const toggle = async () => {
+        if (!canToggle || saving || disabled) return;
+        const newStatus = status === 'active' ? 'paused' : 'active';
+        setSaving(true);
+        setErrorMsg('');
+        try {
+            const res = await fetch(`/api/catalog/external/${id}/update`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ field: 'status', value: newStatus }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error');
+            setStatus(newStatus);
+        } catch (err: any) {
+            setErrorMsg(err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+                <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border', statusColors[status] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+                    {statusLabels[status] || status}
+                </span>
+                {canToggle && !disabled && (
+                    <button
+                        onClick={toggle}
+                        disabled={saving}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    >
+                        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
+                            status === 'active'
+                                ? <ToggleLeft className="w-3.5 h-3.5 text-amber-500" />
+                                : <ToggleRight className="w-3.5 h-3.5 text-green-500" />
+                        )}
+                        {status === 'active' ? 'Pausar' : 'Activar'}
+                    </button>
+                )}
+            </div>
+            {errorMsg && <p className="text-[10px] text-red-500">{errorMsg}</p>}
         </div>
     );
 }
@@ -89,7 +241,6 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     async function loadAll() {
         setLoading(true);
         try {
-            // 1. Publicación con marketplace
             const { data: pubData } = await supabase
                 .from('publicaciones_externas')
                 .select(`*, marketplace:marketplace_configs(id, account_name)`)
@@ -99,19 +250,16 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             setPub(pubData);
 
             if (pubData) {
-                // 2. Mapeos con artículos del catálogo maestro
                 const { data: mapeosData } = await supabase
                     .from('mapeo_publicacion_articulo')
                     .select(`*, articulo:articulos(articulo_id, nombre, marca, modelo)`)
                     .eq('publicacion_id', id);
-
                 setMapeos(mapeosData || []);
 
-                // 3. Variantes hermanas (mismo external_item_id, diferente variation_id)
                 if (pubData.external_item_id) {
                     const { data: varData } = await supabase
                         .from('publicaciones_externas')
-                        .select('id, external_variation_id, precio_venta, stock_publicado, status_externo')
+                        .select('id, external_variation_id, precio_venta, stock_publicado, status_externo, variation_attributes, seller_custom_field, variation_picture_ids')
                         .eq('external_item_id', pubData.external_item_id)
                         .neq('id', id);
                     setVariantes(varData || []);
@@ -143,6 +291,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     );
 
     const logistic = logisticConfig[pub.logistic_type] || null;
+    const isVariant = pub.external_variation_id && pub.external_variation_id !== '0';
 
     return (
         <div className="flex-1 overflow-auto bg-slate-50 min-h-screen">
@@ -167,9 +316,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
 
                         <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap gap-2 mb-2">
-                                <span className={cn("inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border", statusColors[pub.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
-                                    {statusLabels[pub.status_externo] || pub.status_externo}
-                                </span>
+                                <StatusToggle id={id} current={pub.status_externo} disabled={pub.sync_disabled || false} />
                                 {pub.esta_mapeado ? (
                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
                                         <CheckCircle2 className="w-3.5 h-3.5" /> Mapeado
@@ -185,25 +332,39 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     </span>
                                 )}
                                 {pub.sync_disabled && (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
-                                        sync off
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-600" title={pub.sync_disabled_reason || ''}>
+                                        ⚠ sync off
                                     </span>
                                 )}
                             </div>
 
                             <h1 className="text-xl font-bold text-slate-900 leading-snug mb-1">{pub.titulo}</h1>
-                            <p className="text-sm font-mono text-slate-400">{pub.external_item_id} · var. {pub.external_variation_id}</p>
+                            <p className="text-sm font-mono text-slate-400">{pub.external_item_id}{isVariant ? ` · var. ${pub.external_variation_id}` : ''}</p>
 
-                            <div className="flex items-end gap-6 mt-4">
+                            {/* Atributos de variante (si aplica) */}
+                            {isVariant && pub.variation_attributes?.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {pub.variation_attributes.map((a: any) => (
+                                        <span key={a.name} className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded font-medium">
+                                            {a.name}: <strong>{a.value_name}</strong>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="flex items-end gap-8 mt-4">
+                                {/* Precio — editable */}
                                 <div>
-                                    <p className="text-2xl font-black text-slate-900">{fmt(pub.precio_venta)}</p>
+                                    <p className="text-xs text-slate-400 uppercase font-semibold mb-0.5">Precio</p>
+                                    <EditableField id={id} field="price" value={pub.precio_venta} label="Precio" />
                                     {pub.original_price && pub.original_price > pub.precio_venta && (
-                                        <p className="text-sm text-slate-400 line-through">{fmt(pub.original_price)}</p>
+                                        <p className="text-sm text-slate-400 line-through mt-0.5">{fmt(pub.original_price)}</p>
                                     )}
                                 </div>
-                                <div className="text-center">
-                                    <p className="text-xl font-bold text-slate-700">{pub.stock_publicado ?? '—'}</p>
-                                    <p className="text-xs text-slate-400 uppercase">Stock</p>
+                                {/* Stock — editable */}
+                                <div>
+                                    <p className="text-xs text-slate-400 uppercase font-semibold mb-0.5">Stock</p>
+                                    <EditableField id={id} field="stock" value={pub.stock_publicado} label="Stock" />
                                 </div>
                                 <div className="text-center">
                                     <p className="text-xl font-bold text-slate-700">{pub.sold_quantity ?? 0}</p>
@@ -231,13 +392,17 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <Link2 className="w-4 h-4" />
                                 {pub.esta_mapeado ? 'Editar Mapeo' : 'Crear Mapeo'}
                             </button>
+                            <button onClick={loadAll} className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors">
+                                <RefreshCw className="w-4 h-4" />
+                                Recargar
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-                    {/* Col izquierda: datos del ítem */}
+                    {/* Col izquierda */}
                     <div className="lg:col-span-2 space-y-5">
 
                         {/* Salud */}
@@ -253,11 +418,27 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         {/* Identificadores */}
                         <Section title="Identificadores" icon={<Tag className="w-4 h-4" />}>
                             <InfoRow label="Item ID" value={<span className="font-mono text-xs">{pub.external_item_id}</span>} />
-                            <InfoRow label="Variación ID" value={<span className="font-mono text-xs">{pub.external_variation_id}</span>} />
+                            <InfoRow label="Variación ID" value={isVariant ? <span className="font-mono text-xs">{pub.external_variation_id}</span> : null} />
                             <InfoRow label="Categoría" value={pub.category_id} />
                             <InfoRow label="Dominio" value={pub.domain_id} />
                             <InfoRow label="Marca" value={pub.brand} />
-                            <InfoRow label="Seller SKU" value={<span className="font-mono text-xs">{pub.seller_sku}</span>} />
+                            {/* SKU dual */}
+                            <InfoRow
+                                label="SKU Ítem"
+                                value={pub.seller_sku
+                                    ? <span className="font-mono text-xs">{pub.seller_sku}</span>
+                                    : <span className="inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded font-semibold"><AlertCircle className="w-3 h-3" />Sin SKU de ítem</span>
+                                }
+                            />
+                            {isVariant && (
+                                <InfoRow
+                                    label="SKU Variante"
+                                    value={pub.seller_custom_field
+                                        ? <span className="font-mono text-xs text-indigo-700 font-bold">{pub.seller_custom_field}</span>
+                                        : <span className="inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded font-semibold"><AlertCircle className="w-3 h-3" />Sin SKU de variante</span>
+                                    }
+                                />
+                            )}
                             <InfoRow label="Condición" value={pub.condition === 'new' ? 'Nuevo' : pub.condition === 'used' ? 'Usado' : pub.condition} />
                             <InfoRow label="Garantía" value={pub.warranty} />
                         </Section>
@@ -276,14 +457,14 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         {/* Logística */}
                         <Section title="Logística" icon={<Truck className="w-4 h-4" />}>
                             <InfoRow label="Tipo" value={logistic ? (
-                                <span className={cn("px-2 py-0.5 rounded text-xs font-semibold", logistic.color)}>{logistic.label}</span>
+                                <span className={cn('px-2 py-0.5 rounded text-xs font-semibold', logistic.color)}>{logistic.label}</span>
                             ) : pub.logistic_type} />
                             <InfoRow label="Envío gratis" value={pub.free_shipping ? (
                                 <span className="text-green-600 font-semibold flex items-center gap-1 justify-end"><CheckCircle2 className="w-3.5 h-3.5" /> Sí</span>
                             ) : 'No'} />
                         </Section>
 
-                        {/* Tiempos */}
+                        {/* Historial */}
                         <Section title="Historial" icon={<Clock className="w-4 h-4" />}>
                             <InfoRow label="Creado en MeLi" value={fmtDate(pub.meli_created_at)} />
                             <InfoRow label="Actualizado en MeLi" value={fmtDate(pub.meli_updated_at)} />
@@ -358,24 +539,62 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             )}
                         </Section>
 
-                        {/* Variantes hermanas */}
+                        {/* Variantes hermanas — mini-tabla */}
                         {variantes.length > 0 && (
-                            <Section title={`Variantes (${variantes.length})`} icon={<Package className="w-4 h-4" />}>
-                                <div className="divide-y divide-slate-100">
-                                    {variantes.map(v => (
-                                        <div key={v.id} className="py-2.5 flex items-center justify-between">
-                                            <div>
-                                                <p className="text-[10px] font-mono text-slate-500">#{v.external_variation_id}</p>
-                                                <p className="text-xs font-semibold text-slate-700">{fmt(v.precio_venta)}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-xs text-slate-600">{v.stock_publicado ?? '—'} uds.</p>
-                                                <Link href={`/catalog/external/${v.id}`} className="text-[10px] text-indigo-500 hover:underline">
-                                                    Ver ficha →
-                                                </Link>
-                                            </div>
-                                        </div>
-                                    ))}
+                            <Section title={`Variantes (${variantes.length + 1} totales)`} icon={<Package className="w-4 h-4" />}>
+                                <div className="-mx-5 overflow-x-auto">
+                                    <table className="w-full text-xs">
+                                        <thead className="bg-slate-50">
+                                            <tr>
+                                                <th className="px-4 py-2 text-left font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Atributos</th>
+                                                <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase text-[10px] tracking-wider">SKU</th>
+                                                <th className="px-3 py-2 text-right font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Precio</th>
+                                                <th className="px-3 py-2 text-right font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Stock</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {/* Fila actual (resaltada) */}
+                                            <tr className="bg-indigo-50">
+                                                <td className="px-4 py-2">
+                                                    {pub.variation_attributes?.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {pub.variation_attributes.map((a: any) => (
+                                                                <span key={a.name} className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-semibold">
+                                                                    {a.name}: {a.value_name}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    ) : <span className="text-slate-400 font-mono text-[10px]">#{pub.external_variation_id} (actual)</span>}
+                                                </td>
+                                                <td className="px-3 py-2 font-mono text-[10px] text-slate-500">{pub.seller_custom_field || '—'}</td>
+                                                <td className="px-3 py-2 text-right font-semibold text-slate-800">{fmt(pub.precio_venta)}</td>
+                                                <td className="px-3 py-2 text-right text-slate-700">{pub.stock_publicado ?? '—'}</td>
+                                            </tr>
+                                            {/* Filas hermanas */}
+                                            {variantes.map(v => (
+                                                <tr key={v.id} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="px-4 py-2">
+                                                        {v.variation_attributes?.length > 0 ? (
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {v.variation_attributes.map((a: any) => (
+                                                                    <span key={a.name} className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium">
+                                                                        {a.name}: {a.value_name}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        ) : <span className="text-slate-400 font-mono text-[10px]">#{v.external_variation_id}</span>}
+                                                    </td>
+                                                    <td className="px-3 py-2 font-mono text-[10px] text-slate-500">{v.seller_custom_field || '—'}</td>
+                                                    <td className="px-3 py-2 text-right font-semibold text-slate-800">{fmt(v.precio_venta)}</td>
+                                                    <td className="px-3 py-2 text-right text-slate-700">
+                                                        <Link href={`/catalog/external/${v.id}`} className="text-slate-700 hover:text-indigo-600 hover:underline">
+                                                            {v.stock_publicado ?? '—'} →
+                                                        </Link>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </Section>
                         )}
