@@ -102,76 +102,38 @@ function TipoBadge({ tipo }: { tipo: string | null }) {
     );
 }
 
+function BundleBadge({ isBundle }: { isBundle: boolean }) {
+    if (!isBundle) return null;
+    return (
+        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-200">
+            <Package className="w-3 h-3" /> Kit
+        </span>
+    );
+}
+
 // ─── Agrupación de variantes (por external_item_id) ──────────────────────────
 interface GroupedListing {
     parent: any;
-    variations: any[];         // variantes de precio/stock (mismo item, distinta variation_id)
-    catalogPairs: any[];       // pubs de catálogo asociadas (mismo id_producto_catalogo)
+    variations: any[];   // variantes del mismo external_item_id
 }
 
+// Agrupa solo por external_item_id (variaciones de un mismo producto).
+// La asociación Tradicional↔Catálogo ya viene de BD vía par_item_id.
 function groupByItemId(listings: any[]): GroupedListing[] {
     const map = new Map<string, GroupedListing>();
     for (const l of listings) {
         const key = l.external_item_id;
         if (!map.has(key)) {
-            map.set(key, { parent: l, variations: [], catalogPairs: [] });
+            map.set(key, { parent: l, variations: [] });
         }
         const grp = map.get(key)!;
-        // Si tiene variation_id real, es variante de producto
         if (l.external_variation_id && l.external_variation_id !== '0') {
             grp.variations.push(l);
         } else {
             grp.parent = l;
         }
     }
-    // Segunda pasada: agrupar pubs de catálogo bajo sus pares tradicionales
-    // (mismo id_producto_catalogo, diferente external_item_id)
-    const result: GroupedListing[] = [];
-    const catalogItemIds = new Set<string>();
-    const itemById = new Map(Array.from(map.entries()).map(([k, v]) => [k, v]));
-
-    // Identificar items de catálogo que tienen un par tradicional en la misma página
-    const traditionalByCatalogId: Map<string, GroupedListing> = new Map();
-    for (const [, grp] of itemById) {
-        if (
-            grp.parent.tipo_publicacion === 'tradicional' &&
-            grp.parent.id_producto_catalogo
-        ) {
-            const catKey = `${grp.parent.marketplace_id}__${grp.parent.id_producto_catalogo}`;
-            // Preferir la activa con más ventas como principal
-            const existing = traditionalByCatalogId.get(catKey);
-            if (
-                !existing ||
-                (grp.parent.status_externo === 'active' && existing.parent.status_externo !== 'active') ||
-                (grp.parent.sold_quantity > (existing.parent.sold_quantity || 0))
-            ) {
-                traditionalByCatalogId.set(catKey, grp);
-            }
-        }
-    }
-
-    // Adjuntar las variantes de catálogo a su par tradicional
-    for (const [, grp] of itemById) {
-        if (
-            (grp.parent.tipo_publicacion === 'catalogo' || grp.parent.tipo_publicacion === 'catalogo_derivada') &&
-            grp.parent.id_producto_catalogo
-        ) {
-            const catKey = `${grp.parent.marketplace_id}__${grp.parent.id_producto_catalogo}`;
-            const trad = traditionalByCatalogId.get(catKey);
-            if (trad && trad.parent.external_item_id !== grp.parent.external_item_id) {
-                trad.catalogPairs.push(grp.parent);
-                catalogItemIds.add(grp.parent.external_item_id);
-            }
-        }
-    }
-
-    // Construir resultado final: primero los grupos que tienen pares, luego el resto
-    for (const [itemId, grp] of itemById) {
-        if (!catalogItemIds.has(itemId)) {
-            result.push(grp);
-        }
-    }
-    return result;
+    return Array.from(map.values());
 }
 
 // ─── Componente de fila ──────────────────────────────────────────────────────
@@ -231,6 +193,17 @@ function ListingRow({
                         <div className="flex flex-wrap gap-1 mt-1">
                             {listing.listing_type_id && <ListingTypeBadge type={listing.listing_type_id} />}
                             {listing.tipo_publicacion && <TipoBadge tipo={listing.tipo_publicacion} />}
+                            <BundleBadge isBundle={listing.es_bundle || listing.tags?.includes('bundle')} />
+                            {listing.par_item_id && (
+                                <Link
+                                    href={`/catalog/external?parSearch=${listing.par_item_id}`}
+                                    className="inline-flex items-center gap-0.5 text-[10px] text-purple-600 hover:text-purple-800 font-semibold"
+                                    title={`Par: ${listing.par_item_id}`}
+                                >
+                                    <Layers className="w-3 h-3" />
+                                    {listing.tipo_publicacion === 'tradicional' ? 'Ver Catálogo' : 'Ver Trad.'}
+                                </Link>
+                            )}
                             {listing.condition && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">
                                     {listing.condition === 'new' ? 'Nuevo' : 'Usado'}
@@ -334,11 +307,10 @@ function ListingRow({
     );
 }
 
-// ─── Fila de grupo con variantes + pares de catálogo ───────────────────────────
+// ─── Fila de grupo con variantes ────────────────────────────────────────────────
 function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMapear: (l: any) => void }) {
     const [expanded, setExpanded] = useState(false);
-    const [catalogExpanded, setCatalogExpanded] = useState(false);
-    const { parent, variations, catalogPairs } = group;
+    const { parent, variations } = group;
 
     // Compute aggregate values for parent when there are real variations
     const totalStock = variations.length > 0
@@ -415,15 +387,16 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                         })()}
                                     </button>
                                 )}
-                                {/* Badge de pares de catálogo */}
-                                {catalogPairs.length > 0 && (
-                                    <button
-                                        onClick={() => setCatalogExpanded(o => !o)}
-                                        className="inline-flex items-center gap-0.5 text-[10px] text-purple-600 hover:text-purple-800 font-semibold transition-colors"
+                                <BundleBadge isBundle={parent.es_bundle || parent.tags?.includes('bundle')} />
+                                {parent.par_item_id && (
+                                    <Link
+                                        href={`/catalog/external?parSearch=${parent.par_item_id}`}
+                                        className="inline-flex items-center gap-0.5 text-[10px] text-purple-600 hover:text-purple-800 font-semibold"
+                                        title={`Par: ${parent.par_item_id}`}
                                     >
                                         <Layers className="w-3 h-3" />
-                                        {catalogPairs.length} catálogo{catalogPairs.length > 1 ? 's' : ''}
-                                    </button>
+                                        {parent.tipo_publicacion === 'tradicional' ? 'Ver Catálogo' : 'Ver Trad.'}
+                                    </Link>
                                 )}
                             </div>
                         </div>
@@ -527,52 +500,10 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                 );
             })}
 
-            {/* Filas de pares de catálogo (colapsadas por defecto, fondo púrpura) */}
-            {catalogExpanded && catalogPairs.map(cp => (
-                <tr key={cp.id} className="bg-purple-50/60 border-t border-purple-100">
-                    <td className="px-4 py-2 pl-10 align-top">
-                        <div className="flex flex-col gap-0.5">
-                            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[cp.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
-                                {statusLabels[cp.status_externo] || cp.status_externo}
-                            </span>
-                            <TipoBadge tipo={cp.tipo_publicacion} />
-                        </div>
-                    </td>
-                    <td className="px-4 py-2 align-top" colSpan={2}>
-                        <div className="flex items-center gap-2">
-                            <Layers className="w-3 h-3 text-purple-400 shrink-0" />
-                            <div>
-                                <p className="text-xs font-medium text-slate-700">{cp.titulo?.slice(0, 60)}{cp.titulo?.length > 60 ? '…' : ''}</p>
-                                <p className="text-[10px] font-mono text-slate-400">{cp.external_item_id}</p>
-                                {cp.listing_type_id && <ListingTypeBadge type={cp.listing_type_id} />}
-                            </div>
-                        </div>
-                    </td>
-                    <td className="px-4 py-2 align-top">
-                        <span className="text-xs font-semibold text-slate-800">
-                            {cp.precio_venta ? `$${Number(cp.precio_venta).toLocaleString('es-MX')}` : '—'}
-                        </span>
-                        {cp.sold_quantity > 0 && <p className="text-[10px] text-slate-400">{cp.sold_quantity} vend.</p>}
-                    </td>
-                    <td className="px-4 py-2 align-top">
-                        <span className="text-xs text-slate-700">{cp.stock_publicado ?? '—'}</span>
-                    </td>
-                    <td className="px-4 py-2 align-top">
-                        <HealthBar value={cp.health} />
-                    </td>
-                    <td className="px-4 py-2 align-top text-right">
-                        <Link
-                            href={`/catalog/external/${cp.id}`}
-                            className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-semibold rounded-lg border border-purple-200 transition-colors"
-                        >
-                            Ver ficha →
-                        </Link>
-                    </td>
-                </tr>
-            ))}
-        </>
+        </> 
     );
 }
+
 
 // ─── Página principal ────────────────────────────────────────────────────────
 export default function VirtualCatalogPage() {
@@ -659,7 +590,7 @@ export default function VirtualCatalogPage() {
 
             let query = supabase
                 .from('publicaciones_externas')
-                .select(`*, marketplace:marketplace_configs(account_name)`, { count: 'exact' })
+                .select(`*, par_item_id, es_bundle, marketplace:marketplace_configs(account_name)`, { count: 'exact' })
                 .order(filters.sortBy, { ascending: filters.sortDir === 'asc' })
                 .order('external_item_id', { ascending: true })
                 .order('external_variation_id', { ascending: true })
@@ -676,6 +607,9 @@ export default function VirtualCatalogPage() {
             // Mapeo
             if (filters.mapeoFilter === 'unmapped') query = query.eq('esta_mapeado', false);
             else if (filters.mapeoFilter === 'mapped') query = query.eq('esta_mapeado', true);
+            // Bundles
+            if (filters.bundleFilter === 'only_bundles') query = query.contains('tags', ['bundle']);
+            else if (filters.bundleFilter === 'hide_bundles') query = query.not('tags', 'cs', '{"bundle"}');
             // Marca
             if (filters.brands.length > 0) query = query.in('brand', filters.brands);
             // Dominio

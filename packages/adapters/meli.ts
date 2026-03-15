@@ -335,10 +335,13 @@ export class MeliAdapter implements MarketplaceAdapter {
                         warranty: item.warranty || null,
                         currency_id: item.currency_id || null,
                         initial_quantity: item.initial_quantity ?? null,
+                        // --- V20: Bundle flag ---
+                        es_bundle: (item.tags || []).includes('bundle'),
                     };
 
                     // Resolución de variaciones: una fila por variación con todos sus atributos
                     if (item.variations && item.variations.length > 0) {
+                        const parentSellerSku = item.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name || null;
                         return item.variations.map((variation: any) => ({
                             ...base,
                             external_variation_id: variation.id.toString(),
@@ -352,8 +355,10 @@ export class MeliAdapter implements MarketplaceAdapter {
                             variation_picture_ids: variation.picture_ids?.length
                                 ? variation.picture_ids
                                 : null,
-                            // SKU específico de la variante (distinto del seller_sku del padre)
+                            // SKU específico de la variante
                             seller_custom_field: variation.seller_custom_field || null,
+                            // seller_sku para variante: seller_custom_field → SELLER_SKU del padre → null
+                            seller_sku: variation.seller_custom_field || parentSellerSku || null,
                         }));
                     }
 
@@ -375,6 +380,20 @@ export class MeliAdapter implements MarketplaceAdapter {
             );
 
             if (pubError) throw pubError;
+
+            // V20: recalcular par_item_id para los items de este batch que tengan id_producto_catalogo
+            const syncedItemIds = [...new Set(itemsPayload.map((r: any) => r.external_item_id))];
+            if (syncedItemIds.length > 0) {
+                // Ejecutar como RPC para poder usar SQL de JOIN complejo.
+                // Si falla (no crítico), solo se loggea — el backfill del sync completo lo corrige.
+                const { error: parError } = await supabase.rpc('recalcular_par_item_id', {
+                    p_account_id: accountId,
+                    p_item_ids: syncedItemIds,
+                });
+                if (parError) {
+                    logger.warn({ accountId, error: parError.message }, 'par_item_id RPC no disponible — se actualizará en el próximo sync completo');
+                }
+            }
 
             logger.info({ accountId, synced_count: itemsPayload.length }, 'Batch Fast Sync completado');
             return itemsPayload.length;

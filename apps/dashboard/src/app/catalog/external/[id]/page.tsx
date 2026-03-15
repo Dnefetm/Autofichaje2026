@@ -327,6 +327,19 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                     Vitrinas de MeLi
                 </Link>
 
+                {/* Banner de Kit/Bundle */}
+                {(pub.es_bundle || pub.tags?.includes('bundle')) && (
+                    <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                        <Package className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-sm font-bold text-orange-800">⚠️ Esta publicación es un Kit (Bundle)</p>
+                            <p className="text-xs text-orange-700 mt-0.5">
+                                Su stock depende de las publicaciones originales que lo componen. Actualizar el stock directamente puede no reflejar correctamente la disponibilidad real del kit.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                     <div className="flex items-start gap-5">

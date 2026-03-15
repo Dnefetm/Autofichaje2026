@@ -9,6 +9,7 @@ export interface FilterState {
     tipoPublicacion: string[];
     statusExterno: string[];
     mapeoFilter: 'all' | 'unmapped' | 'mapped';
+    bundleFilter: 'all' | 'only_bundles' | 'hide_bundles';
     brands: string[];
     domainIds: string[];
     listingTypes: string[];
@@ -29,6 +30,7 @@ export const defaultFilters: FilterState = {
     tipoPublicacion: [],
     statusExterno: [],
     mapeoFilter: 'all',
+    bundleFilter: 'all',
     brands: [],
     domainIds: [],
     listingTypes: [],
@@ -106,6 +108,7 @@ function countActive(filters: FilterState): number {
     if (filters.tipoPublicacion.length > 0) c++;
     if (filters.statusExterno.length > 0) c++;
     if (filters.mapeoFilter !== 'all') c++;
+    if (filters.bundleFilter !== 'all') c++;
     if (filters.brands.length > 0) c++;
     if (filters.domainIds.length > 0) c++;
     if (filters.listingTypes.length > 0) c++;
@@ -289,6 +292,22 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                             label={label}
                             checked={filters.listingTypes.includes(val)}
                             onChange={() => set({ listingTypes: toggleArr(filters.listingTypes, val) })}
+                        />
+                    ))}
+                </Accordion>
+
+                {/* Kits / Bundles */}
+                <Accordion title="Tipo Especial">
+                    {([
+                        { val: 'all',          label: 'Todos (incluir kits)' },
+                        { val: 'only_bundles', label: 'Solo Kits (Bundles)' },
+                        { val: 'hide_bundles', label: 'Ocultar Kits' },
+                    ] as { val: FilterState['bundleFilter']; label: string }[]).map(({ val, label }) => (
+                        <CheckItem
+                            key={val}
+                            label={label}
+                            checked={filters.bundleFilter === val}
+                            onChange={() => set({ bundleFilter: val })}
                         />
                     ))}
                 </Accordion>
