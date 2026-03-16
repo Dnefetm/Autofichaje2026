@@ -248,6 +248,9 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [asociadas, setAsociadas] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showMappingModal, setShowMappingModal] = useState(false);
+    // Fase 3: datos enriquecidos lazy (health actions, costs, visits)
+    const [enrichData, setEnrichData] = useState<{ health: any; costs: any; visits: any } | null>(null);
+    const [enrichLoading, setEnrichLoading] = useState(false);
 
     useEffect(() => { loadAll(); }, [id]);
 
@@ -287,6 +290,16 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         .eq('marketplace_id', pubData.marketplace_id)
                         .neq('id', id);
                     setAsociadas(asocData || []);
+                }
+
+                // Fase 3: lazy load enriquecimiento desde API de MeLi
+                if (pubData.external_item_id && pubData.marketplace_id) {
+                    setEnrichLoading(true);
+                    fetch(`/api/meli/item-details?itemId=${pubData.external_item_id}&accountId=${pubData.marketplace_id}`)
+                        .then(r => r.json())
+                        .then(d => setEnrichData(d))
+                        .catch(() => {/* silencioso si falla */})
+                        .finally(() => setEnrichLoading(false));
                 }
             }
         } finally {
@@ -423,6 +436,19 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     <p className="text-xl font-bold text-slate-700">{pub.health != null ? `${Math.round(pub.health * 100)}%` : '—'}</p>
                                     <p className="text-xs text-slate-400 uppercase">Salud</p>
                                 </div>
+                                {/* Visitas 30d — Fase 3 lazy */}
+                                <div className="text-center">
+                                    {enrichLoading
+                                        ? <p className="text-xl font-bold text-slate-300 animate-pulse">⋯</p>
+                                        : <p className="text-xl font-bold text-indigo-600">
+                                            {enrichData?.visits?.total_visits != null
+                                                ? enrichData.visits.total_visits.toLocaleString()
+                                                : '—'
+                                            }
+                                          </p>
+                                    }
+                                    <p className="text-xs text-slate-400 uppercase">Visitas 30d</p>
+                                </div>
                             </div>
                         </div>
 
@@ -464,6 +490,23 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     <p className="text-xs text-rose-500 mt-1">⚠️ {pub.sync_disabled_reason}</p>
                                 )}
                             </div>
+                            {/* Acciones de salud — Fase 3 lazy */}
+                            {enrichData?.health?.actions?.length > 0 && (
+                                <div className="py-2 border-b border-slate-100">
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Acciones recomendadas</p>
+                                    <div className="space-y-1.5">
+                                        {enrichData.health.actions.slice(0, 4).map((action: any, i: number) => {
+                                            const isCritical = action.severity === 'critical' || action.impact === 'high';
+                                            return (
+                                                <div key={i} className={`text-[11px] px-2 py-1.5 rounded flex items-start gap-2 ${isCritical ? 'bg-rose-50 text-rose-700 border border-rose-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>
+                                                    <span className="shrink-0 mt-0.5">{isCritical ? '🔴' : '🟡'}</span>
+                                                    <span>{action.reason || action.action_id || action.id}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                             {/* Sub-status */}
                             {pub.sub_status?.length > 0 && (
                                 <div className="py-2 border-b border-slate-100">
