@@ -275,7 +275,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 if (pubData.external_item_id) {
                     const { data: varData } = await supabase
                         .from('publicaciones_externas')
-                        .select('id, external_variation_id, precio_venta, stock_publicado, status_externo, variation_attributes, seller_custom_field, variation_picture_ids')
+                        .select('id, external_variation_id, precio_venta, stock_publicado, status_externo, variation_attributes, seller_custom_field, seller_sku, variation_picture_ids')
                         .eq('external_item_id', pubData.external_item_id)
                         .neq('id', id);
                     setVariantes(varData || []);
@@ -604,12 +604,15 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     : <span className="inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded font-semibold"><AlertCircle className="w-3 h-3" />Sin SKU de ítem</span>
                                 }
                             />
-                            {isVariant && (
+                            {(isVariant || variantes.length > 0) && (
                                 <InfoRow
                                     label="SKU Variante"
-                                    value={pub.seller_custom_field
-                                        ? <span className="font-mono text-xs text-indigo-700 font-bold">{pub.seller_custom_field}</span>
-                                        : <span className="inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded font-semibold"><AlertCircle className="w-3 h-3" />Sin SKU de variante</span>
+                                    value={
+                                        isVariant
+                                            ? ((pub.seller_custom_field || pub.seller_sku)
+                                                ? <span className="font-mono text-xs text-indigo-700 font-bold">{pub.seller_custom_field || pub.seller_sku}</span>
+                                                : <span className="inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded font-semibold"><AlertCircle className="w-3 h-3" />Sin SKU de variante</span>)
+                                            : <span className="text-slate-400 text-xs italic">Ver tabla de variantes ↓</span>
                                     }
                                 />
                             )}
@@ -686,8 +689,8 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                     ) : <span className="text-slate-400 font-mono text-[10px]">#{pub.external_variation_id} (actual)</span>}
                                                 </td>
                                                 <td className="px-3 py-2">
-                                                    {pub.seller_custom_field
-                                                        ? <span className="font-mono text-[10px] text-slate-600">{pub.seller_custom_field}</span>
+                                                    {(pub.seller_custom_field || pub.seller_sku)
+                                                        ? <span className="font-mono text-[10px] text-slate-600">{pub.seller_custom_field || pub.seller_sku}</span>
                                                         : <span className="inline-flex items-center gap-0.5 text-[10px] bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded"><AlertCircle className="w-2.5 h-2.5" /> Sin SKU</span>
                                                     }
                                                 </td>
@@ -709,8 +712,8 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                         ) : <span className="text-slate-400 font-mono text-[10px]">#{v.external_variation_id}</span>}
                                                     </td>
                                                     <td className="px-3 py-2">
-                                                        {v.seller_custom_field
-                                                            ? <span className="font-mono text-[10px] text-slate-500">{v.seller_custom_field}</span>
+                                                        {(v.seller_custom_field || v.seller_sku)
+                                                            ? <span className="font-mono text-[10px] text-slate-500">{v.seller_custom_field || v.seller_sku}</span>
                                                             : <span className="inline-flex items-center gap-0.5 text-[10px] bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded"><AlertCircle className="w-2.5 h-2.5" /> Sin SKU</span>
                                                         }
                                                     </td>
