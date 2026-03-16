@@ -656,7 +656,7 @@ export default function VirtualCatalogPage() {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedListing, setSelectedListing] = useState<any | null>(null);
     const [filters, setFilters] = useState<FilterState>(defaultFilters);
-    const [showFilters, setShowFilters] = useState(true);
+    const [showFilters, setShowFilters] = useState(false);
 
     // Paginación
     const [page, setPage] = useState(0);

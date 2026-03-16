@@ -285,7 +285,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             const chunkResponses = await Promise.all(
                 chunks.map(chunk => {
                     const idsParam = chunk.join(',');
-                    return axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}`, {
+                    return axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}&include_attributes=all`, {
                         headers: { Authorization: `Bearer ${accessToken}` }
                     });
                 })
@@ -381,10 +381,18 @@ export class MeliAdapter implements MarketplaceAdapter {
                             variation_picture_ids: variation.picture_ids?.length
                                 ? variation.picture_ids
                                 : null,
-                            // SKU específico de la variante
+                            // SKU específico de la variante:
+                            // seller_custom_field = campo directo de la variante
+                            // seller_sku = seller_custom_field → SELLER_SKU en attributes[] → SKU del padre → null
+                            // (V25: con include_attributes=all, variation.attributes[] ya está disponible)
                             seller_custom_field: variation.seller_custom_field || null,
-                            // seller_sku para variante: seller_custom_field → SELLER_SKU del padre → null
-                            seller_sku: variation.seller_custom_field || parentSellerSku || null,
+                            seller_sku: variation.seller_custom_field
+                                || variation.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name
+                                || parentSellerSku
+                                || null,
+                            // EAN/GTIN por variación (V25: desde attributes[], no desde base del ítem)
+                            ean:  variation.attributes?.find((a: any) => a.id === 'EAN')?.value_name  || base.ean  || null,
+                            gtin: variation.attributes?.find((a: any) => a.id === 'GTIN')?.value_name || base.gtin || null,
                         }));
                         return [parentRow, ...variationRows];
                     }
@@ -430,7 +438,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                             for (const vd of varDetails) {
                                 const sku =
                                     vd.seller_custom_field ||
-                                    vd.attribute_combinations?.find((a: any) => a.id === 'SELLER_SKU')?.value_name ||
+                                    vd.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name || // V25: attributes, NO attribute_combinations
                                     null;
                                 skuByVarId.set(vd.id.toString(), sku);
                             }
