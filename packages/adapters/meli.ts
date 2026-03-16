@@ -345,6 +345,14 @@ export class MeliAdapter implements MarketplaceAdapter {
                         base_price:          item.base_price ?? null,
                         automatic_relist:    item.automatic_relist ?? false,
                         buying_mode:         item.buying_mode || null,
+                        // --- V24: Campos enriquecidos de atributos y envío ---
+                        model:         item.attributes?.find((a: any) => a.id === 'MODEL')?.value_name || null,
+                        ean:           item.attributes?.find((a: any) => a.id === 'EAN')?.value_name || null,
+                        gtin:          item.attributes?.find((a: any) => a.id === 'GTIN')?.value_name || null,
+                        upc:           item.attributes?.find((a: any) => a.id === 'UPC')?.value_name || null,
+                        pictures_count: item.pictures?.length || 0,
+                        shipping_mode:  item.shipping?.mode || null,
+                        local_pick_up:  item.shipping?.local_pick_up ?? false,
                     };
 
                     // Items con variaciones:
@@ -401,7 +409,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 .filter((res: any) => {
                     const item = res.body;
                     return item.variations?.length > 0 &&
-                        item.variations.every((v: any) => !v.seller_custom_field);
+                        item.variations.some((v: any) => !v.seller_custom_field); // V24 fix: some en vez de every
                 })
                 .map((res: any) => res.body.id);
 
@@ -436,6 +444,14 @@ export class MeliAdapter implements MarketplaceAdapter {
                                     if (sku) {
                                         row.seller_custom_field = sku;
                                         row.seller_sku = sku;
+                                    }
+                                    // V24: Extraer EAN/GTIN por variación si no viene del multiGET
+                                    const varDetail = varDetails.find((vd: any) => vd.id.toString() === row.external_variation_id);
+                                    if (varDetail) {
+                                        const varEan = varDetail.attributes?.find((a: any) => a.id === 'EAN')?.value_name || null;
+                                        const varGtin = varDetail.attributes?.find((a: any) => a.id === 'GTIN')?.value_name || null;
+                                        if (varEan && !row.ean) row.ean = varEan;
+                                        if (varGtin && !row.gtin) row.gtin = varGtin;
                                     }
                                 }
                             }

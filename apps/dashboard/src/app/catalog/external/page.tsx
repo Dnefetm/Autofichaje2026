@@ -243,12 +243,7 @@ function ListingRow({
                 </div>
             </td>
 
-            {/* 6 — SALUD */}
-            <td className="px-4 py-3 align-top">
-                <HealthBar value={listing.health} />
-            </td>
-
-            {/* 7 — ACCIÓN */}
+            {/* 6 — ACCIÓN */}
             <td className="px-4 py-3 align-top text-right">
                 <div className="flex items-center justify-end gap-1.5">
                     <Link
@@ -483,12 +478,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                     </div>
                 </td>
 
-                {/* 6 — SALUD */}
-                <td className="px-4 py-3 align-top">
-                    <HealthBar value={parent.health} />
-                </td>
-
-                {/* 7 — ACCIÓN */}
+                {/* 6 — ACCIÓN */}
                 <td className="px-4 py-3 align-top text-right">
                     <div className="flex items-center justify-end gap-1.5">
                         <Link
@@ -547,7 +537,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                         <td className={cn('px-4 py-2 align-top', stocksDiffer && 'bg-amber-50')}>
                             <span className="text-xs text-slate-700">{v.stock_publicado ?? '—'}</span>
                         </td>
-                        <td colSpan={2} />
+                        <td colSpan={1} />
                     </tr>
                 );
             })}
@@ -586,9 +576,6 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                     </td>
                     <td className="px-4 py-2 align-top">
                         <span className="text-xs text-slate-700">{cc.stock_publicado ?? '—'}</span>
-                    </td>
-                    <td className="px-4 py-2 align-top">
-                        <HealthBar value={cc.health} />
                     </td>
                     <td className="px-4 py-2 align-top text-right">
                         <Link
@@ -645,7 +632,6 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                     <td className="px-4 py-2 align-top">
                         <span className="text-xs text-slate-700">{ac.stock_publicado ?? '—'}</span>
                     </td>
-                    <td className="px-4 py-2 align-top"><HealthBar value={ac.health} /></td>
                     <td className="px-4 py-2 align-top text-right">
                         <Link
                             href={`/catalog/external/${ac.id}`}
@@ -935,7 +921,7 @@ export default function VirtualCatalogPage() {
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Buscar por MLM, título, marca..."
+                        placeholder="Buscar por título, MLM, SKU, marca…"
                         className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm"
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
@@ -959,7 +945,6 @@ export default function VirtualCatalogPage() {
                                             <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Marca / SKU</th>
                                             <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Precio / Ventas</th>
                                             <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Stock / Logíst.</th>
-                                            <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Salud</th>
                                             <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Acción</th>
                                         </tr>
                                     </thead>

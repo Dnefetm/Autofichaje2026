@@ -451,16 +451,66 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-                    {/* Col izquierda */}
+                    {/* Col izquierda — 2/3 */}
                     <div className="lg:col-span-2 space-y-5">
 
-                        {/* Salud */}
-                        <Section title="Salud de la Publicación" icon={<BarChart2 className="w-4 h-4" />}>
-                            <div className="py-2">
+                        {/* SECCIÓN: Estado y Visibilidad */}
+                        <Section title="Estado y Visibilidad" icon={<BarChart2 className="w-4 h-4" />}>
+                            {/* Barra de salud */}
+                            <div className="py-2 border-b border-slate-100">
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Salud</p>
                                 <HealthBar value={pub.health} />
+                                {pub.sync_disabled_reason && (
+                                    <p className="text-xs text-rose-500 mt-1">⚠️ {pub.sync_disabled_reason}</p>
+                                )}
                             </div>
-                            {pub.sync_disabled_reason && (
-                                <p className="text-xs text-rose-500 mt-1 pb-2">⚠️ {pub.sync_disabled_reason}</p>
+                            {/* Sub-status */}
+                            {pub.sub_status?.length > 0 && (
+                                <div className="py-2 border-b border-slate-100">
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Sub-status</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {pub.sub_status.map((s: string) => (
+                                            <span key={s} className="text-[10px] font-mono bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded">{s}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {/* Tags relevantes (filtrados) */}
+                            {pub.tags?.some((t: string) => [
+                                'good_quality_picture', 'good_quality_thumbnail', 'cart_eligible',
+                                'dragged_bids', 'dragged_visits', 'poor_quality_picture', 'poor_quality_thumbnail'
+                            ].includes(t)) && (
+                                <div className="py-2 border-b border-slate-100">
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Tags de Visibilidad</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {pub.tags
+                                            .filter((t: string) => [
+                                                'good_quality_picture', 'good_quality_thumbnail', 'cart_eligible',
+                                                'dragged_bids', 'dragged_visits', 'poor_quality_picture', 'poor_quality_thumbnail'
+                                            ].includes(t))
+                                            .map((t: string) => {
+                                                const good = t.startsWith('good') || t === 'cart_eligible';
+                                                return (
+                                                    <span key={t} className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                                                        good ? 'bg-green-50 text-green-700 border border-green-200'
+                                                             : 'bg-red-50 text-red-700 border border-red-200'
+                                                    }`}>{t}</span>
+                                                );
+                                            })
+                                        }
+                                    </div>
+                                </div>
+                            )}
+                            {/* Canales */}
+                            {pub.channels?.length > 0 && (
+                                <div className="py-2">
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Canales</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {pub.channels.map((c: string) => (
+                                            <span key={c} className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">{c}</span>
+                                        ))}
+                                    </div>
+                                </div>
                             )}
                         </Section>
 
@@ -500,6 +550,9 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             <InfoRow label="Categoría" value={pub.category_id} />
                             <InfoRow label="Dominio" value={pub.domain_id} />
                             <InfoRow label="Marca" value={pub.brand} />
+                            <InfoRow label="Modelo" value={pub.model || null} />
+                            <InfoRow label="EAN" value={pub.ean || null} />
+                            <InfoRow label="GTIN" value={pub.gtin || null} />
                             {/* SKU dual */}
                             <InfoRow
                                 label="SKU Ítem"
@@ -521,15 +574,35 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             <InfoRow label="Garantía" value={pub.warranty} />
                         </Section>
 
-                        {/* Comercial */}
+                        {/* Datos Comerciales */}
                         <Section title="Datos Comerciales" icon={<DollarSign className="w-4 h-4" />}>
                             <InfoRow label="Precio actual" value={<span className="font-bold">{fmt(pub.precio_venta)}</span>} />
-                            <InfoRow label="Precio original" value={pub.original_price ? <span className="line-through text-slate-400">{fmt(pub.original_price)}</span> : null} />
+                            <InfoRow
+                                label="Precio original"
+                                value={pub.original_price && pub.original_price > pub.precio_venta
+                                    ? (
+                                        <div className="flex items-center gap-2 justify-end">
+                                            <span className="line-through text-slate-400 text-sm">{fmt(pub.original_price)}</span>
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-green-100 text-green-700 text-[10px] font-bold">
+                                                {Math.round((1 - pub.precio_venta / pub.original_price) * 100)}% OFF
+                                            </span>
+                                        </div>
+                                    )
+                                    : pub.original_price ? <span className="line-through text-slate-400">{fmt(pub.original_price)}</span> : null
+                                }
+                            />
                             <InfoRow label="Moneda" value={pub.currency_id} />
                             <InfoRow label="Comisión" value={pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id].label : pub.listing_type_id} />
                             <InfoRow label="Ventas totales" value={pub.sold_quantity != null ? `${pub.sold_quantity} unidades` : null} />
                             <InfoRow label="Cantidad inicial" value={pub.initial_quantity != null ? `${pub.initial_quantity} uds.` : null} />
-                            <InfoRow label="Deals" value={pub.deal_ids?.length > 0 ? pub.deal_ids.join(', ') : null} />
+                            <InfoRow
+                                label="Deals"
+                                value={pub.deal_ids?.length > 0
+                                    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-semibold">★ En campaña ({pub.deal_ids.length})</span>
+                                    : null
+                                }
+                            />
+                            <InfoRow label="Garantía" value={pub.warranty} />
                         </Section>
 
                         {/* Logística */}
@@ -542,82 +615,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             ) : 'No'} />
                         </Section>
 
-                        {/* Historial */}
-                        <Section title="Historial" icon={<Clock className="w-4 h-4" />}>
-                            <InfoRow label="Creado en MeLi" value={fmtDate(pub.meli_created_at)} />
-                            <InfoRow label="Actualizado en MeLi" value={fmtDate(pub.meli_updated_at)} />
-                            <InfoRow label="Sync local" value={fmtDate(pub.actualizado_el)} />
-                            <InfoRow label="Marketplace" value={pub.marketplace?.account_name} />
-                        </Section>
-
-                        {/* Tags */}
-                        {pub.tags?.length > 0 && (
-                            <Section title="Tags de MeLi" icon={<Globe className="w-4 h-4" />}>
-                                <div className="py-2 flex flex-wrap gap-1.5">
-                                    {pub.tags.map((t: string) => (
-                                        <span key={t} className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{t}</span>
-                                    ))}
-                                </div>
-                            </Section>
-                        )}
-
-                        {/* Sub-status */}
-                        {pub.sub_status?.length > 0 && (
-                            <Section title="Sub-status" icon={<ShieldCheck className="w-4 h-4" />}>
-                                <div className="py-2 flex flex-wrap gap-1.5">
-                                    {pub.sub_status.map((s: string) => (
-                                        <span key={s} className="text-[10px] font-mono bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded">{s}</span>
-                                    ))}
-                                </div>
-                            </Section>
-                        )}
-                    </div>
-
-                    {/* Col derecha */}
-                    <div className="space-y-5">
-
-                        {/* Mapeo a bodega */}
-                        <Section title="Mapeo a Bodega" icon={<Link2 className="w-4 h-4" />}>
-                            {mapeos.length === 0 ? (
-                                <div className="py-4 text-center">
-                                    <AlertCircle className="w-8 h-8 text-rose-300 mx-auto mb-2" />
-                                    <p className="text-sm text-slate-500">Sin mapeo</p>
-                                    <button
-                                        onClick={() => setShowMappingModal(true)}
-                                        className="mt-3 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors"
-                                    >
-                                        Crear Mapeo
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="divide-y divide-slate-100">
-                                    {mapeos.map(m => (
-                                        <div key={m.id} className="py-3">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div>
-                                                    <p className="text-xs font-bold text-slate-700">{m.articulo?.nombre}</p>
-                                                    <p className="text-[10px] font-mono text-slate-400 mt-0.5">{m.articulo?.articulo_id}</p>
-                                                    {m.articulo?.marca && <p className="text-[10px] text-slate-400">{m.articulo.marca}</p>}
-                                                </div>
-                                                <span className="shrink-0 text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">
-                                                    ×{m.cantidad_requerida}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <div className="pt-2 pb-1">
-                                        <button
-                                            onClick={() => setShowMappingModal(true)}
-                                            className="w-full text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
-                                        >
-                                            Editar mapeo
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </Section>
-
-                        {/* Variantes hermanas — mini-tabla */}
+                        {/* Variantes — tabla mejorada */}
                         {variantes.length > 0 && (
                             <Section title={`Variantes (${variantes.length + 1} totales)`} icon={<Package className="w-4 h-4" />}>
                                 <div className="-mx-5 overflow-x-auto">
@@ -644,7 +642,12 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                         </div>
                                                     ) : <span className="text-slate-400 font-mono text-[10px]">#{pub.external_variation_id} (actual)</span>}
                                                 </td>
-                                                <td className="px-3 py-2 font-mono text-[10px] text-slate-500">{pub.seller_custom_field || '—'}</td>
+                                                <td className="px-3 py-2">
+                                                    {pub.seller_custom_field
+                                                        ? <span className="font-mono text-[10px] text-slate-600">{pub.seller_custom_field}</span>
+                                                        : <span className="inline-flex items-center gap-0.5 text-[10px] bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded"><AlertCircle className="w-2.5 h-2.5" /> Sin SKU</span>
+                                                    }
+                                                </td>
                                                 <td className="px-3 py-2 text-right font-semibold text-slate-800">{fmt(pub.precio_venta)}</td>
                                                 <td className="px-3 py-2 text-right text-slate-700">{pub.stock_publicado ?? '—'}</td>
                                             </tr>
@@ -662,7 +665,12 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                             </div>
                                                         ) : <span className="text-slate-400 font-mono text-[10px]">#{v.external_variation_id}</span>}
                                                     </td>
-                                                    <td className="px-3 py-2 font-mono text-[10px] text-slate-500">{v.seller_custom_field || '—'}</td>
+                                                    <td className="px-3 py-2">
+                                                        {v.seller_custom_field
+                                                            ? <span className="font-mono text-[10px] text-slate-500">{v.seller_custom_field}</span>
+                                                            : <span className="inline-flex items-center gap-0.5 text-[10px] bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded"><AlertCircle className="w-2.5 h-2.5" /> Sin SKU</span>
+                                                        }
+                                                    </td>
                                                     <td className="px-3 py-2 text-right font-semibold text-slate-800">{fmt(v.precio_venta)}</td>
                                                     <td className="px-3 py-2 text-right text-slate-700">
                                                         <Link href={`/catalog/external/${v.id}`} className="text-slate-700 hover:text-indigo-600 hover:underline">
@@ -677,7 +685,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             </Section>
                         )}
 
-                        {/* Publicaciones Asociadas (mismo id_producto_catalogo) */}
+                        {/* Publicaciones Asociadas */}
                         {asociadas.length > 0 && (
                             <Section title={`Publicaciones Asociadas (${asociadas.length + 1})`} icon={<Layers className="w-4 h-4" />}>
                                 <div className="-mx-5 overflow-x-auto">
@@ -688,7 +696,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                 <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Tipo</th>
                                                 <th className="px-3 py-2 text-right font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Precio</th>
                                                 <th className="px-3 py-2 text-right font-semibold text-slate-500 uppercase text-[10px] tracking-wider">Stock</th>
-                                                <th className="px-3 py-2 text-right font-semibold text-slate-500 uppercase text-[10px] tracking-wider"> </th>
+                                                <th className="px-3 py-2 text-right font-semibold text-slate-500 uppercase text-[10px] tracking-wider"> </th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
@@ -742,12 +750,68 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             </Section>
                         )}
 
-                        {/* Canales */}
-                        {pub.channels?.length > 0 && (
-                            <Section title="Canales" icon={<Zap className="w-4 h-4" />}>
+                        {/* Historial */}
+                        <Section title="Historial" icon={<Clock className="w-4 h-4" />}>
+                            <InfoRow label="Creado en MeLi" value={fmtDate(pub.meli_created_at)} />
+                            <InfoRow label="Actualizado en MeLi" value={fmtDate(pub.meli_updated_at)} />
+                            <InfoRow label="Sync local" value={fmtDate(pub.actualizado_el)} />
+                            <InfoRow label="Marketplace" value={pub.marketplace?.account_name} />
+                        </Section>
+                    </div>
+
+                    {/* Col derecha */}
+                    <div className="space-y-5">
+
+                        {/* Mapeo a bodega */}
+                        <Section title="Mapeo a Bodega" icon={<Link2 className="w-4 h-4" />}>
+                            {mapeos.length === 0 ? (
+                                <div className="py-4 text-center">
+                                    <AlertCircle className="w-8 h-8 text-rose-300 mx-auto mb-2" />
+                                    <p className="text-sm text-slate-500">Sin mapeo</p>
+                                    <button
+                                        onClick={() => setShowMappingModal(true)}
+                                        className="mt-3 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors"
+                                    >
+                                        Crear Mapeo
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-slate-100">
+                                    {mapeos.map(m => (
+                                        <div key={m.id} className="py-3">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div>
+                                                    <p className="text-xs font-bold text-slate-700">{m.articulo?.nombre}</p>
+                                                    <p className="text-[10px] font-mono text-slate-400 mt-0.5">{m.articulo?.articulo_id}</p>
+                                                    {m.articulo?.marca && <p className="text-[10px] text-slate-400">{m.articulo.marca}</p>}
+                                                </div>
+                                                <span className="shrink-0 text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">
+                                                    ×{m.cantidad_requerida}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div className="pt-2 pb-1">
+                                        <button
+                                            onClick={() => setShowMappingModal(true)}
+                                            className="w-full text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
+                                        >
+                                            Editar mapeo
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </Section>
+
+                        {/* Tags técnicos (todos los que no son de visibilidad) */}
+                        {pub.tags?.filter((t: string) => ![
+                            'good_quality_picture', 'good_quality_thumbnail', 'cart_eligible',
+                            'dragged_bids', 'dragged_visits', 'poor_quality_picture', 'poor_quality_thumbnail'
+                        ].includes(t)).length > 0 && (
+                            <Section title="Tags (todos)" icon={<Globe className="w-4 h-4" />}>
                                 <div className="py-2 flex flex-wrap gap-1.5">
-                                    {pub.channels.map((c: string) => (
-                                        <span key={c} className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">{c}</span>
+                                    {pub.tags.map((t: string) => (
+                                        <span key={t} className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{t}</span>
                                     ))}
                                 </div>
                             </Section>
