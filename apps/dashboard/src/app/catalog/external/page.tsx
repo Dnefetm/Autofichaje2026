@@ -313,7 +313,6 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
 
     async function toggleCatalog() {
         if (!catalogExpanded && catalogChildren === null) {
-            // Primera vez que se abre: cargar desde Supabase
             setCatalogLoading(true);
             const { data } = await supabase
                 .from('publicaciones_externas')
@@ -326,6 +325,29 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
             setCatalogLoading(false);
         }
         setCatalogExpanded(o => !o);
+    }
+
+    // Lazy-load de publicaciones asociadas (misma id_producto_catalogo, diferente item)
+    const [assocExpanded, setAssocExpanded] = useState(false);
+    const [assocChildren, setAssocChildren] = useState<any[] | null>(null);
+    const [assocLoading, setAssocLoading] = useState(false);
+    const hasAssociated = (parent.associated_count ?? 0) > 0;
+    const assocCount = parent.associated_count ?? 0;
+
+    async function toggleAssociated() {
+        if (!assocExpanded && assocChildren === null) {
+            setAssocLoading(true);
+            const { data } = await supabase
+                .from('publicaciones_externas')
+                .select('id, external_item_id, titulo, tipo_publicacion, status_externo, listing_type_id, precio_venta, sold_quantity, stock_publicado, health, seller_custom_field, seller_sku, brand')
+                .eq('id_producto_catalogo', parent.id_producto_catalogo)
+                .neq('external_item_id', parent.external_item_id)
+                .eq('external_variation_id', '0')
+                .order('status_externo', { ascending: true });
+            setAssocChildren(data || []);
+            setAssocLoading(false);
+        }
+        setAssocExpanded(o => !o);
     }
 
     // Compute aggregate values for parent when there are real variations
@@ -413,6 +435,18 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                         <Layers className="w-3 h-3" />
                                         {catalogExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                                         {catalogLoading ? 'Cargando…' : `${catalogCount} catálogo${catalogCount !== 1 ? 's' : ''}`}
+                                    </button>
+                                )}
+                                {/* Badge de publicaciones asociadas — lazy load */}
+                                {hasAssociated && (
+                                    <button
+                                        onClick={toggleAssociated}
+                                        disabled={assocLoading}
+                                        className="inline-flex items-center gap-0.5 text-[10px] text-teal-600 hover:text-teal-800 font-semibold transition-colors disabled:opacity-60"
+                                    >
+                                        <Link2 className="w-3 h-3" />
+                                        {assocExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                        {assocLoading ? 'Cargando…' : `${assocCount} asociada${assocCount !== 1 ? 's' : ''}`}
                                     </button>
                                 )}
                                 <BundleBadge isBundle={parent.es_bundle || parent.tags?.includes('bundle')} />
@@ -567,7 +601,63 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                 </tr>
             ))}
 
-        </> 
+            {/* Publicaciones asociadas — lazy-loaded, fondo teal */}
+            {assocExpanded && (assocChildren || []).map(ac => (
+                <tr key={ac.id} className="bg-teal-50/60 border-t border-teal-100">
+                    <td className="px-4 py-2 pl-10 align-top">
+                        <div className="flex flex-col gap-0.5">
+                            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[ac.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+                                {statusLabels[ac.status_externo] || ac.status_externo}
+                            </span>
+                            <TipoBadge tipo={ac.tipo_publicacion} />
+                        </div>
+                    </td>
+                    <td className="px-4 py-2 align-top" colSpan={2}>
+                        <div className="flex items-center gap-2">
+                            <Link2 className="w-3 h-3 text-teal-400 shrink-0" />
+                            <div>
+                                <Link
+                                    href={`/catalog/external/${ac.id}`}
+                                    className="text-xs font-medium text-slate-700 hover:text-teal-700 transition-colors line-clamp-1"
+                                >
+                                    {ac.titulo?.slice(0, 55)}{(ac.titulo?.length ?? 0) > 55 ? '…' : ''}
+                                </Link>
+                                <p className="text-[10px] font-mono text-slate-400">{ac.external_item_id}</p>
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                    {ac.listing_type_id && <ListingTypeBadge type={ac.listing_type_id} />}
+                                    <TipoBadge tipo={ac.tipo_publicacion} />
+                                </div>
+                                {(ac.brand || ac.seller_custom_field || ac.seller_sku) && (
+                                    <p className="text-[10px] text-slate-400 mt-0.5">
+                                        {ac.brand && <span className="font-semibold">{ac.brand} </span>}
+                                        {(ac.seller_custom_field || ac.seller_sku) && <span className="font-mono">{ac.seller_custom_field || ac.seller_sku}</span>}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                        <span className="text-xs font-semibold text-slate-800">
+                            {ac.precio_venta ? `$${Number(ac.precio_venta).toLocaleString('es-MX')}` : '—'}
+                        </span>
+                        {ac.sold_quantity > 0 && <p className="text-[10px] text-slate-400">{ac.sold_quantity} vend.</p>}
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                        <span className="text-xs text-slate-700">{ac.stock_publicado ?? '—'}</span>
+                    </td>
+                    <td className="px-4 py-2 align-top"><HealthBar value={ac.health} /></td>
+                    <td className="px-4 py-2 align-top text-right">
+                        <Link
+                            href={`/catalog/external/${ac.id}`}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 text-[10px] font-semibold rounded-lg border border-teal-200 transition-colors"
+                        >
+                            Ver ficha →
+                        </Link>
+                    </td>
+                </tr>
+            ))}
+
+        </>
     );
 }
 
@@ -655,9 +745,26 @@ export default function VirtualCatalogPage() {
             const from = page * PAGE_SIZE;
             const to = from + PAGE_SIZE - 1;
 
+            // ─── Búsqueda universal: usa RPC cuando hay término de búsqueda ──────────────────
+            // La RPC busca en TODAS las pubs (incluidos catálogos ocultos) y devuelve
+            // resultados con score de relevancia (SKU exacto > prefijo > título).
+            if (debouncedSearch.trim().length >= 2) {
+                const { data: searchData, error: searchErr } = await supabase.rpc('buscar_publicaciones', {
+                    p_term:           debouncedSearch.trim(),
+                    p_marketplace_id: filters.marketplace_id || null,
+                    p_limit:          PAGE_SIZE,
+                    p_offset:         from,
+                });
+                if (searchErr) throw searchErr;
+                const rows = (searchData as any[]) || [];
+                setListings(rows);
+                setTotalCount(rows[0]?.total_count ? Number(rows[0].total_count) : rows.length);
+                return;
+            }
+
             let query = supabase
                 .from('publicaciones_externas')
-                .select(`*, par_item_id, es_bundle, catalog_count, marketplace:marketplace_configs(account_name)`, { count: 'exact' })
+                .select(`*, par_item_id, es_bundle, catalog_count, associated_count, marketplace:marketplace_configs(account_name)`, { count: 'exact' })
                 .order(filters.sortBy, { ascending: filters.sortDir === 'asc' })
                 .order('external_item_id', { ascending: true })
                 .order('external_variation_id', { ascending: true })
@@ -721,10 +828,6 @@ export default function VirtualCatalogPage() {
             else if (filters.stockRange === '1-5') query = query.gte('stock_publicado', 1).lte('stock_publicado', 5);
             else if (filters.stockRange === '6-20') query = query.gte('stock_publicado', 6).lte('stock_publicado', 20);
             else if (filters.stockRange === '20+') query = query.gte('stock_publicado', 21);
-            // Búsqueda
-            if (debouncedSearch.length >= 2) {
-                query = query.or(`titulo.ilike.%${debouncedSearch}%,external_item_id.ilike.%${debouncedSearch}%`);
-            }
 
             const { data, error, count } = await query;
             if (error) throw error;

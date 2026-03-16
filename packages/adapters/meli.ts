@@ -337,6 +337,14 @@ export class MeliAdapter implements MarketplaceAdapter {
                         initial_quantity: item.initial_quantity ?? null,
                         // --- V20: Bundle flag ---
                         es_bundle: (item.tags || []).includes('bundle'),
+                        // --- V23: Fase 1 — campos adicionales del multiGET ---
+                        shipping_tags:       item.shipping?.tags || [],
+                        shipping_dimensions: item.shipping?.dimensions || null,
+                        inventory_id:        item.inventory_id || null,
+                        video_id:            item.video_id || null,
+                        base_price:          item.base_price ?? null,
+                        automatic_relist:    item.automatic_relist ?? false,
+                        buying_mode:         item.buying_mode || null,
                     };
 
                     // Items con variaciones:
@@ -465,6 +473,14 @@ export class MeliAdapter implements MarketplaceAdapter {
                 });
                 if (ccError) {
                     logger.warn({ accountId, error: ccError.message }, 'catalog_count RPC no disponible');
+                }
+                // V23: associated_count RPC
+                const { error: acError } = await supabase.rpc('recalcular_associated_count', {
+                    p_account_id: accountId,
+                    p_item_ids: syncedItemIds,
+                });
+                if (acError) {
+                    logger.warn({ accountId, error: acError.message }, 'associated_count RPC no disponible');
                 }
             }
 
