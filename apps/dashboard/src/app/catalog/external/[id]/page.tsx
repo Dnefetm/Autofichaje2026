@@ -436,16 +436,18 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     <p className="text-xl font-bold text-slate-700">{pub.health != null ? `${Math.round(pub.health * 100)}%` : '—'}</p>
                                     <p className="text-xs text-slate-400 uppercase">Salud</p>
                                 </div>
-                                {/* Visitas 30d — Fase 3 lazy */}
+                                {/* Visitas 30d — preferir dato de BD, fallback a lazy API */}
                                 <div className="text-center">
-                                    {enrichLoading
-                                        ? <p className="text-xl font-bold text-slate-300 animate-pulse">⋯</p>
-                                        : <p className="text-xl font-bold text-indigo-600">
-                                            {enrichData?.visits?.total_visits != null
-                                                ? enrichData.visits.total_visits.toLocaleString()
-                                                : '—'
-                                            }
-                                          </p>
+                                    {pub.visits_30d != null
+                                        ? <p className="text-xl font-bold text-indigo-600">{pub.visits_30d.toLocaleString()}</p>
+                                        : enrichLoading
+                                            ? <p className="text-xl font-bold text-slate-300 animate-pulse">⋯</p>
+                                            : <p className="text-xl font-bold text-indigo-600">
+                                                {enrichData?.visits?.total_visits != null
+                                                    ? enrichData.visits.total_visits.toLocaleString()
+                                                    : '—'
+                                                }
+                                              </p>
                                     }
                                     <p className="text-xs text-slate-400 uppercase">Visitas 30d</p>
                                 </div>
@@ -618,6 +620,12 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             )}
                             <InfoRow label="Condición" value={pub.condition === 'new' ? 'Nuevo' : pub.condition === 'used' ? 'Usado' : pub.condition} />
                             <InfoRow label="Garantía" value={pub.warranty} />
+                            {pub.upc && <InfoRow label="UPC" value={pub.upc} />}
+                            <InfoRow label="Fotos" value={pub.pictures_count != null ? `${pub.pictures_count} imágen${pub.pictures_count !== 1 ? 'es' : ''}` : null} />
+                            <InfoRow label="Modo de compra" value={pub.buying_mode} />
+                            <InfoRow label="Video" value={pub.video_id ? <span className="text-green-600 font-semibold text-xs">Sí — {pub.video_id}</span> : <span className="text-slate-400 text-xs">No</span>} />
+                            {pub.inventory_id && <InfoRow label="Inventory ID" value={<span className="font-mono text-[11px]">{pub.inventory_id}</span>} />}
+                            <InfoRow label="Re-publicación auto" value={pub.automatic_relist ? <span className="text-green-600 font-semibold text-xs">Activa</span> : <span className="text-slate-400 text-xs">No</span>} />
                         </Section>
 
                         {/* Datos Comerciales */}
@@ -639,6 +647,9 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             />
                             <InfoRow label="Moneda" value={pub.currency_id} />
                             <InfoRow label="Comisión" value={pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id].label : pub.listing_type_id} />
+                            {pub.base_price != null && pub.base_price !== pub.precio_venta && (
+                                <InfoRow label="Precio base" value={<span className="font-mono text-xs">{fmt(pub.base_price)}</span>} />
+                            )}
                             <InfoRow label="Ventas totales" value={pub.sold_quantity != null ? `${pub.sold_quantity} unidades` : null} />
                             <InfoRow label="Cantidad inicial" value={pub.initial_quantity != null ? `${pub.initial_quantity} uds.` : null} />
                             <InfoRow
@@ -659,6 +670,24 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             <InfoRow label="Envío gratis" value={pub.free_shipping ? (
                                 <span className="text-green-600 font-semibold flex items-center gap-1 justify-end"><CheckCircle2 className="w-3.5 h-3.5" /> Sí</span>
                             ) : 'No'} />
+                            <InfoRow label="Modo envío" value={pub.shipping_mode} />
+                            <InfoRow label="Retiro en persona" value={
+                                pub.local_pick_up === true  ? <span className="text-green-600 font-semibold text-xs">Sí</span>
+                              : pub.local_pick_up === false ? <span className="text-slate-400 text-xs">No</span>
+                              : null
+                            } />
+                            {pub.shipping_tags?.length > 0 && (
+                                <InfoRow label="Tags envío" value={
+                                    <div className="flex flex-wrap gap-1 justify-end">
+                                        {pub.shipping_tags.map((t: string) => (
+                                            <span key={t} className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded font-mono">{t}</span>
+                                        ))}
+                                    </div>
+                                } />
+                            )}
+                            {pub.shipping_dimensions && (
+                                <InfoRow label="Dimensiones" value={<span className="font-mono text-[11px]">{JSON.stringify(pub.shipping_dimensions)}</span>} />
+                            )}
                         </Section>
 
                         {/* Variantes — tabla mejorada */}
