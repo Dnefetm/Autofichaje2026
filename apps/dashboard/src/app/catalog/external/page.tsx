@@ -868,6 +868,30 @@ export default function VirtualCatalogPage() {
                         hasMore = false;
                     }
                 }
+
+                // ── Enriquecimiento post-sync (comisiones + visitas + descripciones) ──
+                addLog(`⚡ Enriqueciendo datos de ${config.account_name}...`);
+                try {
+                    let enrichHasMore = true;
+                    let enrichOffset  = 0;
+                    let enrichRelay   = 0;
+                    while (enrichHasMore) {
+                        enrichRelay++;
+                        const enrichRes = await fetch('/api/sync/enrich', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ accountId: config.id, offset: enrichOffset })
+                        });
+                        const enrichResult = await enrichRes.json();
+                        enrichHasMore = enrichResult.hasMore ?? false;
+                        enrichOffset  = enrichResult.offset ?? enrichOffset;
+                        addLog(`  Enrich relay #${enrichRelay}: ${enrichResult.processed ?? 0}/${enrichResult.total ?? '?'} items`);
+                        if (enrichHasMore) await new Promise(r => setTimeout(r, 150));
+                    }
+                    addLog(`✓ Enriquecimiento de ${config.account_name} completado.`);
+                } catch (enrichErr: any) {
+                    addLog(`⚠ Enrich falló (no crítico): ${enrichErr.message}`);
+                }
             }
             addLog(`¡Éxito! ${totalGeneral} ítems guardados.`);
             setTimeout(() => setDebugLogs([]), 8000);

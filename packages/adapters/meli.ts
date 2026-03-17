@@ -508,110 +508,132 @@ export class MeliAdapter implements MarketplaceAdapter {
                 }
             }
 
-            // ─────────────────────────────────────────────────────────────
-            // V26 — Fase 2: Comisión real calculada (cacheada por combinación)
-            // ─────────────────────────────────────────────────────────────
-            try {
-                // Agrupar items por combinación única de (category_id, listing_type_id, logistic_type)
-                // La comisión depende de estas 3 variables + price_bucket (redondeado a centena)
-                const commissionCache = new Map<string, { pct: number; amount: number }>();
+            logger.info({ accountId, synced_count: itemsPayload.length }, 'Batch Fast Sync completado');
+            return itemsPayload.length;
+        } catch (error: any) {
+            logger.error({ accountId, error: error.response?.data || error.message }, 'Error en syncCatalogBatchFast');
+            return 0;
+        }
+    }
 
-                // Solo items sin variación padre (variation_id != '0' no tienen precio propio relevante)
-                const uniqueItems = itemsPayload.filter((r: any) => r.external_variation_id === '0' || !r.external_variation_id);
 
-                for (const row of uniqueItems) {
-                    if (!row.category_id || !row.listing_type_id || !row.precio_venta) continue;
-                    const priceBucket = Math.round(row.precio_venta / 100) * 100;
+    // ─────────────────────────────────────────────────────────────────────────
+    // V27 — enrichCatalogBatch: comisiones + visitas + descripciones (separado del sync)
+    // Se llama desde /api/sync/enrich — NO desde syncCatalogBatchFast
+    // ─────────────────────────────────────────────────────────────────────────
+    async enrichCatalogBatch(accountId: string, accessToken: string, itemIds: string[]): Promise<void> {
+        const CONCURRENCY = 10;
+
+        // ── Comisiones (paralelas, cacheadas por combinación) ────────────────
+        try {
+            // Obtener datos necesarios para calcular comisión
+            const { data: rows } = await supabase
+                .from('publicaciones_externas')
+                .select('external_item_id, category_id, listing_type_id, logistic_type, shipping_mode, precio_venta')
+                .eq('marketplace_id', accountId)
+                .in('external_item_id', itemIds)
+                .in('external_variation_id', ['0']); // solo filas padre
+
+            const commissionCache = new Map<string, { pct: number | null; amount: number | null }>();
+
+            // Extraer combinaciones únicas para minimizar llamadas a MeLi
+            const uniqueCombos = [...new Map((rows || []).map((r: any) => {
+                const priceBucket = Math.round((r.precio_venta || 0) / 100) * 100;
+                const key = `${r.category_id}|${r.listing_type_id}|${r.logistic_type}|${priceBucket}`;
+                return [key, r];
+            })).values()];
+
+            // Fetch paralelas en chunks de CONCURRENCY
+            for (let i = 0; i < uniqueCombos.length; i += CONCURRENCY) {
+                const chunk = uniqueCombos.slice(i, i + CONCURRENCY);
+                await Promise.all(chunk.map(async (row: any) => {
+                    const priceBucket = Math.round((row.precio_venta || 0) / 100) * 100;
                     const cacheKey = `${row.category_id}|${row.listing_type_id}|${row.logistic_type}|${priceBucket}`;
-
-                    if (!commissionCache.has(cacheKey)) {
-                        try {
-                            const params = new URLSearchParams({
-                                price: String(row.precio_venta),
-                                category_id: row.category_id,
-                                listing_type_id: row.listing_type_id,
-                            });
-                            if (row.logistic_type) params.set('logistic_type', row.logistic_type);
-                            if (row.shipping_mode) params.set('shipping_mode', row.shipping_mode);
-
-                            const feeResp = await axios.get(
-                                `https://api.mercadolibre.com/sites/MLM/listing_prices?${params.toString()}`,
-                                { headers: { Authorization: `Bearer ${accessToken}` } }
-                            );
-                            // La API puede devolver objeto o array según los parámetros enviados
-                            const raw = feeResp.data;
-                            const feeData = Array.isArray(raw) ? raw[0] : raw;
-                            if (feeData) {
-                                // sale_fee_details es un OBJETO {percentage_fee, fixed_fee, ...}, no un array
-                                const pct    = feeData.sale_fee_details?.percentage_fee ?? null;
-                                const amount = feeData.sale_fee_amount ?? null;
-                                commissionCache.set(cacheKey, { pct, amount });
-                            } else {
-                                commissionCache.set(cacheKey, { pct: null as any, amount: null as any });
-                            }
-                        } catch {
-                            commissionCache.set(cacheKey, { pct: null as any, amount: null as any });
-                        }
+                    if (commissionCache.has(cacheKey)) return;
+                    if (!row.category_id || !row.listing_type_id || !row.precio_venta) {
+                        commissionCache.set(cacheKey, { pct: null, amount: null });
+                        return;
                     }
-
-                    const fee = commissionCache.get(cacheKey)!;
-                    if (fee.pct != null || fee.amount != null) {
-                        await supabase
-                            .from('publicaciones_externas')
-                            .update({ comision_porcentaje: fee.pct, comision_monto: fee.amount })
-                            .eq('marketplace_id', accountId)
-                            .eq('external_item_id', row.external_item_id)
-                            .eq('external_variation_id', row.external_variation_id ?? '0');
-                    }
-                }
-                logger.debug({ accountId }, 'V26: comisiones actualizadas');
-            } catch (feeErr: any) {
-                logger.warn({ accountId, error: feeErr.message }, 'V26: error al calcular comisiones — se usarán los valores anteriores');
-            }
-
-            // ─────────────────────────────────────────────────────────────
-            // V26 — Fase 3: Persistir visitas 30d y descripción
-            // ─────────────────────────────────────────────────────────────
-            try {
-                // Visitas bulk: hasta 50 IDs por llamada
-                const parentItemIds = [...new Set(
-                    itemsPayload
-                        .filter((r: any) => r.external_variation_id === '0' || !r.external_variation_id)
-                        .map((r: any) => r.external_item_id)
-                )] as string[];
-
-                const VISIT_CHUNK = 50;
-                for (let i = 0; i < parentItemIds.length; i += VISIT_CHUNK) {
-                    const chunk = parentItemIds.slice(i, i + VISIT_CHUNK);
                     try {
-                        // /visits/items?ids= acepta múltiples IDs (visitas totales ~2 años)
-                        // NO acepta date_from/date_to — esos params son del endpoint individual de 1 ID
-                        const idsStr = chunk.join(',');
-                        const visitResp = await axios.get(
-                            `https://api.mercadolibre.com/visits/items?ids=${idsStr}`,
+                        const params = new URLSearchParams({
+                            price: String(row.precio_venta),
+                            category_id: row.category_id,
+                            listing_type_id: row.listing_type_id,
+                        });
+                        if (row.logistic_type) params.set('logistic_type', row.logistic_type);
+                        if (row.shipping_mode) params.set('shipping_mode', row.shipping_mode);
+                        const feeResp = await axios.get(
+                            `https://api.mercadolibre.com/sites/MLM/listing_prices?${params.toString()}`,
                             { headers: { Authorization: `Bearer ${accessToken}` } }
                         );
-                        const visitData: Record<string, number> = visitResp.data;
-                        for (const [itemId, count] of Object.entries(visitData)) {
-                            await supabase
-                                .from('publicaciones_externas')
-                                .update({ visits_30d: count, visits_updated_at: new Date().toISOString() })
-                                .eq('marketplace_id', accountId)
-                                .eq('external_item_id', itemId);
-                        }
-                    } catch { /* chunk fallido — continuar con siguiente */ }
+                        const raw = feeResp.data;
+                        const feeData = Array.isArray(raw) ? raw[0] : raw;
+                        commissionCache.set(cacheKey, {
+                            pct:    feeData?.sale_fee_details?.percentage_fee ?? null,
+                            amount: feeData?.sale_fee_amount ?? null,
+                        });
+                    } catch {
+                        commissionCache.set(cacheKey, { pct: null, amount: null });
+                    }
+                }));
+            }
+
+            // Aplicar comisiones calculadas
+            for (const row of (rows || [])) {
+                const priceBucket = Math.round((row.precio_venta || 0) / 100) * 100;
+                const cacheKey = `${row.category_id}|${row.listing_type_id}|${row.logistic_type}|${priceBucket}`;
+                const fee = commissionCache.get(cacheKey);
+                if (fee && (fee.pct != null || fee.amount != null)) {
+                    await supabase
+                        .from('publicaciones_externas')
+                        .update({ comision_porcentaje: fee.pct, comision_monto: fee.amount })
+                        .eq('marketplace_id', accountId)
+                        .eq('external_item_id', row.external_item_id)
+                        .eq('external_variation_id', '0');
                 }
+            }
+            logger.debug({ accountId, items: itemIds.length }, 'V27: comisiones enriquecidas');
+        } catch (feeErr: any) {
+            logger.warn({ accountId, error: feeErr.message }, 'V27: error en enriquecimiento de comisiones');
+        }
 
-                // Descripción: solo para items sin descripción previa (llamadas individuales)
-                const itemsWithoutDesc = await supabase
-                    .from('publicaciones_externas')
-                    .select('external_item_id')
-                    .eq('marketplace_id', accountId)
-                    .in('external_item_id', parentItemIds)
-                    .is('description_plain', null)
-                    .limit(20); // máx 20 por batch para no ralentizar sync
+        // ── Visitas 30d (/items/{id}/visits/time_window?last=30&unit=day) ───
+        try {
+            for (let i = 0; i < itemIds.length; i += CONCURRENCY) {
+                const chunk = itemIds.slice(i, i + CONCURRENCY);
+                await Promise.all(chunk.map(async (itemId: string) => {
+                    try {
+                        const visitResp = await axios.get(
+                            `https://api.mercadolibre.com/items/${itemId}/visits/time_window?last=30&unit=day`,
+                            { headers: { Authorization: `Bearer ${accessToken}` } }
+                        );
+                        const totalVisits = visitResp.data?.total_visits ?? 0;
+                        await supabase
+                            .from('publicaciones_externas')
+                            .update({ visits_30d: totalVisits, visits_updated_at: new Date().toISOString() })
+                            .eq('marketplace_id', accountId)
+                            .eq('external_item_id', itemId);
+                    } catch { /* item fallido — continuar */ }
+                }));
+            }
+            logger.debug({ accountId, items: itemIds.length }, 'V27: visitas 30d enriquecidas');
+        } catch (visitErr: any) {
+            logger.warn({ accountId, error: visitErr.message }, 'V27: error en enriquecimiento de visitas');
+        }
 
-                for (const row of itemsWithoutDesc?.data || []) {
+        // ── Descripciones (solo items sin descripción previa, máx 20) ────────
+        try {
+            const { data: withoutDesc } = await supabase
+                .from('publicaciones_externas')
+                .select('external_item_id')
+                .eq('marketplace_id', accountId)
+                .in('external_item_id', itemIds)
+                .is('description_plain', null)
+                .limit(20);
+
+            for (let i = 0; i < (withoutDesc || []).length; i += CONCURRENCY) {
+                const chunk = (withoutDesc || []).slice(i, i + CONCURRENCY);
+                await Promise.all(chunk.map(async (row: any) => {
                     try {
                         const descResp = await axios.get(
                             `https://api.mercadolibre.com/items/${row.external_item_id}/description`,
@@ -625,21 +647,14 @@ export class MeliAdapter implements MarketplaceAdapter {
                                 .eq('marketplace_id', accountId)
                                 .eq('external_item_id', row.external_item_id);
                         }
-                    } catch { /* ítem sin descripción — continuar */ }
-                }
-                logger.debug({ accountId }, 'V26: visitas y descripciones actualizadas');
-            } catch (visitErr: any) {
-                logger.warn({ accountId, error: visitErr.message }, 'V26: error al obtener visitas/descripción — se reintentará en próximo sync');
+                    } catch { /* item sin descripción — continuar */ }
+                }));
             }
-
-            logger.info({ accountId, synced_count: itemsPayload.length }, 'Batch Fast Sync completado');
-            return itemsPayload.length;
-        } catch (error: any) {
-            logger.error({ accountId, error: error.response?.data || error.message }, 'Error en syncCatalogBatchFast');
-            return 0;
+            logger.debug({ accountId }, 'V27: descripciones enriquecidas');
+        } catch (descErr: any) {
+            logger.warn({ accountId, error: descErr.message }, 'V27: error en enriquecimiento de descripciones');
         }
     }
-
 
     async getRecentOrders(accountId: string, since: Date): Promise<any[]> {
         // FIXME: Implement real logic for getRecentOrders when orders sync is built
