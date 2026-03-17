@@ -538,11 +538,17 @@ export class MeliAdapter implements MarketplaceAdapter {
                                 `https://api.mercadolibre.com/sites/MLM/listing_prices?${params.toString()}`,
                                 { headers: { Authorization: `Bearer ${accessToken}` } }
                             );
-                            const feeData = feeResp.data;
-                            const pct    = feeData.sale_fee_details?.find((d: any) => d.type === 'standard')?.amount_with_tax
-                                ? null : feeData.percentage_fee ?? null;
-                            const amount = feeData.sale_fee_amount ?? null;
-                            commissionCache.set(cacheKey, { pct, amount });
+                            // La API puede devolver objeto o array según los parámetros enviados
+                            const raw = feeResp.data;
+                            const feeData = Array.isArray(raw) ? raw[0] : raw;
+                            if (feeData) {
+                                // sale_fee_details es un OBJETO {percentage_fee, fixed_fee, ...}, no un array
+                                const pct    = feeData.sale_fee_details?.percentage_fee ?? null;
+                                const amount = feeData.sale_fee_amount ?? null;
+                                commissionCache.set(cacheKey, { pct, amount });
+                            } else {
+                                commissionCache.set(cacheKey, { pct: null as any, amount: null as any });
+                            }
                         } catch {
                             commissionCache.set(cacheKey, { pct: null as any, amount: null as any });
                         }
@@ -578,11 +584,11 @@ export class MeliAdapter implements MarketplaceAdapter {
                 for (let i = 0; i < parentItemIds.length; i += VISIT_CHUNK) {
                     const chunk = parentItemIds.slice(i, i + VISIT_CHUNK);
                     try {
-                        const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-                        const dateTo   = new Date().toISOString().split('T')[0];
-                        const idsStr   = chunk.join(',');
+                        // /visits/items?ids= acepta múltiples IDs (visitas totales ~2 años)
+                        // NO acepta date_from/date_to — esos params son del endpoint individual de 1 ID
+                        const idsStr = chunk.join(',');
                         const visitResp = await axios.get(
-                            `https://api.mercadolibre.com/visits/items?ids=${idsStr}&date_from=${dateFrom}&date_to=${dateTo}`,
+                            `https://api.mercadolibre.com/visits/items?ids=${idsStr}`,
                             { headers: { Authorization: `Bearer ${accessToken}` } }
                         );
                         const visitData: Record<string, number> = visitResp.data;
