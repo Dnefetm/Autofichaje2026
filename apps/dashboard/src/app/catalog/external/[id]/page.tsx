@@ -86,6 +86,33 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
     );
 }
 
+function DescriptionSection({ text }: { text: string }) {
+    const [expanded, setExpanded] = useState(false);
+    const preview = text.slice(0, 300);
+    const hasMore = text.length > 300;
+    return (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2.5 bg-slate-50">
+                <div className="text-slate-400"><Tag className="w-4 h-4" /></div>
+                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Descripción</h2>
+            </div>
+            <div className="px-5 py-4">
+                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+                    {expanded ? text : preview}{!expanded && hasMore && '…'}
+                </p>
+                {hasMore && (
+                    <button
+                        onClick={() => setExpanded(o => !o)}
+                        className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-semibold transition-colors"
+                    >
+                        {expanded ? 'Ver menos ↑' : 'Ver más ↓'}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // ─── Campo editable inline ────────────────────────────────────────────────────
 type SaveState = 'idle' | 'saving' | 'ok' | 'error';
 
@@ -646,9 +673,35 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 }
                             />
                             <InfoRow label="Moneda" value={pub.currency_id} />
-                            <InfoRow label="Comisión" value={pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id].label : pub.listing_type_id} />
+                            <InfoRow
+                                label="Comisión"
+                                value={
+                                    pub.comision_porcentaje != null
+                                        ? (
+                                            <span className="inline-flex items-center gap-1.5">
+                                                <span className="font-semibold text-xs">{pub.comision_porcentaje.toFixed(1)}%</span>
+                                                {pub.comision_monto != null && (
+                                                    <span className="text-slate-400 text-xs">(${pub.comision_monto.toLocaleString('es-MX', { minimumFractionDigits: 0 })})</span>
+                                                )}
+                                                <span className="text-slate-300 text-[10px]">{pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id].label : ''}</span>
+                                            </span>
+                                        )
+                                        : (pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id].label : pub.listing_type_id)
+                                }
+                            />
                             {pub.base_price != null && pub.base_price !== pub.precio_venta && (
                                 <InfoRow label="Precio base" value={<span className="font-mono text-xs">{fmt(pub.base_price)}</span>} />
+                            )}
+                            {pub.comision_monto != null && pub.precio_venta != null && (
+                                <InfoRow
+                                    label="Ganancia estimada"
+                                    value={
+                                        <span className="font-semibold text-green-600 text-xs">
+                                            {fmt(pub.precio_venta - pub.comision_monto)}
+                                            <span className="text-slate-400 font-normal ml-1 text-[10px]">(precio − comisión)</span>
+                                        </span>
+                                    }
+                                />
                             )}
                             <InfoRow label="Ventas totales" value={pub.sold_quantity != null ? `${pub.sold_quantity} unidades` : null} />
                             <InfoRow label="Cantidad inicial" value={pub.initial_quantity != null ? `${pub.initial_quantity} uds.` : null} />
@@ -689,6 +742,11 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <InfoRow label="Dimensiones" value={<span className="font-mono text-[11px]">{JSON.stringify(pub.shipping_dimensions)}</span>} />
                             )}
                         </Section>
+
+                        {/* Descripción del producto */}
+                        {pub.description_plain && (
+                            <DescriptionSection text={pub.description_plain} />
+                        )}
 
                         {/* Variantes — tabla mejorada */}
                         {variantes.length > 0 && (

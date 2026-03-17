@@ -156,7 +156,9 @@ function ListingRow({
             {/* 1 — ESTADO */}
             <td className={cn("px-4 py-3 align-top", indent && "pl-10")}>
                 <div className="flex flex-col gap-1">
-                    <StatusBadge status={listing.status_externo} />
+                    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[listing.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+                        {statusLabels[listing.status_externo] || listing.status_externo}
+                    </span>
                     {listing.esta_mapeado ? (
                         <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
                             <CheckCircle2 className="w-3 h-3" /> Mapeado
@@ -169,6 +171,7 @@ function ListingRow({
                     {listing.sync_disabled && (
                         <span className="text-[9px] text-slate-400 italic">sync off</span>
                     )}
+                    <HealthBar value={listing.health} />
                 </div>
             </td>
 
@@ -212,9 +215,11 @@ function ListingRow({
             {/* 3 — MARCA / SKU */}
             <td className="px-4 py-3 align-top">
                 {listing.brand && <p className="text-xs font-semibold text-slate-700">{listing.brand}</p>}
-                {/* Mostrar seller_custom_field (SKU variante) con fallback a seller_sku (SKU padre) */}
                 {(listing.seller_custom_field || listing.seller_sku) && (
                     <p className="text-[10px] font-mono text-slate-400 mt-0.5">{listing.seller_custom_field || listing.seller_sku}</p>
+                )}
+                {listing.model && (
+                    <p className="text-[10px] text-slate-400 mt-0.5 italic truncate max-w-[120px]" title={listing.model}>{listing.model}</p>
                 )}
                 {!listing.brand && !listing.seller_custom_field && !listing.seller_sku && <span className="text-[10px] text-slate-300">—</span>}
             </td>
@@ -225,8 +230,14 @@ function ListingRow({
                 {listing.original_price && listing.original_price > listing.precio_venta && (
                     <div className="text-[10px] text-slate-400 line-through">{formatPrice(listing.original_price)}</div>
                 )}
+                {listing.comision_porcentaje != null && (
+                    <div className="text-[10px] text-slate-400">{listing.comision_porcentaje.toFixed(1)}% com.</div>
+                )}
                 {listing.sold_quantity > 0 && (
                     <div className="text-[10px] text-slate-500 mt-0.5">{listing.sold_quantity} vendidos</div>
+                )}
+                {listing.visits_30d != null && listing.visits_30d > 0 && (
+                    <div className="text-[10px] text-slate-400">&#128065; {listing.visits_30d.toLocaleString()} vis.</div>
                 )}
             </td>
 
@@ -456,6 +467,9 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                     {(parent.seller_custom_field || parent.seller_sku) && (
                         <p className="text-[10px] font-mono text-slate-400 mt-0.5">{parent.seller_custom_field || parent.seller_sku}</p>
                     )}
+                    {parent.model && (
+                        <p className="text-[10px] text-slate-400 mt-0.5 italic truncate max-w-[120px]" title={parent.model}>{parent.model}</p>
+                    )}
                     {!parent.brand && !parent.seller_custom_field && !parent.seller_sku && <span className="text-[10px] text-slate-300">—</span>}
                 </td>
 
@@ -464,8 +478,14 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                     <div className="text-sm font-bold text-slate-900">
                         {priceDisplay || (parent.precio_venta ? `$${Number(parent.precio_venta).toLocaleString('es-MX')}` : '—')}
                     </div>
+                    {parent.comision_porcentaje != null && (
+                        <div className="text-[10px] text-slate-400">{parent.comision_porcentaje.toFixed(1)}% com.</div>
+                    )}
                     {parent.sold_quantity > 0 && (
                         <div className="text-[10px] text-slate-500 mt-0.5">{parent.sold_quantity} vendidos</div>
+                    )}
+                    {parent.visits_30d != null && parent.visits_30d > 0 && (
+                        <div className="text-[10px] text-slate-400">&#128065; {parent.visits_30d.toLocaleString()} vis.</div>
                     )}
                 </td>
 

@@ -629,7 +629,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 .eq('marketplace_id', accountId)
                 .in('external_item_id', itemIds)
                 .is('description_plain', null)
-                .limit(20);
+                .limit(50); // V28: subido de 20 a 50 para cubrir más items por relay
 
             for (let i = 0; i < (withoutDesc || []).length; i += CONCURRENCY) {
                 const chunk = (withoutDesc || []).slice(i, i + CONCURRENCY);
