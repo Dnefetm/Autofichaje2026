@@ -48,7 +48,7 @@ export class SKU_Service {
     }
 
     static async createArticulo(data: any) {
-        const articuloId = data.articulo_id || data.sku;
+        const articuloId = data.articulo_id; // V27: eliminado fallback || data.sku — todos los callers deben usar articulo_id
         logger.info({ articulo_id: articuloId }, 'Creando artículo con lógica unificada');
         const { error } = await supabase.from('articulos').insert({
             articulo_id: articuloId,
