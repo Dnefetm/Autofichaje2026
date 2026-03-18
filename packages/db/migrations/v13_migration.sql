@@ -87,16 +87,16 @@ CREATE TABLE IF NOT EXISTS articulos (
 );
 
 CREATE TABLE IF NOT EXISTS informacion_comercial (
-    sku TEXT PRIMARY KEY REFERENCES articulos(sku) ON DELETE CASCADE,
+    sku TEXT PRIMARY KEY REFERENCES articulos(articulo_id) ON DELETE CASCADE,
     costo_compra NUMERIC(10,2) DEFAULT 0.00,
-    precio_objetivo NUMERIC(10,2) DEFAULT 0.00,  
+    precio_objetivo NUMERIC(10,2) DEFAULT 0.00,
     precio_minimo NUMERIC(10,2) DEFAULT 0.00,
     actualizado_el TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS stock_por_ubicacion (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sku_articulo TEXT REFERENCES articulos(sku) ON DELETE CASCADE,
+    sku_articulo TEXT REFERENCES articulos(articulo_id) ON DELETE CASCADE,
     ubicacion_id UUID REFERENCES ubicaciones(id),
     cantidad INTEGER DEFAULT 0,
     UNIQUE(sku_articulo, ubicacion_id)
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS stock_por_ubicacion (
 CREATE TABLE IF NOT EXISTS ingresos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     numero_ingreso SERIAL,
-    sku_articulo TEXT REFERENCES articulos(sku),
+    sku_articulo TEXT REFERENCES articulos(articulo_id),
     ubicacion_id UUID REFERENCES ubicaciones(id),
     cantidad INTEGER NOT NULL,
     guia TEXT,                 
@@ -136,8 +136,8 @@ CREATE TABLE IF NOT EXISTS importar_egresos_full (
 CREATE TABLE IF NOT EXISTS tareas_recoleccion_full (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tarea_id UUID REFERENCES importar_egresos_full(id_tarea) ON DELETE CASCADE,
-    sku_inventario TEXT REFERENCES articulos(sku), 
-    ubicacion_origen_id UUID REFERENCES ubicaciones(id), 
+    sku_inventario TEXT REFERENCES articulos(articulo_id),
+    ubicacion_origen_id UUID REFERENCES ubicaciones(id),
     cantidad_recolectada INTEGER,  
     estado_recoleccion TEXT DEFAULT 'pendiente',
     fecha_pendiente TIMESTAMPTZ DEFAULT now(),
@@ -154,8 +154,8 @@ CREATE TABLE IF NOT EXISTS tareas_recoleccion_full (
 CREATE TABLE IF NOT EXISTS egresos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     numero_egreso SERIAL,
-    sku_articulo TEXT REFERENCES articulos(sku) NOT NULL,
-    ubicacion_id UUID REFERENCES ubicaciones(id) NOT NULL, 
+    sku_articulo TEXT REFERENCES articulos(articulo_id) NOT NULL,
+    ubicacion_id UUID REFERENCES ubicaciones(id) NOT NULL,
     cantidad INTEGER NOT NULL,
     tipo_egreso TEXT NOT NULL,
     importacion_full_id TEXT,

@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS publicaciones_externas (
 CREATE TABLE IF NOT EXISTS mapeo_publicacion_articulo (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     publicacion_id UUID REFERENCES publicaciones_externas(id) ON DELETE CASCADE NOT NULL,
-    sku_articulo TEXT REFERENCES articulos(sku) ON DELETE CASCADE NOT NULL,
+    sku_articulo TEXT REFERENCES articulos(articulo_id) ON DELETE CASCADE NOT NULL,
     cantidad_requerida INTEGER DEFAULT 1,    
     
     -- No puedes mapear el mismo SKU físico 2 veces en la misma publicación (se suma la cantidad si eso pasa)

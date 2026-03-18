@@ -15,14 +15,15 @@ DROP TRIGGER IF EXISTS trg_sync_sku_before_insert ON articulos;
 DROP FUNCTION IF EXISTS fn_sync_sku_from_articulo_id();
 
 -- ══════════════════════════════════════════════════════════════════════
--- PASO 5.2 — Vaciar la columna
--- ══════════════════════════════════════════════════════════════════════
-UPDATE articulos SET sku = NULL;
-
--- ══════════════════════════════════════════════════════════════════════
--- PASO 5.3 — Relajar constraint NOT NULL
+-- PASO 5.2 — Relajar constraint NOT NULL primero (necesario antes del UPDATE)
+-- BUGFIX: el UPDATE SET NULL fallaba si se ejecutaba con NOT NULL activo
 -- ══════════════════════════════════════════════════════════════════════
 ALTER TABLE articulos ALTER COLUMN sku DROP NOT NULL;
+
+-- ══════════════════════════════════════════════════════════════════════
+-- PASO 5.3 — Vaciar la columna
+-- ══════════════════════════════════════════════════════════════════════
+UPDATE articulos SET sku = NULL;
 
 -- Verificación post-ejecución (sku_nulls debe ser = total_articulos):
 -- SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE sku IS NULL) AS sku_nulls FROM articulos;
