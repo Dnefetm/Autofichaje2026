@@ -94,9 +94,20 @@ function mapTipoEgresoSinc(valor) {
 // Col F [5]: Transportista      → transportista
 // Col G [6]: Tipo de egreso     → tipo_egreso (normalizado)
 // Col H [7]: Nota               → notas
-// Col I [8]: Fecha              → creado_el
+// Col I [8]: Fecha              → fecha (fecha real del egreso)
 // Col J [9]: Operador           → operador_id
-// ─────────────────────────────────────────────────────────────────────
+// Col K [10]: (varía según sheet)
+// Col N [13]: Largo             → largo (hash)
+// Col O [14]: Ancho             → ancho (hash)
+// Col P [15]: Alto              → alto (hash)
+// Col Q [16]: Peso              → peso (hash)
+// Col R [17]: Salidas período  → salidas_periodo (hash)
+// Col S [18]: Código ML        → codigo_ml (hash)
+// Col T [19]: Estado reunido    → edo_reunido (hash)
+// Col U [20]: Fecha reunido     → fecha_reunido (hash)
+// Col V [21]: Fecha preparado   → fecha_preparado (hash)
+// (Ajustar índices si la hoja real difiere)
+// ──────────────────────────────────────────────────────────────────────
 function filaAObjetoSincEgreso(fila) {
   var egresoId   = fila[0] ? String(fila[0]).trim() : '';
   var articuloId = fila[2] ? String(fila[2]).trim() : ''; // CORREGIDO: Col C
@@ -110,10 +121,22 @@ function filaAObjetoSincEgreso(fila) {
   var fecha = parseFechaSincEgreso(fila[8]);
   var op    = fila[9] ? String(fila[9]).trim() : null;
 
-  // Campos adicionales del hash (si existen en la hoja, ajustar índices)
+  // FIX 1: Campos adicionales (cols N-V, índices 13-21) para hash completo
+  var largo          = fila[13] || null;
+  var ancho          = fila[14] || null;
+  var alto           = fila[15] || null;
+  var peso           = fila[16] || null;
+  var salidasPeriodo = fila[17] || null;
+  var codigoMl       = fila[18] ? String(fila[18]).trim() : null;
+  var edoReunido     = fila[19] ? String(fila[19]).trim() : null;
+  var fechaReunido   = parseFechaSincEgreso(fila[20]);
+  var fechaPreparado = parseFechaSincEgreso(fila[21]);
+
   var hash = computeEgresoHash(
     articuloId, isNaN(cant) ? 0 : cant, tipo, null, guia,
-    tr, op, notas, null, null, null, null, null, null, null, null, null, fecha
+    tr, op, notas,
+    largo, ancho, alto, peso, salidasPeriodo, codigoMl,
+    edoReunido, fechaReunido, fechaPreparado, fecha
   );
 
   return {
@@ -124,7 +147,7 @@ function filaAObjetoSincEgreso(fila) {
     guia:         guia,
     transportista: tr,
     notas:        notas,
-    fecha:        fecha,        // CORREGIDO: campo fecha (no creado_el)
+    fecha:        fecha,
     operador_id:  op,
     sync_hash:    hash
   };
@@ -184,7 +207,8 @@ function sincEgresos_full() {
 function _sincEgresosPorFecha_(soloNuevos) {
   var maxFecha = null;
   if (soloNuevos) {
-    var urlMax = SUPABASE_URL + '/rest/v1/egresos?select=creado_el&order=creado_el.desc&limit=1';
+    // FIX 2: filtrar por fecha (campo real) no por creado_el (timestamp del sistema)
+    var urlMax = SUPABASE_URL + '/rest/v1/egresos?select=fecha&order=fecha.desc&limit=1';
     var rMax = UrlFetchApp.fetch(urlMax, {
       method: 'get',
       headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY },
@@ -192,9 +216,9 @@ function _sincEgresosPorFecha_(soloNuevos) {
     });
     if (rMax.getResponseCode() === 200) {
       var dMax = JSON.parse(rMax.getContentText());
-      if (dMax && dMax.length > 0) maxFecha = new Date(dMax[0].creado_el);
+      if (dMax && dMax.length > 0) maxFecha = new Date(dMax[0].fecha);
     }
-    Logger.log('Modo incremental. MAX creado_el en Supabase: ' + (maxFecha ? maxFecha.toISOString() : 'ninguna'));
+    Logger.log('Modo incremental. MAX fecha en Supabase: ' + (maxFecha ? maxFecha.toISOString() : 'ninguna'));
   } else {
     Logger.log('Modo FULL — re-enviando todos los registros');
   }
@@ -209,14 +233,16 @@ function _sincEgresosPorFecha_(soloNuevos) {
   var filaInicio = 2;
   while (filaInicio <= ultimaFila) {
     var filaFin = Math.min(filaInicio + BATCH_SIZE_SINC_EGR - 1, ultimaFila);
-    var datos = hoja.getRange(filaInicio, 1, filaFin - filaInicio + 1, 10).getValues();
+    // FIX 3: leer 23 columnas (A-W) para capturar largo/ancho/alto/peso/etc. en hash
+    var datos = hoja.getRange(filaInicio, 1, filaFin - filaInicio + 1, 23).getValues();
     var candidatos = [];
 
     for (var i = 0; i < datos.length; i++) {
       var obj = filaAObjetoSincEgreso(datos[i]);
       if (!obj) { omitidos++; continue; }
-      if (soloNuevos && maxFecha && obj.creado_el) {
-        if (new Date(obj.creado_el) <= maxFecha) { filtrados++; continue; }
+      // FIX 2: comparar obj.fecha (no obj.creado_el que ya no existe)
+      if (soloNuevos && maxFecha && obj.fecha) {
+        if (new Date(obj.fecha) <= maxFecha) { filtrados++; continue; }
       }
       candidatos.push(obj);
     }
