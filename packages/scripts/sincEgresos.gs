@@ -24,14 +24,12 @@ function md5Egreso(texto) {
 }
 
 // Fórmula IDÉNTICA a compute_egreso_hash en Supabase.
-// NOTA: Si compute_egreso_hash incluye campos adicionales (largo, ancho, alto, peso, etc.)
-// que existen en la hoja, añadirlos aquí en el mismo orden.
-// Campos base confirmados: articulo_id|cantidad|tipo_egreso|importacion_full_id|guia|
-//   transportista|operador_id|notas|largo|ancho|alto|peso|salidas_periodo|
-//   codigo_ml|edo_reunido|fecha_reunido|fecha_preparado
+// NOTA: Comet agregó columna `fecha` a egresos (19-mar-2026) y actualizó compute_egreso_hash.
+// `fecha` = fecha real del egreso desde Sheets (Col I).
+// `creado_el` = timestamp automático del sistema, NO se sincroniza desde Sheets.
 function computeEgresoHash(articulo_id, cantidad, tipo_egreso, importacion_full_id, guia,
                             transportista, operador_id, notas, largo, ancho, alto, peso,
-                            salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado) {
+                            salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado, fecha) {
   var partes = [
     articulo_id        || '',
     String(cantidad !== null && cantidad !== undefined ? cantidad : ''),
@@ -49,7 +47,8 @@ function computeEgresoHash(articulo_id, cantidad, tipo_egreso, importacion_full_
     codigo_ml          || '',
     edo_reunido        || '',
     fecha_reunido      || '',
-    fecha_preparado    || ''
+    fecha_preparado    || '',
+    fecha              || ''  // campo nuevo agregado por Comet 19-mar-2026
   ];
   return md5Egreso(partes.join('|'));
 }
@@ -114,7 +113,7 @@ function filaAObjetoSincEgreso(fila) {
   // Campos adicionales del hash (si existen en la hoja, ajustar índices)
   var hash = computeEgresoHash(
     articuloId, isNaN(cant) ? 0 : cant, tipo, null, guia,
-    tr, op, notas, null, null, null, null, null, null, null, null, null
+    tr, op, notas, null, null, null, null, null, null, null, null, null, fecha
   );
 
   return {
@@ -125,7 +124,7 @@ function filaAObjetoSincEgreso(fila) {
     guia:         guia,
     transportista: tr,
     notas:        notas,
-    creado_el:    fecha,
+    fecha:        fecha,        // CORREGIDO: campo fecha (no creado_el)
     operador_id:  op,
     sync_hash:    hash
   };

@@ -62,7 +62,7 @@ function backfillEgresoIds() {
       var url = SUPABASE_URL + '/rest/v1/egresos?' +
         'articulo_id=eq.' + encodeURIComponent(articuloId) +
         '&cantidad=eq.' + (isNaN(cantidad) ? 0 : cantidad) +
-        '&creado_el=eq.' + encodeURIComponent(fecha) +
+        '&fecha=eq.' + encodeURIComponent(fecha) +
         (guia ? '&guia=eq.' + encodeURIComponent(guia) : '&guia=is.null') +
         (tipoEgreso ? '&tipo_egreso=eq.' + encodeURIComponent(tipoEgreso) : '&tipo_egreso=is.null') +
         '&egreso_id=is.null';
