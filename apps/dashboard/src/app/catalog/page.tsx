@@ -39,7 +39,7 @@ export default function CatalogPage() {
 
     useEffect(() => {
         fetchProducts(page);
-    }, [page, debouncedSearch]);
+    }, [page, debouncedSearch, filterStatus]);
 
     useEffect(() => {
         fetchStats();
@@ -86,6 +86,13 @@ export default function CatalogPage() {
             // Búsqueda server-side
             if (debouncedSearch.length >= 2) {
                 query = query.or(`nombre.ilike.%${debouncedSearch}%,marca.ilike.%${debouncedSearch}%,articulo_id.ilike.%${debouncedSearch}%`);
+            }
+
+                        // Filtro server-side por estado de mapeo
+            if (filterStatus === 'mapped') {
+                query = query.not('mapeo_publicacion_articulo', 'is', null);
+            } else if (filterStatus === 'unmapped') {
+                query = query.is('mapeo_publicacion_articulo', null);
             }
 
             const { data, error, count } = await query.range(from, to);
@@ -144,8 +151,8 @@ export default function CatalogPage() {
         const stock = snapshot?.physical_stock || 0;
 
         switch (filterStatus) {
-            case 'mapped': return isMapped;
-            case 'unmapped': return !isMapped;
+            case 'mapped': return true;
+            case 'unmapped': return true;
             case 'low_stock': return stock <= 2;
             default: return true;
         }
