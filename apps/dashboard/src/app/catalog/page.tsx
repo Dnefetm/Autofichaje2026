@@ -74,12 +74,14 @@ export default function CatalogPage() {
                   marca,
                   modelo,
                   variante,
-                  codigo_universal,
+                codigo_universal,
+                caja_madre,
                   imagenes,
                   inventory_snapshot(physical_stock),
                   mapeo_publicacion_articulo(publicacion_id)
                 `, { count: 'exact' })
-                .order('creado_el', { ascending: false });
+                .order('creado_el', { ascending: false })
+            .not('nombre', 'like', '%PLACEHOLDER%');
 
             // Búsqueda server-side
             if (debouncedSearch.length >= 2) {
