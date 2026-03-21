@@ -85,7 +85,7 @@ export default function CatalogPage() {
 
             // Búsqueda server-side
             if (debouncedSearch.length >= 2) {
-                query = query.or(`nombre.ilike.%${debouncedSearch}%,marca.ilike.%${debouncedSearch}%,articulo_id.ilike.%${debouncedSearch}%`);
+                query = query.or(`nombre.ilike.%${debouncedSearch}%,marca.ilike.%${debouncedSearch}%,articulo_id.ilike.%${debouncedSearch}%,modelo.ilike.%${debouncedSearch}%,codigo_universal.ilike.%${debouncedSearch}%,variante.ilike.%${debouncedSearch}%`);
             }
 
                         // Filtro server-side por estado de mapeo
