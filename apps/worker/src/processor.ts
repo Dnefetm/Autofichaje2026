@@ -360,15 +360,9 @@ async function handleSyncStockMapped(job: any) {
 
             if (!sku) continue;
 
-            // Obtenemos snapshot físico (Phase 1 rule)
-            const { data: inv } = await supabase
-                .from('inventory_snapshot')
-                .select('physical_stock')
-                .eq('sku', sku)
-                .single();
-
-            const physicalStock = inv?.physical_stock || 0;
-            const reachableKits = Math.floor(physicalStock / qtyNeeded);
+            // Usamos calculateAvailableStock (physical + dropship - reserved)
+            const availableStock = await SKU_Service.calculateAvailableStock(sku);
+            const reachableKits = Math.floor(availableStock / qtyNeeded);
 
             if (reachableKits < maxKits) {
                 maxKits = reachableKits;
