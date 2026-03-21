@@ -157,6 +157,12 @@ export function SkuCard({
                             <span className="text-[10px] text-slate-600 truncate">{product.variante}</span>
                         </div>
                     )}
+                                        {product.caja_madre && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-bold uppercase text-slate-400 w-16 shrink-0">Caja Madre</span>
+                            <span className="text-[10px] text-slate-600 truncate">{product.caja_madre}</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
