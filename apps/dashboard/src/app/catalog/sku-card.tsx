@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Package, TrendingUp, AlertCircle, Save, Edit2, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 import { dashboardService } from '@/lib/dashboard-service';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -212,9 +213,9 @@ export function SkuCard({
 
             {/* Action Footer */}
             <div className="px-3 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                <button className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 transition-colors">
+                <Link href={`/catalog/${product.articulo_id}`} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 transition-colors">
                     Ver Ficha
-                </button>
+                </Link>
                 {isMapped && (
                     <button className="text-xs font-bold text-slate-500 hover:text-emerald-600 flex items-center gap-1.5 transition-colors">
                         <TrendingUp className="w-3 h-3" />
