@@ -724,8 +724,46 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     async getRecentOrders(accountId: string, since: Date): Promise<any[]> {
-        // FIXME: Implement real logic for getRecentOrders when orders sync is built
-        return [];
+        const accessToken = await this.getAccessToken(accountId);
+
+        // 1. Obtener seller_id (igual que en getAccountItems)
+        await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
+        const meResp = await axios.get('https://api.mercadolibre.com/users/me', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const sellerId = meResp.data.id;
+
+        const orders: any[] = [];
+        let offset = 0;
+        const limit = 50;
+
+        // 2. Paginar /orders/search
+        while (true) {
+            await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
+            const resp = await axios.get('https://api.mercadolibre.com/orders/search', {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: {
+                    seller: sellerId,
+                    'order.status': 'paid',
+                    'order.date_created.from': since.toISOString(),
+                    sort: 'date_desc',
+                    offset,
+                    limit
+                }
+            });
+
+            const results: any[] = resp.data.results || [];
+            const total: number = resp.data.paging?.total || 0;
+
+            orders.push(...results);
+            offset += results.length;
+
+            // MeLi limita a ~1000 órdenes por búsqueda; el parámetro 'since' acota el resultado
+            if (results.length < limit || offset >= total) break;
+        }
+
+        logger.info({ accountId, count: orders.length, since: since.toISOString() }, 'getRecentOrders completado');
+        return orders;
     }
 
     async refreshToken(accountId: string): Promise<void> {

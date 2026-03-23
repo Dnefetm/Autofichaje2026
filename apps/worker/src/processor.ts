@@ -2,6 +2,7 @@ import { supabase } from '@gestor/shared/lib/supabase';
 import logger from '@gestor/shared/lib/logger';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import { AutomationManager } from '@gestor/sync/automations';
+import axios from 'axios';
 
 const meliAdapter = new MeliAdapter();
 
@@ -74,6 +75,9 @@ async function processJob(job: any) {
                 break;
             case 'sync_item':
                 await meliAdapter.syncCatalogItem(job.payload.marketplace_id, job.payload.external_item_id);
+                break;
+            case 'process_sale':
+                await handleProcessSale(job);
                 break;
             default:
                 throw new Error(`Tipo de job no soportado aún: ${job.type}`);
@@ -407,4 +411,231 @@ async function handleSyncStockMapped(job: any) {
     await supabase.from('publicaciones_externas')
         .update({ stock_publicado: maxKits, actualizado_el: new Date().toISOString() })
         .eq('id', publicacion_id);
+}
+
+async function handleProcessSale(job: any) {
+    const { resource, user_id } = job.payload;
+
+    // Extraer order_id del resource "/orders/12345678"
+    const orderIdMatch = String(resource).match(/\/orders\/(\d+)/);
+    if (!orderIdMatch) {
+        logger.warn({ resource }, 'process_sale: no se pudo extraer order_id del resource');
+        return;
+    }
+    const meliOrderId = parseInt(orderIdMatch[1], 10);
+
+    // 1. Buscar cuenta (marketplace_id) por meli_user_id en settings
+    const { data: configs } = await supabase
+        .from('marketplace_configs')
+        .select('id, settings')
+        .eq('marketplace_type', 'meli');
+
+    const config = (configs || []).find((c: any) =>
+        String(c.settings?.meli_user_id) === String(user_id)
+    );
+
+    if (!config) {
+        logger.warn({ user_id }, 'process_sale: no se encontró marketplace_config para meli_user_id');
+        await supabase.from('system_alerts').insert({
+            level: 'warning', type: 'orders_sync',
+            message: `Orden ${meliOrderId} recibida pero no hay cuenta MeLi configurada para user_id ${user_id}`,
+            metadata: { meli_order_id: meliOrderId, meli_user_id: user_id }
+        });
+        return;
+    }
+    const marketplaceId = config.id;
+
+    // 2. Obtener detalle completo de la orden desde MeLi
+    const accessToken = await (meliAdapter as any).getAccessToken(marketplaceId);
+    const orderResp = await axios.get(
+        `https://api.mercadolibre.com/orders/${meliOrderId}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    const order = orderResp.data;
+
+    // 3. Determinar logistic_type desde publicaciones_externas (primer item)
+    const firstItemId = order.order_items?.[0]?.item?.id;
+    let shippingLogisticType: string | null = null;
+    if (firstItemId) {
+        const { data: pub } = await supabase
+            .from('publicaciones_externas')
+            .select('logistic_type')
+            .eq('external_item_id', firstItemId)
+            .eq('marketplace_id', marketplaceId)
+            .eq('external_variation_id', '0')
+            .maybeSingle();
+        shippingLogisticType = pub?.logistic_type ?? null;
+    }
+
+    // 4. Upsert en tabla ordenes
+    const { data: ordenUpserted, error: ordenErr } = await supabase
+        .from('ordenes')
+        .upsert({
+            marketplace_id:         marketplaceId,
+            meli_order_id:          order.id,
+            pack_id:                order.pack_id ?? null,
+            status:                 order.status,
+            date_created:           order.date_created,
+            date_closed:            order.date_closed ?? null,
+            buyer_id:               order.buyer?.id,
+            total_amount:           order.total_amount,
+            paid_amount:            order.paid_amount ?? null,
+            currency_id:            order.currency_id ?? 'MXN',
+            shipping_id:            order.shipping?.id ?? null,
+            shipping_logistic_type: shippingLogisticType,
+            buying_mode:            order.buying_mode ?? null,
+            tags:                   order.tags ?? [],
+            raw_json:               order,
+            updated_at:             new Date().toISOString()
+        }, { onConflict: 'marketplace_id,meli_order_id' })
+        .select('id, status')
+        .single();
+
+    if (ordenErr || !ordenUpserted) {
+        throw new Error(`Error en upsert de orden ${meliOrderId}: ${ordenErr?.message}`);
+    }
+    const ordenId = ordenUpserted.id;
+
+    logger.info({ meliOrderId, ordenId, status: order.status }, 'Orden procesada/actualizada');
+
+    // 5. Si la orden fue cancelada: liberar reservaciones activas
+    if (order.status === 'cancelled') {
+        await supabase
+            .from('reservaciones_stock')
+            .update({ estado: 'liberada', updated_at: new Date().toISOString() })
+            .eq('estado', 'activa')
+            .in('orden_item_id',
+                supabase.from('orden_items').select('id').eq('orden_id', ordenId) as any
+            );
+        logger.info({ ordenId }, 'Reservaciones liberadas por cancelación');
+        return;
+    }
+
+    // 6. Procesar cada order_item
+    for (const item of (order.order_items || [])) {
+        const meliItemId    = item.item?.id;
+        const variationId   = item.item?.variation_id ? String(item.item.variation_id) : null;
+        const quantity      = item.quantity;
+        const unitPrice     = item.unit_price;
+        const fullUnitPrice = item.full_unit_price ?? null;
+        const sellerSku     = item.item?.seller_sku || item.item?.seller_custom_field || null;
+
+        if (!meliItemId) continue;
+
+        // Resolver publicacion_id: buscar por item_id + variacion, fallback a variation='0'
+        let publicacionId: string | null = null;
+        let articuloId: string | null = null;
+
+        const variationQuery = variationId ?? '0';
+        const { data: pubRow } = await supabase
+            .from('publicaciones_externas')
+            .select('id')
+            .eq('marketplace_id', marketplaceId)
+            .eq('external_item_id', meliItemId)
+            .eq('external_variation_id', variationQuery)
+            .maybeSingle();
+
+        // Fallback: buscar fila padre si no encontró por variation
+        const pubResult = pubRow ?? (variationId
+            ? (await supabase.from('publicaciones_externas').select('id')
+                .eq('marketplace_id', marketplaceId)
+                .eq('external_item_id', meliItemId)
+                .eq('external_variation_id', '0')
+                .maybeSingle()).data
+            : null);
+
+        publicacionId = pubResult?.id ?? null;
+
+        if (publicacionId) {
+            const { data: mapRow } = await supabase
+                .from('mapeo_publicacion_articulo')
+                .select('articulo_id')
+                .eq('publicacion_id', publicacionId)
+                .maybeSingle();
+            articuloId = mapRow?.articulo_id ?? null;
+        }
+
+        if (!publicacionId) {
+            await supabase.from('system_alerts').insert({
+                level: 'info', type: 'orders_sync',
+                message: `Item MeLi ${meliItemId} de orden ${meliOrderId} no tiene publicación mapeada en el Gestor`,
+                metadata: { meli_item_id: meliItemId, meli_order_id: meliOrderId }
+            });
+        }
+
+        // Upsert orden_item (idempotente por orden_id + meli_item_id + variation)
+        const { data: ordenItem, error: itemErr } = await supabase
+            .from('orden_items')
+            .upsert({
+                orden_id:         ordenId,
+                meli_item_id:     meliItemId,
+                meli_variation_id: variationId,
+                titulo:           item.item?.title ?? null,
+                quantity,
+                unit_price:       unitPrice,
+                full_unit_price:  fullUnitPrice,
+                seller_sku:       sellerSku,
+                publicacion_id:   publicacionId,
+                articulo_id:      articuloId
+            }, { onConflict: 'orden_id,meli_item_id,meli_variation_id' })
+            .select('id')
+            .single();
+
+        if (itemErr || !ordenItem) {
+            logger.error({ meliItemId, itemErr }, 'Error en upsert de orden_item');
+            continue;
+        }
+
+        // 7. Crear reservación de stock (solo si no-Fulfillment, artículo resuelto, orden pagada)
+        const esFulfillment = shippingLogisticType === 'fulfillment';
+        if (!esFulfillment && articuloId && order.status === 'paid') {
+            // Verificar si ya existe reservación activa para esta orden_item
+            const { data: existingReserv } = await supabase
+                .from('reservaciones_stock')
+                .select('id')
+                .eq('orden_item_id', ordenItem.id)
+                .eq('estado', 'activa')
+                .maybeSingle();
+
+            if (!existingReserv) {
+                await supabase.from('reservaciones_stock').insert({
+                    orden_item_id: ordenItem.id,
+                    articulo_id:   articuloId,
+                    cantidad:      quantity,
+                    estado:        'activa'
+                });
+                logger.info({ articuloId, quantity }, 'Reservación de stock creada');
+            }
+        }
+
+        // 8. Si la orden está entregada (tag 'delivered'): consumir reservación y crear egreso
+        const isDelivered = (order.tags || []).includes('delivered');
+        if (isDelivered && articuloId) {
+            // Marcar reservaciones como consumidas
+            await supabase
+                .from('reservaciones_stock')
+                .update({ estado: 'consumida', updated_at: new Date().toISOString() })
+                .eq('orden_item_id', ordenItem.id)
+                .eq('estado', 'activa');
+
+            // Crear egreso si no existe ya para esta orden
+            const referenciaEgreso = `meli_${meliOrderId}_${meliItemId}`;
+            const { data: existingEgreso } = await supabase
+                .from('egresos')
+                .select('id')
+                .eq('notas', referenciaEgreso)
+                .maybeSingle();
+
+            if (!existingEgreso) {
+                await supabase.from('egresos').insert({
+                    articulo_id: articuloId,
+                    cantidad:    quantity,
+                    tipo_egreso: 'venta',
+                    notas:       referenciaEgreso,
+                    fecha:       order.date_closed ?? new Date().toISOString()
+                });
+                logger.info({ articuloId, quantity, meliOrderId }, 'Egreso creado por entrega de orden MeLi');
+            }
+        }
+    }
 }
