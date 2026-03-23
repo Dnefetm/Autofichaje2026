@@ -33,7 +33,7 @@ function clasificarPublicacion(item: any): {
     return {
         tipo_publicacion,
         id_publicacion_padre: item.parent_item_id || null,
-        es_fuente_stock: tipo_publicacion === 'tradicional', // Solo padre tradicional
+        es_fuente_stock: tipo_publicacion === 'tradicional' || tipo_publicacion === 'catalogo', // Tradicional + Catálogo directo (sin padre)
         id_producto_catalogo: item.catalog_product_id || null,
     };
 }
