@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { Articulo, Job } from '@gestor/shared';
+import { dispatchWorker } from './dispatch-worker';
 
 export const dashboardService = {
     async getArticulos() {
@@ -43,6 +44,7 @@ export const dashboardService = {
                 scheduled_at: new Date().toISOString()
             }).eq('id', existing.id);
             if (error) throw error;
+            await dispatchWorker(); // V31: trigger worker on-demand
             return existing;
         }
 
@@ -53,8 +55,8 @@ export const dashboardService = {
             status: 'pending',
             scheduled_at: new Date().toISOString()
         });
-
         if (error) throw error;
+        await dispatchWorker(); // V31: trigger worker on-demand
         return data;
     },
 
@@ -70,8 +72,8 @@ export const dashboardService = {
             status: 'pending',
             scheduled_at: new Date().toISOString()
         });
-
         if (error) throw error;
+        await dispatchWorker(); // V31: trigger worker on-demand
         return data;
     },
 
@@ -114,6 +116,7 @@ export const dashboardService = {
             .select('articulo_id, nombre, imagenes')
             .ilike('articulo_id', `%${query}%`)
             .limit(10);
+
         if (error) throw error;
         return data;
     },
@@ -123,6 +126,7 @@ export const dashboardService = {
             .from('bundle_components')
             .select('*, articulos!bundle_components_component_sku_fkey(nombre, imagenes)')
             .eq('bundle_sku', bundleSku);
+
         if (error) throw error;
         return data;
     },
@@ -160,5 +164,6 @@ export const dashboardService = {
                 scheduled_at: new Date().toISOString()
             });
         }
+        await dispatchWorker(); // V31: trigger worker on-demand
     }
 };
