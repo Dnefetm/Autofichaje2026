@@ -338,7 +338,7 @@ async function handleSyncStockMapped(job: any) {
     // 1. Obtener publicación y verificar que es fuente de stock
     const { data: pub, error: pubErr } = await supabase
         .from('publicaciones_externas')
-        .select('marketplace_id, external_item_id, es_fuente_stock, tipo_publicacio, logistic_typen')
+        .select('marketplace_id, external_item_id, es_fuente_stock, tipo_publicacion, logistic_type')
         .eq('id', publicacion_id)
         .single();
 
