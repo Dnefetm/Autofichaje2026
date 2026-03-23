@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dispatchWorker } from '@/lib/dispatch-worker';
 import { X, Search, Package, Save, RefreshCw, Plus, Trash2 } from 'lucide-react';
 
 interface MappingModalProps {
@@ -160,6 +161,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                 scheduled_at: new Date().toISOString()
             });
             if (jobError) console.error('Aviso: Mapeo guardado pero no se pudo encolar el Job automatico para el worker.', jobError);
+                        await dispatchWorker(); // V31: trigger worker on-demand
 
             onSuccess();
             onClose();
