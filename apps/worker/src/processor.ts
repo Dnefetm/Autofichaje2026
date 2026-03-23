@@ -428,10 +428,10 @@ async function handleProcessSale(job: any) {
     const { data: configs } = await supabase
         .from('marketplace_configs')
         .select('id, settings')
-        .eq('marketplace_type', 'meli');
+        .eq('marketplace', 'meli'); // Bug 1 fix: era 'marketplace_type'
 
     const config = (configs || []).find((c: any) =>
-        String(c.settings?.meli_user_id) === String(user_id)
+        String(c.settings?.seller_id) === String(user_id) // Bug 2 fix: era 'meli_user_id'
     );
 
     if (!config) {
@@ -500,13 +500,19 @@ async function handleProcessSale(job: any) {
 
     // 5. Si la orden fue cancelada: liberar reservaciones activas
     if (order.status === 'cancelled') {
-        await supabase
-            .from('reservaciones_stock')
-            .update({ estado: 'liberada', updated_at: new Date().toISOString() })
-            .eq('estado', 'activa')
-            .in('orden_item_id',
-                supabase.from('orden_items').select('id').eq('orden_id', ordenId) as any
-            );
+        // Bug 5 fix: Supabase JS no soporta subqueries en .in() — fetch previo + array
+        const { data: itemsToFree } = await supabase
+            .from('orden_items')
+            .select('id')
+            .eq('orden_id', ordenId);
+        const itemIdsToFree = (itemsToFree || []).map((i: any) => i.id);
+        if (itemIdsToFree.length > 0) {
+            await supabase
+                .from('reservaciones_stock')
+                .update({ estado: 'liberada', updated_at: new Date().toISOString() })
+                .eq('estado', 'activa')
+                .in('orden_item_id', itemIdsToFree);
+        }
         logger.info({ ordenId }, 'Reservaciones liberadas por cancelación');
         return;
     }
@@ -526,7 +532,9 @@ async function handleProcessSale(job: any) {
         let publicacionId: string | null = null;
         let articuloId: string | null = null;
 
+        // Bug 4 fix: usar '0' como default en lugar de null para evitar fallo de UNIQUE con NULLs
         const variationQuery = variationId ?? '0';
+        const variationUpsert = variationId ?? '0';
         const { data: pubRow } = await supabase
             .from('publicaciones_externas')
             .select('id')
@@ -567,16 +575,16 @@ async function handleProcessSale(job: any) {
         const { data: ordenItem, error: itemErr } = await supabase
             .from('orden_items')
             .upsert({
-                orden_id:         ordenId,
-                meli_item_id:     meliItemId,
-                meli_variation_id: variationId,
-                titulo:           item.item?.title ?? null,
+                orden_id:          ordenId,
+                meli_item_id:      meliItemId,
+                meli_variation_id: variationUpsert, // Bug 4 fix: nunca null
+                titulo:            item.item?.title ?? null,
                 quantity,
-                unit_price:       unitPrice,
-                full_unit_price:  fullUnitPrice,
-                seller_sku:       sellerSku,
-                publicacion_id:   publicacionId,
-                articulo_id:      articuloId
+                unit_price:        unitPrice,
+                full_unit_price:   fullUnitPrice,
+                seller_sku:        sellerSku,
+                publicacion_id:    publicacionId,
+                articulo_id:       articuloId
             }, { onConflict: 'orden_id,meli_item_id,meli_variation_id' })
             .select('id')
             .single();

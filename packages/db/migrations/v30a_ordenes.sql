@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS orden_items (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     orden_id            UUID NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
     meli_item_id        TEXT NOT NULL,
-    meli_variation_id   TEXT,
+    meli_variation_id   TEXT NOT NULL DEFAULT '0',  -- '0' = sin variación (igual que publicaciones_externas)
     titulo              TEXT,
     quantity            INTEGER NOT NULL,
     unit_price          NUMERIC(12,2) NOT NULL,
