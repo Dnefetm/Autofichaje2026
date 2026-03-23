@@ -170,11 +170,15 @@ async function handleSyncStock(job: any) {
         const pub = mapping.publicaciones_externas as any;
         const pubId = pub.id;
 
-                // Saltar publicaciones Full (el stock lo gestiona MeLi)
-        if (pub.logistic_type === 'fulfillment') {
-            logger.info({ sku, pubId, external_id: pub.external_item_id }, 'Saltando sync -- logistic_type=fulfillment');
-            continue;
-        }
+                            // Publicaciones Full: obtener stock real desde MeLi (no usar stock de bodega)
+            if (pub.logistic_type === 'fulfillment') {
+                const mlStock = await meliAdapter.getStock(pub.marketplace_id, pub.external_item_id);
+                logger.info({ sku, pubId, external_id: pub.external_item_id, mlStock }, 'Stock Full obtenido desde MeLi API');
+                await supabase.from('publicaciones_externas')
+                    .update({ stock_publicado: mlStock, actualizado_el: new Date().toISOString() })
+                    .eq('id', pubId);
+                continue;
+            }
 
         // Traer TODOS los componentes de esta publicación para calcular stock de kit
         const { data: allComponents } = await supabase
@@ -343,9 +347,13 @@ async function handleSyncStockMapped(job: any) {
         .single();
 
     if (pubErr || !pub) throw new Error(`Publicación externa no encontrada: ${publicacion_id}`);
-    // Saltar publicaciones Full (el stock lo gestiona MeLi)
+    // Publicaciones Full: obtener stock real desde MeLi (no usar stock de bodega)
     if (pub.logistic_type === 'fulfillment') {
-        logger.info({ publicacion_id, external_id: pub.external_item_id }, 'Saltando sync -- logistic_type=fulfillment');
+        const mlStock = await meliAdapter.getStock(pub.marketplace_id, pub.external_item_id);
+        logger.info({ publicacion_id, external_id: pub.external_item_id, mlStock }, 'Stock Full obtenido desde MeLi API');
+        await supabase.from('publicaciones_externas')
+            .update({ stock_publicado: mlStock, actualizado_el: new Date().toISOString() })
+            .eq('id', publicacion_id);
         return;
     }
 
