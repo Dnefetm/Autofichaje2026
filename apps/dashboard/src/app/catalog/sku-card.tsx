@@ -41,12 +41,7 @@ export function SkuCard({
 
     // Safety check arrays vs objects for inventory
     const snapshot = Array.isArray(product.inventory_snapshot) ? product.inventory_snapshot[0] : product.inventory_snapshot;
-        // Detectar si tiene publicaciones Full mapeadas
-        const mappings = Array.isArray(product.mapeo_publicacion_articulo) ? product.mapeo_publicacion_articulo : [];
-        const fullMappings = mappings.filter((m: any) => m.publicaciones_externas?.logistic_type === 'fulfillment');
-        const hasFullStock = fullMappings.length > 0;
-        const fullStock = fullMappings.reduce((sum: number, m: any) => sum + (m.publicaciones_externas?.stock_publicado || 0), 0);
-        const currentStock = hasFullStock ? fullStock : (snapshot?.physical_stock ?? 0);
+            const currentStock = snapshot?.physical_stock ?? 0;
 
     // String state permite al usuario borrar el campo completamente (input controlado)
     const [stockInput, setStockInput] = useState<string>(String(currentStock));
@@ -181,7 +176,7 @@ export function SkuCard({
                             "text-[10px] uppercase font-bold",
                             isLowStock ? "text-amber-500" : "text-slate-400"
                         )}>
-                            {hasFullStock ? 'Stock Full' : 'Stock Fisico'}
+                                            Stock Fisico
                         </p>
                     </div>
                     {editing ? (
