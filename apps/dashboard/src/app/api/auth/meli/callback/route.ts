@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabaseAdmin } from '@/lib/supabase';
+import { dispatchWorker } from '@/lib/dispatch-worker';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -91,6 +92,7 @@ export async function GET(request: Request) {
             scheduled_at: new Date().toISOString()
         });
         console.log(`[OAuth Callback] Worker despachado para sync catálogo con ID: ${marketplaceId}`);
+                await dispatchWorker(); // V31: trigger worker on-demand
         // ---------------------------------------------------------------------
 
         // Redirigir de vuelta a settings con éxito
