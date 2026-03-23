@@ -507,6 +507,45 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             if (pubError) throw pubError;
 
+
+                    // V30: Promover catalogo_derivada huérfanas a fuente de stock (padre ausente en publicaciones_externas)
+        // Esto cubre items de catálogo que fueron creados por MeLi sin publicación tradicional padre
+        const derivadasEnBatch = itemsPayload
+            .filter((r: any) => r.tipo_publicacion === 'catalogo_derivada' && r.id_publicacion_padre && r.external_variation_id === '0')
+            .map((r: any) => r.external_item_id);
+
+        if (derivadasEnBatch.length > 0) {
+            // Buscar cuáles de esas derivadas NO tienen padre como fuente de stock
+            const { data: padresFuente } = await supabase
+                .from('publicaciones_externas')
+                .select('external_item_id')
+                .eq('marketplace_id', accountId)
+                .eq('es_fuente_stock', true)
+                .in('external_item_id', [...new Set(itemsPayload.filter((r: any) => r.id_publicacion_padre).map((r: any) => r.id_publicacion_padre))]);
+
+            const padresConFuente = new Set((padresFuente || []).map((p: any) => p.external_item_id));
+
+            // Derivadas cuyo padre NO es fuente de stock → promover
+            const huerfanas = derivadasEnBatch.filter((itemId: string) => {
+                const row = itemsPayload.find((r: any) => r.external_item_id === itemId && r.external_variation_id === '0');
+                return row && !padresConFuente.has(row.id_publicacion_padre);
+            });
+
+            if (huerfanas.length > 0) {
+                const { error: promoError } = await supabase
+                    .from('publicaciones_externas')
+                    .update({ es_fuente_stock: true })
+                    .eq('marketplace_id', accountId)
+                    .in('external_item_id', huerfanas)
+                    .eq('external_variation_id', '0');
+
+                if (promoError) {
+                    logger.warn({ accountId, error: promoError.message }, 'Error promoviendo derivadas huérfanas a fuente de stock');
+                } else {
+                    logger.info({ accountId, count: huerfanas.length }, 'Derivadas huérfanas promovidas a fuente de stock');
+                }
+            }
+        }
             // V20: recalcular par_item_id para los items de este batch que tengan id_producto_catalogo
             const syncedItemIds = [...new Set(itemsPayload.map((r: any) => r.external_item_id))];
             if (syncedItemIds.length > 0) {
