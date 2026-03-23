@@ -272,7 +272,7 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
         return;
     }
 
-    const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas?.es_fuente_stock === true);
+    const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas // V30: sin filtro es_fuente_stock);
     if (fuentesStock.length === 0) return;
 
     const failedVitrinas: string[] = [];
@@ -399,7 +399,7 @@ async function handleSyncStockMapped(job: any, meli: MeliAdapter) {
         .eq('id', publicacion_id)
         .single();
 
-    if (!pub || !pub.es_fuente_stock) return;
+    if (!pub) return; // V30: sin filtro es_fuente_stock — si está mapeada, se sincroniza
 
     const { data: components } = await supabaseAdmin
         .from('mapeo_publicacion_articulo')
