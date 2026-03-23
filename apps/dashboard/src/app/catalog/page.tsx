@@ -78,7 +78,7 @@ export default function CatalogPage() {
                 caja_madre,
                   imagenes,
                   inventory_snapshot(physical_stock),
-                  mapeo_publicacion_articulo(publicacion_id)
+                  mapeo_publicacion_articulo(publicacion_id, publicaciones_externas(logistic_type, stock_publicado))
                 `, { count: 'exact' })
                 .order('creado_el', { ascending: false })
             .not('nombre', 'like', '%PLACEHOLDER%');
