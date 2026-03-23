@@ -11,7 +11,7 @@ export async function runReconciliation() {
         // 1. Obtener publicaciones que son fuente de stock y están mapeadas
         const { data: publicaciones, error } = await supabase
             .from('publicaciones_externas')
-            .select('id, marketplace_id, external_item_id, stock_publicado')
+            .select('id, marketplace_id, external_item_id, stock_publicado, logistic_type')
             .eq('es_fuente_stock', true)
             .eq('esta_mapeado', true);
 
@@ -25,6 +25,11 @@ export async function runReconciliation() {
 
         for (const pub of publicaciones) {
             try {
+                                // Saltar publicaciones Full (el stock lo gestiona MeLi)
+                                if (pub.logistic_type === 'fulfillment') {
+                                                        logger.info({ pub_id: pub.id }, 'Saltando reconciliacion -- fulfillment');
+                                                        continue;
+                                                    }
                 // 2. Calcular stock local basado en ensamble (Kit-Aware)
                 const { data: componentes } = await supabase
                     .from('mapeo_publicacion_articulo')
