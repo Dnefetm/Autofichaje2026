@@ -140,7 +140,8 @@ async function handleSyncStock(job: any) {
                 id,
                 marketplace_id,
                 external_item_id,
-                es_fuente_stock
+                es_fuente_stock,
+            logistic_type
             )
         `)
         .eq('articulo_id', sku);
@@ -168,6 +169,12 @@ async function handleSyncStock(job: any) {
     for (const mapping of fuentesStock) {
         const pub = mapping.publicaciones_externas as any;
         const pubId = pub.id;
+
+                // Saltar publicaciones Full (el stock lo gestiona MeLi)
+        if (pub.logistic_type === 'fulfillment') {
+            logger.info({ sku, pubId, external_id: pub.external_item_id }, 'Saltando sync -- logistic_type=fulfillment');
+            continue;
+        }
 
         // Traer TODOS los componentes de esta publicación para calcular stock de kit
         const { data: allComponents } = await supabase
@@ -331,11 +338,17 @@ async function handleSyncStockMapped(job: any) {
     // 1. Obtener publicación y verificar que es fuente de stock
     const { data: pub, error: pubErr } = await supabase
         .from('publicaciones_externas')
-        .select('marketplace_id, external_item_id, es_fuente_stock, tipo_publicacion')
+        .select('marketplace_id, external_item_id, es_fuente_stock, tipo_publicacio, logistic_typen')
         .eq('id', publicacion_id)
         .single();
 
     if (pubErr || !pub) throw new Error(`Publicación externa no encontrada: ${publicacion_id}`);
+    // Saltar publicaciones Full (el stock lo gestiona MeLi)
+    if (pub.logistic_type === 'fulfillment') {
+        logger.info({ publicacion_id, external_id: pub.external_item_id }, 'Saltando sync -- logistic_type=fulfillment');
+        return;
+    }
+
 
     if (false && !pub.es_fuente_stock) { // V30: desactivado — si está mapeada, se sincroniza
         logger.info({ publicacion_id, tipo: pub.tipo_publicacion }, 'Publicación no es fuente de stock (espejo/derivada). Omitiendo sync.');
