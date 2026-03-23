@@ -236,6 +236,34 @@ export class MeliAdapter implements MarketplaceAdapter {
             // Clasificar tipo de publicación (Tradicional, Catálogo, Derivada, etc.)
             const clasificacion = clasificarPublicacion(item);
 
+                    // Post-proceso: si es catalogo_derivada, verificar si su padre existe como fuente de stock
+        // Si el padre NO existe en publicaciones_externas o no es fuente, esta derivada asume el rol
+        if (clasificacion.tipo_publicacion === 'catalogo_derivada' && clasificacion.id_publicacion_padre) {
+            const { data: padreExiste } = await supabase
+                .from('publicaciones_externas')
+                .select('id, es_fuente_stock')
+                .eq('external_item_id', clasificacion.id_publicacion_padre)
+                .eq('marketplace_id', accountId)
+                .maybeSingle();
+
+            // Si el padre no existe o no es fuente de stock, esta derivada se convierte en fuente
+            if (!padreExiste || !padreExiste.es_fuente_stock) {
+                // Verificar que no haya OTRA derivada del mismo producto_catalogo ya marcada como fuente
+                const { data: otraFuente } = await supabase
+                    .from('publicaciones_externas')
+                    .select('id')
+                    .eq('id_producto_catalogo', clasificacion.id_producto_catalogo)
+                    .eq('es_fuente_stock', true)
+                    .eq('marketplace_id', accountId)
+                    .limit(1)
+                    .maybeSingle();
+
+                if (!otraFuente) {
+                    clasificacion.es_fuente_stock = true;
+                    logger.info({ itemId: item.id, tipo: 'catalogo_derivada_promovida' }, 'Derivada promovida a fuente de stock (padre ausente)');
+                }
+            }
+        }
             // 1. Insertar o actualizar la Vitrina en publicaciones_externas (Aislado del inventario físico)
             const { error: pubError } = await supabase.from('publicaciones_externas').upsert({
                 marketplace_id: accountId,
