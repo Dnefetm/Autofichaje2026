@@ -272,7 +272,7 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
         return;
     }
 
-    const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas // V30: sin filtro es_fuente_stock);
+        const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas); // V30: sin filtro es_fuente_stock
     if (fuentesStock.length === 0) return;
 
     const failedVitrinas: string[] = [];
