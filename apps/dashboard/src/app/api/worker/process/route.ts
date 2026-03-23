@@ -263,7 +263,7 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
         .from('mapeo_publicacion_articulo')
         .select(`
             publicacion_id, cantidad_requerida,
-            publicaciones_externas!inner (id, marketplace_id, external_item_id, es_fuente_stock, status_externo, sync_disabled)
+            publicaciones_externas!inner (id, marketplace_id, external_item_id, es_fuente_stock, status_externo, sync_disabled, logistic_type)
         `)
         .eq('articulo_id', sku);
 
@@ -288,6 +288,13 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
                 successCount++; // No contar como fallo
                 continue;
             }
+
+                        // Saltar publicaciones Full (el stock lo gestiona MeLi)
+                        if (pub.logistic_type === 'fulfillment') {
+                                            console.log(`[handleSyncStock] Saltando ${pub.external_item_id} -- logistic_type=fulfillment`);
+                                            successCount++;
+                                            continue;
+                                        }
 
             // Calcular stock kit-aware (dividir por cantidad_requerida)
             const { data: allComponents } = await supabaseAdmin
@@ -395,11 +402,17 @@ async function handleSyncStockMapped(job: any, meli: MeliAdapter) {
 
     const { data: pub } = await supabaseAdmin
         .from('publicaciones_externas')
-        .select('id, marketplace_id, external_item_id, es_fuente_stock')
+        .select('id, marketplace_id, external_item_id, es_fuente_stock, logistic_type')
         .eq('id', publicacion_id)
         .single();
 
     if (!pub) return; // V30: sin filtro es_fuente_stock — si está mapeada, se sincroniza
+
+        // Saltar publicaciones Full (el stock lo gestiona MeLi)
+        if (pub.logistic_type === 'fulfillment') {
+                    console.log(`[handleSyncStockMapped] Saltando ${pub.external_item_id} -- logistic_type=fulfillment`);
+                    return;
+                }
 
     const { data: components } = await supabaseAdmin
         .from('mapeo_publicacion_articulo')
