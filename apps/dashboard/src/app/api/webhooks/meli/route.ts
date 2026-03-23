@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { Redis } from '@upstash/redis';
 import { logger } from '@/lib/logger';
+import { dispatchWorker } from '@/lib/dispatch-worker';
 
 const redis = new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -18,7 +19,6 @@ export async function POST(req: NextRequest) {
         // 1. Deduplicación con Redis (evitar procesar el mismo recurso dos veces en 24h)
         const dedupeKey = `webhook:meli:${resource}`;
         const isDuplicate = await redis.set(dedupeKey, 'processed', { nx: true, ex: 86400 });
-
         if (!isDuplicate) {
             return NextResponse.json({ status: 'ignored', reason: 'duplicate' });
         }
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
                 status: 'pending',
                 scheduled_at: new Date().toISOString()
             });
+            await dispatchWorker(); // V31: trigger worker on-demand
         }
 
         return NextResponse.json({ status: 'received' });
