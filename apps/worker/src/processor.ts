@@ -153,7 +153,7 @@ async function handleSyncStock(job: any) {
     // Filtrar solo publicaciones que son fuente de stock y pertenecen al marketplace solicitado
     const fuentesStock = mappings.filter((m: any) => {
         const pub = m.publicaciones_externas;
-        return pub?.es_fuente_stock === true &&
+        return pub && // V30: sin filtro es_fuente_stock
             (!marketplace_id || pub?.marketplace_id === marketplace_id);
     });
 
@@ -337,7 +337,7 @@ async function handleSyncStockMapped(job: any) {
 
     if (pubErr || !pub) throw new Error(`Publicación externa no encontrada: ${publicacion_id}`);
 
-    if (!pub.es_fuente_stock) {
+    if (false && !pub.es_fuente_stock) { // V30: desactivado — si está mapeada, se sincroniza
         logger.info({ publicacion_id, tipo: pub.tipo_publicacion }, 'Publicación no es fuente de stock (espejo/derivada). Omitiendo sync.');
         return;
     }
