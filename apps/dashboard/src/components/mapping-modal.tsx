@@ -93,64 +93,85 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
     async function loadSmartSuggestions() {
         setSuggestionsLoading(true);
         try {
-            const ref = pubSku || pubEan || pubGtin || pubUpc || pubModel;
-            // Extraer palabras clave del titulo (>= 4 chars, sin palabras comunes)
-            const stopWords = new Set(['para', 'con', 'del', 'los', 'las', 'una', 'uno', 'que', 'por', 'pzs', 'pzas', 'pza', 'pieza', 'piezas', 'tipo', 'uso']);
-            const titleWords = pubTitle.split(/[\s,./()\-]+/).filter((w: string) => w.length >= 4 && !stopWords.has(w.toLowerCase()));
-            // Construir condiciones OR para la query
+            // Recopilar TODOS los identificadores de la publicacion
+            const allSkus = [listing?.seller_custom_field, listing?.seller_sku].filter(Boolean);
+            const allGtins = [listing?.gtin, listing?.ean, listing?.upc].filter(Boolean);
+            const allModels = [listing?.model].filter(Boolean);
+            const brand = listing?.brand || '';
+            const title = listing?.titulo || '';
+
+            // Construir query OR amplia
             const orParts: string[] = [];
-            if (ref) {
-                orParts.push(`articulo_id.ilike.%${ref}%`);
-                orParts.push(`sku.ilike.%${ref}%`);
-                orParts.push(`codigo_universal.ilike.%${ref}%`);
-                // SKU sin espacios
-                const refNoSpaces = ref.replace(/\s+/g, '');
-                if (refNoSpaces !== ref) {
-                    orParts.push(`articulo_id.ilike.%${refNoSpaces}%`);
-                    orParts.push(`sku.ilike.%${refNoSpaces}%`);
-                }
+            // Buscar por SKU en articulo_id, sku y modelo del articulo
+            for (const s of allSkus) {
+                orParts.push(`articulo_id.ilike.%${s}%`);
+                orParts.push(`sku.ilike.%${s}%`);
+                orParts.push(`modelo.ilike.%${s}%`);
+                orParts.push(`codigo_universal.ilike.%${s}%`);
             }
-            if (pubBrand) {
-                orParts.push(`marca.ilike.%${pubBrand}%`);
-                orParts.push(`nombre.ilike.%${pubBrand}%`);
+            // Buscar por modelo
+            for (const m of allModels) {
+                orParts.push(`modelo.ilike.%${m}%`);
+                orParts.push(`articulo_id.ilike.%${m}%`);
+                orParts.push(`sku.ilike.%${m}%`);
             }
-            // Agregar palabras clave del titulo (primeras 3)
-            for (const word of titleWords.slice(0, 3)) {
-                orParts.push(`nombre.ilike.%${word}%`);
+            // Buscar por GTIN/EAN en codigo_universal
+            for (const g of allGtins) {
+                orParts.push(`codigo_universal.ilike.%${g}%`);
             }
-            if (orParts.length === 0) {
-                setSuggestionsLoading(false);
-                return;
+            // Buscar por marca
+            if (brand) {
+                orParts.push(`marca.ilike.%${brand}%`);
             }
+
+            if (orParts.length === 0) { setSuggestionsLoading(false); return; }
+
             const { data, error } = await supabase
                 .from('articulos')
                 .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, sku, caja_madre')
                 .not('nombre', 'like', '%PLACEHOLDER%')
                 .or(orParts.join(','))
-                .limit(30);
+                .limit(50);
+
             if (error) throw error;
             if (data && data.length > 0) {
                 const scored = data.map(item => {
                     let score = 0;
-                    // Similitud de SKU/codigos
-                    if (ref) {
-                        score = Math.max(score,
-                            stringSimilarity(ref, item.articulo_id || ''),
-                            stringSimilarity(ref, item.sku || ''),
-                            stringSimilarity(ref, item.codigo_universal || '')
-                        );
+                    const iId = (item.articulo_id || '').toLowerCase();
+                    const iSku = (item.sku || '').toLowerCase();
+                    const iMod = (item.modelo || '').toLowerCase();
+                    const iCod = (item.codigo_universal || '').toLowerCase();
+                    const iMarca = (item.marca || '').toLowerCase();
+                    const iNombre = (item.nombre || '').toLowerCase();
+
+                    // PRIORIDAD 1: SKU exacto (+5) o parcial (+3)
+                    for (const s of allSkus) {
+                        const sl = s.toLowerCase();
+                        if (iId === sl || iSku === sl || iMod === sl) { score += 5; break; }
+                        if (iId.includes(sl) || iSku.includes(sl) || iMod.includes(sl)) { score += 3; break; }
                     }
-                    if (pubEan) score = Math.max(score, stringSimilarity(pubEan, item.codigo_universal || ''));
-                    if (pubGtin) score = Math.max(score, stringSimilarity(pubGtin, item.codigo_universal || ''));
-                    // Similitud de marca
-                    if (pubBrand && item.marca && pubBrand.toLowerCase() === item.marca.toLowerCase()) score += 0.25;
-                    // Similitud de titulo
-                    const titleSim = stringSimilarity(pubTitle, item.nombre || '');
-                    score = Math.max(score, titleSim);
+                    // PRIORIDAD 2: Modelo exacto (+4) o parcial (+2)
+                    for (const m of allModels) {
+                        const ml = m.toLowerCase();
+                        if (iMod === ml) { score += 4; break; }
+                        if (iMod.includes(ml) || iId.includes(ml)) { score += 2; break; }
+                    }
+                    // PRIORIDAD 3: GTIN/EAN match (+3)
+                    for (const g of allGtins) {
+                        const gl = g.toLowerCase().replace(/^0+/, '');
+                        const iCodClean = iCod.replace(/^0+/, '');
+                        if (iCodClean === gl || iCod === g.toLowerCase()) { score += 3; break; }
+                        if (iCodClean.includes(gl) || gl.includes(iCodClean)) { score += 2; break; }
+                    }
+                    // PRIORIDAD 4: Marca exacta (+1)
+                    if (brand && iMarca === brand.toLowerCase()) score += 1;
+                    // PRIORIDAD 5: Similitud de nombre (+0 a +0.5)
+                    score += stringSimilarity(title, item.nombre || '') * 0.5;
+
                     return { ...item, _score: score };
                 });
                 scored.sort((a, b) => b._score - a._score);
-                setSmartSuggestions(scored.filter(s => s._score > 0.15));
+                setSmartSuggestions(scored.filter(s => s._score > 0.5));
             }
         } catch (error) {
             console.error('Error cargando sugerencias:', error);
@@ -158,7 +179,6 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             setSuggestionsLoading(false);
         }
     }
-
     useEffect(() => {
         const debounce = setTimeout(() => {
             if (searchTerm.length >= 2) { searchPhysicalCatalog(); } else { setSearchResults([]); }
@@ -268,9 +288,9 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        {res._score >= 0.6 && <span className="text-[9px] bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full font-bold">Alta</span>}
-                                        {res._score >= 0.3 && res._score < 0.6 && <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Media</span>}
-                                        {res._score < 0.3 && <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">Baja</span>}
+                                        {res._score >= 3 && <span className="text-[9px] bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full font-bold">Alta</span>}
+                                        {res._score >= 1.5 && res._score < 3 && <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Media</span>}
+                                        {res._score < 1.5 && <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">Baja</span>}
                                         <span className="text-[10px] font-mono text-slate-400">{res.articulo_id}</span>
                                         <Plus size={14} className="text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </div>
