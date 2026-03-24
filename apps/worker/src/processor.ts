@@ -428,7 +428,7 @@ async function handleProcessSale(job: any) {
     const { data: configs } = await supabase
         .from('marketplace_configs')
         .select('id, settings')
-        .eq('marketplace', 'meli'); // Bug 1 fix: era 'marketplace_type'
+        .in('marketplace', ['meli', 'mercadolibre']); // Bug 1 fix: DB puede tener 'mercadolibre' (settings route lo inserta así)
 
     const config = (configs || []).find((c: any) =>
         String(c.settings?.seller_id) === String(user_id) // Bug 2 fix: era 'meli_user_id'

@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import {
     LayoutDashboard, Database, Activity, Settings,
     Package, PlusCircle, RefreshCcw, Store,
-    ChevronLeft, ChevronRight,
+    ChevronLeft, ChevronRight, ShoppingCart,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -14,6 +14,7 @@ export default function Sidebar() {
         { name: 'Dashboard',       icon: LayoutDashboard, href: '/' },
         { name: 'Catálogo Maestro', icon: Package,         href: '/catalog' },
         { name: 'Vitrinas MeLi',   icon: Store,            href: '/catalog/external' },
+        { name: 'Ventas',          icon: ShoppingCart,     href: '/ventas' },
         { name: 'Crear con IA',    icon: PlusCircle,       href: '/autoficha' },
         { name: 'Monitor Sync',    icon: Activity,         href: '/monitor' },
         { name: 'Operaciones',     icon: Database,         href: '/operations' },
