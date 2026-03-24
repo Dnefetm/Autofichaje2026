@@ -262,13 +262,13 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                                             {res.marca && <span className="text-[10px] text-slate-500">{res.marca}</span>}
                                             {res.sku && <span className="text-[10px] font-mono text-amber-600 bg-amber-50 px-1 rounded">SKU: {res.sku}</span>}
                                             {res.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {res.codigo_universal}</span>}
+                                                                        {res.modelo && <span className="text-[10px] text-slate-400">Mod: {res.modelo}</span>}
+                                                                        {res.variante && <span className="text-[10px] text-slate-400">Var: {res.variante}</span>}
+                                                                        {res.caja_madre && <span className="text-[10px] text-slate-400">Caja: {res.caja_madre}</span>}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {res._score >= 0.6 && <span className="text-[9px] bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full font-bold">Alta</span>}
-                                                                                    {res.modelo && <span className="text-[10px] text-slate-400">Mod: {res.modelo}</span>}
-                                            {res.variante && <span className="text-[10px] text-slate-400">Var: {res.variante}</span>}
-                                            {res.caja_madre && <span className="text-[10px] text-slate-400">Caja: {res.caja_madre}</span>}
                                         {res._score >= 0.3 && res._score < 0.6 && <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Media</span>}
                                         {res._score < 0.3 && <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">Baja</span>}
                                         <span className="text-[10px] font-mono text-slate-400">{res.articulo_id}</span>
