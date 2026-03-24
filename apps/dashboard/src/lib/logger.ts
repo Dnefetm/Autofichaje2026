@@ -13,3 +13,5 @@ export const logger = {
         console.debug(`[DEBUG] ${msg || ''}`, obj);
     },
 };
+
+export default logger;
