@@ -98,25 +98,38 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             const allGtins = [listing?.gtin, listing?.ean, listing?.upc].filter(Boolean);
             const allModels = [listing?.model].filter(Boolean);
             const brand = listing?.brand || '';
+                        // Enriquecer con datos de variaciones (el parent puede tener NULLs)
+            const { data: varData } = await supabase
+                .from('publicaciones_externas')
+                .select('seller_sku, model, gtin, ean, upc')
+                .eq('external_item_id', listing.external_item_id)
+                .neq('external_variation_id', '0');
+            const varSkus = (varData || []).map((v: any) => v.seller_sku).filter(Boolean);
+            const varGtins = (varData || []).flatMap((v: any) => [v.gtin, v.ean, v.upc]).filter(Boolean);
+            const varModels = (varData || []).map((v: any) => v.model).filter(Boolean);
+                        // Combinar datos del parent + variaciones (sin duplicados)
+            const combinedSkus = [...new Set([...allSkus, ...varSkus])];
+            const combinedGtins = [...new Set([...allGtins, ...varGtins])];
+            const combinedModels = [...new Set([...allModels, ...varModels])];
             const title = listing?.titulo || '';
 
             // Construir query OR amplia
             const orParts: string[] = [];
             // Buscar por SKU en articulo_id, sku y modelo del articulo
-            for (const s of allSkus) {
+            for (const s of combinedSkus) {
                 orParts.push(`articulo_id.ilike.%${s}%`);
                 orParts.push(`sku.ilike.%${s}%`);
                 orParts.push(`modelo.ilike.%${s}%`);
                 orParts.push(`codigo_universal.ilike.%${s}%`);
             }
             // Buscar por modelo
-            for (const m of allModels) {
+            for (const m of combinedModels) {
                 orParts.push(`modelo.ilike.%${m}%`);
                 orParts.push(`articulo_id.ilike.%${m}%`);
                 orParts.push(`sku.ilike.%${m}%`);
             }
             // Buscar por GTIN/EAN en codigo_universal
-            for (const g of allGtins) {
+            for (const g of combinedGtins) {
                 orParts.push(`codigo_universal.ilike.%${g}%`);
             }
             // Buscar por marca
@@ -145,19 +158,19 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                     const iNombre = (item.nombre || '').toLowerCase();
 
                     // PRIORIDAD 1: SKU exacto (+5) o parcial (+3)
-                    for (const s of allSkus) {
+                    for (const s of combinedSkus) {
                         const sl = s.toLowerCase();
                         if (iId === sl || iSku === sl || iMod === sl) { score += 5; break; }
                         if (iId.includes(sl) || iSku.includes(sl) || iMod.includes(sl)) { score += 3; break; }
                     }
                     // PRIORIDAD 2: Modelo exacto (+4) o parcial (+2)
-                    for (const m of allModels) {
+                    for (const m of combinedModels) {
                         const ml = m.toLowerCase();
                         if (iMod === ml) { score += 4; break; }
                         if (iMod.includes(ml) || iId.includes(ml)) { score += 2; break; }
                     }
                     // PRIORIDAD 3: GTIN/EAN match (+3)
-                    for (const g of allGtins) {
+                    for (const g of combinedGtins) {
                         const gl = g.toLowerCase().replace(/^0+/, '');
                         const iCodClean = iCod.replace(/^0+/, '');
                         if (iCodClean === gl || iCod === g.toLowerCase()) { score += 3; break; }
