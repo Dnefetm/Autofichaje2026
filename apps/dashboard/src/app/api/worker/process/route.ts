@@ -5,6 +5,7 @@ import { MeliTokenManager } from '@gestor/adapters/meli-tokens';
 import { SKU_Service } from '@gestor/shared/sku-service';
 import { AutomationManager } from '@gestor/sync/automations';
 import { runReconciliation } from '@gestor/sync/reconciliation';
+import logger from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Vercel Hobby permite hasta 60s
@@ -14,7 +15,7 @@ const BATCH_SIZE = 3; // Conservador para evitar rate limits de MeLi
 /**
  * Worker Cron Endpoint — Reemplaza el polling de Render.
  * Invocado cada 1 minuto por cron-job.org.
- * 
+ *
  * Seguridad: requiere header Authorization: Bearer <CRON_SECRET>
  * Concurrencia: claim_jobs RPC usa FOR UPDATE SKIP LOCKED — seguro ante invocaciones paralelas.
  */
@@ -43,7 +44,6 @@ export async function GET(req: NextRequest) {
             .delete({ count: 'exact' })
             .in('status', ['failed', 'completed'])
             .lt('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-
         results.ttlCleaned = cleanedCount || 0;
 
         // 3. Refresh proactivo de tokens próximos a expirar (< 10 min)
@@ -55,8 +55,8 @@ export async function GET(req: NextRequest) {
         }
 
         // 4. Claim y procesar batch de jobs
-        const { data: jobs, error: claimError } = await supabaseAdmin.rpc('claim_jobs', { 
-            batch_size_limit: BATCH_SIZE 
+        const { data: jobs, error: claimError } = await supabaseAdmin.rpc('claim_jobs', {
+            batch_size_limit: BATCH_SIZE
         });
 
         if (claimError) {
@@ -69,9 +69,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Procesar jobs SECUENCIALMENTE con delay entre cada uno
-        // (Promise.allSettled causaba ráfagas que saturaban el rate limiter)
         const meliAdapter = new MeliAdapter();
-
         for (const job of jobs) {
             try {
                 await processOneJob(job, meliAdapter);
@@ -79,13 +77,12 @@ export async function GET(req: NextRequest) {
             } catch (err: any) {
                 results.jobResults.push({ id: job.id, type: job.type, status: 'error', error: err.message });
             }
-
             // 3 segundos de respiro entre jobs para no saturar MeLi
             await new Promise(r => setTimeout(r, 3000));
         }
         results.jobsProcessed = jobs.length;
 
-        // 5. Reconciliación periódica (~cada 30 min, ventana de 2 min por si cron tiene latencia)
+        // 5. Reconciliación periódica (~cada 30 min)
         const currentMinute = new Date().getMinutes();
         if (currentMinute % 30 < 2) {
             try {
@@ -95,7 +92,6 @@ export async function GET(req: NextRequest) {
                 results.errors.push(`Reconciliation failed: ${reconErr.message}`);
             }
         }
-
     } catch (err: any) {
         results.errors.push(`Fatal: ${err.message}`);
     }
@@ -107,7 +103,7 @@ export async function GET(req: NextRequest) {
 // Procesamiento de un solo job
 // ========================================
 async function processOneJob(job: any, meli: MeliAdapter) {
-    // Protección anti-zombis: si el job ya agotó sus intentos, matarlo inmediatamente
+    // Protección anti-zombis
     const maxAttempts = job.max_attempts || 10;
     if ((job.attempts || 0) >= maxAttempts) {
         await supabaseAdmin.from('jobs').update({
@@ -141,7 +137,6 @@ async function processOneJob(job: any, meli: MeliAdapter) {
                 await meli.syncCatalogItem(job.payload.marketplace_id, job.payload.external_item_id);
                 break;
             case 'sync_account_catalog': {
-                // Sync completo de una cuenta — se crea al re-vincular OAuth
                 const accountId = job.payload.marketplace_id;
                 const itemIds = await meli.getAccountItems(accountId);
                 console.log(`[sync_account_catalog] Syncing ${itemIds.length} items for account ${accountId}`);
@@ -151,27 +146,24 @@ async function processOneJob(job: any, meli: MeliAdapter) {
                     } catch (err: any) {
                         console.warn(`[sync_account_catalog] Failed to sync ${itemId}:`, err.message);
                     }
-                    // Throttle: 1 segundo entre items para no saturar MeLi
                     await new Promise(r => setTimeout(r, 1000));
                 }
                 break;
             }
+            case 'process_sale':
+                await handleProcessSale(job, meli);
+                break;
             default:
                 throw new Error(`Tipo de job no soportado: ${job.type}`);
         }
 
         // Marcar completado
         await supabaseAdmin.from('jobs').update({ status: 'completed' }).eq('id', job.id);
-
     } catch (error: any) {
         const errMessage = (error.message || JSON.stringify(error)).toLowerCase();
 
-        // Auth/permission errors (403, forbidden) → fallo inmediato, no reintentar
-        // Estos no se arreglan solos — requieren re-autenticación manual
-        const isAuthError = errMessage.includes('403') ||
-            errMessage.includes('forbidden') ||
-            errMessage.includes('not authorized') ||
-            errMessage.includes('token expirado') ||
+        const isAuthError = errMessage.includes('403') || errMessage.includes('forbidden') ||
+            errMessage.includes('not authorized') || errMessage.includes('token expirado') ||
             errMessage.includes('no se pudo renovar');
 
         if (isAuthError) {
@@ -183,10 +175,7 @@ async function processOneJob(job: any, meli: MeliAdapter) {
             return;
         }
 
-        // Items no modificables (fulfillment, catálogo bloqueado) → fallo inmediato
-        const isNotModifiable = errMessage.includes('not_modifiable') ||
-            errMessage.includes('not modifiable');
-
+        const isNotModifiable = errMessage.includes('not_modifiable') || errMessage.includes('not modifiable');
         if (isNotModifiable) {
             await supabaseAdmin.from('jobs').update({
                 status: 'failed',
@@ -196,29 +185,22 @@ async function processOneJob(job: any, meli: MeliAdapter) {
             return;
         }
 
-        // Rate Limit detection — covers internal rate limiter AND MeLi HTTP 429
-        const isRateLimit = errMessage.includes('rate limit') ||
-            errMessage.includes('too_many_requests') ||
-            errMessage.includes('429') ||
-            errMessage.includes('too many requests');
+        const isRateLimit = errMessage.includes('rate limit') || errMessage.includes('too_many_requests') ||
+            errMessage.includes('429') || errMessage.includes('too many requests');
 
         if (isRateLimit) {
             const attempts = (job.attempts || 0) + 1;
             const maxRateLimitRetries = 10;
-
             if (attempts >= maxRateLimitRetries) {
                 await supabaseAdmin.from('jobs').update({
-                    status: 'failed',
-                    attempts,
+                    status: 'failed', attempts,
                     error_log: `Rate Limit persistente tras ${attempts} intentos. Abortado.`
                 }).eq('id', job.id);
                 return;
             }
-
             const backoffMs = Math.min(attempts * 2 * 60 * 1000, 15 * 60 * 1000);
             await supabaseAdmin.from('jobs').update({
-                status: 'pending',
-                attempts,
+                status: 'pending', attempts,
                 scheduled_at: new Date(Date.now() + backoffMs).toISOString(),
                 error_log: `Rate Limit. Reintento ${attempts}/${maxRateLimitRetries} en ${Math.round(backoffMs/60000)}min.`
             }).eq('id', job.id);
@@ -228,7 +210,6 @@ async function processOneJob(job: any, meli: MeliAdapter) {
         // Fallo normal con retry exponencial
         const nextAttempt = (job.attempts || 0) + 1;
         const isFinal = nextAttempt >= (job.max_attempts || 5);
-
         await supabaseAdmin.from('jobs').update({
             status: isFinal ? 'failed' : 'pending',
             attempts: nextAttempt,
@@ -239,22 +220,19 @@ async function processOneJob(job: any, meli: MeliAdapter) {
         if (isFinal) {
             try {
                 await supabaseAdmin.from('system_alerts').insert({
-                    level: 'warning',
-                    type: 'job_dlq',
+                    level: 'warning', type: 'job_dlq',
                     message: `Job ${job.id} (${job.type}) fracasó tras ${nextAttempt} intentos.`,
                     metadata: { job_id: job.id, final_error: error.message }
                 });
             } catch (_) { /* No fallar si system_alerts no existe */ }
         }
-
         throw error;
     }
 }
 
 // ========================================
-// Handlers (misma lógica que processor.ts del worker de Render)
+// Handlers
 // ========================================
-
 async function handleSyncStock(job: any, meli: MeliAdapter) {
     const { sku } = job.payload;
     const availableStock = await SKU_Service.calculateAvailableStock(sku);
@@ -267,12 +245,9 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
         `)
         .eq('articulo_id', sku);
 
-    if (!mappings || mappings.length === 0) {
-        // No hay mapeos — nada que sincronizar a MeLi, pero el stock local ya está guardado
-        return;
-    }
+    if (!mappings || mappings.length === 0) return;
 
-        const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas); // V30: sin filtro es_fuente_stock
+    const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas);
     if (fuentesStock.length === 0) return;
 
     const failedVitrinas: string[] = [];
@@ -280,23 +255,10 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
 
     for (const mapping of fuentesStock) {
         const pub = mapping.publicaciones_externas as any;
-
         try {
-            // Saltar publicaciones deshabilitadas permanentemente (fulfillment, catálogo)
-            if (pub.sync_disabled === true) {
-                console.log(`[handleSyncStock] Saltando ${pub.external_item_id} — sync_disabled=true`);
-                successCount++; // No contar como fallo
-                continue;
-            }
+            if (pub.sync_disabled === true) { successCount++; continue; }
+            if (pub.logistic_type === 'fulfillment') { successCount++; continue; }
 
-                        // Saltar publicaciones Full (el stock lo gestiona MeLi)
-                        if (pub.logistic_type === 'fulfillment') {
-                                            console.log(`[handleSyncStock] Saltando ${pub.external_item_id} -- logistic_type=fulfillment`);
-                                            successCount++;
-                                            continue;
-                                        }
-
-            // Calcular stock kit-aware (dividir por cantidad_requerida)
             const { data: allComponents } = await supabaseAdmin
                 .from('mapeo_publicacion_articulo')
                 .select('articulo_id, cantidad_requerida')
@@ -310,115 +272,63 @@ async function handleSyncStock(job: any, meli: MeliAdapter) {
                     maxKits = Math.min(maxKits, Math.floor(compStock / comp.cantidad_requerida));
                 }
             }
-
             const finalStock = Math.max(0, maxKits);
 
-            // Enviar a MeLi
             const results = await meli.updateStock(pub.marketplace_id, [{ itemId: pub.external_item_id, quantity: finalStock }]);
             const errors = results.filter((r: any) => r.status === 'error');
             if (errors.length > 0) {
                 const firstError = errors[0].error;
-                const errMsg = typeof firstError === 'object' ? JSON.stringify(firstError) : firstError;
-                throw new Error(`MeLi API: ${errMsg}`);
+                throw new Error(`MeLi API: ${typeof firstError === 'object' ? JSON.stringify(firstError) : firstError}`);
             }
 
-            // Actualizar stock local en publicaciones_externas
             const updateData: any = { stock_publicado: finalStock, actualizado_el: new Date().toISOString() };
-
-            // Auto-activar si hay stock y está pausada
             if (finalStock > 0 && pub.status_externo === 'paused') {
-                try {
-                    await meli.activateListing(pub.marketplace_id, pub.external_item_id);
-                    updateData.status_externo = 'active';
-                    console.log(`[handleSyncStock] Vitrina ${pub.external_item_id} reactivada (stock: ${finalStock})`);
-                } catch (activateErr: any) {
-                    console.warn(`[handleSyncStock] No se pudo reactivar ${pub.external_item_id}:`, activateErr.message);
-                }
+                try { await meli.activateListing(pub.marketplace_id, pub.external_item_id); updateData.status_externo = 'active'; } catch (_) {}
             }
-
-            // Auto-pausar si no hay stock y está activa
             if (finalStock === 0 && pub.status_externo === 'active') {
-                try {
-                    await meli.pauseListing(pub.marketplace_id, pub.external_item_id);
-                    updateData.status_externo = 'paused';
-                    console.log(`[handleSyncStock] Vitrina ${pub.external_item_id} pausada (stock: 0)`);
-                } catch (pauseErr: any) {
-                    console.warn(`[handleSyncStock] No se pudo pausar ${pub.external_item_id}:`, pauseErr.message);
-                }
+                try { await meli.pauseListing(pub.marketplace_id, pub.external_item_id); updateData.status_externo = 'paused'; } catch (_) {}
             }
-
-            await supabaseAdmin.from('publicaciones_externas')
-                .update(updateData)
-                .eq('id', pub.id);
-
+            await supabaseAdmin.from('publicaciones_externas').update(updateData).eq('id', pub.id);
             successCount++;
         } catch (err: any) {
             const errMsg = err.message || '';
-
-            // Si MeLi rechaza permanentemente (fulfillment/catálogo) → marcar sync_disabled
             if (errMsg.toLowerCase().includes('not_modifiable') || errMsg.toLowerCase().includes('not modifiable')) {
-                console.warn(`[handleSyncStock] ${pub.external_item_id} es no-modificable — marcando sync_disabled=true`);
-                await supabaseAdmin.from('publicaciones_externas').update({
-                    sync_disabled: true,
-                    sync_disabled_reason: `MeLi rechaza modificación: ${errMsg.slice(0, 200)}`
-                }).eq('id', pub.id);
-                successCount++; // No es un fallo del sistema, es una limitación de MeLi
-                continue;
+                await supabaseAdmin.from('publicaciones_externas').update({ sync_disabled: true, sync_disabled_reason: `MeLi rechaza modificación: ${errMsg.slice(0, 200)}` }).eq('id', pub.id);
+                successCount++; continue;
             }
-
-            // Registrar fallo pero CONTINUAR con las demás vitrinas
             failedVitrinas.push(`${pub.external_item_id}: ${errMsg}`);
-            console.warn(`[handleSyncStock] Fallo vitrina ${pub.external_item_id}, continuando:`, errMsg);
         }
     }
-
-    // Si TODAS fallaron, lanzar error para que el job haga retry
     if (successCount === 0 && failedVitrinas.length > 0) {
         throw new Error(`Todas las vitrinas fallaron: ${failedVitrinas.join(' | ')}`);
     }
-    // Si algunas fallaron pero otras sí: el job se marca como completed (arriba)
-    // Las vitrinas fallidas se reintentan en el próximo ciclo del cron
 }
 
 async function handleSyncPrice(job: any, meli: MeliAdapter) {
     const { publicacion_id } = job.payload;
-
     const { data: pub } = await supabaseAdmin
         .from('publicaciones_externas')
         .select('marketplace_id, external_item_id, precio_venta')
         .eq('id', publicacion_id)
         .single();
-
     if (!pub) return;
-
-    await meli.updatePrice(pub.marketplace_id, [{
-        itemId: pub.external_item_id,
-        price: pub.precio_venta
-    }]);
+    await meli.updatePrice(pub.marketplace_id, [{ itemId: pub.external_item_id, price: pub.precio_venta }]);
 }
 
 async function handleSyncStockMapped(job: any, meli: MeliAdapter) {
     const { publicacion_id } = job.payload;
-
     const { data: pub } = await supabaseAdmin
         .from('publicaciones_externas')
         .select('id, marketplace_id, external_item_id, es_fuente_stock, logistic_type')
         .eq('id', publicacion_id)
         .single();
-
-    if (!pub) return; // V30: sin filtro es_fuente_stock — si está mapeada, se sincroniza
-
-        // Saltar publicaciones Full (el stock lo gestiona MeLi)
-        if (pub.logistic_type === 'fulfillment') {
-                    console.log(`[handleSyncStockMapped] Saltando ${pub.external_item_id} -- logistic_type=fulfillment`);
-                    return;
-                }
+    if (!pub) return;
+    if (pub.logistic_type === 'fulfillment') return;
 
     const { data: components } = await supabaseAdmin
         .from('mapeo_publicacion_articulo')
         .select('articulo_id, cantidad_requerida')
         .eq('publicacion_id', publicacion_id);
-
     if (!components || components.length === 0) return;
 
     let maxKits = 999999;
@@ -426,10 +336,241 @@ async function handleSyncStockMapped(job: any, meli: MeliAdapter) {
         const compStock = await SKU_Service.calculateAvailableStock(comp.articulo_id);
         maxKits = Math.min(maxKits, Math.floor(compStock / comp.cantidad_requerida));
     }
-
     const finalStock = Math.max(0, maxKits);
     await meli.updateStock(pub.marketplace_id, [{ itemId: pub.external_item_id, quantity: finalStock }]);
     await supabaseAdmin.from('publicaciones_externas')
         .update({ stock_publicado: finalStock, actualizado_el: new Date().toISOString() })
         .eq('id', pub.id);
+}
+
+// ========================================
+// V31: Handler process_sale (portado de apps/worker/src/processor.ts)
+// ========================================
+async function handleProcessSale(job: any, meli: MeliAdapter) {
+    const { resource, user_id } = job.payload;
+
+    // Extraer order_id del resource "/orders/12345678"
+    const orderIdMatch = String(resource).match(/\/orders\/(\d+)/);
+    if (!orderIdMatch) {
+        logger.warn({ resource }, 'process_sale: no se pudo extraer order_id del resource');
+        return;
+    }
+    const meliOrderId = parseInt(orderIdMatch[1], 10);
+
+    // 1. Buscar cuenta (marketplace_id) por meli_user_id en settings
+    const { data: configs } = await supabaseAdmin
+        .from('marketplace_configs')
+        .select('id, settings')
+        .in('marketplace', ['meli', 'mercadolibre']);
+
+    const config = (configs || []).find((c: any) =>
+        String(c.settings?.seller_id) === String(user_id)
+    );
+
+    if (!config) {
+        logger.warn({ user_id }, 'process_sale: no se encontró marketplace_config para meli_user_id');
+        await supabaseAdmin.from('system_alerts').insert({
+            level: 'warning', type: 'orders_sync',
+            message: `Orden ${meliOrderId} recibida pero no hay cuenta MeLi configurada para user_id ${user_id}`,
+            metadata: { meli_order_id: meliOrderId, meli_user_id: user_id }
+        });
+        return;
+    }
+    const marketplaceId = config.id;
+
+    // 2. Obtener detalle completo de la orden desde MeLi
+    const accessToken = await (meli as any).getAccessToken(marketplaceId);
+    const orderResp = await fetch(
+        `https://api.mercadolibre.com/orders/${meliOrderId}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!orderResp.ok) {
+        throw new Error(`MeLi API order fetch failed: HTTP ${orderResp.status}`);
+    }
+    const order = await orderResp.json();
+
+    // 3. Determinar logistic_type desde publicaciones_externas (primer item)
+    const firstItemId = order.order_items?.[0]?.item?.id;
+    let shippingLogisticType: string | null = null;
+    if (firstItemId) {
+        const { data: pub } = await supabaseAdmin
+            .from('publicaciones_externas')
+            .select('logistic_type')
+            .eq('external_item_id', firstItemId)
+            .eq('marketplace_id', marketplaceId)
+            .eq('external_variation_id', '0')
+            .maybeSingle();
+        shippingLogisticType = pub?.logistic_type ?? null;
+    }
+
+    // 4. Upsert en tabla ordenes
+    const { data: ordenUpserted, error: ordenErr } = await supabaseAdmin
+        .from('ordenes')
+        .upsert({
+            marketplace_id: marketplaceId,
+            meli_order_id: order.id,
+            pack_id: order.pack_id ?? null,
+            status: order.status,
+            date_created: order.date_created,
+            date_closed: order.date_closed ?? null,
+            buyer_id: order.buyer?.id,
+            total_amount: order.total_amount,
+            paid_amount: order.paid_amount ?? null,
+            currency_id: order.currency_id ?? 'MXN',
+            shipping_id: order.shipping?.id ?? null,
+            shipping_logistic_type: shippingLogisticType,
+            buying_mode: order.buying_mode ?? null,
+            tags: order.tags ?? [],
+            raw_json: order,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'marketplace_id,meli_order_id' })
+        .select('id, status')
+        .single();
+
+    if (ordenErr || !ordenUpserted) {
+        throw new Error(`Error en upsert de orden ${meliOrderId}: ${ordenErr?.message}`);
+    }
+    const ordenId = ordenUpserted.id;
+    logger.info({ meliOrderId, ordenId, status: order.status }, 'Orden procesada/actualizada');
+
+    // 5. Si la orden fue cancelada: liberar reservaciones activas
+    if (order.status === 'cancelled') {
+        const { data: itemsToFree } = await supabaseAdmin
+            .from('orden_items')
+            .select('id')
+            .eq('orden_id', ordenId);
+        const itemIdsToFree = (itemsToFree || []).map((i: any) => i.id);
+        if (itemIdsToFree.length > 0) {
+            await supabaseAdmin
+                .from('reservaciones_stock')
+                .update({ estado: 'liberada', updated_at: new Date().toISOString() })
+                .eq('estado', 'activa')
+                .in('orden_item_id', itemIdsToFree);
+        }
+        logger.info({ ordenId }, 'Reservaciones liberadas por cancelación');
+        return;
+    }
+
+    // 6. Procesar cada order_item
+    for (const item of (order.order_items || [])) {
+        const meliItemId = item.item?.id;
+        const variationId = item.item?.variation_id ? String(item.item.variation_id) : null;
+        const quantity = item.quantity;
+        const unitPrice = item.unit_price;
+        const fullUnitPrice = item.full_unit_price ?? null;
+        const sellerSku = item.item?.seller_sku || item.item?.seller_custom_field || null;
+        if (!meliItemId) continue;
+
+        const variationQuery = variationId ?? '0';
+        const variationUpsert = variationId ?? '0';
+
+        // Resolver publicacion_id
+        let publicacionId: string | null = null;
+        let articuloId: string | null = null;
+
+        const { data: pubRow } = await supabaseAdmin
+            .from('publicaciones_externas')
+            .select('id')
+            .eq('marketplace_id', marketplaceId)
+            .eq('external_item_id', meliItemId)
+            .eq('external_variation_id', variationQuery)
+            .maybeSingle();
+
+        const pubResult = pubRow ?? (variationId ? (await supabaseAdmin.from('publicaciones_externas').select('id')
+            .eq('marketplace_id', marketplaceId)
+            .eq('external_item_id', meliItemId)
+            .eq('external_variation_id', '0')
+            .maybeSingle()).data : null);
+
+        publicacionId = pubResult?.id ?? null;
+
+        if (publicacionId) {
+            const { data: mapRow } = await supabaseAdmin
+                .from('mapeo_publicacion_articulo')
+                .select('articulo_id')
+                .eq('publicacion_id', publicacionId)
+                .maybeSingle();
+            articuloId = mapRow?.articulo_id ?? null;
+        }
+
+        if (!publicacionId) {
+            await supabaseAdmin.from('system_alerts').insert({
+                level: 'info', type: 'orders_sync',
+                message: `Item MeLi ${meliItemId} de orden ${meliOrderId} no tiene publicación mapeada en el Gestor`,
+                metadata: { meli_item_id: meliItemId, meli_order_id: meliOrderId }
+            });
+        }
+
+        // Upsert orden_item
+        const { data: ordenItem, error: itemErr } = await supabaseAdmin
+            .from('orden_items')
+            .upsert({
+                orden_id: ordenId,
+                meli_item_id: meliItemId,
+                meli_variation_id: variationUpsert,
+                titulo: item.item?.title ?? null,
+                quantity,
+                unit_price: unitPrice,
+                full_unit_price: fullUnitPrice,
+                seller_sku: sellerSku,
+                publicacion_id: publicacionId,
+                articulo_id: articuloId
+            }, { onConflict: 'orden_id,meli_item_id,meli_variation_id' })
+            .select('id')
+            .single();
+
+        if (itemErr || !ordenItem) {
+            logger.error({ meliItemId, itemErr }, 'Error en upsert de orden_item');
+            continue;
+        }
+
+        // 7. Crear reservación de stock (solo si no-Fulfillment, artículo resuelto, orden pagada)
+        const esFulfillment = shippingLogisticType === 'fulfillment';
+        if (!esFulfillment && articuloId && order.status === 'paid') {
+            const { data: existingReserv } = await supabaseAdmin
+                .from('reservaciones_stock')
+                .select('id')
+                .eq('orden_item_id', ordenItem.id)
+                .eq('estado', 'activa')
+                .maybeSingle();
+
+            if (!existingReserv) {
+                await supabaseAdmin.from('reservaciones_stock').insert({
+                    orden_item_id: ordenItem.id,
+                    articulo_id: articuloId,
+                    cantidad: quantity,
+                    estado: 'activa'
+                });
+                logger.info({ articuloId, quantity }, 'Reservación de stock creada');
+            }
+        }
+
+        // 8. Si la orden está entregada (tag 'delivered'): consumir reservación y crear egreso
+        const isDelivered = (order.tags || []).includes('delivered');
+        if (isDelivered && articuloId) {
+            await supabaseAdmin
+                .from('reservaciones_stock')
+                .update({ estado: 'consumida', updated_at: new Date().toISOString() })
+                .eq('orden_item_id', ordenItem.id)
+                .eq('estado', 'activa');
+
+            const referenciaEgreso = `meli_${meliOrderId}_${meliItemId}`;
+            const { data: existingEgreso } = await supabaseAdmin
+                .from('egresos')
+                .select('id')
+                .eq('notas', referenciaEgreso)
+                .maybeSingle();
+
+            if (!existingEgreso) {
+                await supabaseAdmin.from('egresos').insert({
+                    articulo_id: articuloId,
+                    cantidad: quantity,
+                    tipo_egreso: 'venta',
+                    notas: referenciaEgreso,
+                    fecha: order.date_closed ?? new Date().toISOString()
+                });
+                logger.info({ articuloId, quantity, meliOrderId }, 'Egreso creado por entrega de orden MeLi');
+            }
+        }
+    }
 }
