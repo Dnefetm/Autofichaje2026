@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import {
     ShoppingCart, CheckCircle2, XCircle, Clock, Loader2,
-    AlertTriangle, RefreshCw, ChevronDown, ChevronUp,
-    Truck, Package, Store, Printer, Box, Tag
+    RefreshCw, ChevronDown, ChevronUp,
+    Truck, Package, Store, Printer, Box, Warehouse
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,16 +34,27 @@ interface Orden {
 /* ───── Config maps ───── */
 const STATUS_CFG: Record<string, { label: string; color: string; Icon: any }> = {
     paid:               { label: "Pagada",          color: "bg-emerald-100 text-emerald-700", Icon: CheckCircle2 },
-    cancelled:          { label: "Cancelada",       color: "bg-rose-100 text-rose-700",      Icon: XCircle },
-    confirmed:          { label: "Confirmada",      color: "bg-blue-100 text-blue-700",      Icon: Clock },
-    payment_in_process: { label: "Procesando pago", color: "bg-amber-100 text-amber-700",    Icon: Clock },
+    cancelled:          { label: "Cancelada",       color: "bg-rose-100 text-rose-700",       Icon: XCircle },
+    confirmed:          { label: "Confirmada",      color: "bg-blue-100 text-blue-700",       Icon: Clock },
+    payment_in_process: { label: "Procesando pago", color: "bg-amber-100 text-amber-700",     Icon: Clock },
 };
+
 const SHIP_CFG: Record<string, { label: string; color: string; Icon: any }> = {
     pending:       { label: "Etiqueta por imprimir", color: "bg-yellow-100 text-yellow-800", Icon: Printer },
+    ready_to_ship: { label: "Etiqueta impresa",     color: "bg-orange-100 text-orange-700", Icon: Printer },
     not_delivered: { label: "En camino",             color: "bg-blue-100 text-blue-700",     Icon: Truck },
     shipped:       { label: "Enviado",               color: "bg-indigo-100 text-indigo-700", Icon: Package },
     delivered:     { label: "Entregado",             color: "bg-emerald-100 text-emerald-700", Icon: CheckCircle2 },
 };
+
+const LOGISTIC_CFG: Record<string, { label: string; color: string; Icon: any }> = {
+    fulfillment:  { label: "Full",       color: "bg-purple-100 text-purple-700", Icon: Warehouse },
+    xd_drop_off:  { label: "Agencia",    color: "bg-sky-100 text-sky-700",       Icon: Package },
+    self_service: { label: "Flex",       color: "bg-teal-100 text-teal-700",     Icon: Truck },
+    drop_off:     { label: "Drop off",   color: "bg-slate-100 text-slate-600",   Icon: Box },
+    custom:       { label: "Personalizado", color: "bg-slate-100 text-slate-600", Icon: Box },
+};
+
 const STATUS_FILTERS = [
     { value: "", label: "Todas" }, { value: "paid", label: "Pagadas" },
     { value: "cancelled", label: "Canceladas" }, { value: "confirmed", label: "Confirmadas" },
@@ -57,24 +68,32 @@ function Badge({ label, color, Icon }: { label: string; color: string; Icon?: an
         </span>
     );
 }
+
 function variantText(attrs: VariationAttr[]): string {
-    if (!attrs || attrs.length === 0) return "—";
+    if (!attrs || attrs.length === 0) return "";
     return attrs.map(a => a.value_name).join(" / ");
 }
+
 function fmtDate(iso: string) {
     return new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
+
 function fmtMoney(n: number) {
     return "$" + n.toLocaleString("es-MX", { minimumFractionDigits: 2 });
+}
+
+function logisticLabel(type: string | null) {
+    if (!type) return LOGISTIC_CFG.custom;
+    return LOGISTIC_CFG[type] || { label: type, color: "bg-slate-100 text-slate-600", Icon: Box };
 }
 
 /* ───── Detail Panel (shown when row expanded) ───── */
 function DetailPanel({ orden }: { orden: Orden }) {
     const sc = STATUS_CFG[orden.status] || { label: orden.status, color: "bg-slate-100 text-slate-600", Icon: Clock };
     const shc = SHIP_CFG[orden.shipping_status] || { label: orden.shipping_status, color: "bg-slate-100 text-slate-500", Icon: Box };
+    const lc = logisticLabel(orden.shipping_logistic_type);
     return (
         <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 space-y-4 text-sm">
-            {/* Top summary */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div><span className="text-slate-400 text-xs">Orden MeLi</span><p className="font-bold">#{orden.meli_order_id}</p></div>
                 <div><span className="text-slate-400 text-xs">Tienda</span><p className="font-bold">{orden.store_name}</p></div>
@@ -84,7 +103,7 @@ function DetailPanel({ orden }: { orden: Orden }) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div><span className="text-slate-400 text-xs">Estado pago</span><div className="mt-1"><Badge label={sc.label} color={sc.color} Icon={sc.Icon} /></div></div>
                 <div><span className="text-slate-400 text-xs">Estado envío</span><div className="mt-1"><Badge label={shc.label} color={shc.color} Icon={shc.Icon} /></div></div>
-                <div><span className="text-slate-400 text-xs">Logística</span><p>{orden.shipping_logistic_type === "fulfillment" ? "Full" : orden.shipping_logistic_type || "—"}</p></div>
+                <div><span className="text-slate-400 text-xs">Logística</span><div className="mt-1"><Badge label={lc.label} color={lc.color} Icon={lc.Icon} /></div></div>
                 <div><span className="text-slate-400 text-xs">Comprador</span><p>{orden.buyer_nickname || `${orden.buyer_first_name || ""} ${orden.buyer_last_name || ""}`.trim() || String(orden.buyer_id)}</p></div>
             </div>
             {orden.pack_id && <p className="text-xs text-slate-400">Pack ID: {orden.pack_id}</p>}
@@ -101,26 +120,26 @@ function DetailPanel({ orden }: { orden: Orden }) {
                         <th className="text-left py-1">Reservación</th>
                     </tr></thead>
                     <tbody>
-                        {orden.orden_items.map(it => (
-                            <tr key={it.id} className="border-b border-slate-100">
-                                <td className="py-1.5 pr-3 max-w-[250px] truncate">{it.titulo || it.meli_item_id}</td>
-                                <td className="py-1.5 pr-3">{variantText(it.variation_attributes)}</td>
-                                <td className="py-1.5 pr-3 font-mono text-[11px]">{it.seller_sku || "—"}</td>
-                                <td className="py-1.5 pr-3 text-right">{it.quantity}</td>
-                                <td className="py-1.5 pr-3 text-right">{fmtMoney(it.unit_price)}</td>
-                                <td className="py-1.5 pr-3 text-right font-medium">{fmtMoney(it.unit_price * it.quantity)}</td>
-                                <td className="py-1.5">
-                                    {it.reservaciones_stock.length > 0
-                                        ? it.reservaciones_stock.map(r => (
-                                            <span key={r.id} className={cn("inline-block mr-1 px-1.5 py-0.5 rounded text-[10px] font-semibold",
-                                                r.estado === "activa" ? "bg-amber-100 text-amber-700" :
-                                                r.estado === "consumida" ? "bg-slate-100 text-slate-500" : "bg-rose-100 text-rose-500"
-                                            )}>{r.estado} ({r.cantidad})</span>
-                                        ))
-                                        : <span className="text-slate-300">—</span>}
-                                </td>
-                            </tr>
-                        ))}
+                    {orden.orden_items.map(it => (
+                        <tr key={it.id} className="border-b border-slate-100">
+                            <td className="py-1.5 pr-3 max-w-[250px] truncate">{it.titulo || it.meli_item_id}</td>
+                            <td className="py-1.5 pr-3">{variantText(it.variation_attributes) || "—"}</td>
+                            <td className="py-1.5 pr-3 font-mono text-[11px]">{it.seller_sku || "—"}</td>
+                            <td className="py-1.5 pr-3 text-right">{it.quantity}</td>
+                            <td className="py-1.5 pr-3 text-right">{fmtMoney(it.unit_price)}</td>
+                            <td className="py-1.5 pr-3 text-right font-medium">{fmtMoney(it.unit_price * it.quantity)}</td>
+                            <td className="py-1.5">
+                                {it.reservaciones_stock.length > 0
+                                    ? it.reservaciones_stock.map(r => (
+                                        <span key={r.id} className={cn("inline-block mr-1 px-1.5 py-0.5 rounded text-[10px] font-semibold",
+                                            r.estado === "activa" ? "bg-amber-100 text-amber-700" :
+                                            r.estado === "consumida" ? "bg-slate-100 text-slate-500" : "bg-rose-100 text-rose-500"
+                                        )}>{r.estado} ({r.cantidad})</span>
+                                    ))
+                                    : <span className="text-slate-300">—</span>}
+                            </td>
+                        </tr>
+                    ))}
                     </tbody>
                 </table>
             </div>
@@ -196,85 +215,98 @@ export default function VentasPage() {
                 </div>
             )}
 
-            {/* Data table */}
+            {/* Data table — 4 columns */}
             {!loading && !error && rows.length > 0 && (
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-                                    <th className="text-left px-4 py-3 font-semibold"># Venta</th>
-                                    <th className="text-left px-3 py-3 font-semibold">Tienda</th>
+                                    <th className="text-left px-4 py-3 font-semibold w-[220px]">Venta</th>
                                     <th className="text-left px-3 py-3 font-semibold">Artículo</th>
-                                    <th className="text-left px-3 py-3 font-semibold">Variante</th>
-                                    <th className="text-center px-3 py-3 font-semibold">Cant</th>
-                                    <th className="text-left px-3 py-3 font-semibold">SKU</th>
-                                    <th className="text-left px-3 py-3 font-semibold">Estado</th>
-                                    <th className="text-right px-4 py-3 font-semibold">Total</th>
+                                    <th className="text-right px-3 py-3 font-semibold w-[100px]">Cant / Monto</th>
+                                    <th className="text-left px-3 py-3 font-semibold w-[180px]">Estado</th>
                                     <th className="px-2 py-3 w-8"></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {rows.map(({ orden: o, item: it }, idx) => {
-                                    const isExpanded = expandedId === o.id;
-                                    const sc = STATUS_CFG[o.status] || { label: o.status, color: "bg-slate-100 text-slate-600", Icon: Clock };
-                                    const shc = SHIP_CFG[o.shipping_status] || { label: o.shipping_status, color: "bg-slate-100 text-slate-500", Icon: Box };
-                                    /* Show order-level row only on the first item of each order */
-                                    const isFirstItem = idx === 0 || rows[idx - 1].orden.id !== o.id;
-                                    const itemCount = o.orden_items.length;
-                                    return (
-                                        <>
-                                            <tr key={it.id} className={cn(
-                                                "border-b border-slate-100 hover:bg-slate-50/50 transition-colors cursor-pointer",
-                                                isExpanded && "bg-indigo-50/30"
-                                            )} onClick={() => setExpandedId(isExpanded ? null : o.id)}>
-                                                {isFirstItem ? (
-                                                    <td className="px-4 py-2.5 font-bold text-indigo-600 whitespace-nowrap" rowSpan={itemCount}>
-                                                        {o.meli_order_id}
-                                                    </td>
-                                                ) : null}
-                                                {isFirstItem ? (
-                                                    <td className="px-3 py-2.5 whitespace-nowrap" rowSpan={itemCount}>
-                                                        <span className={cn("inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full",
-                                                            o.store_name === "Histofarma" ? "bg-teal-100 text-teal-700" : "bg-violet-100 text-violet-700"
-                                                        )}>
-                                                            <Store size={11} />{o.store_name}
-                                                        </span>
-                                                    </td>
-                                                ) : null}
-                                                <td className="px-3 py-2.5 max-w-[220px] truncate" title={it.titulo || ""}>{it.titulo || it.meli_item_id}</td>
-                                                <td className="px-3 py-2.5 text-slate-500 text-xs">{variantText(it.variation_attributes)}</td>
-                                                <td className="px-3 py-2.5 text-center font-bold">{it.quantity}</td>
-                                                <td className="px-3 py-2.5 font-mono text-xs text-slate-600">{it.seller_sku || "—"}</td>
-                                                {isFirstItem ? (
-                                                    <td className="px-3 py-2.5" rowSpan={itemCount}>
-                                                        <div className="flex flex-col gap-1">
-                                                            <Badge label={sc.label} color={sc.color} Icon={sc.Icon} />
-                                                            <Badge label={shc.label} color={shc.color} Icon={shc.Icon} />
-                                                        </div>
-                                                    </td>
-                                                ) : null}
-                                                {isFirstItem ? (
-                                                    <td className="px-4 py-2.5 text-right font-bold whitespace-nowrap" rowSpan={itemCount}>
-                                                        {fmtMoney(o.total_amount)}
-                                                    </td>
-                                                ) : null}
-                                                {isFirstItem ? (
-                                                    <td className="px-2 py-2.5 text-center" rowSpan={itemCount}>
-                                                        {isExpanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
-                                                    </td>
-                                                ) : null}
-                                            </tr>
-                                            {isExpanded && isFirstItem && (
-                                                <tr key={`detail-${o.id}`}>
-                                                    <td colSpan={9}>
-                                                        <DetailPanel orden={o} />
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </>
-                                    );
-                                })}
+                            {rows.map(({ orden: o, item: it }, idx) => {
+                                const isExpanded = expandedId === o.id;
+                                const sc = STATUS_CFG[o.status] || { label: o.status, color: "bg-slate-100 text-slate-600", Icon: Clock };
+                                const shc = SHIP_CFG[o.shipping_status] || { label: o.shipping_status, color: "bg-slate-100 text-slate-500", Icon: Box };
+                                const lc = logisticLabel(o.shipping_logistic_type);
+                                const isFirstItem = idx === 0 || rows[idx - 1].orden.id !== o.id;
+                                const itemCount = o.orden_items.length;
+                                const vt = variantText(it.variation_attributes);
+                                return (
+                                    <>
+                                    <tr key={it.id}
+                                        className={cn(
+                                            "border-b border-slate-100 hover:bg-slate-50/50 transition-colors cursor-pointer",
+                                            isExpanded && "bg-indigo-50/30"
+                                        )}
+                                        onClick={() => setExpandedId(isExpanded ? null : o.id)}>
+                                        {/* Col 1: Venta — Pack ID, #Orden, Tienda */}
+                                        {isFirstItem ? (
+                                            <td className="px-4 py-2.5 align-top" rowSpan={itemCount}>
+                                                <div className="space-y-0.5">
+                                                    {o.pack_id && (
+                                                        <p className="text-xs font-bold text-indigo-600">Pack {o.pack_id}</p>
+                                                    )}
+                                                    <p className={cn("font-bold", o.pack_id ? "text-[11px] text-slate-500" : "text-sm text-indigo-600")}>
+                                                        #{o.meli_order_id}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-400">{fmtDate(o.date_created)}</p>
+                                                    <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full mt-1",
+                                                        o.store_name === "Histofarma" ? "bg-teal-100 text-teal-700" : "bg-violet-100 text-violet-700"
+                                                    )}>
+                                                        <Store size={10} />{o.store_name}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        ) : null}
+                                        {/* Col 2: Artículo — nombre, variante, SKU */}
+                                        <td className="px-3 py-2.5 align-top">
+                                            <div>
+                                                <p className="font-medium text-slate-800 leading-tight" title={it.titulo || ""}>
+                                                    {it.titulo || it.meli_item_id}
+                                                </p>
+                                                {vt && <p className="text-[11px] text-slate-500 mt-0.5">{vt}</p>}
+                                                <p className="text-[11px] text-slate-400 font-mono mt-0.5">{it.seller_sku || "—"}</p>
+                                            </div>
+                                        </td>
+                                        {/* Col 3: Cantidad + Monto */}
+                                        <td className="px-3 py-2.5 text-right align-top">
+                                            <p className="font-bold text-slate-800">{it.quantity}</p>
+                                            <p className="text-[11px] text-slate-500">{fmtMoney(it.unit_price * it.quantity)}</p>
+                                        </td>
+                                        {/* Col 4: Estado — logística, pago, envío (order-level) */}
+                                        {isFirstItem ? (
+                                            <td className="px-3 py-2.5 align-top" rowSpan={itemCount}>
+                                                <div className="flex flex-col gap-1">
+                                                    <Badge label={lc.label} color={lc.color} Icon={lc.Icon} />
+                                                    <Badge label={sc.label} color={sc.color} Icon={sc.Icon} />
+                                                    <Badge label={shc.label} color={shc.color} Icon={shc.Icon} />
+                                                </div>
+                                            </td>
+                                        ) : null}
+                                        {/* Chevron */}
+                                        {isFirstItem ? (
+                                            <td className="px-2 py-2.5 text-center align-top" rowSpan={itemCount}>
+                                                {isExpanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                                            </td>
+                                        ) : null}
+                                    </tr>
+                                    {isExpanded && isFirstItem && (
+                                        <tr key={`detail-${o.id}`}>
+                                            <td colSpan={5}>
+                                                <DetailPanel orden={o} />
+                                            </td>
+                                        </tr>
+                                    )}
+                                    </>
+                                );
+                            })}
                             </tbody>
                         </table>
                     </div>
