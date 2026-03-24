@@ -364,7 +364,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                         {loading ? (
                             <div className="text-center py-4 text-sm text-slate-400"><RefreshCw size={16} className="inline animate-spin mr-2" />Cargando mapeos previos...</div>
                         ) : selectedSkus.length === 0 ? (
-                            <div className="text-center py-6 text-sm text-slate-400 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200">No has a\u00f1adido articulos reales. Usa el buscador de arriba.</div>
+                            <div className="text-center py-6 text-sm text-slate-400 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200">No has añadido articulos reales. Usa el buscador de arriba.</div>
                         ) : (
                             selectedSkus.map(s => (
                                 <div key={s.sku} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg mb-2 hover:shadow-sm transition-shadow">
