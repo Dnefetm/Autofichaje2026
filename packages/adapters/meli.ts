@@ -721,6 +721,14 @@ export class MeliAdapter implements MarketplaceAdapter {
         } catch (descErr: any) {
             logger.warn({ accountId, error: descErr.message }, 'V27: error en enriquecimiento de descripciones');
         }
+
+        // Punto 7: fix par_item_id — rellenar catálogos cuyo par_item_id es NULL
+        // pero comparten id_producto_catalogo con una tradicional (67 casos históricos + nuevos)
+        try {
+            await supabase.rpc('fix_par_item_id_faltantes', { p_marketplace_id: accountId });
+        } catch (parErr: any) {
+            logger.warn({ accountId, error: parErr.message }, 'V27: fix par_item_id falló (no crítico)');
+        }
     }
 
     async getRecentOrders(accountId: string, since: Date): Promise<any[]> {

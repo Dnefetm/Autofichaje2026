@@ -39,6 +39,9 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
     const [saving, setSaving] = useState(false);
     const [smartSuggestions, setSmartSuggestions] = useState<any[]>([]);
     const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+    // Punto 5: hermanas para propagación en cascada
+    const [siblings, setSiblings] = useState<any[]>([]);
+    const [siblingsLoading, setSiblingsLoading] = useState(false);
 
     const pubSku = listing?.seller_custom_field || listing?.seller_sku || '';
     const pubEan = listing?.ean || '';
@@ -48,10 +51,14 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
     const pubBrand = listing?.brand || '';
     const pubTitle = listing?.titulo || '';
 
+    // Punto 2: bloquear si es catálogo derivado con par_item_id
+    const isBlockedCatalog = listing?.tipo_publicacion === 'catalogo' && !!listing?.par_item_id;
+
     useEffect(() => {
-        if (listing) {
+        if (listing && !isBlockedCatalog) {
             loadExistingMappings();
             loadSmartSuggestions();
+            loadSiblings();
         }
     }, [listing]);
 
@@ -269,10 +276,28 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
     function handleRemoveSku(sku: string) { setSelectedSkus(selectedSkus.filter(s => s.sku !== sku)); }
     function handleQuantityChange(sku: string, qty: number) { if (qty < 1) return; setSelectedSkus(selectedSkus.map(s => s.sku === sku ? { ...s, quantity: qty } : s)); }
 
+    // Punto 5: cargar hermanas con mismo id_producto_catalogo
+    async function loadSiblings() {
+        if (!listing?.id_producto_catalogo) return;
+        setSiblingsLoading(true);
+        try {
+            const { data } = await supabase
+                .from('publicaciones_externas')
+                .select('id, titulo, external_item_id')
+                .eq('id_producto_catalogo', listing.id_producto_catalogo)
+                .neq('id', listing.id)
+                .eq('external_variation_id', '0');
+            setSiblings(data || []);
+        } finally {
+            setSiblingsLoading(false);
+        }
+    }
+
     async function handleSave() {
         if (selectedSkus.length === 0) { alert('Debes seleccionar al menos un articulo del catalogo real.'); return; }
         setSaving(true);
         try {
+            // Punto 1: mapear publicación principal
             const { error: delError } = await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', listing.id);
             if (delError) throw delError;
             const snapshotUpserts = selectedSkus.map(s => ({ sku: s.sku, physical_stock: 0, updated_at: new Date().toISOString() }));
@@ -280,8 +305,29 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             const inserts = selectedSkus.map(s => ({ publicacion_id: listing.id, articulo_id: s.sku, cantidad_requerida: s.quantity }));
             const { error: insError } = await supabase.from('mapeo_publicacion_articulo').insert(inserts);
             if (insError) throw insError;
-            const { error: jobError } = await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: listing.id }, status: 'pending', scheduled_at: new Date().toISOString() });
-            if (jobError) console.error('Aviso: no se pudo encolar el Job.', jobError);
+            // Punto 1: actualizar esta_mapeado en la publicación principal
+            await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', listing.id);
+            // Encolar job para la pub principal
+            await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: listing.id }, status: 'pending', scheduled_at: new Date().toISOString() });
+
+            // Punto 5: propagación a hermanas — con confirmación explícita
+            const propagableSimlings = siblings.filter(s => s.id !== listing.id);
+            if (propagableSimlings.length > 0) {
+                const confirmed = window.confirm(
+                    `¿Propagar este mapeo a ${propagableSimlings.length} publicación${propagableSimlings.length !== 1 ? 'es' : ''} hermana${propagableSimlings.length !== 1 ? 's' : ''} con el mismo producto de catálogo?\n\n` +
+                    propagableSimlings.map(s => `• ${s.external_item_id} — ${s.titulo?.slice(0, 50)}`).join('\n')
+                );
+                if (confirmed) {
+                    for (const sib of propagableSimlings) {
+                        await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', sib.id);
+                        const sibInserts = selectedSkus.map(s => ({ publicacion_id: sib.id, articulo_id: s.sku, cantidad_requerida: s.quantity }));
+                        await supabase.from('mapeo_publicacion_articulo').insert(sibInserts);
+                        await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', sib.id);
+                        await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: sib.id }, status: 'pending', scheduled_at: new Date().toISOString() });
+                    }
+                }
+            }
+
             await dispatchWorker();
             onSuccess();
             onClose();
@@ -324,6 +370,28 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                             </div>
                         </div>
                     </div>
+
+                    {/* Punto 2: bloqueo para catálogos con par_item_id */}
+                    {isBlockedCatalog && (
+                        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex gap-3">
+                            <Info size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-bold text-amber-800">Este catálogo hereda el stock de su publicación tradicional</p>
+                                <p className="text-xs text-amber-700 mt-1">
+                                    Para que el stock se sincronice correctamente, mapea la publicación <strong>tradicional hermana</strong>
+                                    {listing.par_item_id ? ` (${listing.par_item_id})` : ''} — este catálogo se actualizará automáticamente.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Punto 5: indicador de hermanas */}
+                    {!isBlockedCatalog && siblings.length > 0 && (
+                        <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-indigo-700">
+                            <Info size={12} className="shrink-0" />
+                            Al guardar, podrás propagar el mapeo a <strong className="mx-1">{siblings.length}</strong> publicación{siblings.length !== 1 ? 'es' : ''} hermana{siblings.length !== 1 ? 's' : ''} con el mismo producto de catálogo.
+                        </div>
+                    )}
 
                     {(suggestionsLoading || filteredSuggestions.length > 0) && (
                         <div className="bg-green-50 border border-green-200 rounded-xl p-3">
