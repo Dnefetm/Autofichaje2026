@@ -93,69 +93,112 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
     async function loadSmartSuggestions() {
         setSuggestionsLoading(true);
         try {
-            // Recopilar TODOS los identificadores de la publicacion
-            const allSkus = [listing?.seller_custom_field, listing?.seller_sku].filter(Boolean);
-            const allGtins = [listing?.gtin, listing?.ean, listing?.upc].filter(Boolean);
-            const allModels = [listing?.model].filter(Boolean);
-            const brand = listing?.brand || '';
-                        // Enriquecer con datos de variaciones (el parent puede tener NULLs)
+            const allSkus    = [listing?.seller_custom_field, listing?.seller_sku].filter(Boolean);
+            const allGtins   = [listing?.gtin, listing?.ean, listing?.upc].filter(Boolean);
+            const allModels  = [listing?.model].filter(Boolean);
+            const brand      = listing?.brand || '';
+            const title      = listing?.titulo || '';
+
+            // Enriquecer con variaciones
             const { data: varData } = await supabase
                 .from('publicaciones_externas')
                 .select('seller_sku, model, gtin, ean, upc')
                 .eq('external_item_id', listing.external_item_id)
                 .neq('external_variation_id', '0');
-            const varSkus = (varData || []).map((v: any) => v.seller_sku).filter(Boolean);
-            const varGtins = (varData || []).flatMap((v: any) => [v.gtin, v.ean, v.upc]).filter(Boolean);
+
+            const varSkus   = (varData || []).map((v: any) => v.seller_sku).filter(Boolean);
+            const varGtins  = (varData || []).flatMap((v: any) => [v.gtin, v.ean, v.upc]).filter(Boolean);
             const varModels = (varData || []).map((v: any) => v.model).filter(Boolean);
-                        // Combinar datos del parent + variaciones (sin duplicados)
-            const combinedSkus = [...new Set([...allSkus, ...varSkus])];
-            const combinedGtins = [...new Set([...allGtins, ...varGtins])];
+
+            const combinedSkus   = [...new Set([...allSkus, ...varSkus])];
+            const combinedGtins  = [...new Set([...allGtins, ...varGtins])];
             const combinedModels = [...new Set([...allModels, ...varModels])];
-            const title = listing?.titulo || '';
 
-            // Construir query OR amplia
-            const orParts: string[] = [];
-            // Buscar por SKU en articulo_id, sku y modelo del articulo
+            // === CAPA 1: Búsqueda EXACTA por SKU/modelo/GTIN (máx prioridad) ===
+            const exactParts: string[] = [];
             for (const s of combinedSkus) {
-                orParts.push(`articulo_id.ilike.%${s}%`);
-                orParts.push(`sku.ilike.%${s}%`);
-                orParts.push(`modelo.ilike.%${s}%`);
-                orParts.push(`codigo_universal.ilike.%${s}%`);
+                exactParts.push(`articulo_id.eq.${s}`);
+                exactParts.push(`sku.eq.${s}`);
+                exactParts.push(`modelo.eq.${s}`);
             }
-            // Buscar por modelo
             for (const m of combinedModels) {
-                orParts.push(`modelo.ilike.%${m}%`);
-                orParts.push(`articulo_id.ilike.%${m}%`);
-                orParts.push(`sku.ilike.%${m}%`);
+                exactParts.push(`modelo.eq.${m}`);
+                exactParts.push(`articulo_id.eq.${m}`);
             }
-            // Buscar por GTIN/EAN en codigo_universal
             for (const g of combinedGtins) {
-                orParts.push(`codigo_universal.ilike.%${g}%`);
+                exactParts.push(`codigo_universal.eq.${g}`);
             }
-            // Buscar por marca
+
+            let exactResults: any[] = [];
+            if (exactParts.length > 0) {
+                const { data } = await supabase
+                    .from('articulos')
+                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, sku, caja_madre')
+                    .not('nombre', 'like', '%PLACEHOLDER%')
+                    .or(exactParts.join(','))
+                    .limit(20);
+                exactResults = data || [];
+            }
+
+            // === CAPA 2: Búsqueda PARCIAL por SKU/modelo/GTIN (ilike) ===
+            const partialParts: string[] = [];
+            for (const s of combinedSkus) {
+                partialParts.push(`articulo_id.ilike.%${s}%`);
+                partialParts.push(`sku.ilike.%${s}%`);
+                partialParts.push(`modelo.ilike.%${s}%`);
+                partialParts.push(`codigo_universal.ilike.%${s}%`);
+            }
+            for (const m of combinedModels) {
+                partialParts.push(`modelo.ilike.%${m}%`);
+                partialParts.push(`articulo_id.ilike.%${m}%`);
+                partialParts.push(`sku.ilike.%${m}%`);
+            }
+            for (const g of combinedGtins) {
+                partialParts.push(`codigo_universal.ilike.%${g}%`);
+            }
+
+            let partialResults: any[] = [];
+            if (partialParts.length > 0) {
+                const { data } = await supabase
+                    .from('articulos')
+                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, sku, caja_madre')
+                    .not('nombre', 'like', '%PLACEHOLDER%')
+                    .or(partialParts.join(','))
+                    .limit(30);
+                partialResults = data || [];
+            }
+
+            // === CAPA 3: Búsqueda por marca (solo complemento) ===
+            let brandResults: any[] = [];
             if (brand) {
-                orParts.push(`marca.ilike.%${brand}%`);
+                const { data } = await supabase
+                    .from('articulos')
+                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, sku, caja_madre')
+                    .not('nombre', 'like', '%PLACEHOLDER%')
+                    .ilike('marca', `%${brand}%`)
+                    .limit(20);
+                brandResults = data || [];
             }
 
-            if (orParts.length === 0) { setSuggestionsLoading(false); return; }
+            // === MERGE: deduplicar por articulo_id (exactos primero) ===
+            const mergedMap = new Map<string, any>();
+            for (const item of [...exactResults, ...partialResults, ...brandResults]) {
+                if (!mergedMap.has(item.articulo_id)) {
+                    mergedMap.set(item.articulo_id, item);
+                }
+            }
 
-            const { data, error } = await supabase
-                .from('articulos')
-                .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, sku, caja_madre')
-                .not('nombre', 'like', '%PLACEHOLDER%')
-                .or(orParts.join(','))
-                .limit(50);
+            const allItems = Array.from(mergedMap.values());
 
-            if (error) throw error;
-            if (data && data.length > 0) {
-                const scored = data.map(item => {
+            if (allItems.length > 0) {
+                // === RE-SCORING detallado ===
+                const scored = allItems.map(item => {
                     let score = 0;
-                    const iId = (item.articulo_id || '').toLowerCase();
-                    const iSku = (item.sku || '').toLowerCase();
-                    const iMod = (item.modelo || '').toLowerCase();
-                    const iCod = (item.codigo_universal || '').toLowerCase();
+                    const iId    = (item.articulo_id || '').toLowerCase();
+                    const iSku   = (item.sku || '').toLowerCase();
+                    const iMod   = (item.modelo || '').toLowerCase();
+                    const iCod   = (item.codigo_universal || '').toLowerCase();
                     const iMarca = (item.marca || '').toLowerCase();
-                    const iNombre = (item.nombre || '').toLowerCase();
 
                     // PRIORIDAD 1: SKU exacto (+5) o parcial (+3)
                     for (const s of combinedSkus) {
@@ -169,9 +212,9 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                         if (iMod === ml) { score += 4; break; }
                         if (iMod.includes(ml) || iId.includes(ml)) { score += 2; break; }
                     }
-                    // PRIORIDAD 3: GTIN/EAN match (+3)
+                    // PRIORIDAD 3: GTIN/EAN match (+3 o +2)
                     for (const g of combinedGtins) {
-                        const gl = g.toLowerCase().replace(/^0+/, '');
+                        const gl       = g.toLowerCase().replace(/^0+/, '');
                         const iCodClean = iCod.replace(/^0+/, '');
                         if (iCodClean === gl || iCod === g.toLowerCase()) { score += 3; break; }
                         if (iCodClean.includes(gl) || gl.includes(iCodClean)) { score += 2; break; }
@@ -183,6 +226,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
 
                     return { ...item, _score: score };
                 });
+
                 scored.sort((a, b) => b._score - a._score);
                 setSmartSuggestions(scored.filter(s => s._score > 0.5));
             }
@@ -287,7 +331,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                                 <RefreshCw size={12} className={suggestionsLoading ? 'animate-spin' : ''} />
                                 {suggestionsLoading ? 'Buscando coincidencias...' : `${filteredSuggestions.length} sugerencia${filteredSuggestions.length !== 1 ? 's' : ''} por similitud`}
                             </h4>
-                            {!suggestionsLoading && filteredSuggestions.slice(0, 8).map(res => (
+                            {!suggestionsLoading && filteredSuggestions.slice(0, 15).map(res => (
                                 <button key={res.articulo_id} onClick={() => handleAddSku(res)} className="w-full text-left p-2 mb-1 rounded-lg hover:bg-green-100 border border-transparent hover:border-green-300 transition-all flex items-center justify-between group">
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs font-medium text-slate-800 truncate">{res.nombre}</p>
