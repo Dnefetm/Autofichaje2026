@@ -306,54 +306,50 @@ function ListingRow({
 // ─── Fila de grupo con variantes ────────────────────────────────────────────────
 function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMapear: (l: any) => void }) {
     const [expanded, setExpanded] = useState(false);
-    // Lazy-load de catálogos: se consultan la primera vez que se expande
-    const [catalogExpanded, setCatalogExpanded] = useState(false);
-    const [catalogChildren, setCatalogChildren] = useState<any[] | null>(null); // null = no cargado aún
-    const [catalogLoading, setCatalogLoading] = useState(false);
+    // Lazy-load unificado de catálogos hijos + asociadas en una sola operación
+    const [relatedExpanded, setRelatedExpanded] = useState(false);
+    const [relatedChildren, setRelatedChildren] = useState<any[] | null>(null);
+    const [relatedLoading, setRelatedLoading] = useState(false);
     const { parent, variations } = group;
 
-    // Cuenta de hijos de catálogo desde catalog_count (campo precalculado) o indica que existen
-    // Mostramos el badge si la pub tradicional tiene al menos 1 catálogo vinculado (catalog_count > 0)
     const hasCatalogChildren = (parent.catalog_count ?? 0) > 0;
     const catalogCount = parent.catalog_count ?? 0;
+    const hasAssociated = (parent.associated_count ?? 0) > 0;
+    const assocCount = parent.associated_count ?? 0;
 
-    async function toggleCatalog() {
-        if (!catalogExpanded && catalogChildren === null) {
-            setCatalogLoading(true);
-            const { data } = await supabase
+    async function toggleRelated() {
+        if (!relatedExpanded && relatedChildren === null) {
+            setRelatedLoading(true);
+            // Query 1: catálogos derivados directos (por par_item_id)
+            const { data: catData } = await supabase
                 .from('publicaciones_externas')
-                .select('id, external_item_id, titulo, tipo_publicacion, status_externo, listing_type_id, precio_venta, sold_quantity, stock_publicado, health')
+                .select('id, external_item_id, titulo, tipo_publicacion, status_externo, listing_type_id, precio_venta, sold_quantity, stock_publicado, health, esta_mapeado, seller_custom_field, seller_sku, brand')
                 .eq('par_item_id', parent.external_item_id)
                 .in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
                 .eq('external_variation_id', '0')
                 .order('status_externo', { ascending: true });
-            setCatalogChildren(data || []);
-            setCatalogLoading(false);
+            // Query 2: asociadas por id_producto_catalogo (hermanas tradicionales)
+            let assocData: any[] = [];
+            if (parent.id_producto_catalogo) {
+                const { data } = await supabase
+                    .from('publicaciones_externas')
+                    .select('id, external_item_id, titulo, tipo_publicacion, status_externo, listing_type_id, precio_venta, sold_quantity, stock_publicado, health, esta_mapeado, seller_custom_field, seller_sku, brand')
+                    .eq('id_producto_catalogo', parent.id_producto_catalogo)
+                    .neq('external_item_id', parent.external_item_id)
+                    .eq('external_variation_id', '0')
+                    .order('status_externo', { ascending: true });
+                assocData = data || [];
+            }
+            // Combinar sin duplicados (catálogos primero)
+            const catIds = new Set((catData || []).map((c: any) => c.external_item_id));
+            const merged = [
+                ...(catData || []),
+                ...assocData.filter((a: any) => !catIds.has(a.external_item_id)),
+            ];
+            setRelatedChildren(merged);
+            setRelatedLoading(false);
         }
-        setCatalogExpanded(o => !o);
-    }
-
-    // Lazy-load de publicaciones asociadas (misma id_producto_catalogo, diferente item)
-    const [assocExpanded, setAssocExpanded] = useState(false);
-    const [assocChildren, setAssocChildren] = useState<any[] | null>(null);
-    const [assocLoading, setAssocLoading] = useState(false);
-    const hasAssociated = (parent.associated_count ?? 0) > 0;
-    const assocCount = parent.associated_count ?? 0;
-
-    async function toggleAssociated() {
-        if (!assocExpanded && assocChildren === null) {
-            setAssocLoading(true);
-            const { data } = await supabase
-                .from('publicaciones_externas')
-                .select('id, external_item_id, titulo, tipo_publicacion, status_externo, listing_type_id, precio_venta, sold_quantity, stock_publicado, health, seller_custom_field, seller_sku, brand')
-                .eq('id_producto_catalogo', parent.id_producto_catalogo)
-                .neq('external_item_id', parent.external_item_id)
-                .eq('external_variation_id', '0')
-                .order('status_externo', { ascending: true });
-            setAssocChildren(data || []);
-            setAssocLoading(false);
-        }
-        setAssocExpanded(o => !o);
+        setRelatedExpanded(o => !o);
     }
 
     // Compute aggregate values for parent when there are real variations
@@ -440,19 +436,15 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                         : cats > 0
                                             ? `${cats} catálogo${cats !== 1 ? 's' : ''}`
                                             : `${assocs} asociada${assocs !== 1 ? 's' : ''}`;
-                                    const isExpanded = catalogExpanded || assocExpanded;
                                     return (
                                         <button
-                                            onClick={() => {
-                                                if (hasCatalogChildren) toggleCatalog();
-                                                if (hasAssociated) toggleAssociated();
-                                            }}
-                                            disabled={catalogLoading || assocLoading}
+                                            onClick={toggleRelated}
+                                            disabled={relatedLoading}
                                             className="inline-flex items-center gap-0.5 text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold transition-colors disabled:opacity-60"
                                         >
                                             <Layers className="w-3 h-3" />
-                                            {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                            {(catalogLoading || assocLoading) ? 'Cargando…' : label}
+                                            {relatedExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                            {relatedLoading ? 'Cargando…' : label}
                                         </button>
                                     );
                                 })()}
@@ -563,124 +555,79 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                 );
             })}
 
-            {/* Publicaciones de catálogo hijas — lazy-loaded, fondo púrpura */}
-            {catalogExpanded && (catalogChildren || []).map(cc => (
-                <tr key={cc.id} className="bg-purple-50/60 border-t border-purple-100">
-                    <td className="px-4 py-2 pl-10 align-top">
-                        <div className="flex flex-col gap-0.5">
-                            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[cc.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
-                                {statusLabels[cc.status_externo] || cc.status_externo}
-                            </span>
-                            <TipoBadge tipo={cc.tipo_publicacion} />
-                        </div>
-                    </td>
-                    <td className="px-4 py-2 align-top" colSpan={2}>
-                        <div className="flex items-center gap-2">
-                            <Layers className="w-3 h-3 text-purple-400 shrink-0" />
-                            <div>
-                                <Link
-                                    href={`/catalog/external/${cc.id}`}
-                                    className="text-xs font-medium text-slate-700 hover:text-purple-700 transition-colors line-clamp-1"
-                                >
-                                    {cc.titulo?.slice(0, 55)}{cc.titulo?.length > 55 ? '…' : ''}
-                                </Link>
-                                <p className="text-[10px] font-mono text-slate-400">{cc.external_item_id}</p>
-                                {cc.listing_type_id && <ListingTypeBadge type={cc.listing_type_id} />}
+            {/* Publicaciones relacionadas unificadas — catálogos (purple) y asociadas (teal) */}
+            {relatedExpanded && (relatedChildren || []).map((rel: any) => {
+                const isCatalog = rel.tipo_publicacion === 'catalogo' || rel.tipo_publicacion === 'catalogo_derivada';
+                return (
+                    <tr key={rel.id} className={cn('border-t', isCatalog ? 'bg-purple-50/60 border-purple-100' : 'bg-teal-50/60 border-teal-100')}>
+                        <td className="px-4 py-2 pl-10 align-top">
+                            <div className="flex flex-col gap-0.5">
+                                <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[rel.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+                                    {statusLabels[rel.status_externo] || rel.status_externo}
+                                </span>
+                                <TipoBadge tipo={rel.tipo_publicacion} />
+                                {rel.esta_mapeado
+                                    ? <span className="text-[9px] text-emerald-600 font-medium">Mapeado</span>
+                                    : <span className="text-[9px] text-rose-500 font-medium">Sin mapear</span>
+                                }
                             </div>
-                        </div>
-                    </td>
-                    <td className="px-4 py-2 align-top">
-                        <span className="text-xs font-semibold text-slate-800">
-                            {cc.precio_venta ? `$${Number(cc.precio_venta).toLocaleString('es-MX')}` : '—'}
-                        </span>
-                        {cc.sold_quantity > 0 && <p className="text-[10px] text-slate-400">{cc.sold_quantity} vend.</p>}
-                    </td>
-                    <td className="px-4 py-2 align-top">
-                        <span className="text-xs text-slate-700">{cc.stock_publicado ?? '—'}</span>
-                    </td>
-                    <td className="px-4 py-2 align-top text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                            <Link
-                                href={`/catalog/external/${cc.id}`}
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-semibold rounded-lg border border-purple-200 transition-colors"
-                            >
-                                Ver ficha →
-                            </Link>
-                            <button
-                                onClick={() => onMapear(cc)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-purple-700 hover:bg-purple-50 transition-colors"
-                                title="Mapear"
-                            >
-                                <Link2 className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            ))}
-
-            {/* Publicaciones asociadas — lazy-loaded, fondo teal */}
-            {assocExpanded && (assocChildren || []).map(ac => (
-                <tr key={ac.id} className="bg-teal-50/60 border-t border-teal-100">
-                    <td className="px-4 py-2 pl-10 align-top">
-                        <div className="flex flex-col gap-0.5">
-                            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[ac.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
-                                {statusLabels[ac.status_externo] || ac.status_externo}
-                            </span>
-                            <TipoBadge tipo={ac.tipo_publicacion} />
-                        </div>
-                    </td>
-                    <td className="px-4 py-2 align-top" colSpan={2}>
-                        <div className="flex items-center gap-2">
-                            <Link2 className="w-3 h-3 text-teal-400 shrink-0" />
-                            <div>
-                                <Link
-                                    href={`/catalog/external/${ac.id}`}
-                                    className="text-xs font-medium text-slate-700 hover:text-teal-700 transition-colors line-clamp-1"
-                                >
-                                    {ac.titulo?.slice(0, 55)}{(ac.titulo?.length ?? 0) > 55 ? '…' : ''}
-                                </Link>
-                                <p className="text-[10px] font-mono text-slate-400">{ac.external_item_id}</p>
-                                <div className="flex flex-wrap gap-1 mt-0.5">
-                                    {ac.listing_type_id && <ListingTypeBadge type={ac.listing_type_id} />}
-                                    <TipoBadge tipo={ac.tipo_publicacion} />
+                        </td>
+                        <td className="px-4 py-2 align-top" colSpan={2}>
+                            <div className="flex items-center gap-2">
+                                {isCatalog
+                                    ? <Layers className="w-3 h-3 text-purple-400 shrink-0" />
+                                    : <Link2 className="w-3 h-3 text-teal-400 shrink-0" />
+                                }
+                                <div>
+                                    <Link
+                                        href={`/catalog/external/${rel.id}`}
+                                        className={cn('text-xs font-medium transition-colors line-clamp-1', isCatalog ? 'text-slate-700 hover:text-purple-700' : 'text-slate-700 hover:text-teal-700')}
+                                    >
+                                        {rel.titulo?.slice(0, 55)}{(rel.titulo?.length ?? 0) > 55 ? '…' : ''}
+                                    </Link>
+                                    <p className="text-[10px] font-mono text-slate-400">{rel.external_item_id}</p>
+                                    <div className="flex flex-wrap gap-1 mt-0.5">
+                                        {rel.listing_type_id && <ListingTypeBadge type={rel.listing_type_id} />}
+                                        <TipoBadge tipo={rel.tipo_publicacion} />
+                                    </div>
+                                    {(rel.brand || rel.seller_custom_field || rel.seller_sku) && (
+                                        <p className="text-[10px] text-slate-400 mt-0.5">
+                                            {rel.brand && <span className="font-semibold">{rel.brand} </span>}
+                                            {(rel.seller_custom_field || rel.seller_sku) && <span className="font-mono">{rel.seller_custom_field || rel.seller_sku}</span>}
+                                        </p>
+                                    )}
                                 </div>
-                                {(ac.brand || ac.seller_custom_field || ac.seller_sku) && (
-                                    <p className="text-[10px] text-slate-400 mt-0.5">
-                                        {ac.brand && <span className="font-semibold">{ac.brand} </span>}
-                                        {(ac.seller_custom_field || ac.seller_sku) && <span className="font-mono">{ac.seller_custom_field || ac.seller_sku}</span>}
-                                    </p>
-                                )}
                             </div>
-                        </div>
-                    </td>
-                    <td className="px-4 py-2 align-top">
-                        <span className="text-xs font-semibold text-slate-800">
-                            {ac.precio_venta ? `$${Number(ac.precio_venta).toLocaleString('es-MX')}` : '—'}
-                        </span>
-                        {ac.sold_quantity > 0 && <p className="text-[10px] text-slate-400">{ac.sold_quantity} vend.</p>}
-                    </td>
-                    <td className="px-4 py-2 align-top">
-                        <span className="text-xs text-slate-700">{ac.stock_publicado ?? '—'}</span>
-                    </td>
-                    <td className="px-4 py-2 align-top text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                            <Link
-                                href={`/catalog/external/${ac.id}`}
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 text-[10px] font-semibold rounded-lg border border-teal-200 transition-colors"
-                            >
-                                Ver ficha →
-                            </Link>
-                            <button
-                                onClick={() => onMapear(ac)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-teal-700 hover:bg-teal-50 transition-colors"
-                                title="Mapear"
-                            >
-                                <Link2 className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            ))}
+                        </td>
+                        <td className="px-4 py-2 align-top">
+                            <span className="text-xs font-semibold text-slate-800">
+                                {rel.precio_venta ? `$${Number(rel.precio_venta).toLocaleString('es-MX')}` : '—'}
+                            </span>
+                            {rel.sold_quantity > 0 && <p className="text-[10px] text-slate-400">{rel.sold_quantity} vend.</p>}
+                        </td>
+                        <td className="px-4 py-2 align-top">
+                            <span className="text-xs text-slate-700">{rel.stock_publicado ?? '—'}</span>
+                        </td>
+                        <td className="px-4 py-2 align-top text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                                <Link
+                                    href={`/catalog/external/${rel.id}`}
+                                    className={cn('inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-lg border transition-colors', isCatalog ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200' : 'bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-200')}
+                                >
+                                    Ver ficha →
+                                </Link>
+                                <button
+                                    onClick={() => onMapear(rel)}
+                                    className={cn('p-1.5 rounded-lg text-slate-400 transition-colors', isCatalog ? 'hover:text-purple-700 hover:bg-purple-50' : 'hover:text-teal-700 hover:bg-teal-50')}
+                                    title="Mapear"
+                                >
+                                    <Link2 className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                );
+            })}
 
         </>
     );

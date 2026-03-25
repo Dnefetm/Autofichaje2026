@@ -276,18 +276,35 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
     function handleRemoveSku(sku: string) { setSelectedSkus(selectedSkus.filter(s => s.sku !== sku)); }
     function handleQuantityChange(sku: string, qty: number) { if (qty < 1) return; setSelectedSkus(selectedSkus.map(s => s.sku === sku ? { ...s, quantity: qty } : s)); }
 
-    // Punto 5: cargar hermanas con mismo id_producto_catalogo
+    // Punto 5: cargar hermanas — por id_producto_catalogo Y por par_item_id children
     async function loadSiblings() {
-        if (!listing?.id_producto_catalogo) return;
         setSiblingsLoading(true);
         try {
-            const { data } = await supabase
+            // Caso 1: hermanas con mismo id_producto_catalogo
+            let sibData: any[] = [];
+            if (listing?.id_producto_catalogo) {
+                const { data } = await supabase
+                    .from('publicaciones_externas')
+                    .select('id, titulo, external_item_id, tipo_publicacion')
+                    .eq('id_producto_catalogo', listing.id_producto_catalogo)
+                    .neq('id', listing.id)
+                    .eq('external_variation_id', '0');
+                sibData = data || [];
+            }
+            // Caso 2: catálogos derivados directos (par_item_id = este item)
+            const { data: catData } = await supabase
                 .from('publicaciones_externas')
-                .select('id, titulo, external_item_id')
-                .eq('id_producto_catalogo', listing.id_producto_catalogo)
-                .neq('id', listing.id)
+                .select('id, titulo, external_item_id, tipo_publicacion')
+                .eq('par_item_id', listing.external_item_id)
+                .in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
                 .eq('external_variation_id', '0');
-            setSiblings(data || []);
+            // Combinar sin duplicados
+            const ids = new Set(sibData.map((s: any) => s.id));
+            const combined = [
+                ...sibData,
+                ...(catData || []).filter((c: any) => !ids.has(c.id)),
+            ];
+            setSiblings(combined);
         } finally {
             setSiblingsLoading(false);
         }
