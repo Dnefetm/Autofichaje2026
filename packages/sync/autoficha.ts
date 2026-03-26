@@ -136,7 +136,7 @@ async function structureWithAI(
     };
 }
 
-// ─── Función principal exportada ───────────────────────────────────────────────
+// ─── Función principal: documento único ────────────────────────────────────────
 
 export async function processProductDocument(
     fileBuffer: Buffer,
@@ -144,7 +144,6 @@ export async function processProductDocument(
     mimeType = 'application/octet-stream',
     storagePath?: string,
 ): Promise<AutofichaResult> {
-    // 1. OCR real con Azure Document Intelligence
     const { text: rawText } = await extractTextFromBuffer(fileBuffer, mimeType);
 
     if (!rawText || rawText.trim().length < 50) {
@@ -154,15 +153,60 @@ export async function processProductDocument(
         );
     }
 
-    // 2. Clasificar categoría (Fase 2 — 2-pass)
     const { category } = await classifyProduct(rawText);
+    const structured    = await structureWithAI(rawText, category);
 
-    // 3. Estructuración con GPT-4o-mini usando prompt especializado
-    const structured = await structureWithAI(rawText, category);
+    return { ...structured, rawText, storage_path: storagePath };
+}
+
+// ─── Función principal: múltiples documentos (merge inteligente) ───────────────
+
+export interface MultiDocInput {
+    buffer:   Buffer;
+    fileName: string;
+    mimeType: string;
+    storagePath?: string;
+}
+
+/**
+ * Procesa N documentos en paralelo con OCR y luego consolida todo
+ * en una única ficha usando un solo call a GPT-4o-mini.
+ * Mucho más eficiente que N llamadas separadas.
+ */
+export async function processMultipleDocuments(
+    docs: MultiDocInput[],
+): Promise<AutofichaResult> {
+    if (docs.length === 0) throw new Error('Se requiere al menos un documento.');
+
+    // 1. OCR en paralelo para todos los archivos
+    const ocrResults = await Promise.all(
+        docs.map(d => extractTextFromBuffer(d.buffer, d.mimeType).catch(() => ({ text: '', confidence: 0 })))
+    );
+
+    // 2. Concatenar textos con separadores claros
+    const combinedText = ocrResults
+        .map((r, i) => `=== DOCUMENTO ${i + 1}: ${docs[i].fileName} ===\n${r.text}`)
+        .join('\n\n');
+
+    const avgConfidence = ocrResults.reduce((s, r) => s + r.confidence, 0) / ocrResults.length;
+
+    if (combinedText.trim().length < 50) {
+        throw new Error('Ninguno de los documentos contiene texto legible suficiente.');
+    }
+
+    // 3. Clasificar una sola vez con el texto combinado
+    const { category } = await classifyProduct(combinedText);
+
+    // 4. Estructurar con prompt especializado — GPT consolida automáticamente
+    const structured = await structureWithAI(combinedText, category);
+
+    // El storage_path apunta al primer archivo subido
+    const primaryStoragePath = docs.find(d => d.storagePath)?.storagePath;
 
     return {
         ...structured,
-        rawText,
-        storage_path: storagePath,
+        confidence: Math.round(Math.min(structured.confidence, avgConfidence) * 100) / 100,
+        rawText:    combinedText,
+        storage_path: primaryStoragePath,
     };
 }
