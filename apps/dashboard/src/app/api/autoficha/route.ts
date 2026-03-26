@@ -144,10 +144,50 @@ export async function POST(req: NextRequest) {
         );
 
     } catch (error: any) {
-        const msg: string = error?.message || 'Error interno al procesar el documento.';
-        if (msg.includes('Credenciales Azure')) {
-            return NextResponse.json({ error: msg }, { status: 503 });
+        const msg: string  = error?.message    || '';
+        const code: string = error?.code       || '';
+        const status: number = error?.statusCode || error?.status || 500;
+
+        // ── Errores específicos de Azure Document Intelligence ─────────────────
+        if (msg.includes('Credenciales Azure') || msg.includes('AZURE_DI')) {
+            return NextResponse.json({
+                error: 'Las credenciales de Azure no están configuradas. Contacta al administrador.'
+            }, { status: 503 });
         }
-        return NextResponse.json({ error: msg }, { status: 500 });
+        if (status === 401 || code === 'Unauthorized') {
+            return NextResponse.json({
+                error: 'Las credenciales de Azure son inválidas. Verifica AZURE_DI_KEY y AZURE_DI_ENDPOINT.'
+            }, { status: 503 });
+        }
+        if (status === 429 || code === 'TooManyRequests' || msg.toLowerCase().includes('quota')) {
+            return NextResponse.json({
+                error: 'Se alcanzó el límite de uso del servicio de OCR. Espera unos minutos e intenta de nuevo.'
+            }, { status: 429 });
+        }
+        if (msg.toLowerCase().includes('file size') || msg.toLowerCase().includes('content length') || msg.toLowerCase().includes('request entity too large')) {
+            return NextResponse.json({
+                error: 'El documento es demasiado grande para el servicio de OCR. Máximo ~4 MB por documento. Intenta con una resolución menor o divide el PDF.'
+            }, { status: 400 });
+        }
+        if (msg.toLowerCase().includes('unsupported') || msg.toLowerCase().includes('invalid content type') || msg.toLowerCase().includes('format')) {
+            return NextResponse.json({
+                error: 'El formato del documento no es compatible con el servicio de OCR. Usa PDF, PNG, JPEG o WEBP.'
+            }, { status: 400 });
+        }
+        if (msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('timed out') || msg.toLowerCase().includes('operation timed out')) {
+            return NextResponse.json({
+                error: 'El procesamiento tardó demasiado. Intenta con un documento más pequeño o de menor resolución.'
+            }, { status: 408 });
+        }
+        if (msg.toLowerCase().includes('text legible') || msg.includes('suficiente')) {
+            // Error propio de autoficha.ts — ya tiene mensaje en español
+            return NextResponse.json({ error: msg }, { status: 422 });
+        }
+
+        // Error genérico — log para debugging
+        console.error('[autoficha route] error:', { code, status, msg: msg.slice(0, 500) });
+        return NextResponse.json({
+            error: msg || 'Error interno al procesar el documento. Revisa la consola de Vercel para más detalle.'
+        }, { status: 500 });
     }
 }

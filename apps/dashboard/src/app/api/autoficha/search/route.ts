@@ -1,25 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Búsqueda de artículos existentes en catálogo antes de guardar una ficha
-// Criterios en orden de prioridad: SKU exacto → EAN → modelo → nombre ILIKE
+// Búsqueda de artículos en catálogo para vinculación manual por el operador.
+// Devuelve TODOS los matches de todos los niveles con score numérico.
+// No hace early-return — el operador elige el artículo correcto.
 
 export interface ArticuloMatch {
-    articulo_id: string;
-    nombre: string;
-    marca: string;
-    modelo?: string;
-    categoria?: string;
-    descripcion?: string;
+    articulo_id:      string;
+    nombre:           string;
+    marca:            string;
+    modelo?:          string;
+    categoria?:       string;
+    descripcion?:     string;
     codigo_universal?: string;
-    codigo_sat?: string;
-    score: 'exact' | 'ean' | 'model' | 'name'; // nivel de certeza del match
+    codigo_sat?:      string;
+    score_label: 'exact' | 'ean' | 'model' | 'name'; // nivel de certeza
+    score:       number;  // numérico: 100=exacto, 80=ean, 60=modelo, 30=nombre
 }
+
+const SELECT = 'articulo_id, nombre, marca, modelo, categoria, descripcion, codigo_universal, codigo_sat';
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
 
-    // Instanciar dentro del handler para que las env vars estén disponibles
     const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -29,65 +32,68 @@ export async function GET(req: NextRequest) {
     const ean    = searchParams.get('ean')    || '';
     const modelo = searchParams.get('modelo') || '';
     const nombre = searchParams.get('nombre') || '';
-
-    const SELECT = 'articulo_id, nombre, marca, modelo, categoria, descripcion, codigo_universal, codigo_sat';
+    // Búsqueda manual libre (puede ser SKU, EAN, nombre o modelo simultáneamente)
+    const q      = searchParams.get('q')      || '';
 
     try {
-        // 1. Búsqueda exacta por SKU (articulo_id)
-        if (sku) {
-            const { data } = await supabase
-                .from('articulos')
-                .select(SELECT)
-                .eq('articulo_id', sku)
-                .limit(1);
-            if (data?.length) {
-                return NextResponse.json({ matches: data.map(r => ({ ...r, score: 'exact' })) });
-            }
-        }
+        const seenIds = new Set<string>();
+        const matches: ArticuloMatch[] = [];
 
-        // 2. Búsqueda por EAN / código universal
-        if (ean) {
-            const { data } = await supabase
-                .from('articulos')
-                .select(SELECT)
-                .eq('codigo_universal', ean)
-                .limit(5);
-            if (data?.length) {
-                return NextResponse.json({ matches: data.map(r => ({ ...r, score: 'ean' })) });
-            }
-        }
-
-        // 3. Búsqueda por modelo
-        if (modelo) {
-            const { data } = await supabase
-                .from('articulos')
-                .select(SELECT)
-                .ilike('modelo', `%${modelo}%`)
-                .limit(5);
-            if (data?.length) {
-                return NextResponse.json({ matches: data.map(r => ({ ...r, score: 'model' })) });
-            }
-        }
-
-        // 4. Búsqueda por nombre (más amplia — limitar a 8 resultados)
-        if (nombre && nombre.length >= 4) {
-            // Usar las primeras 3 palabras significativas para reducir falsos positivos
-            const words = nombre.split(/\s+/).filter(w => w.length > 2).slice(0, 3);
-            if (words.length > 0) {
-                const pattern = words.join('%');
-                const { data } = await supabase
-                    .from('articulos')
-                    .select(SELECT)
-                    .ilike('nombre', `%${pattern}%`)
-                    .limit(8);
-                if (data?.length) {
-                    return NextResponse.json({ matches: data.map(r => ({ ...r, score: 'name' })) });
+        const add = (rows: any[], label: ArticuloMatch['score_label'], score: number) => {
+            for (const r of rows ?? []) {
+                if (!seenIds.has(r.articulo_id)) {
+                    seenIds.add(r.articulo_id);
+                    matches.push({ ...r, score_label: label, score });
                 }
             }
+        };
+
+        // ── Búsqueda automática (desde IA): todos los niveles, sin early-return ──
+
+        if (sku) {
+            const { data } = await supabase.from('articulos').select(SELECT).eq('articulo_id', sku).limit(1);
+            add(data ?? [], 'exact', 100);
         }
 
-        // Sin resultados
-        return NextResponse.json({ matches: [] });
+        if (ean) {
+            const { data } = await supabase.from('articulos').select(SELECT).eq('codigo_universal', ean).limit(5);
+            add(data ?? [], 'ean', 80);
+        }
+
+        if (modelo && modelo.length >= 2) {
+            const { data } = await supabase.from('articulos').select(SELECT).ilike('modelo', `%${modelo}%`).limit(5);
+            add(data ?? [], 'model', 60);
+        }
+
+        // Búsqueda por nombre: mínimo 5 chars, al menos 2 palabras significativas para reducir falsos positivos
+        if (nombre && nombre.length >= 5) {
+            const words = nombre.split(/\s+/).filter(w => w.length > 3).slice(0, 3);
+            if (words.length >= 1) {
+                const pattern = words.join('%');
+                const { data } = await supabase.from('articulos').select(SELECT).ilike('nombre', `%${pattern}%`).limit(8);
+                add(data ?? [], 'name', 30);
+            }
+        }
+
+        // ── Búsqueda manual libre (campo q del operador) ──────────────────────
+        if (q && q.length >= 2) {
+            // Busca en articulo_id (SKU), codigo_universal (EAN) y nombre simultáneamente
+            const [byId, byEan, byNombre] = await Promise.all([
+                supabase.from('articulos').select(SELECT).ilike('articulo_id', `%${q}%`).limit(5),
+                supabase.from('articulos').select(SELECT).eq('codigo_universal', q).limit(3),
+                supabase.from('articulos').select(SELECT).ilike('nombre', `%${q}%`).limit(8),
+            ]);
+
+            // Score del match manual según qué campo coincidió
+            add(byEan.data  ?? [], 'ean',   80);
+            add(byId.data   ?? [], 'exact', 70); // ILIKE en ID = no exacto, pero muy probable
+            add(byNombre.data ?? [], 'name', 30);
+        }
+
+        // Ordenar por score descendente
+        matches.sort((a, b) => b.score - a.score);
+
+        return NextResponse.json({ matches });
 
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
