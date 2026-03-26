@@ -4,11 +4,6 @@ import { createClient } from '@supabase/supabase-js';
 // Búsqueda de artículos existentes en catálogo antes de guardar una ficha
 // Criterios en orden de prioridad: SKU exacto → EAN → modelo → nombre ILIKE
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
-
 export interface ArticuloMatch {
     articulo_id: string;
     nombre: string;
@@ -23,6 +18,12 @@ export interface ArticuloMatch {
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
+
+    // Instanciar dentro del handler para que las env vars estén disponibles
+    const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
 
     const sku    = searchParams.get('sku')    || '';
     const ean    = searchParams.get('ean')    || '';

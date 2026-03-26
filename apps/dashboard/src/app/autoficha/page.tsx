@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from 'react';
-import { Upload, Sparkles, CheckCircle2, Save, Trash2, Camera, Link, Loader2, AlertCircle, Search } from 'lucide-react';
+import { Upload, Sparkles, CheckCircle2, Save, Trash2, Camera, Loader2, AlertCircle, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { AutofichaResult } from '@gestor/sync/autoficha';
 
@@ -164,7 +164,7 @@ export default function AutofichaPage() {
                     url_storage:      result?.storage_path   || null,
                     url_origen:       inputMode === 'url' ? url : null,
                     tipo_archivo:     file?.type || 'application/pdf',
-                    tamano_bytes:     file?.size || null,
+                    tamano_bytes:     file?.size ?? null,
                     texto_extraido:   result?.rawText?.slice(0, 50_000) || null,
                     ocr_confianza:    result?.confidence     || null,
                     confidence:       result?.confidence     || null,
