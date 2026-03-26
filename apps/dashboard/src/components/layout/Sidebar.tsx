@@ -6,19 +6,20 @@ import { cn } from '@/lib/utils';
 import {
     LayoutDashboard, Database, Activity, Settings,
     Package, PlusCircle, RefreshCcw, Store,
-    ChevronLeft, ChevronRight, ShoppingCart,
+    ChevronLeft, ChevronRight, ShoppingCart, FileText,
 } from 'lucide-react';
 
 export default function Sidebar() {
     const menuItems = [
-        { name: 'Dashboard',       icon: LayoutDashboard, href: '/' },
+        { name: 'Dashboard',        icon: LayoutDashboard, href: '/' },
         { name: 'Catálogo Maestro', icon: Package,         href: '/catalog' },
         { name: 'Vitrinas MeLi',   icon: Store,            href: '/catalog/external' },
-        { name: 'Ventas',          icon: ShoppingCart,     href: '/ventas' },
-        { name: 'Crear con IA',    icon: PlusCircle,       href: '/autoficha' },
-        { name: 'Monitor Sync',    icon: Activity,         href: '/monitor' },
-        { name: 'Operaciones',     icon: Database,         href: '/operations' },
-        { name: 'Cuentas',         icon: Settings,         href: '/settings' },
+        { name: 'Ventas',           icon: ShoppingCart,    href: '/ventas' },
+        { name: 'Crear con IA',     icon: PlusCircle,      href: '/autoficha' },
+        { name: 'Fichas Técnicas',  icon: FileText,        href: '/fichas' },
+        { name: 'Monitor Sync',     icon: Activity,        href: '/monitor' },
+        { name: 'Operaciones',      icon: Database,        href: '/operations' },
+        { name: 'Cuentas',          icon: Settings,        href: '/settings' },
     ];
 
     const [collapsed, setCollapsed] = useState(false);

@@ -18,7 +18,7 @@ export interface ArticuloMatch {
     score:       number;  // numérico: 100=exacto, 80=ean, 60=modelo, 30=nombre
 }
 
-const SELECT = 'articulo_id, nombre, marca, modelo, categoria, descripcion, codigo_universal, codigo_sat';
+const SELECT = 'articulo_id, nombre, marca, modelo, variante, categoria, descripcion, codigo_universal, codigo_sat';
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
