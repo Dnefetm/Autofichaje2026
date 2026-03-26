@@ -183,9 +183,16 @@ export async function processMultipleDocuments(
         docs.map(d => extractTextFromBuffer(d.buffer, d.mimeType).catch(() => ({ text: '', confidence: 0 })))
     );
 
-    // 2. Concatenar textos con separadores claros
+    // 2. Truncar cada doc proporcionalmente antes de concatenar
+    // Limit total = 100K chars (igual que structureWithAI). Con N docs → 100K/N por doc.
+    // Esto evita que los últimos documentos se pierdan por el slice posterior.
+    const MAX_TOTAL   = 100_000;
+    const perDocLimit = Math.floor(MAX_TOTAL / docs.length);
+
     const combinedText = ocrResults
-        .map((r, i) => `=== DOCUMENTO ${i + 1}: ${docs[i].fileName} ===\n${r.text}`)
+        .map((r, i) =>
+            `=== DOCUMENTO ${i + 1}: ${docs[i].fileName} ===\n${r.text.slice(0, perDocLimit)}`
+        )
         .join('\n\n');
 
     const avgConfidence = ocrResults.reduce((s, r) => s + r.confidence, 0) / ocrResults.length;
