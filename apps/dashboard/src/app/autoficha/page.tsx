@@ -66,6 +66,8 @@ export default function AutofichaPage() {
     const [errorMsg, setErrorMsg]     = useState('');
     const [result, setResult]         = useState<AutofichaResult | null>(null);
     const [edited, setEdited]         = useState<AutofichaResult | null>(null);
+    // Búsqueda en catálogo
+    const [catalogMatch, setCatalogMatch] = useState<{ articulo_id: string; nombre: string; marca: string; score: string } | null>(null);
 
     // ── Updaters de campos individuales ──────────────────────────────────────
 
@@ -104,16 +106,31 @@ export default function AutofichaPage() {
                 return;
             }
 
-            setResult(data as AutofichaResult);
-            setEdited(data as AutofichaResult);
+            const af = data as AutofichaResult;
+            setResult(af);
+            setEdited(af);
             setStatus('done');
+
+            // Búsqueda automática en catálogo
+            try {
+                const params = new URLSearchParams();
+                if (af.sku_detectado) params.set('sku', af.sku_detectado);
+                if (af.codigo_universal) params.set('ean', af.codigo_universal);
+                if (af.modelo) params.set('modelo', af.modelo);
+                if (af.nombre) params.set('nombre', af.nombre);
+                const sr = await fetch(`/api/autoficha/search?${params}`);
+                if (sr.ok) {
+                    const { matches } = await sr.json();
+                    if (matches?.length > 0) setCatalogMatch(matches[0]);
+                }
+            } catch { /* no bloquear si falla la búsqueda */ }
         } catch (err: any) {
             setErrorMsg(err?.message || 'Error de red al conectar con el servidor.');
             setStatus('error');
         }
     }, [file, url, inputMode]);
 
-    // ── Guardar en catálogo ──────────────────────────────────────────────────
+    // ── Guardar en catálogo ── vía RPC transaccional ─────────────────────────────────
 
     const handleSave = useCallback(async () => {
         if (!edited) return;
@@ -122,32 +139,39 @@ export default function AutofichaPage() {
         try {
             const articulo_id = edited.articulo_id || edited.sku_detectado;
 
-            // Upsert artículo en tabla articulos
-            const { error: artError } = await supabase.from('articulos').upsert({
-                articulo_id,
-                nombre:           edited.nombre           || null,
-                marca:            edited.marca            || null,
-                modelo:           edited.modelo           || null,
-                variante:         edited.variante         || null,
-                categoria:        edited.categoria        || null,
-                descripcion:      edited.descripcion      || null,
-                codigo_universal: edited.codigo_universal || null,
-                codigo_sat:       edited.codigo_sat       || null,
-                peso_kg:          edited.peso_kg          || null,
-                largo_cm:         edited.largo_cm         || null,
-                ancho_cm:         edited.ancho_cm         || null,
-                alto_cm:          edited.alto_cm          || null,
-                materiales:       edited.materiales       || null,
-                pais_origen:      edited.pais_origen      || null,
-            }, { onConflict: 'articulo_id', ignoreDuplicates: false });
+            // Llamar RPC transaccional: fuentes_documento → articulos (upsert) →
+            // inventory_snapshot → fichas_tecnicas → ficha_extracciones
+            const { data, error } = await supabase.rpc('guardar_ficha_autoficha', {
+                p: {
+                    articulo_id,
+                    sku_detectado:    edited.sku_detectado,
+                    nombre:           edited.nombre           || null,
+                    marca:            edited.marca            || null,
+                    modelo:           edited.modelo           || null,
+                    variante:         edited.variante         || null,
+                    categoria:        edited.categoria        || null,
+                    descripcion:      edited.descripcion      || null,
+                    codigo_universal: edited.codigo_universal || null,
+                    codigo_sat:       edited.codigo_sat       || null,
+                    peso_kg:          edited.peso_kg          || null,
+                    largo_cm:         edited.largo_cm         || null,
+                    ancho_cm:         edited.ancho_cm         || null,
+                    alto_cm:          edited.alto_cm          || null,
+                    materiales:       edited.materiales       || null,
+                    pais_origen:      edited.pais_origen      || null,
+                    // Metadatos de auditoría
+                    nombre_archivo:   file?.name || url.split('/').pop() || 'documento',
+                    url_storage:      result?.storage_path   || null,
+                    url_origen:       inputMode === 'url' ? url : null,
+                    tipo_archivo:     file?.type || 'application/pdf',
+                    tamano_bytes:     file?.size || null,
+                    texto_extraido:   result?.rawText?.slice(0, 50_000) || null,
+                    ocr_confianza:    result?.confidence     || null,
+                    confidence:       result?.confidence     || null,
+                }
+            });
 
-            if (artError) throw artError;
-
-            // Snapshot de inventario (stock inicial = 0 si es nuevo)
-            await supabase.from('inventory_snapshot').upsert(
-                { sku: articulo_id, physical_stock: 0 },
-                { onConflict: 'sku', ignoreDuplicates: true }
-            );
+            if (error) throw error;
 
             setStatus('saved');
             setTimeout(() => {
@@ -171,6 +195,7 @@ export default function AutofichaPage() {
         setFile(null);
         setUrl('');
         setErrorMsg('');
+        setCatalogMatch(null);
         setStatus('idle');
     }
 
@@ -312,7 +337,25 @@ export default function AutofichaPage() {
                             </button>
                         </div>
 
-                        {/* Sección: Identificación */}
+                        {/* Banner: artículo encontrado en catálogo */}
+                        {catalogMatch && (
+                            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                                <Search className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                <div className="flex-1 text-sm">
+                                    <p className="font-semibold text-amber-800">
+                                        {catalogMatch.score === 'exact' ? '⚡ SKU exacto' :
+                                         catalogMatch.score === 'ean'   ? '✅ EAN/UPC coincide' :
+                                         catalogMatch.score === 'model' ? '🔍 Modelo similar' : '📋 Nombre similar'} encontrado en catálogo
+                                    </p>
+                                    <p className="text-amber-700 text-xs mt-0.5">
+                                        <span className="font-mono">{catalogMatch.articulo_id}</span> — {catalogMatch.nombre} ({catalogMatch.marca})
+                                    </p>
+                                    <p className="text-amber-600 text-xs mt-1">Guardar actualizará solo los campos vacíos del artículo existente.</p>
+                                </div>
+                                <button onClick={() => setCatalogMatch(null)} className="text-amber-400 hover:text-amber-600 text-xs">✕</button>
+                            </div>
+                        )}
+
                         <div className="space-y-3">
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Identificación</p>
                             <Field
