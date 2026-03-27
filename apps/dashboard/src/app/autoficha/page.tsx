@@ -212,20 +212,23 @@ export default function AutofichaPage() {
     }
 
     async function eliminarBorrador(id: string, e: React.MouseEvent) {
+        e.preventDefault();
         e.stopPropagation();
+        // Optimistic UI: quitar del estado local de inmediato
+        setBorradores(prev => prev.filter(b => b.id !== id));
+        if (currentBorrador === id) setCurrentBorrador(null);
         try {
             const res = await fetch(`/api/autoficha/borradores/${id}`, { method: 'DELETE' });
             if (!res.ok) {
+                // Revertir si el servidor falló
                 const d = await res.json().catch(() => ({}));
                 console.error('[eliminarBorrador] error:', d?.error || res.status);
-                return; // No recargar si falló
+                loadBorradores(); // recarga para mostrar el estado real
             }
         } catch (err) {
             console.error('[eliminarBorrador] red:', err);
-            return;
+            loadBorradores();
         }
-        if (currentBorrador === id) setCurrentBorrador(null);
-        loadBorradores();
     }
 
     // ── Edición de campos ─────────────────────────────────────────────────────
@@ -456,7 +459,7 @@ export default function AutofichaPage() {
                     {showBorradores && (
                         <div className="mt-3 space-y-2">
                             {pendingBorradores.map(b => (
-                                <div key={b.id} className="flex items-center gap-3 p-3 bg-white border border-amber-200 rounded-xl text-sm">
+                                <div key={b.id} className="relative flex items-center gap-3 p-3 bg-white border border-amber-200 rounded-xl text-sm">
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium text-slate-700 truncate">
                                             {b.archivos_storage?.length > 0
@@ -468,10 +471,17 @@ export default function AutofichaPage() {
                                             {b.estado} · {new Date(b.updated_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
                                         </p>
                                     </div>
-                                    <button onClick={() => continuarBorrador(b)} className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700">
+                                    <button
+                                        type="button"
+                                        onClick={() => continuarBorrador(b)}
+                                        className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700">
                                         Continuar
                                     </button>
-                                    <button onClick={(e) => eliminarBorrador(b.id, e)} className="text-slate-300 hover:text-rose-500">
+                                    <button
+                                        type="button"
+                                        aria-label="Eliminar borrador"
+                                        onClick={(e) => eliminarBorrador(b.id, e)}
+                                        className="relative z-10 p-1.5 shrink-0 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors">
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -563,17 +573,28 @@ export default function AutofichaPage() {
                     {/* Botones de acción */}
                     {canProcess && (
                         <div className={cn('flex gap-3', isMobile && 'flex-col')}>
-                            <button onClick={handleProcess} disabled={isProcessing}
+                            <button type="button" onClick={handleProcess} disabled={isProcessing}
                                 className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 shadow-lg shadow-indigo-100 disabled:opacity-60 text-base">
                                 {status === 'uploading' ? <><Loader2 className="w-5 h-5 animate-spin" /> Subiendo archivos…</>
                                     : status === 'processing' ? <><Loader2 className="w-5 h-5 animate-spin" /> Procesando{files.length > 1 ? ` ${files.length} documentos` : ''}…</>
                                     : <><Sparkles className="w-5 h-5" /> Estructurar con IA{files.length > 1 ? ` (${files.filter(f=>!f.error).length})` : ''}</>}
                             </button>
-                            {/* BLOQUE 3+4: Guardar como borrador */}
-                            <button onClick={guardarBorrador} disabled={isProcessing}
+                            <button type="button" onClick={guardarBorrador} disabled={isProcessing}
                                 className="py-4 px-5 bg-slate-100 text-slate-700 font-bold rounded-2xl hover:bg-slate-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60 text-sm whitespace-nowrap">
                                 <Clock className="w-4 h-4" /> Guardar borrador
                             </button>
+                            {/* Eliminar borrador activo */}
+                            {currentBorrador && (
+                                <button type="button"
+                                    onClick={async (e) => {
+                                        if (!window.confirm('¿Eliminar este borrador? Esta acción no se puede deshacer.')) return;
+                                        await eliminarBorrador(currentBorrador, e as any);
+                                        handleReset();
+                                    }}
+                                    className="py-4 px-4 bg-rose-50 text-rose-600 font-bold rounded-2xl hover:bg-rose-100 transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap border border-rose-200">
+                                    <Trash2 className="w-4 h-4" /> Eliminar
+                                </button>
+                            )}
                         </div>
                     )}
                 </>
