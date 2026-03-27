@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Search, Filter, RefreshCcw, Loader2, FileText, ExternalLink, AlertCircle } from 'lucide-react';
+import { Search, Filter, RefreshCcw, Loader2, FileText, ExternalLink, AlertCircle, Trash2 } from 'lucide-react';
 
 type Estado = '' | 'borrador' | 'revision' | 'publicada';
 
@@ -34,6 +34,7 @@ export default function FichasPage() {
     const [estado, setEstado]   = useState<Estado>('');
     const [loading, setLoading] = useState(false);
     const [error, setError]     = useState('');
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     const fetchFichas = useCallback(async (p = page, query = q, est = estado) => {
         setLoading(true); setError('');
@@ -54,6 +55,24 @@ export default function FichasPage() {
     }, [page, q, estado]);
 
     useEffect(() => { fetchFichas(); }, [fetchFichas]);
+
+    async function eliminarFichaLista(f: Ficha) {
+        if (!window.confirm(`¿Eliminar "${f.nombre_producto || 'esta ficha'}"?\nEsta acción no se puede deshacer.`)) return;
+        setDeletingId(f.id);
+        try {
+            const res  = await fetch(`/api/fichas/${f.id}`, { method: 'DELETE' });
+            const body = await res.json().catch(() => ({}));
+            if (res.ok) {
+                setFichas(prev => prev.filter(x => x.id !== f.id));
+                setTotal(prev => Math.max(0, prev - 1));
+            } else {
+                setError(body?.error || 'No se pudo eliminar la ficha.');
+            }
+        } catch (err: any) {
+            setError(err?.message || 'Error de red.');
+        }
+        setDeletingId(null);
+    }
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -156,10 +175,24 @@ export default function FichasPage() {
                                         {new Date(f.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
                                     </td>
                                     <td className="px-5 py-4 text-right">
-                                        <Link href={`/fichas/${f.id}`}
-                                            className="inline-flex items-center gap-1 text-indigo-500 hover:text-indigo-700 text-xs font-semibold">
-                                            Ver <ExternalLink className="w-3 h-3" />
-                                        </Link>
+                                        <div className="flex items-center justify-end gap-3">
+                                            <Link href={`/fichas/${f.id}`}
+                                                className="inline-flex items-center gap-1 text-indigo-500 hover:text-indigo-700 text-xs font-semibold">
+                                                Ver <ExternalLink className="w-3 h-3" />
+                                            </Link>
+                                            {f.estado !== 'publicada' && (
+                                                <button
+                                                    type="button"
+                                                    aria-label="Eliminar ficha"
+                                                    onClick={() => eliminarFichaLista(f)}
+                                                    disabled={deletingId === f.id}
+                                                    className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50">
+                                                    {deletingId === f.id
+                                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        : <Trash2 className="w-3.5 h-3.5" />}
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

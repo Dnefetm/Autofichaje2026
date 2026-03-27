@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, AlertCircle, FileText, Link2, CheckCircle2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertCircle, FileText, Link2, CheckCircle2, ExternalLink, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 type Estado = 'borrador' | 'revision' | 'publicada';
@@ -34,6 +34,7 @@ export default function FichaDetallePage() {
     const [error, setError]       = useState('');
     const [saving, setSaving]     = useState(false);
     const [savedOk, setSavedOk]   = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -49,7 +50,7 @@ export default function FichaDetallePage() {
                 .eq('id', id)
                 .single();
             if (error) setError(error.message);
-            else setFicha(data as FichaDetalle);
+            else setFicha(data as unknown as FichaDetalle);
             setLoading(false);
         })();
     }, [id]);
@@ -63,6 +64,25 @@ export default function FichaDetallePage() {
             .eq('id', ficha.id);
         if (!error) { setFicha(p => p ? { ...p, estado: nuevoEstado } : p); setSavedOk(true); setTimeout(() => setSavedOk(false), 2000); }
         setSaving(false);
+    }
+
+    async function eliminarFicha() {
+        if (!ficha) return;
+        if (!window.confirm(`¿Eliminar la ficha "${ficha.nombre_producto || 'sin nombre'}"?\nEsta acción no se puede deshacer.`)) return;
+        setDeleting(true);
+        try {
+            const res = await fetch(`/api/fichas/${ficha.id}`, { method: 'DELETE' });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setError(body?.error || 'Error al eliminar la ficha.');
+                setDeleting(false);
+                return;
+            }
+            router.push('/fichas');
+        } catch (err: any) {
+            setError(err?.message || 'Error de red al eliminar.');
+            setDeleting(false);
+        }
     }
 
     if (loading) return <div className="flex items-center justify-center h-64 text-slate-400"><Loader2 className="w-6 h-6 animate-spin mr-2" /> Cargando ficha…</div>;
@@ -178,6 +198,20 @@ export default function FichaDetallePage() {
                         <Link href="/autoficha" className="block w-full py-2.5 px-4 rounded-xl text-sm font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 text-center transition-colors">
                             Nueva ficha con IA
                         </Link>
+                        {ficha.estado !== 'publicada' && (
+                            <button
+                                type="button"
+                                onClick={eliminarFicha}
+                                disabled={deleting}
+                                className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
+                                {deleting
+                                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Eliminando…</>
+                                    : <><Trash2 className="w-4 h-4" /> Eliminar ficha</>}
+                            </button>
+                        )}
+                        {ficha.estado === 'publicada' && (
+                            <p className="text-xs text-slate-400 text-center">Las fichas publicadas no se pueden eliminar directamente. Cámbiala a borrador primero.</p>
+                        )}
                     </div>
                 </div>
             </div>
