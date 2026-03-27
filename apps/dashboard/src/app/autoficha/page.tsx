@@ -213,9 +213,19 @@ export default function AutofichaPage() {
 
     async function eliminarBorrador(id: string, e: React.MouseEvent) {
         e.stopPropagation();
-        await fetch(`/api/autoficha/borradores/${id}`, { method: 'DELETE' });
-        loadBorradores();
+        try {
+            const res = await fetch(`/api/autoficha/borradores/${id}`, { method: 'DELETE' });
+            if (!res.ok) {
+                const d = await res.json().catch(() => ({}));
+                console.error('[eliminarBorrador] error:', d?.error || res.status);
+                return; // No recargar si falló
+            }
+        } catch (err) {
+            console.error('[eliminarBorrador] red:', err);
+            return;
+        }
         if (currentBorrador === id) setCurrentBorrador(null);
+        loadBorradores();
     }
 
     // ── Edición de campos ─────────────────────────────────────────────────────
