@@ -214,19 +214,21 @@ export default function AutofichaPage() {
     async function eliminarBorrador(id: string, e: React.MouseEvent) {
         e.preventDefault();
         e.stopPropagation();
-        // Optimistic UI: quitar del estado local de inmediato
-        setBorradores(prev => prev.filter(b => b.id !== id));
-        if (currentBorrador === id) setCurrentBorrador(null);
+        console.log('[eliminarBorrador] called, id:', id);  // diagnóstico temporal
         try {
             const res = await fetch(`/api/autoficha/borradores/${id}`, { method: 'DELETE' });
-            if (!res.ok) {
-                // Revertir si el servidor falló
+            console.log('[eliminarBorrador] response status:', res.status);
+            if (res.ok) {
+                // Actualizar estado SOLO después de confirmar éxito en el servidor
+                setBorradores(prev => prev.filter(b => b.id !== id));
+                if (currentBorrador === id) setCurrentBorrador(null);
+            } else {
                 const d = await res.json().catch(() => ({}));
-                console.error('[eliminarBorrador] error:', d?.error || res.status);
-                loadBorradores(); // recarga para mostrar el estado real
+                console.error('[eliminarBorrador] error del servidor:', d?.error || res.status);
+                loadBorradores(); // Recargar para mostrar estado real
             }
         } catch (err) {
-            console.error('[eliminarBorrador] red:', err);
+            console.error('[eliminarBorrador] error de red:', err);
             loadBorradores();
         }
     }
