@@ -22,7 +22,48 @@ function getSupabaseAdmin() {
     );
 }
 
-// ─── Helper: descargar una URL y retornar buffer ──────────────────────────────
+// ─── Helper v4: separar atributos_tecnicos en 2 cubetas ──────────────────────
+// Consulta la plantilla de la categoría y clasifica cada atributo extraído por la IA
+// como "de plantilla" (campos definidos) o "extra" (detectados pero no en plantilla).
+
+async function splitAtributos(
+    categoria: string | undefined,
+    atributos_tecnicos: Record<string, any> = {},
+): Promise<{
+    atributos_categoria: Record<string, any>;
+    atributos_extras:    Record<string, any>;
+}> {
+    if (Object.keys(atributos_tecnicos).length === 0) {
+        return { atributos_categoria: {}, atributos_extras: {} };
+    }
+
+    try {
+        const supabase = getSupabaseAdmin();
+        const { data: plantilla } = await supabase
+            .from('categoria_plantillas')
+            .select('campos')
+            .eq('categoria', categoria ?? '')
+            .single();
+
+        const camposPlantilla = new Set<string>(
+            (plantilla?.campos ?? []).map((c: { key: string }) => c.key)
+        );
+
+        const atributos_categoria: Record<string, any> = {};
+        const atributos_extras:    Record<string, any> = {};
+
+        for (const [key, value] of Object.entries(atributos_tecnicos)) {
+            if (camposPlantilla.has(key)) atributos_categoria[key] = value;
+            else                          atributos_extras[key]    = value;
+        }
+
+        return { atributos_categoria, atributos_extras };
+    } catch {
+        // Si la consulta falla (tabla no existe aún, etc.), todo va a extras
+        return { atributos_categoria: {}, atributos_extras: atributos_tecnicos };
+    }
+}
+
 
 async function urlToBuffer(url: string): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
     let fetchResp: Response;
@@ -81,7 +122,10 @@ export async function POST(req: NextRequest) {
             } catch { storagePath = undefined; }
 
             const result = await processProductDocument(buffer, file.name, mime, storagePath);
-            return NextResponse.json(result);
+            const { atributos_categoria, atributos_extras } = await splitAtributos(
+                result.categoria, result.atributos_tecnicos
+            );
+            return NextResponse.json({ ...result, atributos_categoria, atributos_extras });
         }
 
         // ── MODO JSON: URL única o array de URLs (flujo principal) ───────────
@@ -107,7 +151,10 @@ export async function POST(req: NextRequest) {
                 }));
 
                 const result = await processMultipleDocuments(docs);
-                return NextResponse.json(result);
+                const { atributos_categoria, atributos_extras } = await splitAtributos(
+                    result.categoria, result.atributos_tecnicos
+                );
+                return NextResponse.json({ ...result, atributos_categoria, atributos_extras });
             }
 
             // URL única
@@ -135,7 +182,10 @@ export async function POST(req: NextRequest) {
             }
 
             const result = await processProductDocument(buffer, fileName, mimeType, storagePath);
-            return NextResponse.json(result);
+            const { atributos_categoria, atributos_extras } = await splitAtributos(
+                result.categoria, result.atributos_tecnicos
+            );
+            return NextResponse.json({ ...result, atributos_categoria, atributos_extras });
         }
 
         return NextResponse.json(

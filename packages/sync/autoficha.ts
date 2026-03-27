@@ -24,6 +24,8 @@ export interface AutofichaResult {
     // Materiales
     materiales?: string;
     pais_origen?: string;
+    // Atributos técnicos (modelo híbrido v4)
+    atributos_tecnicos?: Record<string, any>;   // Todos los datos técnicos detectados por la IA
     // Metadatos de calidad
     confidence: number;         // 0-1 global del LLM
     rawText: string;            // Texto OCR completo para auditoría
@@ -86,35 +88,36 @@ Campos a extraer (usa null si no está disponible):
 - alto_cm: alto en centímetros (número decimal)
 - materiales: materiales de fabricación (acero, aluminio, plástico ABS, etc.)
 - pais_origen: país de fabricación
+- atributos_tecnicos: objeto JSON con TODOS los datos técnicos adicionales que encuentres
+  en el documento (voltaje, viscosidad, normas, resistencia, torque, certificaciones,
+  temperaturas, rpm, presión, caudal, capacidad, etc.). Usa keys en snake_case.
+  No filtres nada — extrae todo dato técnico que no haya sido capturado arriba.
+  Si no hay datos adicionales, retorna objeto vacío {}.
 - confidence: tu nivel de confianza en la extracción (0.0 a 1.0)`;
-
-function buildPromptForCategory(category: string, extraFields: string): string {
-    if (!extraFields) return PROMPT_SISTEMA_BASE;
-    return `${PROMPT_SISTEMA_BASE}
-
-Campos adicionales para la categoría "${category}" (extrae si están disponibles):
-- ${extraFields.split(', ').join('\n- ')}`;
-}
 
 async function structureWithAI(
     rawText: string,
     category: string,
 ): Promise<Omit<AutofichaResult, 'rawText' | 'storage_path'>> {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const extraFields = getCategoryExtraFields(category);
-    const systemPrompt = buildPromptForCategory(category, extraFields);
 
     const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         temperature: 0.2,
         response_format: { type: 'json_object' },
         messages: [
-            { role: 'system', content: systemPrompt },
+            { role: 'system', content: PROMPT_SISTEMA_BASE },
             { role: 'user',   content: `Texto OCR del documento:\n\n${rawText.slice(0, 100_000)}` },
         ],
     });
 
     const raw = JSON.parse(response.choices[0].message.content || '{}');
+
+    // Asegurar que atributos_tecnicos sea siempre un objeto, nunca null/array
+    const atributos_tecnicos: Record<string, any> =
+        raw.atributos_tecnicos && typeof raw.atributos_tecnicos === 'object' && !Array.isArray(raw.atributos_tecnicos)
+            ? raw.atributos_tecnicos
+            : {};
 
     return {
         sku_detectado:    raw.sku_detectado  || `AUTO-${Date.now()}`,
@@ -132,6 +135,7 @@ async function structureWithAI(
         alto_cm:          typeof raw.alto_cm === 'number' ? raw.alto_cm : (parseFloat(raw.alto_cm) || undefined),
         materiales:       raw.materiales     || undefined,
         pais_origen:      raw.pais_origen    || undefined,
+        atributos_tecnicos,
         confidence:       typeof raw.confidence === 'number' ? Math.min(1, Math.max(0, raw.confidence)) : 0.7,
     };
 }

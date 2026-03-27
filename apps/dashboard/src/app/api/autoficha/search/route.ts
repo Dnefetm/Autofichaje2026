@@ -77,17 +77,21 @@ export async function GET(req: NextRequest) {
 
         // ── Búsqueda manual libre (campo q del operador) ──────────────────────
         if (q && q.length >= 2) {
-            // Busca en articulo_id (SKU), codigo_universal (EAN) y nombre simultáneamente
-            const [byId, byEan, byNombre] = await Promise.all([
+            // Busca en articulo_id (SKU), codigo_universal (EAN), nombre, modelo y marca
+            const [byId, byEan, byNombre, byModelo, byMarca] = await Promise.all([
                 supabase.from('articulos').select(SELECT).ilike('articulo_id', `%${q}%`).limit(5),
                 supabase.from('articulos').select(SELECT).eq('codigo_universal', q).limit(3),
                 supabase.from('articulos').select(SELECT).ilike('nombre', `%${q}%`).limit(8),
+                supabase.from('articulos').select(SELECT).ilike('modelo', `%${q}%`).limit(5),
+                supabase.from('articulos').select(SELECT).ilike('marca', `%${q}%`).limit(5),
             ]);
 
             // Score del match manual según qué campo coincidió
-            add(byEan.data  ?? [], 'ean',   80);
-            add(byId.data   ?? [], 'exact', 70); // ILIKE en ID = no exacto, pero muy probable
-            add(byNombre.data ?? [], 'name', 30);
+            add(byEan.data    ?? [], 'ean',   80);
+            add(byId.data     ?? [], 'exact', 70); // ILIKE en ID = no exacto, pero muy probable
+            add(byModelo.data ?? [], 'model', 60);
+            add(byMarca.data  ?? [], 'model', 40); // 'model' — búsqueda de atributo, no de nombre
+            add(byNombre.data ?? [], 'name',  30);
         }
 
         // Ordenar por score descendente

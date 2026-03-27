@@ -136,6 +136,10 @@ export default function AutofichaPage() {
     const [currentBorrador, setCurrentBorrador] = useState<string | null>(null);
     const [showBorradores, setShowBorradores]   = useState(false);
     const autoSaveRef                           = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Atributos dinámicos 3 capas (v4)
+    const [plantillaCampos, setPlantillaCampos]   = useState<any[]>([]);
+    const [atribCategoria, setAtribCategoria]     = useState<Record<string, any>>({});
+    const [atribExtras, setAtribExtras]           = useState<Record<string, any>>({});
     // UI
     const [dragOver, setDragOver]       = useState(false);
     const [isMobile, setIsMobile]       = useState(false);
@@ -267,6 +271,7 @@ export default function AutofichaPage() {
     const handleProcess = useCallback(async () => {
         setStatus('uploading'); setErrorMsg('');
         setSuggestions([]); setSearchResults([]); setLinkedArticulo(null);
+        setPlantillaCampos([]); setAtribCategoria({}); setAtribExtras({});
 
         try {
             let response: Response;
@@ -297,6 +302,13 @@ export default function AutofichaPage() {
 
             const af = data as AutofichaResult;
             setResult(af); setEdited(af); setStatus('done');
+            // Cargar plantilla de la categoría y separar atributos en 2 cubetas (v4)
+            try {
+                const pRes = await fetch(`/api/autoficha/plantillas?categoria=${encodeURIComponent(af.categoria || '')}`);
+                if (pRes.ok) { const pd = await pRes.json(); setPlantillaCampos(pd.campos || []); }
+            } catch { /* no bloquear */ }
+            setAtribCategoria((data as any).atributos_categoria || {});
+            setAtribExtras((data as any).atributos_extras || {});
             await saveBorrador({ estado: 'listo', resultado_ia: af, editado: af, confianza: af.confidence });
 
             // Sugerencias automáticas (solo informativas)
@@ -363,6 +375,8 @@ export default function AutofichaPage() {
                     alto_cm:          edited.alto_cm          || null,
                     materiales:       edited.materiales       || null,
                     pais_origen:      edited.pais_origen      || null,
+                    atributos_categoria: atribCategoria,
+                    atributos_extras:    atribExtras,
                     nombre_archivo:   primaryFile?.file.name || url.split('/').pop() || 'documento',
                     url_storage:      result?.storage_path   || null,
                     url_origen:       inputMode === 'url' ? url : null,
@@ -391,7 +405,7 @@ export default function AutofichaPage() {
         } catch (err: any) {
             setErrorMsg(err?.message || 'Error al guardar.'); setStatus('error');
         }
-    }, [edited, linkedArticulo, saveMode, files, url, inputMode, result, currentBorrador]);
+    }, [edited, linkedArticulo, saveMode, files, url, inputMode, result, currentBorrador, atribCategoria, atribExtras]);
 
     // ── Reset ─────────────────────────────────────────────────────────────────
 
@@ -399,6 +413,7 @@ export default function AutofichaPage() {
         setResult(null); setEdited(null); setFiles([]); setUrl('');
         setErrorMsg(''); setSuggestions([]); setLinkedArticulo(null);
         setSearchQ(''); setSearchResults([]); setCurrentBorrador(null); setStatus('idle');
+        setPlantillaCampos([]); setAtribCategoria({}); setAtribExtras({});
     }
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -616,6 +631,50 @@ export default function AutofichaPage() {
                                 <Field label="Materiales" value={edited?.materiales} onChange={v => updateField('materiales', v)} />
                                 <Field label="País de Origen" value={edited?.pais_origen} onChange={v => updateField('pais_origen', v)} />
                                 <Field label="Descripción Técnica" value={edited?.descripcion} onChange={v => updateField('descripcion', v)} type="textarea" />
+                            </div>
+
+                            {/* SECCIÓN A — Atributos de Categoría (plantilla dinámica v4) */}
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">
+                                    Atributos de {edited?.categoria || 'Categoría'}
+                                </p>
+                                {plantillaCampos.length === 0 ? (
+                                    <p className="text-xs text-slate-400">Sin plantilla definida para esta categoría</p>
+                                ) : (
+                                    plantillaCampos.map((campo: any) => (
+                                        <Field
+                                            key={campo.key}
+                                            label={`${campo.label}${campo.unidad ? ` (${campo.unidad})` : ''}`}
+                                            value={atribCategoria[campo.key]}
+                                            onChange={v => { setAtribCategoria(prev => ({ ...prev, [campo.key]: v })); scheduleAutoSave(); }}
+                                            type={campo.tipo === 'number' ? 'number' : campo.tipo === 'textarea' ? 'textarea' : 'text'}
+                                        />
+                                    ))
+                                )}
+                            </div>
+
+                            {/* SECCIÓN B — Otros atributos detectados (key-value editable) */}
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">
+                                    Otros atributos detectados
+                                </p>
+                                {Object.keys(atribExtras).length === 0 ? (
+                                    <p className="text-xs text-slate-400">La IA no detectó atributos adicionales</p>
+                                ) : (
+                                    Object.entries(atribExtras).map(([key, val]) => (
+                                        <div key={key} className="flex gap-2 items-center">
+                                            <input value={key} readOnly
+                                                className="w-1/3 p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs font-mono text-slate-500" />
+                                            <input value={String(val ?? '')}
+                                                onChange={e => { setAtribExtras(prev => ({ ...prev, [key]: e.target.value })); scheduleAutoSave(); }}
+                                                className="flex-1 p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                            <button onClick={() => setAtribExtras(prev => { const n = { ...prev }; delete n[key]; return n; })}
+                                                className="text-slate-300 hover:text-rose-500 shrink-0">
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
                             </div>
 
                             {status === 'error' && (
