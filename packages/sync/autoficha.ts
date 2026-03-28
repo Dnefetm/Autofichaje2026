@@ -8,11 +8,20 @@ export interface AutofichaResult {
     articulo_id?: string;       // ID confirmado del catálogo (null hasta buscar en BD)
     nombre: string;
     marca: string;
+    fabricante?: string;        // Razón social del fabricante (puede diferir de la marca)
     modelo?: string;
     variante?: string;
     categoria?: string;
     // Descripciones
-    descripcion?: string;       // Un solo campo — no hay descripcion_corta en articulos
+    descripcion?: string;           // Descripción corta / técnica principal
+    descripcion_larga?: string;     // Descripción completa extendida si el documento la tiene
+    especificaciones?: string;      // Texto libre de especificaciones técnicas tabuladas
+    ingredientes?: string;          // Para productos químicos/cosméticos
+    uso_recomendado?: string;       // Instrucciones de uso / aplicación
+    precauciones?: string;          // Advertencias de seguridad / precauciones
+    // Listas (JSONB en BD)
+    bullet_points?: string[];       // Lista de características/beneficios principales
+    palabras_clave?: string[];      // Keywords para búsqueda/marketplace
     // Códigos
     codigo_universal?: string;  // EAN / UPC / GTIN
     codigo_sat?: string;
@@ -76,10 +85,18 @@ Extrae los datos del producto desde el texto OCR dado y responde SOLO con JSON, 
 Campos a extraer (usa null si no está disponible):
 - sku_detectado: código de referencia del producto (modelo, partno, SKU, código de artículo)
 - nombre: nombre comercial completo del producto
-- marca: fabricante o brand
+- marca: fabricante o brand (nombre corto de la marca)
+- fabricante: razón social completa del fabricante (ej: "Würth México S.A. de C.V."). Si no está, pon la marca.
 - modelo: número de modelo o referencia específica (si es distinto del sku)
-- variante: variante del producto (tamaño, color, acabado)
-- descripcion: descripción técnica completa del producto
+- variante: variante del producto (tamaño, color, acabado, capacidad)
+- descripcion: descripción técnica corta del producto (máx 500 caracteres)
+- descripcion_larga: descripción técnica completa y extendida del producto (sin límite de caracteres)
+- especificaciones: texto de especificaciones técnicas tal como aparece en el documento (tablas, listas)
+- ingredientes: composición o ingredientes activos (para lubricantes, químicos, adhesivos, etc.)
+- uso_recomendado: instrucciones de uso, aplicación o modo de empleo
+- precauciones: advertencias de seguridad, precauciones, riesgos
+- bullet_points: array de strings con las características/beneficios principales del producto (3-8 puntos)
+- palabras_clave: array de strings con keywords para búsqueda en marketplaces (5-12 palabras)
 - codigo_universal: EAN, UPC, GTIN o código de barras (13 dígitos preferentemente)
 - codigo_sat: clave SAT de producto (7 dígitos, prefijos 22, 27, 31...)
 - peso_kg: peso en kilogramos (número decimal)
@@ -123,10 +140,18 @@ async function structureWithAI(
         sku_detectado:    raw.sku_detectado  || `AUTO-${Date.now()}`,
         nombre:           raw.nombre         || 'Producto sin nombre',
         marca:            raw.marca          || '',
+        fabricante:       raw.fabricante     || raw.marca || undefined,
         modelo:           raw.modelo         || undefined,
         variante:         raw.variante       || undefined,
-        categoria:        category,           // usa la categoría detectada por el clasificador
+        categoria:        category,
         descripcion:      raw.descripcion    || undefined,
+        descripcion_larga: raw.descripcion_larga || undefined,
+        especificaciones: raw.especificaciones || undefined,
+        ingredientes:     raw.ingredientes   || undefined,
+        uso_recomendado:  raw.uso_recomendado || undefined,
+        precauciones:     raw.precauciones   || undefined,
+        bullet_points:    Array.isArray(raw.bullet_points) ? raw.bullet_points.filter((x: any) => typeof x === 'string') : undefined,
+        palabras_clave:   Array.isArray(raw.palabras_clave) ? raw.palabras_clave.filter((x: any) => typeof x === 'string') : undefined,
         codigo_universal: raw.codigo_universal || undefined,
         codigo_sat:       raw.codigo_sat     || undefined,
         peso_kg:          typeof raw.peso_kg === 'number' ? raw.peso_kg : (parseFloat(raw.peso_kg) || undefined),

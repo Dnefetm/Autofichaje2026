@@ -376,22 +376,37 @@ export default function AutofichaPage() {
                     p_mode:           linkedArticulo ? saveMode : 'create',
                     articulo_id,
                     sku_detectado:    edited.sku_detectado,
+                    // Identificación
                     nombre:           edited.nombre           || null,
                     marca:            edited.marca            || null,
+                    fabricante:       edited.fabricante       || edited.marca || null,
                     modelo:           edited.modelo           || null,
                     variante:         edited.variante         || null,
                     categoria:        edited.categoria        || null,
+                    // Descripciones
                     descripcion:      edited.descripcion      || null,
+                    descripcion_larga: edited.descripcion_larga || null,
+                    especificaciones: edited.especificaciones || null,
+                    ingredientes:     edited.ingredientes     || null,
+                    uso_recomendado:  edited.uso_recomendado  || null,
+                    precauciones:     edited.precauciones     || null,
+                    // Listas JSONB
+                    bullet_points:    edited.bullet_points    || null,
+                    palabras_clave:   edited.palabras_clave   || null,
+                    // Códigos
                     codigo_universal: edited.codigo_universal || null,
                     codigo_sat:       edited.codigo_sat       || null,
+                    // Dimensiones
                     peso_kg:          edited.peso_kg          || null,
                     largo_cm:         edited.largo_cm         || null,
                     ancho_cm:         edited.ancho_cm         || null,
                     alto_cm:          edited.alto_cm          || null,
                     materiales:       edited.materiales       || null,
                     pais_origen:      edited.pais_origen      || null,
+                    // Atributos híbridos (v4)
                     atributos_categoria: atribCategoria,
                     atributos_extras:    atribExtras,
+                    // Metadata del documento
                     nombre_archivo:   primaryFile?.file.name || url.split('/').pop() || 'documento',
                     url_storage:      result?.storage_path   || null,
                     url_origen:       inputMode === 'url' ? url : null,
@@ -633,15 +648,15 @@ export default function AutofichaPage() {
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Identificación</p>
                                 <Field label="SKU Detectado" value={edited?.sku_detectado} onChange={v => updateField('sku_detectado', v)} mono />
                                 <Field label="Nombre del Producto" value={edited?.nombre} onChange={v => updateField('nombre', v)} />
-                                {/* BLOQUE 4: grid responsive */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <Field label="Marca" value={edited?.marca} onChange={v => updateField('marca', v)} />
-                                    <Field label="Modelo" value={edited?.modelo} onChange={v => updateField('modelo', v)} />
+                                    <Field label="Fabricante" value={edited?.fabricante} onChange={v => updateField('fabricante', v)} />
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <Field label="Modelo" value={edited?.modelo} onChange={v => updateField('modelo', v)} />
                                     <Field label="Variante" value={edited?.variante} onChange={v => updateField('variante', v)} />
-                                    <Field label="Categoría" value={edited?.categoria} onChange={v => updateField('categoria', v)} />
                                 </div>
+                                <Field label="Categoría" value={edited?.categoria} onChange={v => updateField('categoria', v)} />
                             </div>
                             <div className="space-y-3">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Códigos</p>
@@ -658,12 +673,63 @@ export default function AutofichaPage() {
                                     <Field label="Alto (cm)"  value={edited?.alto_cm}  onChange={v => updateField('alto_cm',  parseFloat(v) || undefined as any)} type="number" />
                                     <Field label="Peso (kg)"  value={edited?.peso_kg}  onChange={v => updateField('peso_kg',  parseFloat(v) || undefined as any)} type="number" />
                                 </div>
+                                <Field label="País de Origen" value={edited?.pais_origen} onChange={v => updateField('pais_origen', v)} />
+                                <Field label="Materiales" value={edited?.materiales} onChange={v => updateField('materiales', v)} />
                             </div>
                             <div className="space-y-3">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Descripción</p>
-                                <Field label="Materiales" value={edited?.materiales} onChange={v => updateField('materiales', v)} />
-                                <Field label="País de Origen" value={edited?.pais_origen} onChange={v => updateField('pais_origen', v)} />
-                                <Field label="Descripción Técnica" value={edited?.descripcion} onChange={v => updateField('descripcion', v)} type="textarea" />
+                                <Field label="Descripción técnica (corta)" value={edited?.descripcion} onChange={v => updateField('descripcion', v)} type="textarea" />
+                                <Field label="Descripción extendida" value={edited?.descripcion_larga} onChange={v => updateField('descripcion_larga', v)} type="textarea" />
+                                <Field label="Especificaciones" value={edited?.especificaciones} onChange={v => updateField('especificaciones', v)} type="textarea" />
+                            </div>
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Uso y Seguridad</p>
+                                <Field label="Uso recomendado" value={edited?.uso_recomendado} onChange={v => updateField('uso_recomendado', v)} type="textarea" />
+                                <Field label="Precauciones" value={edited?.precauciones} onChange={v => updateField('precauciones', v)} type="textarea" />
+                                <Field label="Ingredientes / Composición" value={edited?.ingredientes} onChange={v => updateField('ingredientes', v)} type="textarea" />
+                            </div>
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Marketplaces</p>
+                                {/* Bullet points — lista editable */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Puntos clave (bullet points)</label>
+                                    {(edited?.bullet_points ?? []).map((bp, i) => (
+                                        <div key={i} className="flex gap-2">
+                                            <input value={bp} onChange={e => {
+                                                const arr = [...(edited?.bullet_points ?? [])];
+                                                arr[i] = e.target.value;
+                                                updateField('bullet_points', arr as any);
+                                            }} className="flex-1 p-2 bg-slate-50 border border-slate-100 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                            <button type="button" onClick={() => {
+                                                const arr = (edited?.bullet_points ?? []).filter((_, j) => j !== i);
+                                                updateField('bullet_points', arr as any);
+                                            }} className="text-slate-300 hover:text-rose-500"><X className="w-3 h-3" /></button>
+                                        </div>
+                                    ))}
+                                    <button type="button" onClick={() => updateField('bullet_points', [...(edited?.bullet_points ?? []), ''] as any)}
+                                        className="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1">
+                                        <Plus className="w-3 h-3" /> Agregar punto
+                                    </button>
+                                </div>
+                                {/* Palabras clave */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Palabras clave</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(edited?.palabras_clave ?? []).map((kw, i) => (
+                                            <span key={i} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-full">
+                                                {kw}
+                                                <button type="button" onClick={() => updateField('palabras_clave', (edited?.palabras_clave ?? []).filter((_, j) => j !== i) as any)}
+                                                    className="hover:text-rose-500"><X className="w-2.5 h-2.5" /></button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <input placeholder="Agregar keyword y Enter" onKeyDown={e => {
+                                        if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                                            updateField('palabras_clave', [...(edited?.palabras_clave ?? []), e.currentTarget.value.trim()] as any);
+                                            e.currentTarget.value = '';
+                                        }
+                                    }} className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                </div>
                             </div>
 
                             {/* SECCIÓN A — Atributos de Categoría (plantilla dinámica v4) */}
