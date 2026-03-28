@@ -233,13 +233,19 @@ export default function FichaDetallePage() {
     function startEdit() {
         if (!ficha) return;
         setDraft({
-            nombre_producto: ficha.nombre_producto,
-            descripcion: ficha.descripcion, descripcion_larga: ficha.descripcion_larga,
-            fabricante: ficha.fabricante, especificaciones: ficha.especificaciones,
-            ingredientes: ficha.ingredientes, uso_recomendado: ficha.uso_recomendado,
-            precauciones: ficha.precauciones,
-            bullet_points:  ficha.bullet_points  ? [...ficha.bullet_points]  : [],
-            palabras_clave: ficha.palabras_clave ? [...ficha.palabras_clave] : [],
+            nombre_producto:    ficha.nombre_producto,
+            descripcion:        ficha.descripcion,
+            descripcion_larga:  ficha.descripcion_larga,
+            fabricante:         ficha.fabricante,
+            especificaciones:   ficha.especificaciones,
+            ingredientes:       ficha.ingredientes,
+            uso_recomendado:    ficha.uso_recomendado,
+            precauciones:       ficha.precauciones,
+            bullet_points:      ficha.bullet_points  ? [...ficha.bullet_points]  : [],
+            palabras_clave:     ficha.palabras_clave ? [...ficha.palabras_clave] : [],
+            atributos_dinamicos: ficha.atributos_dinamicos ? { ...ficha.atributos_dinamicos } : {},
+            atributos_categoria: ficha.atributos_categoria ? { ...ficha.atributos_categoria } : {},
+            atributos_extras:    ficha.atributos_extras    ? { ...ficha.atributos_extras }    : {},
         });
         setPatchError(''); setEditMode(true);
     }
@@ -320,45 +326,43 @@ export default function FichaDetallePage() {
 
     async function enrichFromCatalog() {
         if (!ficha?.articulos) return;
+        setEnrichedMsg('');
         const art = ficha.articulos as any;
-        // Mapear campos del artículo a campos de fichas_tecnicas
-        const campos: Record<string, any> = {};
-        const camposNuevosLabels: string[] = [];
-        const MAP = [
-            { art: 'materiales',  ficha: 'especificaciones', label: 'Materiales' },
-            { art: 'pais_origen', ficha: 'especificaciones', label: 'País de origen' },
-        ];
-        // Atributos del artículo → atributos_dinamicos de la ficha
         const atribNuevos: Record<string, any> = {};
-        if (art.peso_kg)  { atribNuevos['Peso (kg)'] = art.peso_kg; }
-        if (art.largo_cm) { atribNuevos['Largo (cm)'] = art.largo_cm; }
-        if (art.ancho_cm) { atribNuevos['Ancho (cm)'] = art.ancho_cm; }
-        if (art.alto_cm)  { atribNuevos['Alto (cm)']  = art.alto_cm; }
-        if (art.codigo_universal) { atribNuevos['Código de barras'] = art.codigo_universal; }
-        if (art.categoria)        { atribNuevos['Categoría'] = art.categoria; }
+        // Dimensiones y peso
+        if (art.peso_kg)  atribNuevos['Peso (kg)']  = art.peso_kg;
+        if (art.largo_cm) atribNuevos['Largo (cm)'] = art.largo_cm;
+        if (art.ancho_cm) atribNuevos['Ancho (cm)'] = art.ancho_cm;
+        if (art.alto_cm)  atribNuevos['Alto (cm)']  = art.alto_cm;
+        // Identidad extendida
+        if (art.codigo_universal) atribNuevos['Código de barras (EAN)'] = art.codigo_universal;
+        if (art.categoria)        atribNuevos['Categoría']              = art.categoria;
+        if (art.modelo)           atribNuevos['Modelo']                 = art.modelo;
+        if (art.variante)         atribNuevos['Variante']               = art.variante;
+        if (art.materiales)       atribNuevos['Materiales']             = art.materiales;
+        if (art.pais_origen)      atribNuevos['País de origen']         = art.pais_origen;
+        if (art.garantia)         atribNuevos['Garantía']               = art.garantia;
 
-        if (Object.keys(atribNuevos).length > 0) {
-            const actual = ficha.atributos_dinamicos ?? {};
-            const merged = { ...actual };
-            for (const [k, v] of Object.entries(atribNuevos)) {
-                if (!(k in actual)) { merged[k] = v; camposNuevosLabels.push(k); }
-            }
-            if (camposNuevosLabels.length > 0) campos['atributos_dinamicos'] = merged;
+        const actual          = ficha.atributos_dinamicos ?? {};
+        const merged          = { ...actual };
+        const camposAgregados: string[] = [];
+        for (const [k, v] of Object.entries(atribNuevos)) {
+            if (!(k in actual)) { merged[k] = v; camposAgregados.push(k); }
         }
 
-        if (Object.keys(campos).length === 0) {
+        if (camposAgregados.length === 0) {
             setEnrichedMsg('El catálogo no aporta datos nuevos a esta ficha.');
             return;
         }
 
-        const res = await fetch(`/api/fichas/${ficha.id}`, {
+        const res  = await fetch(`/api/fichas/${ficha.id}`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(campos),
+            body: JSON.stringify({ atributos_dinamicos: merged }),
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) { setEnrichedMsg(`Error: ${body?.error}`); return; }
-        setFicha(p => p ? { ...p, ...body.ficha } : p);
-        setEnrichedMsg(`✓ ${camposNuevosLabels.join(', ')} agregados desde el catálogo.`);
+        setFicha(p => p ? { ...p, atributos_dinamicos: merged } : p);
+        setEnrichedMsg(`✓ ${camposAgregados.length} campo(s) agregados: ${camposAgregados.slice(0, 3).join(', ')}${camposAgregados.length > 3 ? '…' : ''}.`);
     }
 
     async function combinarConIA(d: Discrepancia) {
@@ -455,7 +459,10 @@ export default function FichaDetallePage() {
                     <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div className="flex-1 min-w-0">
-                    <h1 className="text-2xl font-bold truncate">{ficha.nombre_producto || 'Ficha sin nombre'}</h1>
+                    {editMode
+                        ? <input className="w-full text-2xl font-bold bg-slate-50 border border-indigo-200 rounded-xl px-3 py-1 focus:ring-1 focus:ring-indigo-400 outline-none" value={draft.nombre_producto ?? ''} onChange={e => setDraft(d => ({ ...d, nombre_producto: e.target.value }))} />
+                        : <h1 className="text-2xl font-bold truncate">{ficha.nombre_producto || 'Ficha sin nombre'}</h1>
+                    }
                     <p className="text-slate-400 text-xs font-mono">{ficha.id}</p>
                 </div>
                 <EstadoBadge estado={ficha.estado} />
@@ -597,25 +604,57 @@ export default function FichaDetallePage() {
                     </div>
 
                     {/* NIVEL 3 — Especificaciones técnicas */}
-                    {(ficha.especificaciones || hasAtribDin || hasAtribCat || editMode) && (
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-                            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Especificaciones técnicas</h2>
-                            {editMode ? (
-                                <EditField label="Especificaciones" value={draft.especificaciones} onChange={v => setDraft(d => ({ ...d, especificaciones: v }))} type="textarea" />
-                            ) : (
-                                <>
-                                    {ficha.especificaciones && (
-                                        specsKV
-                                            ? <KVGrid data={specsKV} label="Especificaciones (detectadas)" />
-                                            : <TextBlock label="Especificaciones" value={ficha.especificaciones} />
-                                    )}
-                                    {hasAtribCat && <KVGrid data={ficha.atributos_categoria!} label={`Atributos de categoría`} />}
-                                    {hasAtribDin && <KVGrid data={ficha.atributos_dinamicos!} label="Atributos técnicos (IA)" />}
-                                    {hasAtribExt && <KVGrid data={ficha.atributos_extras!} label="Atributos adicionales" />}
-                                </>
-                            )}
-                        </div>
-                    )}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                        <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Especificaciones técnicas</h2>
+                        {editMode ? (
+                            <div className="space-y-4">
+                                <EditField label="Especificaciones (texto)" value={draft.especificaciones} onChange={v => setDraft(d => ({ ...d, especificaciones: v }))} type="textarea" />
+                                {/* Editor KV para cada JSONB */}
+                                {(['atributos_dinamicos', 'atributos_categoria', 'atributos_extras'] as const).map(campo => {
+                                    const LBL: Record<string, string> = { atributos_dinamicos: 'Atributos técnicos (IA)', atributos_categoria: 'Atributos de categoría', atributos_extras: 'Atributos adicionales' };
+                                    const obj = (draft[campo] ?? {}) as Record<string, any>;
+                                    return (
+                                        <div key={campo}>
+                                            <Label>{LBL[campo]}</Label>
+                                            <div className="space-y-1.5 mt-1">
+                                                {Object.entries(obj).map(([k, v]) => (
+                                                    <div key={k} className="flex gap-1.5 items-center">
+                                                        <input value={k} readOnly className="w-2/5 p-1.5 text-xs bg-slate-100 border border-slate-200 rounded-lg text-slate-500" />
+                                                        <input value={String(v ?? '')} onChange={e => setDraft(d => ({ ...d, [campo]: { ...((d[campo] ?? {}) as object), [k]: e.target.value } }))} className="flex-1 p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                                        <button type="button" onClick={() => {
+                                                            const copy = { ...(draft[campo] as Record<string, any>) }; delete copy[k];
+                                                            setDraft(d => ({ ...d, [campo]: copy }));
+                                                        }} className="text-slate-300 hover:text-rose-500"><X className="w-3.5 h-3.5" /></button>
+                                                    </div>
+                                                ))}
+                                                <button type="button" onClick={() => {
+                                                    const key = `Atributo ${Object.keys(obj).length + 1}`;
+                                                    setDraft(d => ({ ...d, [campo]: { ...((d[campo] ?? {}) as object), [key]: '' } }));
+                                                }} className="text-xs text-indigo-500 hover:text-indigo-700">+ Agregar atributo</button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <>
+                                {ficha.especificaciones && (
+                                    specsKV
+                                        ? <KVGrid data={specsKV} label="Especificaciones" />
+                                        : <TextBlock label="Especificaciones" value={ficha.especificaciones} />
+                                )}
+                                {hasAtribCat && <KVGrid data={ficha.atributos_categoria!} label="Atributos de categoría" />}
+                                {hasAtribDin && <KVGrid data={ficha.atributos_dinamicos!} label="Atributos técnicos (IA)" />}
+                                {hasAtribExt && <KVGrid data={ficha.atributos_extras!}    label="Atributos adicionales" />}
+                                {!ficha.especificaciones && !hasAtribDin && !hasAtribCat && !hasAtribExt && (
+                                    <div className="flex flex-col items-center gap-2 py-4 border-2 border-dashed border-slate-200 rounded-xl text-center">
+                                        <p className="text-xs text-slate-400">Sin especificaciones técnicas aún.</p>
+                                        <p className="text-xs text-indigo-400 font-semibold">Usa "Enriquecer" para extraerlas de un documento.</p>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
 
                     {/* NIVEL 4 — Información complementaria */}
                     {(ficha.uso_recomendado || ficha.precauciones || ficha.ingredientes || editMode) && (
@@ -722,7 +761,7 @@ export default function FichaDetallePage() {
                                     <Upload className="w-4 h-4" /> Agregar documento
                                 </button>
                                 {ficha.articulos && (
-                                    <button type="button" onClick={() => { enrichFromCatalog(); setEnrichedMsg(''); }}
+                                    <button type="button" onClick={enrichFromCatalog}
                                         className="w-full py-2 px-4 rounded-xl text-xs font-semibold border border-indigo-400 text-indigo-100 hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
                                         <Link2 className="w-3.5 h-3.5" /> Enriquecer desde catálogo
                                     </button>
