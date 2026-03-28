@@ -367,18 +367,29 @@ export default function AutofichaPage() {
     const handleSave = useCallback(async () => {
         if (!edited) return;
         setStatus('saving');
-        // Prioridad: artículo vinculado > SKU manual ingresado > modelo detectado por IA
-        // El sku_detectado puede ser un número de parte del proveedor, NO necesariamente el SKU de tienda
+
+        // Determinar articulo_id — NUNCA usar sku_detectado como fallback:
+        // el número de parte detectado por la IA no es necesariamente el SKU de tienda.
         const articulo_id = linkedArticulo?.articulo_id
-            || (edited as any).sku_tienda   // campo manual que el usuario completó
-            || edited.sku_detectado;         // último recurso: lo que detectó la IA
+            || ((edited as any).sku_tienda?.trim() || null); // null → modo draft
+
+        // Determinar el modo correcto:
+        // - 'update'/'link_only': el usuario eligió un artículo existente del catálogo
+        // - 'create':             el usuario escribió un SKU de tienda manualmente
+        // - 'draft':              sin artículo vinculado → ficha independiente (no toca articulos)
+        const mode: string = linkedArticulo
+            ? saveMode            // lo que el usuario seleccionó en la card del artículo
+            : articulo_id
+                ? 'create'        // SKU manual → crear artículo nuevo
+                : 'draft';        // sin nada → ficha borrador desvinculada
+
         const primaryFile = files.find(f => f.storageUrl);
 
         try {
             const { error } = await supabase.rpc('guardar_ficha_autoficha', {
                 p: {
-                    p_mode:           linkedArticulo ? saveMode : 'create',
-                    articulo_id,
+                    p_mode:           mode,
+                    articulo_id,      // puede ser null en modo draft
                     sku_detectado:    edited.sku_detectado,
                     // Identificación
                     nombre:           edited.nombre           || null,
