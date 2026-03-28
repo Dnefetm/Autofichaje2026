@@ -106,8 +106,12 @@ Campos a extraer (usa null si no está disponible):
 - materiales: materiales de fabricación (acero, aluminio, plástico ABS, etc.)
 - pais_origen: país de fabricación
 - atributos_tecnicos: objeto JSON con TODOS los datos técnicos adicionales que encuentres
-  en el documento (voltaje, viscosidad, normas, resistencia, torque, certificaciones,
-  temperaturas, rpm, presión, caudal, capacidad, etc.). Usa keys en snake_case.
+  en el documento. DEBE ser un objeto JSON de pares clave-valor, NO texto con guiones.
+  Usa keys descriptivas en español con mayúscula inicial (no snake_case).
+  Incluye: normas (NOM, ISO, ASTM), capacidades, voltajes, presiones, rpm, temperaturas,
+  torques, resistencias, certificaciones, viscosidades, caudales, dimensiones clave.
+  Ejemplo correcto: {"Apertura máxima": "1-3/8\"", "Material": "Cromo-Vanadio", "Norma": "NOM-116", "Longitud": "25.4 cm"}
+  Ejemplo incorrecto: "- Apertura máxima: 1-3/8\"\n- Material: Cromo-Vanadio"
   No filtres nada — extrae todo dato técnico que no haya sido capturado arriba.
   Si no hay datos adicionales, retorna objeto vacío {}.
 - confidence: tu nivel de confianza en la extracción (0.0 a 1.0)`;
