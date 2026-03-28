@@ -328,41 +328,83 @@ export default function FichaDetallePage() {
         if (!ficha?.articulos) return;
         setEnrichedMsg('');
         const art = ficha.articulos as any;
-        const atribNuevos: Record<string, any> = {};
-        // Dimensiones y peso
-        if (art.peso_kg)  atribNuevos['Peso (kg)']  = art.peso_kg;
-        if (art.largo_cm) atribNuevos['Largo (cm)'] = art.largo_cm;
-        if (art.ancho_cm) atribNuevos['Ancho (cm)'] = art.ancho_cm;
-        if (art.alto_cm)  atribNuevos['Alto (cm)']  = art.alto_cm;
-        // Identidad extendida
-        if (art.codigo_universal) atribNuevos['Código de barras (EAN)'] = art.codigo_universal;
-        if (art.categoria)        atribNuevos['Categoría']              = art.categoria;
-        if (art.modelo)           atribNuevos['Modelo']                 = art.modelo;
-        if (art.variante)         atribNuevos['Variante']               = art.variante;
-        if (art.materiales)       atribNuevos['Materiales']             = art.materiales;
-        if (art.pais_origen)      atribNuevos['País de origen']         = art.pais_origen;
-        if (art.garantia)         atribNuevos['Garantía']               = art.garantia;
 
-        const actual          = ficha.atributos_dinamicos ?? {};
-        const merged          = { ...actual };
-        const camposAgregados: string[] = [];
-        for (const [k, v] of Object.entries(atribNuevos)) {
-            if (!(k in actual)) { merged[k] = v; camposAgregados.push(k); }
+        // Campos que YA están visibles en la sección Identidad desde articulos.*
+        // No deben duplicarse en atributos_dinamicos
+        const YA_VISIBLES_DESDE_ARTICULOS = new Set([
+            'articulo_id', 'nombre', 'marca', 'modelo', 'variante',
+            'codigo_universal', 'categoria', 'peso_kg', 'largo_cm', 'ancho_cm', 'alto_cm',
+        ]);
+
+        // Solo mapear campos que agregan información NUEVA a fichas_tecnicas
+        // (campos que no están ya en la sección Identidad del artículo vinculado)
+        const candidatos: Array<{ key: string; label: string; valor: any }> = [];
+        if (art.materiales)  candidatos.push({ key: 'Materiales',      label: 'Materiales',        valor: art.materiales });
+        if (art.pais_origen) candidatos.push({ key: 'País de origen',  label: 'País de origen',    valor: art.pais_origen });
+        if (art.garantia)    candidatos.push({ key: 'Garantía',        label: 'Garantía',          valor: art.garantia });
+        // atributos_especificos del artículo (jsonb libre)
+        if (art.atributos_especificos && typeof art.atributos_especificos === 'object') {
+            for (const [k, v] of Object.entries(art.atributos_especificos as Record<string, any>)) {
+                if (v != null && v !== '') candidatos.push({ key: k, label: k, valor: v });
+            }
         }
 
-        if (camposAgregados.length === 0) {
-            setEnrichedMsg('El catálogo no aporta datos nuevos a esta ficha.');
+        if (candidatos.length === 0) {
+            setEnrichedMsg('El catálogo no tiene campos adicionales para aportar (materiales, país de origen, garantía).');
             return;
         }
 
-        const res  = await fetch(`/api/fichas/${ficha.id}`, {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ atributos_dinamicos: merged }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) { setEnrichedMsg(`Error: ${body?.error}`); return; }
-        setFicha(p => p ? { ...p, atributos_dinamicos: merged } : p);
-        setEnrichedMsg(`✓ ${camposAgregados.length} campo(s) agregados: ${camposAgregados.slice(0, 3).join(', ')}${camposAgregados.length > 3 ? '…' : ''}.`);
+        const actual = ficha.atributos_dinamicos ?? {};
+        const conflictosGenerados: Discrepancia[] = [];
+        const autoAgregar: Record<string, any> = {};
+
+        for (const { key, label, valor } of candidatos) {
+            if (key in actual) {
+                // El campo ya existe en atributos_dinamicos — es un conflicto
+                if (String(actual[key]) !== String(valor)) {
+                    conflictosGenerados.push({
+                        campo: `atributos_dinamicos.${key}`,
+                        label,
+                        tipo: 'texto',
+                        accion: 'conflicto',
+                        valor_actual: actual[key],
+                        valor_nuevo:  valor,
+                    });
+                }
+                // Si son idénticos, ignorar
+            } else {
+                // No existe en atributos_dinamicos → agregar automáticamente
+                autoAgregar[key] = valor;
+            }
+        }
+
+        // Aplicar los campos sin conflicto directamente
+        if (Object.keys(autoAgregar).length > 0) {
+            const merged = { ...actual, ...autoAgregar };
+            const res = await fetch(`/api/fichas/${ficha.id}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ atributos_dinamicos: merged }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) { setEnrichedMsg(`Error: ${body?.error}`); return; }
+            setFicha(p => p ? { ...p, atributos_dinamicos: merged } : p);
+            const nombresAgregados = Object.keys(autoAgregar).slice(0, 3).join(', ');
+            setEnrichedMsg(`✓ ${Object.keys(autoAgregar).length} campo(s) agregados: ${nombresAgregados}${Object.keys(autoAgregar).length > 3 ? '…' : ''}.`);
+        }
+
+        // Si hay conflictos, abrirlos en el modal
+        if (conflictosGenerados.length > 0) {
+            const sel: Record<string, string> = {};
+            for (const d of conflictosGenerados) sel[d.campo] = 'actual';
+            setConflictos(conflictosGenerados);
+            setExtraccionId(null); // sin extracción de documento
+            setSeleccion(sel);
+            setListChecks({});
+            setCombinados({});
+            setShowModal(true);
+        } else if (Object.keys(autoAgregar).length === 0) {
+            setEnrichedMsg('El catálogo no aporta datos nuevos (todos ya estaban en la ficha o son idénticos).');
+        }
     }
 
     async function combinarConIA(d: Discrepancia) {

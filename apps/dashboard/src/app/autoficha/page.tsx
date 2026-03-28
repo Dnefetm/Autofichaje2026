@@ -367,7 +367,11 @@ export default function AutofichaPage() {
     const handleSave = useCallback(async () => {
         if (!edited) return;
         setStatus('saving');
-        const articulo_id = linkedArticulo?.articulo_id || edited.articulo_id || edited.sku_detectado;
+        // Prioridad: artículo vinculado > SKU manual ingresado > modelo detectado por IA
+        // El sku_detectado puede ser un número de parte del proveedor, NO necesariamente el SKU de tienda
+        const articulo_id = linkedArticulo?.articulo_id
+            || (edited as any).sku_tienda   // campo manual que el usuario completó
+            || edited.sku_detectado;         // último recurso: lo que detectó la IA
         const primaryFile = files.find(f => f.storageUrl);
 
         try {
@@ -646,7 +650,25 @@ export default function AutofichaPage() {
 
                             <div className="space-y-3">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Identificación</p>
-                                <Field label="SKU Detectado" value={edited?.sku_detectado} onChange={v => updateField('sku_detectado', v)} mono />
+                                <Field
+                                    label="N.º de parte / Modelo (detectado por IA)"
+                                    value={edited?.sku_detectado}
+                                    onChange={v => updateField('sku_detectado', v)}
+                                    mono
+                                />
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        SKU de tienda (articulo_id)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm font-mono focus:ring-1 focus:ring-amber-400 outline-none placeholder-amber-300"
+                                        placeholder={`Ej: ${edited?.marca?.slice(0,3).toUpperCase() ?? 'MRC'}-${edited?.sku_detectado ?? 'MODELO'}`}
+                                        value={(edited as any)?.sku_tienda ?? ''}
+                                        onChange={e => updateField('sku_tienda' as any, e.target.value)}
+                                    />
+                                    <p className="text-[10px] text-amber-600">Este será el ID de tu catálogo. Déjalo vacío para usar el N.º de parte detectado.</p>
+                                </div>
                                 <Field label="Nombre del Producto" value={edited?.nombre} onChange={v => updateField('nombre', v)} />
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <Field label="Marca" value={edited?.marca} onChange={v => updateField('marca', v)} />
