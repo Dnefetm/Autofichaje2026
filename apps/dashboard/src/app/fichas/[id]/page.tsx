@@ -39,6 +39,18 @@ interface FichaDetalle {
     ficha_tecnica_data?: Record<string, any>;
     articulo_id?: string;
     articulos?: Articulo | null;
+    // Columnas de identidad propias (v41a) — backward-compatible con nullish fallback
+    marca?: string;
+    modelo?: string;
+    variante?: string;
+    codigo_universal?: string;
+    categoria?: string;
+    peso_kg?: number;
+    largo_cm?: number;
+    ancho_cm?: number;
+    alto_cm?: number;
+    materiales?: string;
+    pais_origen?: string;
     ficha_extracciones?: Array<{
         id: string; extraccion_cruda: any; aplicada_a_ficha: boolean; created_at: string;
     }>;
@@ -202,6 +214,8 @@ export default function FichaDetallePage() {
                     bullet_points, palabras_clave,
                     atributos_dinamicos, atributos_categoria, atributos_extras,
                     ficha_tecnica_data, articulo_id,
+                    marca, modelo, variante, codigo_universal, categoria,
+                    peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen,
                     articulos ( articulo_id, nombre, marca, modelo, variante, codigo_universal, categoria, peso_kg, largo_cm, ancho_cm, alto_cm ),
                     ficha_extracciones ( id, extraccion_cruda, aplicada_a_ficha, created_at )
                 `)
@@ -599,47 +613,62 @@ export default function FichaDetallePage() {
 
                     {/* NIVEL 1 — Identidad del producto */}
                     <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-                        <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Identidad del producto</h2>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                            {art?.articulo_id && (
-                                <div><Label>SKU</Label><p className="font-mono font-bold text-slate-800">{art.articulo_id}</p></div>
-                            )}
-                            {art?.marca && (
-                                <div><Label>Marca</Label><p className="font-semibold text-slate-800">{art.marca}</p></div>
-                            )}
-                            {art?.modelo && (
-                                <div><Label>Modelo</Label><p className="text-slate-700">{art.modelo}</p></div>
-                            )}
-                            {art?.variante && (
-                                <div><Label>Variante</Label><p className="text-slate-700">{art.variante}</p></div>
-                            )}
-                            {(ficha.fabricante || art?.marca) && (
-                                <div className="col-span-2 sm:col-span-1">
-                                    <Label>Fabricante</Label>
-                                    {editMode
-                                        ? <input className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" value={draft.fabricante ?? ''} onChange={e => setDraft(d => ({ ...d, fabricante: e.target.value }))} />
-                                        : <p className="text-slate-700">{ficha.fabricante}</p>}
-                                </div>
-                            )}
-                            {art?.codigo_universal && (
-                                <div><Label>Código de barras (EAN)</Label><p className="font-mono text-slate-700">{art.codigo_universal}</p></div>
-                            )}
-                            {art?.categoria && (
-                                <div><Label>Categoría</Label><p className="text-slate-700">{art.categoria}</p></div>
-                            )}
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Identidad del producto</h2>
+                            {ficha.articulo_id
+                                ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">Vinculado al catálogo</span>
+                                : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">Sin artículo vinculado</span>
+                            }
                         </div>
-                        {/* Dimensiones del artículo */}
-                        {art && (art.peso_kg || art.largo_cm || art.ancho_cm || art.alto_cm) && (
-                            <div className="border-t border-slate-100 pt-3">
-                                <Label>Dimensiones y peso</Label>
-                                <div className="flex flex-wrap gap-4 mt-1 text-sm">
-                                    {art.largo_cm && <span className="text-slate-600"><b>L:</b> {art.largo_cm} cm</span>}
-                                    {art.ancho_cm && <span className="text-slate-600"><b>A:</b> {art.ancho_cm} cm</span>}
-                                    {art.alto_cm  && <span className="text-slate-600"><b>H:</b> {art.alto_cm} cm</span>}
-                                    {art.peso_kg  && <span className="text-slate-600"><b>Peso:</b> {art.peso_kg} kg</span>}
-                                </div>
-                            </div>
-                        )}
+                        {(() => {
+                            // Patrón ??:  columna propia de fichas_tecnicas → JOIN → null
+                            // Funciona antes y después de v41a (cuando las columnas no existen, ?? cae al JOIN)
+                            const sku      = art?.articulo_id ?? null;
+                            const marca    = ficha.marca    ?? art?.marca    ?? null;
+                            const modelo   = ficha.modelo   ?? art?.modelo   ?? null;
+                            const variante = ficha.variante ?? art?.variante ?? null;
+                            const ean      = ficha.codigo_universal ?? art?.codigo_universal ?? null;
+                            const categ    = ficha.categoria ?? art?.categoria ?? null;
+                            const pesoKg   = ficha.peso_kg  ?? art?.peso_kg  ?? null;
+                            const largoCm  = ficha.largo_cm ?? art?.largo_cm ?? null;
+                            const anchoCm  = ficha.ancho_cm ?? art?.ancho_cm ?? null;
+                            const altoCm   = ficha.alto_cm  ?? art?.alto_cm  ?? null;
+                            const mats     = ficha.materiales ?? null;
+                            const pais     = ficha.pais_origen ?? null;
+                            return (
+                                <>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                                        {sku && <div><Label>SKU</Label><p className="font-mono font-bold text-slate-800">{sku}</p></div>}
+                                        {marca && <div><Label>Marca</Label><p className="font-semibold text-slate-800">{marca}</p></div>}
+                                        {modelo && <div><Label>Modelo</Label><p className="text-slate-700">{modelo}</p></div>}
+                                        {variante && <div><Label>Variante</Label><p className="text-slate-700">{variante}</p></div>}
+                                        {(ficha.fabricante || marca) && (
+                                            <div className="col-span-2 sm:col-span-1">
+                                                <Label>Fabricante</Label>
+                                                {editMode
+                                                    ? <input className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" value={draft.fabricante ?? ''} onChange={e => setDraft(d => ({ ...d, fabricante: e.target.value }))} />
+                                                    : <p className="text-slate-700">{ficha.fabricante}</p>}
+                                            </div>
+                                        )}
+                                        {ean && <div><Label>Código de barras (EAN)</Label><p className="font-mono text-slate-700">{ean}</p></div>}
+                                        {categ && <div><Label>Categoría</Label><p className="text-slate-700">{categ}</p></div>}
+                                        {mats && <div><Label>Materiales</Label><p className="text-slate-700">{mats}</p></div>}
+                                        {pais && <div><Label>País de origen</Label><p className="text-slate-700">{pais}</p></div>}
+                                    </div>
+                                    {(pesoKg || largoCm || anchoCm || altoCm) && (
+                                        <div className="border-t border-slate-100 pt-3">
+                                            <Label>Dimensiones y peso</Label>
+                                            <div className="flex flex-wrap gap-4 mt-1 text-sm">
+                                                {largoCm && <span className="text-slate-600"><b>L:</b> {largoCm} cm</span>}
+                                                {anchoCm && <span className="text-slate-600"><b>A:</b> {anchoCm} cm</span>}
+                                                {altoCm  && <span className="text-slate-600"><b>H:</b> {altoCm} cm</span>}
+                                                {pesoKg  && <span className="text-slate-600"><b>Peso:</b> {pesoKg} kg</span>}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
                         {art && (
                             <div className="border-t border-slate-100 pt-2 flex items-center gap-3 flex-wrap">
                                 <Link href={`/catalog?q=${art.articulo_id}`} target="_blank"
@@ -668,6 +697,7 @@ export default function FichaDetallePage() {
                             </div>
                         )}
                     </div>
+
 
                     {/* NIVEL 2 — Descripción comercial */}
                     <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">

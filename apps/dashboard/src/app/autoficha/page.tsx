@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
     Upload, Sparkles, CheckCircle2, Save, Trash2, Camera,
     Loader2, AlertCircle, Search, X, FileText, Image as ImageIcon,
@@ -112,7 +113,8 @@ const OPERADOR_ID = 'operador_1';
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
-export default function AutofichaPage() {
+function AutofichaPageInner() {
+    const searchParams = useSearchParams();
     // Entrada
     const [inputMode, setInputMode]   = useState<InputMode>('file');
     const [files, setFiles]           = useState<FileEntry[]>([]);
@@ -146,10 +148,37 @@ export default function AutofichaPage() {
     const inputRef                      = useRef<HTMLInputElement>(null);
     const cameraRef                     = useRef<HTMLInputElement>(null);
 
-    // Detectar dispositivo (BLOQUE 4)
+    // Detectar dispositivo + pre-vincular desde URL
     useEffect(() => {
         setIsMobile(/iPhone|iPad|Android/i.test(navigator.userAgent));
         loadBorradores();
+
+        // Si viene de /catalog con ?articulo_id=X, pre-vincular automáticamente
+        const artIdFromUrl = searchParams.get('articulo_id');
+        if (artIdFromUrl) {
+            supabase
+                .from('articulos')
+                .select('articulo_id, nombre, marca, modelo, variante, categoria, descripcion, codigo_universal, codigo_sat')
+                .eq('articulo_id', artIdFromUrl)
+                .single()
+                .then(({ data }) => {
+                    if (data) {
+                        setLinkedArticulo({
+                            articulo_id: data.articulo_id,
+                            nombre:      data.nombre,
+                            marca:       data.marca,
+                            modelo:      data.modelo,
+                            variante:    data.variante,
+                            categoria:   data.categoria,
+                            descripcion: data.descripcion,
+                            codigo_universal: data.codigo_universal,
+                            codigo_sat:  data.codigo_sat,
+                            score: 100, score_label: 'Pre-vinculado',
+                        });
+                        setSaveMode('link_only');
+                    }
+                });
+        }
     }, []);
 
     // ── Borradores ────────────────────────────────────────────────────────────
@@ -912,5 +941,13 @@ export default function AutofichaPage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function AutofichaPage() {
+    return (
+        <Suspense fallback={<div className="py-20 text-center text-slate-400">Cargando...</div>}>
+            <AutofichaPageInner />
+        </Suspense>
     );
 }

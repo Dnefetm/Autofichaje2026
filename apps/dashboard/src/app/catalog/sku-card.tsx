@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, TrendingUp, AlertCircle, Save, Edit2, Image as ImageIcon } from 'lucide-react';
+import { Package, TrendingUp, AlertCircle, Save, Edit2, Image as ImageIcon, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { dashboardService } from '@/lib/dashboard-service';
@@ -216,12 +216,13 @@ export function SkuCard({
                 <Link href={`/catalog/${product.articulo_id}`} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 transition-colors">
                     Ver Ficha
                 </Link>
-                {isMapped && (
-                    <button className="text-xs font-bold text-slate-500 hover:text-emerald-600 flex items-center gap-1.5 transition-colors">
-                        <TrendingUp className="w-3 h-3" />
-                        Forzar Sync
-                    </button>
-                )}
+                <Link
+                    href={`/autoficha?articulo_id=${encodeURIComponent(product.articulo_id)}`}
+                    className="text-xs font-bold text-emerald-600 hover:text-emerald-800 flex items-center gap-1 transition-colors"
+                    title="Crear ficha técnica para este artículo"
+                >
+                    <FileText className="w-3 h-3" /> Crear ficha
+                </Link>
             </div>
         </div>
     );
