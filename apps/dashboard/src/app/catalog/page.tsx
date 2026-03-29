@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Package, Search, Filter, TrendingUp, AlertCircle, RefreshCw, Save, CheckSquare, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -11,7 +11,7 @@ import { BulkEditModal } from './bulk-edit-modal';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
-export default function CatalogPage() {
+function CatalogPageInner() {
     const searchParams = useSearchParams();
     const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -312,6 +312,16 @@ export default function CatalogPage() {
                 }}
             />
         </div>
+    );
+}
+
+export default function CatalogPage() {
+    return (
+        <Suspense fallback={
+            <div className="py-20 text-center text-slate-400">Cargando catálogo...</div>
+        }>
+            <CatalogPageInner />
+        </Suspense>
     );
 }
 
