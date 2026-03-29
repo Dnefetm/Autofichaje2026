@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Package, Search, Filter, TrendingUp, AlertCircle, RefreshCw, Save, CheckSquare, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { dashboardService } from '@/lib/dashboard-service';
@@ -11,11 +12,12 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 export default function CatalogPage() {
+    const searchParams = useSearchParams();
     const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') ?? '');
+    const [debouncedSearch, setDebouncedSearch] = useState(() => searchParams.get('q') ?? '');
     const [filterStatus, setFilterStatus] = useState('all');
 
     // Paginación y Stats Globales

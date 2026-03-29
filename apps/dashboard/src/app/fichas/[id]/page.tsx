@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
     ArrowLeft, Loader2, AlertCircle, FileText, Link2, CheckCircle2,
     ExternalLink, Trash2, Edit2, Save, X, Tag, List, Sparkles,
-    Upload, ChevronDown, ChevronRight,
+    Upload, ChevronDown, ChevronRight, Unlink, Search,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -180,6 +180,13 @@ export default function FichaDetallePage() {
     const [showModal, setShowModal]           = useState(false);
     const [enrichedMsg, setEnrichedMsg]       = useState('');
 
+    // Vincular/Desvincular artículo
+    const [vinculandoModal, setVinculandoModal] = useState(false);
+    const [vinculandoQ, setVinculandoQ]         = useState('');
+    const [vinculandoResults, setVinculandoResults] = useState<any[]>([]);
+    const [vinculandoLoading, setVinculandoLoading] = useState(false);
+    const [vinculandoError, setVinculandoError]   = useState('');
+
     // Fetch datos
     useEffect(() => {
         if (!id) return;
@@ -226,6 +233,57 @@ export default function FichaDetallePage() {
         const body = await res.json().catch(() => ({}));
         if (!res.ok) { setError(body?.error || 'Error al eliminar.'); setDeleting(false); return; }
         router.push('/fichas');
+    }
+
+    // ── Vincular / Desvincular artículo ───────────────────────────────────────
+
+    async function desvincularArticulo() {
+        if (!ficha) return;
+        const nombre = (ficha.articulos as any)?.nombre ?? ficha.articulo_id;
+        if (!window.confirm(`¿Desvincular "${nombre}" de esta ficha?\nLa ficha quedará sin artículo (modo borrador).`)) return;
+        const { data, error: err } = await supabase.rpc('desvincular_ficha_articulo', { p_ficha_id: ficha.id });
+        if (err || !(data as any)?.ok) {
+            setError((data as any)?.error || err?.message || 'Error al desvincular');
+            return;
+        }
+        setFicha(prev => prev ? { ...prev, articulo_id: undefined, articulos: null } : prev);
+    }
+
+    async function buscarParaVincular() {
+        if (vinculandoQ.trim().length < 2) return;
+        setVinculandoLoading(true); setVinculandoError('');
+        const { data, error: err } = await supabase
+            .from('articulos')
+            .select('articulo_id, nombre, marca, modelo, variante, codigo_universal')
+            .or(`nombre.ilike.%${vinculandoQ}%,marca.ilike.%${vinculandoQ}%,articulo_id.ilike.%${vinculandoQ}%,modelo.ilike.%${vinculandoQ}%`)
+            .limit(10);
+        setVinculandoLoading(false);
+        if (err) { setVinculandoError(err.message); return; }
+        setVinculandoResults(data ?? []);
+    }
+
+    async function vincularArticulo(articuloId: string) {
+        if (!ficha) return;
+        const { data, error: err } = await supabase.rpc('vincular_ficha_articulo', {
+            p_ficha_id:    ficha.id,
+            p_articulo_id: articuloId,
+        });
+        if (err || !(data as any)?.ok) {
+            setVinculandoError((data as any)?.error || err?.message || 'Error al vincular');
+            return;
+        }
+        // Recargar ficha completa para tener el objeto articulos expandido
+        const { data: updated } = await supabase
+            .from('fichas_tecnicas')
+            .select(`id, estado, created_at, nombre_producto, descripcion, descripcion_larga,
+                fabricante, especificaciones, ingredientes, uso_recomendado, precauciones,
+                bullet_points, palabras_clave, atributos_dinamicos, atributos_categoria,
+                atributos_extras, ficha_tecnica_data, articulo_id,
+                articulos ( articulo_id, nombre, marca, modelo, variante, codigo_universal, categoria, peso_kg, largo_cm, ancho_cm, alto_cm ),
+                ficha_extracciones ( id, extraccion_cruda, aplicada_a_ficha, created_at )`)
+            .eq('id', ficha.id).single();
+        if (updated) setFicha(updated as unknown as FichaDetalle);
+        setVinculandoModal(false); setVinculandoQ(''); setVinculandoResults([]);
     }
 
     // ── Edición ───────────────────────────────────────────────────────────────
@@ -583,17 +641,30 @@ export default function FichaDetallePage() {
                             </div>
                         )}
                         {art && (
-                            <div className="border-t border-slate-100 pt-2">
+                            <div className="border-t border-slate-100 pt-2 flex items-center gap-3 flex-wrap">
                                 <Link href={`/catalog?q=${art.articulo_id}`} target="_blank"
                                     className="inline-flex items-center gap-1 text-indigo-500 hover:text-indigo-700 text-xs font-semibold">
                                     <Link2 className="w-3 h-3" /> Ver en catálogo <ExternalLink className="w-3 h-3" />
                                 </Link>
+                                <button type="button" onClick={() => { setVinculandoModal(true); setVinculandoQ(art.articulo_id); }}
+                                    className="inline-flex items-center gap-1 text-amber-500 hover:text-amber-700 text-xs font-semibold">
+                                    <Link2 className="w-3 h-3" /> Cambiar artículo
+                                </button>
+                                <button type="button" onClick={desvincularArticulo}
+                                    className="inline-flex items-center gap-1 text-rose-400 hover:text-rose-600 text-xs font-semibold">
+                                    <Unlink className="w-3 h-3" /> Desvincular
+                                </button>
                             </div>
                         )}
                         {!art && (
-                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
-                                Sin artículo del catálogo vinculado.{' '}
-                                <Link href="/autoficha" className="underline font-semibold">Ir a Crear con IA</Link>
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 flex items-center justify-between gap-3">
+                                <span>Sin artículo del catálogo vinculado.{' '}
+                                    <Link href="/autoficha" className="underline font-semibold">Ir a Crear con IA</Link>
+                                </span>
+                                <button type="button" onClick={() => setVinculandoModal(true)}
+                                    className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold rounded-lg transition-colors">
+                                    <Link2 className="w-3 h-3" /> Vincular artículo
+                                </button>
                             </div>
                         )}
                     </div>
@@ -1031,6 +1102,65 @@ export default function FichaDetallePage() {
                                 className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2">
                                 {applying ? <><Loader2 className="w-4 h-4 animate-spin" />Aplicando…</> : <><CheckCircle2 className="w-4 h-4" />Aplicar</>}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Modal Vincular / Cambiar artículo ── */}
+            {vinculandoModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                            <div>
+                                <h2 className="text-lg font-bold">
+                                    {ficha?.articulos ? 'Cambiar artículo vinculado' : 'Vincular artículo del catálogo'}
+                                </h2>
+                                <p className="text-xs text-slate-400">Busca por nombre, marca, SKU o modelo.</p>
+                            </div>
+                            <button type="button" onClick={() => { setVinculandoModal(false); setVinculandoResults([]); setVinculandoQ(''); setVinculandoError(''); }}
+                                className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+                        </div>
+
+                        <div className="p-4 border-b border-slate-100">
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="Ej: Llave ajustable, 710SI, Stanley…"
+                                    value={vinculandoQ}
+                                    onChange={e => setVinculandoQ(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && buscarParaVincular()}
+                                    className="flex-1 p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-indigo-400 outline-none"
+                                    autoFocus
+                                />
+                                <button type="button" onClick={buscarParaVincular} disabled={vinculandoLoading || vinculandoQ.trim().length < 2}
+                                    className="px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-1.5">
+                                    {vinculandoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                                    Buscar
+                                </button>
+                            </div>
+                            {vinculandoError && <p className="text-xs text-rose-600 mt-2">{vinculandoError}</p>}
+                        </div>
+
+                        <div className="overflow-y-auto flex-1 p-4 space-y-2">
+                            {vinculandoResults.length === 0 && !vinculandoLoading && (
+                                <p className="text-xs text-center text-slate-400 py-6">
+                                    {vinculandoQ.length < 2 ? 'Escribe al menos 2 caracteres y haz clic en Buscar.' : 'Sin resultados — intenta otra búsqueda.'}
+                                </p>
+                            )}
+                            {vinculandoResults.map(art => (
+                                <button key={art.articulo_id} type="button" onClick={() => vincularArticulo(art.articulo_id)}
+                                    className="w-full text-left p-3 rounded-xl border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50 transition-colors space-y-0.5">
+                                    <p className="text-sm font-semibold text-slate-800 leading-tight">{art.nombre}</p>
+                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
+                                        <span>SKU: <code className="text-slate-700">{art.articulo_id}</code></span>
+                                        {art.marca   && <span>Marca: {art.marca}</span>}
+                                        {art.modelo  && <span>Modelo: {art.modelo}</span>}
+                                        {art.variante && <span>Variante: {art.variante}</span>}
+                                        {art.codigo_universal && <span>EAN: {art.codigo_universal}</span>}
+                                    </div>
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>
