@@ -46,8 +46,11 @@ export class MeliTokenManager {
             .eq('id', marketplace_id)
             .single();
 
-        if (!config?.settings?.client_id || !config?.settings?.client_secret) {
-            logger.error({ marketplace_id }, 'Faltan credenciales client_id/secret para renovar token');
+        const clientId = config?.settings?.client_id || process.env.MELI_CLIENT_ID;
+        const clientSecret = config?.settings?.client_secret || process.env.MELI_CLIENT_SECRET;
+
+        if (!clientId || !clientSecret) {
+            logger.error({ marketplace_id }, 'Faltan credenciales client_id/secret en BD y en env vars — no se puede renovar token');
             return;
         }
 
@@ -56,9 +59,10 @@ export class MeliTokenManager {
 
             const params = new URLSearchParams();
             params.append('grant_type', 'refresh_token');
-            params.append('client_id', config.settings.client_id);
-            params.append('client_secret', config.settings.client_secret);
+            params.append('client_id', clientId);
+            params.append('client_secret', clientSecret);
             params.append('refresh_token', decrypt(refresh_token));
+
 
             const response = await axios.post(this.MELI_API_URL, params);
 
