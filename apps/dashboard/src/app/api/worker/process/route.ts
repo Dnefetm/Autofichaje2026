@@ -46,6 +46,17 @@ export async function GET(req: NextRequest) {
             .lt('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
         results.ttlCleaned = cleanedCount || 0;
 
+        // 2b. Reaper de zombis — liberar jobs atrapados en 'processing' > 5 min
+        // Ocurre cuando Vercel corta la función (timeout) antes de marcar el job
+        // como completed/failed. Sin esto quedan en 'processing' para siempre.
+        // La RPC hace: UPDATE jobs SET status='pending', attempts=attempts+1
+        //              WHERE status='processing' AND processed_at < now()-5min
+        const { data: zombieData } = await supabaseAdmin.rpc('release_zombie_jobs');
+        if (zombieData && zombieData > 0) {
+            logger.info({ zombiesReleased: zombieData }, 'Reaper: jobs zombi liberados');
+        }
+
+
         // 3. Refresh proactivo de tokens próximos a expirar (< 10 min)
         try {
             await MeliTokenManager.refreshExpiringTokens();
