@@ -554,7 +554,10 @@ async function handleProcessSale(job: any, meli: MeliAdapter) {
             }
         }
 
-        // 8. Si la orden está entregada (tag 'delivered'): consumir reservación y crear egreso
+        // 8. Si la orden está entregada (tag 'delivered'): consumir reservación
+        // NO se crea egreso aquí — AppSheet registra el egreso físico real vía sincEgresos.
+        // El egreso del worker en delivered duplicaba el egreso manual de AppSheet,
+        // causando doble conteo en fn_recalcular_stock → physical_stock artificialmente bajo.
         const isDelivered = (order.tags || []).includes('delivered');
         if (isDelivered && articuloId) {
             await supabaseAdmin
@@ -562,24 +565,7 @@ async function handleProcessSale(job: any, meli: MeliAdapter) {
                 .update({ estado: 'consumida', updated_at: new Date().toISOString() })
                 .eq('orden_item_id', ordenItem.id)
                 .eq('estado', 'activa');
-
-            const referenciaEgreso = `meli_${meliOrderId}_${meliItemId}`;
-            const { data: existingEgreso } = await supabaseAdmin
-                .from('egresos')
-                .select('id')
-                .eq('notas', referenciaEgreso)
-                .maybeSingle();
-
-            if (!existingEgreso) {
-                await supabaseAdmin.from('egresos').insert({
-                    articulo_id: articuloId,
-                    cantidad: quantity,
-                    tipo_egreso: 'venta',
-                    notas: referenciaEgreso,
-                    fecha: order.date_closed ?? new Date().toISOString()
-                });
-                logger.info({ articuloId, quantity, meliOrderId }, 'Egreso creado por entrega de orden MeLi');
-            }
+            logger.info({ articuloId, meliOrderId }, 'Reservación consumida por entrega de orden MeLi');
         }
     }
 }
