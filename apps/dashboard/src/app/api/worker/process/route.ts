@@ -139,17 +139,15 @@ async function processOneJob(job: any, meli: MeliAdapter) {
             case 'sync_account_catalog': {
                 const accountId = job.payload.marketplace_id;
                 const itemIds = await meli.getAccountItems(accountId);
-                console.log(`[sync_account_catalog] Syncing ${itemIds.length} items for account ${accountId}`);
-                for (const itemId of itemIds) {
-                    try {
-                        await meli.syncCatalogItem(accountId, itemId);
-                    } catch (err: any) {
-                        console.warn(`[sync_account_catalog] Failed to sync ${itemId}:`, err.message);
-                    }
-                    await new Promise(r => setTimeout(r, 1000));
-                }
+                console.log(`[sync_account_catalog] Syncing ${itemIds.length} items for account ${accountId} via multiGET batch`);
+                // syncCatalogBatchFast: multiGET de 20 IDs en paralelo (~5s para 500 items)
+                // Incluye detección de transición fulfillment→otro (portada en Fase 0A)
+                // ANTES: loop N×syncCatalogItem + 1s delay → N+N segundos → timeout a >55 items
+                const accessToken = await (meli as any).getAccessToken(accountId);
+                await meli.syncCatalogBatchFast(accountId, accessToken, itemIds);
                 break;
             }
+
             case 'process_sale':
                 await handleProcessSale(job, meli);
                 break;

@@ -223,6 +223,43 @@ export class MeliAdapter implements MarketplaceAdapter {
         }
     }
 
+    /**
+     * getStockBatch — multiGET de stock para hasta N items.
+     * Hace chunks de 20 IDs (límite de MeLi multiGET).
+     * Retorna Map<external_item_id, available_quantity>.
+     * Usado por reconciliation.ts para evitar 1 GET individual por publicación.
+     */
+    async getStockBatch(accountId: string, itemIds: string[]): Promise<Map<string, number>> {
+        const result = new Map<string, number>();
+        if (itemIds.length === 0) return result;
+
+        const accessToken = await this.getAccessToken(accountId);
+        const CHUNK_SIZE = 20;
+
+        for (let i = 0; i < itemIds.length; i += CHUNK_SIZE) {
+            const chunk = itemIds.slice(i, i + CHUNK_SIZE);
+            try {
+                const resp = await axios.get(
+                    `https://api.mercadolibre.com/items?ids=${chunk.join(',')}&attributes=id,available_quantity`,
+                    { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                for (const res of resp.data) {
+                    if (res.code === 200 && res.body) {
+                        result.set(res.body.id, res.body.available_quantity ?? 0);
+                    } else {
+                        // Item con error (deleted, paused sin datos, etc.) — no bloquear la reconciliación
+                        logger.warn({ itemId: res.body?.id ?? '?', code: res.code }, 'getStockBatch: item con error en multiGET');
+                    }
+                }
+            } catch (err: any) {
+                logger.error({ accountId, chunk, error: err.message }, 'getStockBatch: error en chunk multiGET');
+                // No lanzar — los items de este chunk quedarán sin entrada en el Map
+                // y la reconciliación los salteará (no creará discrepancia falsa positiva)
+            }
+        }
+        return result;
+    }
+
     async syncCatalogItem(accountId: string, itemId: string): Promise<void> {
         const accessToken = await this.getAccessToken(accountId);
 
@@ -546,12 +583,63 @@ export class MeliAdapter implements MarketplaceAdapter {
                     }));
                 }
             }
+            // ── Detección de transición fulfillment→otro (portada de b39de85) ──
+            // Leer logistic_type previo para todos los items del batch en 1 sola query.
+            // Solo filas padre (external_variation_id='0') — son las únicas con logistic_type relevante.
+            const batchItemIds = [...new Set(itemsPayload.map((p: any) => p.external_item_id))];
+            const { data: existingPubs } = await supabase
+                .from('publicaciones_externas')
+                .select('id, external_item_id, logistic_type')
+                .eq('marketplace_id', accountId)
+                .eq('external_variation_id', '0')
+                .in('external_item_id', batchItemIds);
+
+            const existingMap = new Map(
+                (existingPubs || []).map((p: any) => [p.external_item_id, { id: p.id, logistic_type: p.logistic_type }])
+            );
+
+            // ── Upsert batch ──────────────────────────────────────────────────
             const { error: pubError } = await supabase.from('publicaciones_externas').upsert(
                 itemsPayload,
                 { onConflict: 'marketplace_id,external_item_id,external_variation_id' }
             );
 
             if (pubError) throw pubError;
+
+            // ── Post-upsert: detectar transiciones fulfillment→otro ───────────
+            // Solo encola sync_stock si algún item cambió de fulfillment a otro tipo.
+            const transitionedPubIds: string[] = [];
+            for (const payload of itemsPayload) {
+                if (payload.external_variation_id !== '0') continue; // solo filas padre
+                const prev = existingMap.get(payload.external_item_id);
+                if (prev?.logistic_type === 'fulfillment' && payload.logistic_type !== 'fulfillment') {
+                    if (prev.id) transitionedPubIds.push(prev.id);
+                }
+            }
+
+            if (transitionedPubIds.length > 0) {
+                const { data: mappings } = await supabase
+                    .from('mapeo_publicacion_articulo')
+                    .select('articulo_id')
+                    .in('publicacion_id', transitionedPubIds);
+
+                const uniqueSkus = [...new Set((mappings || []).map((m: any) => m.articulo_id))];
+                if (uniqueSkus.length > 0) {
+                    await supabase.from('jobs').insert(
+                        uniqueSkus.map((sku: string) => ({
+                            type: 'sync_stock',
+                            payload: { sku },
+                            status: 'pending',
+                            priority: 1,
+                        }))
+                    );
+                    logger.info(
+                        { accountId, transitions: transitionedPubIds.length, skus: uniqueSkus },
+                        'Batch: transiciones fulfillment→otro detectadas, sync_stock encolados'
+                    );
+                }
+            }
+
 
 
                     // V30: Promover catalogo_derivada huérfanas a fuente de stock (padre ausente en publicaciones_externas)

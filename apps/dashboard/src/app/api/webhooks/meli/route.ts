@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ status: 'ignored', reason: 'duplicate' });
         }
 
-        // 2. Procesar solo órdenes (ventas)
+        // 2. Procesar órdenes (ventas)
         if (topic === 'orders_v2' || topic === 'orders') {
             // Encolar job de alta prioridad para procesar la venta
             await supabase.from('jobs').insert({
@@ -34,6 +34,43 @@ export async function POST(req: NextRequest) {
             });
             await dispatchWorker(); // V31: trigger worker on-demand
         }
+
+        // 3. Procesar cambios en publicaciones (items)
+        // MeLi envía este topic cuando cambia precio, stock, logistic_type, status, etc.
+        // TTL de 5 min (no 24h) — un item puede cambiar múltiples veces al día.
+        if (topic === 'items') {
+            const itemIdMatch = resource.match(/\/items\/(MLM\w+)/);
+            if (itemIdMatch) {
+                const externalItemId = itemIdMatch[1];
+                // Deduplicación corta: 5 minutos — evita procesar el mismo cambio dos veces en ráfaga
+                const dedupeItemKey = `webhook:meli:items:${externalItemId}`;
+                const isItemDuplicate = await redis.set(dedupeItemKey, '1', { nx: true, ex: 300 });
+                if (isItemDuplicate) {
+                    // Resolver a qué cuenta pertenece (la BD ya lo sabe — no hace falta llamar a MeLi)
+                    const { data: pub } = await supabase
+                        .from('publicaciones_externas')
+                        .select('marketplace_id')
+                        .eq('external_item_id', externalItemId)
+                        .eq('external_variation_id', '0')
+                        .maybeSingle();
+
+                    if (pub?.marketplace_id) {
+                        await supabase.from('jobs').insert({
+                            type: 'sync_item',
+                            payload: { marketplace_id: pub.marketplace_id, external_item_id: externalItemId },
+                            status: 'pending',
+                            priority: 2,
+                        });
+                        await dispatchWorker();
+                        logger.info({ externalItemId, marketplace_id: pub.marketplace_id }, 'Webhook items: sync_item encolado');
+                    } else {
+                        // Item no conocido en BD — ignorar silenciosamente (puede ser de otra app)
+                        logger.info({ externalItemId }, 'Webhook items: item no encontrado en BD, ignorado');
+                    }
+                }
+            }
+        }
+
 
         return NextResponse.json({ status: 'received' });
     } catch (error: any) {
