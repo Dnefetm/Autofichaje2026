@@ -232,39 +232,55 @@ export class MeliAdapter implements MarketplaceAdapter {
             });
 
             const item = response.data;
+            const newLogisticType: string | null = item.shipping?.logistic_type || null;
 
             // Clasificar tipo de publicación (Tradicional, Catálogo, Derivada, etc.)
             const clasificacion = clasificarPublicacion(item);
 
-                    // Post-proceso: si es catalogo_derivada, verificar si su padre existe como fuente de stock
-        // Si el padre NO existe en publicaciones_externas o no es fuente, esta derivada asume el rol
-        if (clasificacion.tipo_publicacion === 'catalogo_derivada' && clasificacion.id_publicacion_padre) {
-            const { data: padreExiste } = await supabase
-                .from('publicaciones_externas')
-                .select('id, es_fuente_stock')
-                .eq('external_item_id', clasificacion.id_publicacion_padre)
-                .eq('marketplace_id', accountId)
-                .maybeSingle();
-
-            // Si el padre no existe o no es fuente de stock, esta derivada se convierte en fuente
-            if (!padreExiste || !padreExiste.es_fuente_stock) {
-                // Verificar que no haya OTRA derivada del mismo producto_catalogo ya marcada como fuente
-                const { data: otraFuente } = await supabase
+            // Post-proceso: si es catalogo_derivada, verificar si su padre existe como fuente de stock
+            // Si el padre NO existe en publicaciones_externas o no es fuente, esta derivada asume el rol
+            if (clasificacion.tipo_publicacion === 'catalogo_derivada' && clasificacion.id_publicacion_padre) {
+                const { data: padreExiste } = await supabase
                     .from('publicaciones_externas')
-                    .select('id')
-                    .eq('id_producto_catalogo', clasificacion.id_producto_catalogo)
-                    .eq('es_fuente_stock', true)
+                    .select('id, es_fuente_stock')
+                    .eq('external_item_id', clasificacion.id_publicacion_padre)
                     .eq('marketplace_id', accountId)
-                    .limit(1)
                     .maybeSingle();
 
-                if (!otraFuente) {
-                    clasificacion.es_fuente_stock = true;
-                    logger.info({ itemId: item.id, tipo: 'catalogo_derivada_promovida' }, 'Derivada promovida a fuente de stock (padre ausente)');
+                // Si el padre no existe o no es fuente de stock, esta derivada se convierte en fuente
+                if (!padreExiste || !padreExiste.es_fuente_stock) {
+                    // Verificar que no haya OTRA derivada del mismo producto_catalogo ya marcada como fuente
+                    const { data: otraFuente } = await supabase
+                        .from('publicaciones_externas')
+                        .select('id')
+                        .eq('id_producto_catalogo', clasificacion.id_producto_catalogo)
+                        .eq('es_fuente_stock', true)
+                        .eq('marketplace_id', accountId)
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (!otraFuente) {
+                        clasificacion.es_fuente_stock = true;
+                        logger.info({ itemId: item.id, tipo: 'catalogo_derivada_promovida' }, 'Derivada promovida a fuente de stock (padre ausente)');
+                    }
                 }
             }
-        }
-            // 1. Insertar o actualizar la Vitrina en publicaciones_externas (Aislado del inventario físico)
+
+            // ── Cambio 2: Leer logistic_type anterior ANTES del upsert ──────────
+            // Costo: +1 SELECT por sync_item. Solo se dispara cuando se procesa un item.
+            const { data: existing } = await supabase
+                .from('publicaciones_externas')
+                .select('id, logistic_type')
+                .eq('marketplace_id', accountId)
+                .eq('external_item_id', item.id)
+                .eq('external_variation_id', '0')
+                .maybeSingle();
+
+            const wasFullfillment = existing?.logistic_type === 'fulfillment';
+            const isNoLongerFulfillment = newLogisticType !== 'fulfillment';
+
+            // ── Cambio 1: upsert con logistic_type incluido ──────────────────────
+            // ANTES: logistic_type nunca se guardaba en syncCatalogItem → BD desfasada
             const { error: pubError } = await supabase.from('publicaciones_externas').upsert({
                 marketplace_id: accountId,
                 external_item_id: item.id,
@@ -278,17 +294,47 @@ export class MeliAdapter implements MarketplaceAdapter {
                 id_publicacion_padre: clasificacion.id_publicacion_padre,
                 es_fuente_stock: clasificacion.es_fuente_stock,
                 id_producto_catalogo: clasificacion.id_producto_catalogo,
+                logistic_type: newLogisticType,   // ← Cambio 1: campo faltante agregado
                 actualizado_el: new Date().toISOString()
             }, { onConflict: 'marketplace_id,external_item_id,external_variation_id' });
 
             if (pubError) throw pubError;
 
-            logger.info({ itemId: item.id, tipo: clasificacion.tipo_publicacion }, 'Publicación de MeLi almacenada en el Catálogo Virtual');
+            logger.info({ itemId: item.id, tipo: clasificacion.tipo_publicacion, logistic_type: newLogisticType }, 'Publicación de MeLi almacenada en el Catálogo Virtual');
+
+            // ── Cambio 2: Encolar sync_stock si cambió de fulfillment → otro tipo ──
+            // Cuando MeLi mueve una publicación de fulfillment a xd_drop_off (u otro),
+            // el gestor la seguía ignorando porque la BD decía 'fulfillment'.
+            // Ahora detectamos la transición y encolamos sync_stock para forzar la actualización.
+            if (wasFullfillment && isNoLongerFulfillment && existing?.id) {
+                const { data: mappings } = await supabase
+                    .from('mapeo_publicacion_articulo')
+                    .select('articulo_id')
+                    .eq('publicacion_id', existing.id);
+
+                if (mappings && mappings.length > 0) {
+                    const uniqueSkus = [...new Set(mappings.map((m: any) => m.articulo_id))];
+                    // Batch insert — una sola query para todos los SKUs afectados
+                    await supabase.from('jobs').insert(
+                        uniqueSkus.map(sku => ({
+                            type: 'sync_stock',
+                            payload: { sku },
+                            status: 'pending',
+                            priority: 1, // alta prioridad
+                        }))
+                    );
+                    logger.info(
+                        { itemId: item.id, prevLogistic: 'fulfillment', newLogistic: newLogisticType, skus: uniqueSkus },
+                        `Transición fulfillment→${newLogisticType}: ${uniqueSkus.length} sync_stock encolados`
+                    );
+                }
+            }
 
         } catch (error: any) {
             logger.error({ itemId, error: error.response?.data || error.message }, 'Error al sincronizar publicación de MeLi');
         }
     }
+
 
     // --- NUEVA FUNCIÓN SERVERLESS: BATCH SYNC ---
     async syncCatalogBatch(accountId: string, itemIds: string[]): Promise<number> {
