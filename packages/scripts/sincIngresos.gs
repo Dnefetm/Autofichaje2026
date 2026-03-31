@@ -196,8 +196,11 @@ function _sincIngresosPorFecha_(soloNuevos) {
       var obj = filaAObjetoSincIngreso(datos[i]);
       if (!obj) { omitidos++; continue; }
 
-      // Filtro incremental
-      if (soloNuevos && maxFecha && obj.fecha) {
+      // FIX: solo filtrar por fecha si la fila NO tiene ingreso_id.
+      // Filas CON ingreso_id: siempre pasan → el hash comparison decide si hay cambio.
+      // Filas SIN ingreso_id: filtrar por fecha para evitar duplicados infinitos.
+      // Sin esta distinción, ingresos retroactivos de Sheets eran ignorados permanentemente.
+      if (soloNuevos && maxFecha && obj.fecha && !obj.ingreso_id) {
         if (new Date(obj.fecha) <= maxFecha) { filtrados++; continue; }
       }
       candidatos.push(obj);

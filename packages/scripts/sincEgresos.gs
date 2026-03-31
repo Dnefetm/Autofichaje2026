@@ -240,8 +240,11 @@ function _sincEgresosPorFecha_(soloNuevos) {
     for (var i = 0; i < datos.length; i++) {
       var obj = filaAObjetoSincEgreso(datos[i]);
       if (!obj) { omitidos++; continue; }
-      // FIX 2: comparar obj.fecha (no obj.creado_el que ya no existe)
-      if (soloNuevos && maxFecha && obj.fecha) {
+      // FIX 2: solo filtrar por fecha si la fila NO tiene egreso_id.
+      // Filas CON egreso_id: siempre pasan → el hash comparison decide si hay cambio.
+      // Filas SIN egreso_id: filtrar por fecha para evitar duplicados infinitos.
+      // Sin esta distinción, egresos retroactivos de Sheets eran ignorados permanentemente.
+      if (soloNuevos && maxFecha && obj.fecha && !obj.egreso_id) {
         if (new Date(obj.fecha) <= maxFecha) { filtrados++; continue; }
       }
       candidatos.push(obj);
