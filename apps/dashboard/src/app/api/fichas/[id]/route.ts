@@ -101,7 +101,7 @@ export async function PATCH(
         'nombre_producto', 'descripcion', 'descripcion_larga', 'especificaciones',
         'ingredientes', 'uso_recomendado', 'precauciones', 'fabricante', 'estado',
         // Identidad canónica (v41a) — ahora editables manualmente
-        'marca', 'modelo', 'variante', 'codigo_universal', 'codigo_sat',
+        'marca', 'modelo', 'variante', 'codigo_universal',
         'categoria', 'materiales', 'pais_origen',
         // Campos regulatorios (v46)
         'informacion_normativa', 'instrucciones_uso',

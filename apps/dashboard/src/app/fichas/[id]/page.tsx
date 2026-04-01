@@ -44,7 +44,7 @@ interface FichaDetalle {
     modelo?: string;
     variante?: string;
     codigo_universal?: string;
-    codigo_sat?: string;
+
     categoria?: string;
     peso_kg?: number;
     largo_cm?: number;
@@ -220,7 +220,7 @@ export default function FichaDetallePage() {
                     bullet_points, palabras_clave,
                     atributos_dinamicos, atributos_categoria, atributos_extras,
                     ficha_tecnica_data, articulo_id,
-                    marca, modelo, variante, codigo_universal, codigo_sat, categoria,
+                    marca, modelo, variante, codigo_universal, categoria,
                     peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen,
                     articulos ( articulo_id, nombre, marca, modelo, variante, codigo_universal, codigo_sat, categoria, peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen, descripcion ),
                     ficha_extracciones ( id, extraccion_cruda, aplicada_a_ficha, created_at )
@@ -300,7 +300,7 @@ export default function FichaDetallePage() {
                     fabricante, especificaciones, ingredientes, uso_recomendado, precauciones,
                     bullet_points, palabras_clave, atributos_dinamicos, atributos_categoria,
                     atributos_extras, ficha_tecnica_data, articulo_id,
-                    marca, modelo, variante, codigo_universal, codigo_sat, categoria,
+                    marca, modelo, variante, codigo_universal, categoria,
                     peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen,
                     articulos ( articulo_id, nombre, marca, modelo, variante, codigo_universal, codigo_sat, categoria, peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen, descripcion ),
                     ficha_extracciones ( id, extraccion_cruda, aplicada_a_ficha, created_at )`)
@@ -337,7 +337,7 @@ export default function FichaDetallePage() {
             modelo:             ficha.modelo   ?? art?.modelo   ?? '',
             variante:           ficha.variante ?? art?.variante ?? '',
             codigo_universal:   ficha.codigo_universal ?? art?.codigo_universal ?? '',
-            codigo_sat:         (ficha as any).codigo_sat ?? art?.codigo_sat ?? '',
+
             categoria:          ficha.categoria ?? art?.categoria ?? '',
             materiales:         ficha.materiales ?? art?.materiales ?? '',
             pais_origen:        ficha.pais_origen ?? art?.pais_origen ?? '',
@@ -443,7 +443,7 @@ export default function FichaDetallePage() {
             ['modelo',          art.modelo],
             ['variante',        art.variante],
             ['codigo_universal', art.codigo_universal],
-            ['codigo_sat',      art.codigo_sat],
+
             ['categoria',       art.categoria],
             ['materiales',      art.materiales],
             ['pais_origen',     art.pais_origen],
