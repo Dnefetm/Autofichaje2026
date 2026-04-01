@@ -18,7 +18,12 @@ export interface AutofichaResult {
     especificaciones?: string;      // Texto libre de especificaciones técnicas tabuladas
     ingredientes?: string;          // Para productos químicos/cosméticos
     uso_recomendado?: string;       // Instrucciones de uso / aplicación
-    precauciones?: string;          // Advertencias de seguridad / precauciones
+    precauciones?: string;          // Advertencias de seguridad / precauciones (campo general)
+    // Campos regulatorios / etiquetado obligatorio
+    informacion_normativa?: string;     // Textos obligatorios por NOM/ley (registro, fabricante, contenido neto)
+    instrucciones_uso?: string;         // Modo de empleo claro para el usuario final
+    leyendas_precautorias?: string;     // Advertencias de riesgo/peligro de etiquetado (GHS, NOM-018-STPS, etc.)
+    indicaciones_almacenamiento?: string; // Condiciones de conservación, temperatura, humedad, caducidad
     // Listas (JSONB en BD)
     bullet_points?: string[];       // Lista de características/beneficios principales
     palabras_clave?: string[];      // Keywords para búsqueda/marketplace
@@ -93,8 +98,29 @@ Campos a extraer (usa null si no está disponible):
 - descripcion_larga: descripción técnica completa y extendida del producto (sin límite de caracteres)
 - especificaciones: texto de especificaciones técnicas tal como aparece en el documento (tablas, listas)
 - ingredientes: composición o ingredientes activos (para lubricantes, químicos, adhesivos, etc.)
-- uso_recomendado: instrucciones de uso, aplicación o modo de empleo
-- precauciones: advertencias de seguridad, precauciones, riesgos
+- uso_recomendado: instrucciones de uso, aplicación o modo de empleo (campo general, puede solapar con instrucciones_uso)
+- precauciones: advertencias de seguridad y precauciones generales (campo heredado, puede solapar con leyendas_precautorias)
+- informacion_normativa: textos que el fabricante/importador está OBLIGADO a incluir por ley en el etiquetado:
+  número de registro sanitario, NOM de producto aplicable (ej. NOM-003-SSA1, NOM-018-STPS, NOM-050-SCFI),
+  denominación legal del producto, contenido neto, nombre y dirección del responsable.
+  NO incluyas especificaciones técnicas ni claims de marketing. Pon null si el documento no lo contiene explícitamente.
+- instrucciones_uso: pasos o modo de empleo dirigidos al usuario final ("Agitar antes de usar", "Aplicar en capa delgada",
+  "Leer el instructivo antes de usar"). NO mezcles con advertencias de riesgo ni especificaciones técnicas.
+  Pon null si no hay instrucciones claras para el usuario final.
+- leyendas_precautorias: advertencias de riesgo/peligro del etiquetado obligatorio:
+  "Manténgase fuera del alcance de los niños", "Evite contacto con ojos", frases H/P del sistema GHS,
+  clasificación de riesgo NOM-018-STPS, pictogramas descritos en texto. Consolida sin inventar texto.
+  NO la confundas con precauciones generales de uso. Pon null si el documento no las contiene.
+- indicaciones_almacenamiento: condiciones de conservación del producto: temperatura máxima/mínima, humedad,
+  exposición a luz, ventilación requerida, separación de incompatibles, fecha de caducidad o vida útil.
+  Ejemplos: "Conservar en lugar fresco y seco", "No exponer a temperaturas superiores a 40°C", "Vida útil: 24 meses".
+  Pon null si el documento no especifica condiciones de almacenamiento.
+
+REGLA CRÍTICA DE SEPARACIÓN:
+  - Almacenamiento NO va en especificaciones técnicas.
+  - Leyendas de peligro NO van en precauciones generales.
+  - Normativa obligatoria NO va en descripción ni atributos técnicos.
+  - Instrucciones de uso NO van mezcladas con advertencias ni specs.
 - bullet_points: array de strings con las características/beneficios principales del producto (3-8 puntos)
 - palabras_clave: array de strings con keywords para búsqueda en marketplaces (5-12 palabras)
 - codigo_universal: EAN, UPC, GTIN o código de barras (13 dígitos preferentemente)
@@ -115,6 +141,39 @@ Campos a extraer (usa null si no está disponible):
   No filtres nada — extrae todo dato técnico que no haya sido capturado arriba.
   Si no hay datos adicionales, retorna objeto vacío {}.
 - confidence: tu nivel de confianza en la extracción (0.0 a 1.0)`;
+
+// ─── Helper: normalización de campos regulatorios ─────────────────────────────
+// Acepta CUALQUIER tipo que el LLM o Supabase JSONB pueda devolver:
+//   - string   → trim directo
+//   - array    → join con salto de línea (el LLM a veces devuelve listas)
+//   - object   → join de valores (ej. { texto: "..." })
+//   - número / booleano → String()
+//   - null / undefined  → undefined real
+// Así nunca lanza "trim is not a function" sin importar la fuente del dato.
+function _normalizeReg(value: unknown): string | undefined {
+    if (value == null) return undefined;
+
+    let s: string;
+
+    if (typeof value === 'string') {
+        s = value.trim();
+    } else if (Array.isArray(value)) {
+        s = value
+            .map(x => (typeof x === 'string' ? x.trim() : String(x ?? '').trim()))
+            .filter(Boolean)
+            .join('\n');
+    } else if (typeof value === 'object') {
+        s = Object.values(value as Record<string, unknown>)
+            .map(x => (typeof x === 'string' ? x.trim() : String(x ?? '').trim()))
+            .filter(Boolean)
+            .join('\n');
+    } else {
+        s = String(value).trim();
+    }
+
+    if (!s || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined') return undefined;
+    return s;
+}
 
 async function structureWithAI(
     rawText: string,
@@ -154,6 +213,17 @@ async function structureWithAI(
         ingredientes:     raw.ingredientes   || undefined,
         uso_recomendado:  raw.uso_recomendado || undefined,
         precauciones:     raw.precauciones   || undefined,
+        // ── Campos regulatorios — con normalización defensiva ─────────────────
+        informacion_normativa:     _normalizeReg(raw.informacion_normativa),
+        instrucciones_uso:         _normalizeReg(raw.instrucciones_uso),
+        leyendas_precautorias:     _normalizeReg(
+            // Si el LLM duplicó exactamente precauciones en leyendas_precautorias, vaciarlo
+            // para que el operador diferencie manualmente
+            raw.leyendas_precautorias === raw.precauciones
+                ? undefined
+                : raw.leyendas_precautorias
+        ),
+        indicaciones_almacenamiento: _normalizeReg(raw.indicaciones_almacenamiento),
         bullet_points:    Array.isArray(raw.bullet_points) ? raw.bullet_points.filter((x: any) => typeof x === 'string') : undefined,
         palabras_clave:   Array.isArray(raw.palabras_clave) ? raw.palabras_clave.filter((x: any) => typeof x === 'string') : undefined,
         codigo_universal: raw.codigo_universal || undefined,

@@ -39,11 +39,12 @@ interface FichaDetalle {
     ficha_tecnica_data?: Record<string, any>;
     articulo_id?: string;
     articulos?: Articulo | null;
-    // Columnas de identidad propias (v41a) — backward-compatible con nullish fallback
+    // Columnas de identidad propias (v41a)
     marca?: string;
     modelo?: string;
     variante?: string;
     codigo_universal?: string;
+    codigo_sat?: string;
     categoria?: string;
     peso_kg?: number;
     largo_cm?: number;
@@ -51,6 +52,11 @@ interface FichaDetalle {
     alto_cm?: number;
     materiales?: string;
     pais_origen?: string;
+    // Campos regulatorios (v46)
+    informacion_normativa?: string;
+    instrucciones_uso?: string;
+    leyendas_precautorias?: string;
+    indicaciones_almacenamiento?: string;
     ficha_extracciones?: Array<{
         id: string; extraccion_cruda: any; aplicada_a_ficha: boolean; created_at: string;
     }>;
@@ -214,9 +220,9 @@ export default function FichaDetallePage() {
                     bullet_points, palabras_clave,
                     atributos_dinamicos, atributos_categoria, atributos_extras,
                     ficha_tecnica_data, articulo_id,
-                    marca, modelo, variante, codigo_universal, categoria,
+                    marca, modelo, variante, codigo_universal, codigo_sat, categoria,
                     peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen,
-                    articulos ( articulo_id, nombre, marca, modelo, variante, codigo_universal, categoria, peso_kg, largo_cm, ancho_cm, alto_cm ),
+                    articulos ( articulo_id, nombre, marca, modelo, variante, codigo_universal, codigo_sat, categoria, peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen, descripcion ),
                     ficha_extracciones ( id, extraccion_cruda, aplicada_a_ficha, created_at )
                 `)
                 .eq('id', id)
@@ -287,16 +293,22 @@ export default function FichaDetallePage() {
             return;
         }
         // Recargar ficha completa para tener el objeto articulos expandido
-        const { data: updated } = await supabase
-            .from('fichas_tecnicas')
-            .select(`id, estado, created_at, nombre_producto, descripcion, descripcion_larga,
-                fabricante, especificaciones, ingredientes, uso_recomendado, precauciones,
-                bullet_points, palabras_clave, atributos_dinamicos, atributos_categoria,
-                atributos_extras, ficha_tecnica_data, articulo_id,
-                articulos ( articulo_id, nombre, marca, modelo, variante, codigo_universal, categoria, peso_kg, largo_cm, ancho_cm, alto_cm ),
-                ficha_extracciones ( id, extraccion_cruda, aplicada_a_ficha, created_at )`)
-            .eq('id', ficha.id).single();
-        if (updated) setFicha(updated as unknown as FichaDetalle);
+        try {
+            const { data: updated } = await supabase
+                .from('fichas_tecnicas')
+                .select(`id, estado, created_at, nombre_producto, descripcion, descripcion_larga,
+                    fabricante, especificaciones, ingredientes, uso_recomendado, precauciones,
+                    bullet_points, palabras_clave, atributos_dinamicos, atributos_categoria,
+                    atributos_extras, ficha_tecnica_data, articulo_id,
+                    marca, modelo, variante, codigo_universal, codigo_sat, categoria,
+                    peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen,
+                    articulos ( articulo_id, nombre, marca, modelo, variante, codigo_universal, codigo_sat, categoria, peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen, descripcion ),
+                    ficha_extracciones ( id, extraccion_cruda, aplicada_a_ficha, created_at )`)
+                .eq('id', ficha.id).single();
+            if (updated) setFicha(updated as unknown as FichaDetalle);
+        } catch (e) {
+            console.error('Error al recargar ficha tras vinculación');
+        }
         setVinculandoModal(false); setVinculandoQ(''); setVinculandoResults([]);
     }
 
@@ -304,7 +316,9 @@ export default function FichaDetallePage() {
 
     function startEdit() {
         if (!ficha) return;
+        const art = ficha.articulos as any;
         setDraft({
+            // Campos de contenido — exactamente como antes
             nombre_producto:    ficha.nombre_producto,
             descripcion:        ficha.descripcion,
             descripcion_larga:  ficha.descripcion_larga,
@@ -318,6 +332,24 @@ export default function FichaDetallePage() {
             atributos_dinamicos: ficha.atributos_dinamicos ? { ...ficha.atributos_dinamicos } : {},
             atributos_categoria: ficha.atributos_categoria ? { ...ficha.atributos_categoria } : {},
             atributos_extras:    ficha.atributos_extras    ? { ...ficha.atributos_extras }    : {},
+            // Identidad canónica — columna propia ?? fallback al artículo vinculado
+            marca:              ficha.marca    ?? art?.marca    ?? '',
+            modelo:             ficha.modelo   ?? art?.modelo   ?? '',
+            variante:           ficha.variante ?? art?.variante ?? '',
+            codigo_universal:   ficha.codigo_universal ?? art?.codigo_universal ?? '',
+            codigo_sat:         (ficha as any).codigo_sat ?? art?.codigo_sat ?? '',
+            categoria:          ficha.categoria ?? art?.categoria ?? '',
+            materiales:         ficha.materiales ?? art?.materiales ?? '',
+            pais_origen:        ficha.pais_origen ?? art?.pais_origen ?? '',
+            peso_kg:            ficha.peso_kg  ?? art?.peso_kg  ?? undefined,
+            largo_cm:           ficha.largo_cm ?? art?.largo_cm ?? undefined,
+            ancho_cm:           ficha.ancho_cm ?? art?.ancho_cm ?? undefined,
+            alto_cm:            ficha.alto_cm  ?? art?.alto_cm  ?? undefined,
+            // Campos regulatorios (v46)
+            informacion_normativa:       ficha.informacion_normativa,
+            instrucciones_uso:           ficha.instrucciones_uso,
+            leyendas_precautorias:       ficha.leyendas_precautorias,
+            indicaciones_almacenamiento: ficha.indicaciones_almacenamiento,
         });
         setPatchError(''); setEditMode(true);
     }
@@ -401,29 +433,63 @@ export default function FichaDetallePage() {
         setEnrichedMsg('');
         const art = ficha.articulos as any;
 
-        // Campos que YA están visibles en la sección Identidad desde articulos.*
-        // No deben duplicarse en atributos_dinamicos
-        const YA_VISIBLES_DESDE_ARTICULOS = new Set([
-            'articulo_id', 'nombre', 'marca', 'modelo', 'variante',
-            'codigo_universal', 'categoria', 'peso_kg', 'largo_cm', 'ancho_cm', 'alto_cm',
-        ]);
+        // ── Paso 1: Rellenar columnas canónicas vacías de la ficha con datos del artículo ──
+        // Solo rellena si la ficha tiene null/undefined en la columna propia;
+        // NUNCA sobreescribe valores que el operador ya editó en la ficha.
+        const canonicoPatch: Record<string, any> = {};
+        const mapTexto: Array<[keyof FichaDetalle, string]> = [
+            ['nombre_producto', art.nombre],
+            ['marca',           art.marca],
+            ['modelo',          art.modelo],
+            ['variante',        art.variante],
+            ['codigo_universal', art.codigo_universal],
+            ['codigo_sat',      art.codigo_sat],
+            ['categoria',       art.categoria],
+            ['materiales',      art.materiales],
+            ['pais_origen',     art.pais_origen],
+            ['descripcion',     art.descripcion],
+        ];
+        for (const [fichaKey, artVal] of mapTexto) {
+            if (artVal != null && artVal !== '' && !ficha[fichaKey]) {
+                canonicoPatch[fichaKey as string] = artVal;
+            }
+        }
+        const mapNum: Array<[keyof FichaDetalle, number | undefined]> = [
+            ['peso_kg',  art.peso_kg],
+            ['largo_cm', art.largo_cm],
+            ['ancho_cm', art.ancho_cm],
+            ['alto_cm',  art.alto_cm],
+        ];
+        for (const [fichaKey, artVal] of mapNum) {
+            if (artVal != null && !ficha[fichaKey]) {
+                canonicoPatch[fichaKey as string] = artVal;
+            }
+        }
 
-        // Solo mapear campos que agregan información NUEVA a fichas_tecnicas
-        // (campos que no están ya en la sección Identidad del artículo vinculado)
+        let canonicosAplicados = 0;
+        if (Object.keys(canonicoPatch).length > 0) {
+            const res = await fetch(`/api/fichas/${ficha.id}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(canonicoPatch),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setEnrichedMsg(`Error al trasladar datos del catálogo: ${body?.error}`);
+                return;
+            }
+            // Actualizar estado local con los nuevos valores
+            setFicha(p => p ? { ...p, ...canonicoPatch } : p);
+            canonicosAplicados = Object.keys(canonicoPatch).length;
+        }
+
+        // ── Paso 2: Atributos especiales (garantia, atributos_especificos) → atributos_dinamicos ──
+        // Mantiene el comportamiento original para estos campos que no tienen columna propia.
         const candidatos: Array<{ key: string; label: string; valor: any }> = [];
-        if (art.materiales)  candidatos.push({ key: 'Materiales',      label: 'Materiales',        valor: art.materiales });
-        if (art.pais_origen) candidatos.push({ key: 'País de origen',  label: 'País de origen',    valor: art.pais_origen });
-        if (art.garantia)    candidatos.push({ key: 'Garantía',        label: 'Garantía',          valor: art.garantia });
-        // atributos_especificos del artículo (jsonb libre)
+        if (art.garantia) candidatos.push({ key: 'Garantía', label: 'Garantía', valor: art.garantia });
         if (art.atributos_especificos && typeof art.atributos_especificos === 'object') {
             for (const [k, v] of Object.entries(art.atributos_especificos as Record<string, any>)) {
                 if (v != null && v !== '') candidatos.push({ key: k, label: k, valor: v });
             }
-        }
-
-        if (candidatos.length === 0) {
-            setEnrichedMsg('El catálogo no tiene campos adicionales para aportar (materiales, país de origen, garantía).');
-            return;
         }
 
         const actual = ficha.atributos_dinamicos ?? {};
@@ -432,7 +498,6 @@ export default function FichaDetallePage() {
 
         for (const { key, label, valor } of candidatos) {
             if (key in actual) {
-                // El campo ya existe en atributos_dinamicos — es un conflicto
                 if (String(actual[key]) !== String(valor)) {
                     conflictosGenerados.push({
                         campo: `atributos_dinamicos.${key}`,
@@ -443,14 +508,11 @@ export default function FichaDetallePage() {
                         valor_nuevo:  valor,
                     });
                 }
-                // Si son idénticos, ignorar
             } else {
-                // No existe en atributos_dinamicos → agregar automáticamente
                 autoAgregar[key] = valor;
             }
         }
 
-        // Aplicar los campos sin conflicto directamente
         if (Object.keys(autoAgregar).length > 0) {
             const merged = { ...actual, ...autoAgregar };
             const res = await fetch(`/api/fichas/${ficha.id}`, {
@@ -460,22 +522,26 @@ export default function FichaDetallePage() {
             const body = await res.json().catch(() => ({}));
             if (!res.ok) { setEnrichedMsg(`Error: ${body?.error}`); return; }
             setFicha(p => p ? { ...p, atributos_dinamicos: merged } : p);
-            const nombresAgregados = Object.keys(autoAgregar).slice(0, 3).join(', ');
-            setEnrichedMsg(`✓ ${Object.keys(autoAgregar).length} campo(s) agregados: ${nombresAgregados}${Object.keys(autoAgregar).length > 3 ? '…' : ''}.`);
         }
 
-        // Si hay conflictos, abrirlos en el modal
+        // ── Feedback consolidado ──
+        const totalAgregados = canonicosAplicados + Object.keys(autoAgregar).length;
+        if (totalAgregados === 0 && conflictosGenerados.length === 0) {
+            setEnrichedMsg('El catálogo no aporta datos nuevos (todos ya estaban en la ficha o son idénticos).');
+        } else if (totalAgregados > 0) {
+            const ejemplos = Object.keys(canonicoPatch).slice(0, 3).join(', ');
+            setEnrichedMsg(`✓ ${totalAgregados} campo(s) completados desde el catálogo${ejemplos ? ': ' + ejemplos : ''}${totalAgregados > 3 ? '…' : ''}.`);
+        }
+
         if (conflictosGenerados.length > 0) {
             const sel: Record<string, string> = {};
             for (const d of conflictosGenerados) sel[d.campo] = 'actual';
             setConflictos(conflictosGenerados);
-            setExtraccionId(null); // sin extracción de documento
+            setExtraccionId(null);
             setSeleccion(sel);
             setListChecks({});
             setCombinados({});
             setShowModal(true);
-        } else if (Object.keys(autoAgregar).length === 0) {
-            setEnrichedMsg('El catálogo no aporta datos nuevos (todos ya estaban en la ficha o son idénticos).');
         }
     }
 
@@ -635,35 +701,99 @@ export default function FichaDetallePage() {
                             const altoCm   = ficha.alto_cm  ?? art?.alto_cm  ?? null;
                             const mats     = ficha.materiales ?? null;
                             const pais     = ficha.pais_origen ?? null;
+                            const inputCls = "w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none";
+                            const numCls   = "w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none";
                             return (
                                 <>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                                         {sku && <div><Label>SKU</Label><p className="font-mono font-bold text-slate-800">{sku}</p></div>}
-                                        {marca && <div><Label>Marca</Label><p className="font-semibold text-slate-800">{marca}</p></div>}
-                                        {modelo && <div><Label>Modelo</Label><p className="text-slate-700">{modelo}</p></div>}
-                                        {variante && <div><Label>Variante</Label><p className="text-slate-700">{variante}</p></div>}
-                                        {(ficha.fabricante || marca) && (
+
+                                        {/* Marca */}
+                                        <div>
+                                            <Label>Marca</Label>
+                                            {editMode
+                                                ? <input className={inputCls} value={draft.marca ?? ''} onChange={e => setDraft(d => ({ ...d, marca: e.target.value }))} />
+                                                : <p className="font-semibold text-slate-800">{marca ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                        </div>
+
+                                        {/* Modelo */}
+                                        <div>
+                                            <Label>Modelo</Label>
+                                            {editMode
+                                                ? <input className={inputCls} value={draft.modelo ?? ''} onChange={e => setDraft(d => ({ ...d, modelo: e.target.value }))} />
+                                                : <p className="text-slate-700">{modelo ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                        </div>
+
+                                        {/* Variante */}
+                                        <div>
+                                            <Label>Variante</Label>
+                                            {editMode
+                                                ? <input className={inputCls} value={draft.variante ?? ''} onChange={e => setDraft(d => ({ ...d, variante: e.target.value }))} />
+                                                : <p className="text-slate-700">{variante ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                        </div>
+
+                                        {/* Fabricante */}
+                                        {(ficha.fabricante || marca || editMode) && (
                                             <div className="col-span-2 sm:col-span-1">
                                                 <Label>Fabricante</Label>
                                                 {editMode
-                                                    ? <input className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" value={draft.fabricante ?? ''} onChange={e => setDraft(d => ({ ...d, fabricante: e.target.value }))} />
+                                                    ? <input className={inputCls} value={draft.fabricante ?? ''} onChange={e => setDraft(d => ({ ...d, fabricante: e.target.value }))} />
                                                     : <p className="text-slate-700">{ficha.fabricante}</p>}
                                             </div>
                                         )}
-                                        {ean && <div><Label>Código de barras (EAN)</Label><p className="font-mono text-slate-700">{ean}</p></div>}
-                                        {categ && <div><Label>Categoría</Label><p className="text-slate-700">{categ}</p></div>}
-                                        {mats && <div><Label>Materiales</Label><p className="text-slate-700">{mats}</p></div>}
-                                        {pais && <div><Label>País de origen</Label><p className="text-slate-700">{pais}</p></div>}
+
+                                        {/* EAN / Código Universal */}
+                                        <div>
+                                            <Label>Código de barras (EAN)</Label>
+                                            {editMode
+                                                ? <input className={inputCls} value={draft.codigo_universal ?? ''} onChange={e => setDraft(d => ({ ...d, codigo_universal: e.target.value }))} placeholder="EAN / UPC / GTIN" />
+                                                : <p className="font-mono text-slate-700">{ean ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                        </div>
+
+                                        {/* Categoría */}
+                                        <div>
+                                            <Label>Categoría</Label>
+                                            {editMode
+                                                ? <input className={inputCls} value={draft.categoria ?? ''} onChange={e => setDraft(d => ({ ...d, categoria: e.target.value }))} />
+                                                : <p className="text-slate-700">{categ ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                        </div>
+
+                                        {/* Materiales */}
+                                        <div>
+                                            <Label>Materiales</Label>
+                                            {editMode
+                                                ? <input className={inputCls} value={draft.materiales ?? ''} onChange={e => setDraft(d => ({ ...d, materiales: e.target.value }))} />
+                                                : <p className="text-slate-700">{mats ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                        </div>
+
+                                        {/* País de origen */}
+                                        <div>
+                                            <Label>País de origen</Label>
+                                            {editMode
+                                                ? <input className={inputCls} value={draft.pais_origen ?? ''} onChange={e => setDraft(d => ({ ...d, pais_origen: e.target.value }))} />
+                                                : <p className="text-slate-700">{pais ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                        </div>
                                     </div>
-                                    {(pesoKg || largoCm || anchoCm || altoCm) && (
+
+                                    {/* Dimensiones y peso */}
+                                    {(pesoKg || largoCm || anchoCm || altoCm || editMode) && (
                                         <div className="border-t border-slate-100 pt-3">
                                             <Label>Dimensiones y peso</Label>
-                                            <div className="flex flex-wrap gap-4 mt-1 text-sm">
-                                                {largoCm && <span className="text-slate-600"><b>L:</b> {largoCm} cm</span>}
-                                                {anchoCm && <span className="text-slate-600"><b>A:</b> {anchoCm} cm</span>}
-                                                {altoCm  && <span className="text-slate-600"><b>H:</b> {altoCm} cm</span>}
-                                                {pesoKg  && <span className="text-slate-600"><b>Peso:</b> {pesoKg} kg</span>}
-                                            </div>
+                                            {editMode ? (
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
+                                                    <div><label className="text-[10px] text-slate-400">Largo (cm)</label><input type="number" className={numCls} value={draft.largo_cm ?? ''} onChange={e => setDraft(d => ({ ...d, largo_cm: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
+                                                    <div><label className="text-[10px] text-slate-400">Ancho (cm)</label><input type="number" className={numCls} value={draft.ancho_cm ?? ''} onChange={e => setDraft(d => ({ ...d, ancho_cm: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
+                                                    <div><label className="text-[10px] text-slate-400">Alto (cm)</label><input type="number" className={numCls} value={draft.alto_cm ?? ''} onChange={e => setDraft(d => ({ ...d, alto_cm: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
+                                                    <div><label className="text-[10px] text-slate-400">Peso (kg)</label><input type="number" className={numCls} value={draft.peso_kg ?? ''} onChange={e => setDraft(d => ({ ...d, peso_kg: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-4 mt-1 text-sm">
+                                                    {largoCm && <span className="text-slate-600"><b>L:</b> {largoCm} cm</span>}
+                                                    {anchoCm && <span className="text-slate-600"><b>A:</b> {anchoCm} cm</span>}
+                                                    {altoCm  && <span className="text-slate-600"><b>H:</b> {altoCm} cm</span>}
+                                                    {pesoKg  && <span className="text-slate-600"><b>Peso:</b> {pesoKg} kg</span>}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </>

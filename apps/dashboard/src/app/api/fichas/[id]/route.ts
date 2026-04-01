@@ -97,14 +97,22 @@ export async function PATCH(
     }
 
     // Campos editables permitidos (whitelist para evitar sobreescribir IDs, FKs, etc.)
-    const CAMPOS_TEXTO: (keyof typeof body)[] = [
+    const CAMPOS_TEXTO: string[] = [
         'nombre_producto', 'descripcion', 'descripcion_larga', 'especificaciones',
         'ingredientes', 'uso_recomendado', 'precauciones', 'fabricante', 'estado',
+        // Identidad canónica (v41a) — ahora editables manualmente
+        'marca', 'modelo', 'variante', 'codigo_universal', 'codigo_sat',
+        'categoria', 'materiales', 'pais_origen',
+        // Campos regulatorios (v46)
+        'informacion_normativa', 'instrucciones_uso',
+        'leyendas_precautorias', 'indicaciones_almacenamiento',
     ];
-    const CAMPOS_JSONB: (keyof typeof body)[] = [
+    const CAMPOS_JSONB: string[] = [
         'bullet_points', 'palabras_clave', 'atributos_dinamicos',
         'atributos_categoria', 'atributos_extras', 'ficha_tecnica_data',
     ];
+    // Campos numéricos canónicos (dimensiones y peso)
+    const CAMPOS_NUM: string[] = ['peso_kg', 'largo_cm', 'ancho_cm', 'alto_cm'];
 
     const update: Record<string, any> = {};
 
@@ -118,6 +126,14 @@ export async function PATCH(
             if (v === null || typeof v === 'object') update[campo] = v;
         }
     }
+    for (const campo of CAMPOS_NUM) {
+        if (campo in body) {
+            const v = body[campo];
+            update[campo] = v === null || v === '' ? null : Number(v) || null;
+        }
+    }
+
+
 
     if (Object.keys(update).length === 0) {
         return NextResponse.json({ error: 'No se proporcionaron campos válidos para actualizar' }, { status: 400 });

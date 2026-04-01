@@ -158,7 +158,7 @@ function AutofichaPageInner() {
         if (artIdFromUrl) {
             supabase
                 .from('articulos')
-                .select('articulo_id, nombre, marca, modelo, variante, categoria, descripcion, codigo_universal, codigo_sat')
+                .select('articulo_id, nombre, marca, modelo, variante, categoria, descripcion, codigo_universal, codigo_sat, peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen')
                 .eq('articulo_id', artIdFromUrl)
                 .single()
                 .then(({ data }) => {
@@ -176,6 +176,32 @@ function AutofichaPageInner() {
                             score: 100, score_label: 'Pre-vinculado',
                         });
                         setSaveMode('link_only');
+                        // Pre-llenar el formulario con los datos del artículo
+                        // El operador puede subir un doc para enriquecer, o guardar directamente
+                        setEdited({
+                            sku_detectado:    data.articulo_id,
+                            articulo_id:      data.articulo_id,
+                            nombre:           data.nombre,
+                            marca:            data.marca,
+                            fabricante:       data.marca,   // fallback razonable
+                            modelo:           data.modelo  ?? undefined,
+                            variante:         data.variante ?? undefined,
+                            categoria:        data.categoria ?? undefined,
+                            descripcion:      data.descripcion ?? undefined,
+                            codigo_universal: data.codigo_universal ?? undefined,
+                            codigo_sat:       data.codigo_sat  ?? undefined,
+                            peso_kg:          data.peso_kg  ?? undefined,
+                            largo_cm:         data.largo_cm ?? undefined,
+                            ancho_cm:         data.ancho_cm ?? undefined,
+                            alto_cm:          data.alto_cm  ?? undefined,
+                            materiales:       data.materiales  ?? undefined,
+                            pais_origen:      data.pais_origen ?? undefined,
+                            confidence: 1,
+                            rawText:        '',  // sin OCR — viene del catálogo
+                            bullet_points:  [],
+                            palabras_clave: [],
+                        });
+                        setStatus('done'); // Mostrar formulario directamente
                     }
                 });
         }
@@ -434,6 +460,11 @@ function AutofichaPageInner() {
                     ingredientes:     edited.ingredientes     || null,
                     uso_recomendado:  edited.uso_recomendado  || null,
                     precauciones:     edited.precauciones     || null,
+                    // Campos regulatorios / etiquetado (v46)
+                    informacion_normativa:       edited.informacion_normativa       || null,
+                    instrucciones_uso:           edited.instrucciones_uso           || null,
+                    leyendas_precautorias:       edited.leyendas_precautorias       || null,
+                    indicaciones_almacenamiento: edited.indicaciones_almacenamiento || null,
                     // Listas JSONB
                     bullet_points:    edited.bullet_points    || null,
                     palabras_clave:   edited.palabras_clave   || null,
@@ -750,6 +781,37 @@ function AutofichaPageInner() {
                                 <Field label="Precauciones" value={edited?.precauciones} onChange={v => updateField('precauciones', v)} type="textarea" />
                                 <Field label="Ingredientes / Composición" value={edited?.ingredientes} onChange={v => updateField('ingredientes', v)} type="textarea" />
                             </div>
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Cumplimiento y Etiquetado</p>
+                                <p className="text-[10px] text-slate-400 leading-relaxed">
+                                    Campos de etiquetado regulatorio. La IA los extrae si aparecen en el documento; de lo contrario, quedan vacíos para revisión manual.
+                                </p>
+                                <Field
+                                    label="Información normativa obligatoria"
+                                    value={edited?.informacion_normativa}
+                                    onChange={v => updateField('informacion_normativa', v)}
+                                    type="textarea"
+                                />
+                                <Field
+                                    label="Instrucciones de uso (etiquetado)"
+                                    value={edited?.instrucciones_uso}
+                                    onChange={v => updateField('instrucciones_uso', v)}
+                                    type="textarea"
+                                />
+                                <Field
+                                    label="Leyendas precautorias"
+                                    value={edited?.leyendas_precautorias}
+                                    onChange={v => updateField('leyendas_precautorias', v)}
+                                    type="textarea"
+                                />
+                                <Field
+                                    label="Indicaciones de almacenamiento"
+                                    value={edited?.indicaciones_almacenamiento}
+                                    onChange={v => updateField('indicaciones_almacenamiento', v)}
+                                    type="textarea"
+                                />
+                            </div>
+
                             <div className="space-y-3">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Marketplaces</p>
                                 {/* Bullet points — lista editable */}
