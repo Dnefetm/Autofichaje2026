@@ -212,10 +212,10 @@ export async function POST(req: NextRequest) {
         // Dimensiones de paquete del vendedor — hierarchy: ITEM, tags: hidden en MLM9171
         // MeLi los valida en POST /items (cause_id: 5400) aunque el schema no los marque required.
         // Los PACKAGE_* sin prefijo SELLER_ son read_only (hierarchy: FAMILY) y NO deben enviarse.
-        if (articulo.alto_cm)  attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: String(articulo.alto_cm) });
-        if (articulo.ancho_cm) attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: String(articulo.ancho_cm) });
-        if (articulo.largo_cm) attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: String(articulo.largo_cm) });
-        if (articulo.peso_kg)  attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: String(articulo.peso_kg) });
+        if (articulo.alto_cm)  attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: `${articulo.alto_cm} cm` });
+        if (articulo.ancho_cm) attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: `${articulo.ancho_cm} cm` });
+        if (articulo.largo_cm) attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: `${articulo.largo_cm} cm` });
+        if (articulo.peso_kg)  attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: `${articulo.peso_kg} kg` });
 
         trace.paso_7_attributes_mapeados = attributes;
         trace.paso_7_package_dimensions = {
@@ -448,9 +448,37 @@ export async function POST(req: NextRequest) {
         });
 
     } catch (err: any) {
+        // Distinguir errores de validación de MeLi (400) de errores internos (500)
+        // createItem relanza el error con el JSON de respuesta de MeLi en el mensaje
+        const errMsg: string = err.message || '';
+        let meliError: any = null;
+        let isMeliValidation = false;
+
+        if (errMsg.includes('400') || errMsg.includes('validation_error')) {
+            try {
+                // El mensaje contiene "MeLi 400: {...json...}" — extraer el JSON
+                const jsonStart = errMsg.indexOf('{');
+                if (jsonStart !== -1) {
+                    meliError = JSON.parse(errMsg.slice(jsonStart));
+                    isMeliValidation = true;
+                }
+            } catch { /* si no parsea, cae al 500 genérico */ }
+        }
+
+        if (isMeliValidation) {
+            return NextResponse.json({
+                ok: false,
+                error: 'MeLi rechazó la publicación (validation_error)',
+                meli_status: 400,
+                meli_error: meliError,
+                duracion_ms: Date.now() - startTime,
+                trace,
+            }, { status: 422 });
+        }
+
         return NextResponse.json({
             ok: false,
-            error: err.message,
+            error: errMsg,
             duracion_ms: Date.now() - startTime,
             trace,
         }, { status: 500 });
