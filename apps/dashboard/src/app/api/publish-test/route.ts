@@ -210,19 +210,19 @@ export async function POST(req: NextRequest) {
         attributes.push({ id: 'ITEM_CONDITION', value_id: '2230284' });
 
         // Dimensiones de paquete del vendedor — hierarchy: ITEM, tags: hidden en MLM9171
-        // MeLi los valida en POST /items (cause_id: 5400) aunque el schema no los marque required.
-        // Los PACKAGE_* sin prefijo SELLER_ son read_only (hierarchy: FAMILY) y NO deben enviarse.
-        if (articulo.alto_cm)  attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: `${articulo.alto_cm} cm` });
-        if (articulo.ancho_cm) attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: `${articulo.ancho_cm} cm` });
-        if (articulo.largo_cm) attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: `${articulo.largo_cm} cm` });
-        if (articulo.peso_kg)  attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: `${articulo.peso_kg} kg` });
+        // MeLi exige enteros: dimensiones en cm, peso en GRAMOS (no kg).
+        // cause_id 5402 si se mandan decimales o unidad equivocada.
+        if (articulo.alto_cm)  attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: `${Math.round(articulo.alto_cm)} cm` });
+        if (articulo.ancho_cm) attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: `${Math.round(articulo.ancho_cm)} cm` });
+        if (articulo.largo_cm) attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: `${Math.round(articulo.largo_cm)} cm` });
+        if (articulo.peso_kg)  attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: `${Math.round(articulo.peso_kg * 1000)} g` }); // kg → gramos enteros
 
         trace.paso_7_attributes_mapeados = attributes;
         trace.paso_7_package_dimensions = {
-            SELLER_PACKAGE_HEIGHT: articulo.alto_cm  ?? null,
-            SELLER_PACKAGE_WIDTH:  articulo.ancho_cm ?? null,
-            SELLER_PACKAGE_LENGTH: articulo.largo_cm ?? null,
-            SELLER_PACKAGE_WEIGHT: articulo.peso_kg  ?? null,
+            SELLER_PACKAGE_HEIGHT: articulo.alto_cm  != null ? `${Math.round(articulo.alto_cm)} cm`            : null,
+            SELLER_PACKAGE_WIDTH:  articulo.ancho_cm != null ? `${Math.round(articulo.ancho_cm)} cm`           : null,
+            SELLER_PACKAGE_LENGTH: articulo.largo_cm != null ? `${Math.round(articulo.largo_cm)} cm`           : null,
+            SELLER_PACKAGE_WEIGHT: articulo.peso_kg  != null ? `${Math.round(articulo.peso_kg * 1000)} g`      : null,
         };
 
 
@@ -339,6 +339,20 @@ export async function POST(req: NextRequest) {
         // Stock fallido solo bloquea en publicación real, no en dry_run
         if (stockFailed && !dry_run) {
             erroresDuros.push('No se pudo calcular el stock disponible. No se publicará con stock ficticio.');
+        }
+        // Validaçión anticipada de formato SELLER_PACKAGE_*:
+        // MeLi (cause_id 5402) exige enteros en cm/g. Verificamos que los valores generados sean enteros.
+        const pkgDims = trace.paso_7_package_dimensions as Record<string, string | null>;
+        const pkgFormatErrors: string[] = [];
+        for (const [key, val] of Object.entries(pkgDims)) {
+            if (val === null) continue;
+            const num = parseInt(val, 10);
+            if (isNaN(num) || num <= 0) {
+                pkgFormatErrors.push(`${key}: valor '${val}' no es un entero positivo válido`);
+            }
+        }
+        if (pkgFormatErrors.length > 0) {
+            erroresDuros.push(`Formato inválido en dimensiones de paquete: ${pkgFormatErrors.join('; ')}`);
         }
 
         if (erroresDuros.length > 0) {

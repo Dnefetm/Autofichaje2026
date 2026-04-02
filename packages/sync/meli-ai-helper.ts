@@ -55,7 +55,11 @@ Tus tareas:
 1. Generar un "family_name" descriptivo, máximo ${maxChars} caracteres, SIN marca ni modelo.
    Debe describir claramente el producto (tipo, función, tamaño, material si aplica).
 2. Para cada atributo requerido sin valor, seleccionar el más apropiado de la lista de opciones.
-   Si el atributo es de tipo "string" o "number" y no tiene lista, generar un valor apropiado.
+   - Usa el nombre completo del producto (Nombre, Descripción, Atributos específicos) para elegir.
+   - Elige el valor cuyo significado coincide MÁS PRECISAMENTE con el producto real, no con la categoría general.
+   - Ejemplo correcto: "Llave ajustable" → tipo "Francesa/Ajustable", NO "Combinada" ni "Tubular".
+   - Si el atributo es de tipo "string" o "number" y no tiene lista, genera un valor apropiado.
+   - NUNCA inventes un value_id; usa exactamente el id de la opción que elijas de la lista.
 
 Responde SOLO con JSON sin markdown:
 {
@@ -87,6 +91,7 @@ ${attrsBlock || 'Ninguno — solo generar el family_name'}`;
 }
 
 // ─── Función principal ────────────────────────────────────────────────────────
+
 
 /**
  * resolvePublicationAI — Genera family_name y resuelve atributos requeridos faltantes.
