@@ -313,18 +313,6 @@ export async function POST(req: NextRequest) {
             // NO enviar variations[] — en UP cada variante es POST separado
         };
 
-        // Dimensiones si están disponibles
-        if (articulo.peso_kg || articulo.largo_cm) {
-            itemBody.shipping = {
-                dimensions: {
-                    weight: articulo.peso_kg ? { value: articulo.peso_kg, unit: 'kg' } : undefined,
-                    length: articulo.largo_cm ? { value: articulo.largo_cm, unit: 'cm' } : undefined,
-                    width:  articulo.ancho_cm ? { value: articulo.ancho_cm, unit: 'cm' } : undefined,
-                    height: articulo.alto_cm  ? { value: articulo.alto_cm,  unit: 'cm' } : undefined,
-                }
-            };
-        }
-
         trace.paso_9_body = itemBody;
 
         // ── 10. Validaciones DURAS — errores 422 bloqueantes ─────────────────
