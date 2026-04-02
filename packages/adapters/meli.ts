@@ -908,6 +908,233 @@ export class MeliAdapter implements MarketplaceAdapter {
         return orders;
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // PUBLICADOR — Métodos para crear publicaciones nuevas en MeLi
+    // Agregados en v_publish_01
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * detectSellerModel — Verifica si la cuenta opera en modelo User Products (UP) o legacy.
+     * Llama GET /users/me y busca el tag "user_product_seller".
+     * Retorna: { model: 'up' | 'legacy', seller_id: number, tags: string[] }
+     * El resultado debe guardarse en marketplace_configs para no repetir la consulta.
+     */
+    async detectSellerModel(accountId: string): Promise<{
+        model: 'up' | 'legacy';
+        seller_id: number;
+        tags: string[];
+        nickname: string;
+    }> {
+        const accessToken = await this.getAccessToken(accountId);
+        const resp = await axios.get('https://api.mercadolibre.com/users/me', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const tags: string[] = resp.data.tags || [];
+        const isUP = tags.includes('user_product_seller');
+        logger.info(
+            { accountId, seller_id: resp.data.id, model: isUP ? 'up' : 'legacy', tags },
+            'detectSellerModel completado'
+        );
+        return {
+            model: isUP ? 'up' : 'legacy',
+            seller_id: resp.data.id,
+            tags,
+            nickname: resp.data.nickname || '',
+        };
+    }
+
+    /**
+     * predictCategory — Sugiere una categoría de MeLi para un texto de búsqueda.
+     * Llama GET /sites/MLM/domain-discovery/search?q={query}
+     * Retorna el primer resultado: { category_id, domain_id, category_name }
+     * El resultado se debe cachear en BD por categoría local para no repetir.
+     */
+    async predictCategory(accountId: string, query: string): Promise<{
+        category_id: string;
+        domain_id: string;
+        category_name: string;
+        raw: any[];
+    }> {
+        const accessToken = await this.getAccessToken(accountId);
+        const encoded = encodeURIComponent(query.trim().slice(0, 100));
+        const resp = await axios.get(
+            `https://api.mercadolibre.com/sites/MLM/domain-discovery/search?q=${encoded}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const results: any[] = resp.data || [];
+        if (results.length === 0) {
+            throw new Error(`predictCategory: MeLi no devolvió categorías para la query "${query}"`);
+        }
+        const top = results[0];
+        logger.info(
+            { accountId, query, category_id: top.category_id, domain_id: top.domain_id },
+            'predictCategory: categoría sugerida por MeLi'
+        );
+        return {
+            category_id: top.category_id,
+            domain_id: top.domain_id,
+            category_name: top.category_name || top.domain_name || '',
+            raw: results,
+        };
+    }
+
+    /**
+     * getCategoryAttributes — Obtiene los atributos requeridos y opcionales de una categoría.
+     * Llama GET /categories/{category_id}/attributes
+     * Retorna listas separadas: required[], parent_pk[], child_pk[], optional[]
+     * Cada atributo incluye id, name, type y valores permitidos si los tiene.
+     */
+    async getCategoryAttributes(accountId: string, categoryId: string): Promise<{
+        required: any[];
+        parent_pk: any[];
+        child_pk: any[];
+        optional: any[];
+        raw: any[];
+    }> {
+        const accessToken = await this.getAccessToken(accountId);
+        const resp = await axios.get(
+            `https://api.mercadolibre.com/categories/${categoryId}/attributes`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const raw: any[] = resp.data || [];
+
+        const required   = raw.filter((a: any) => (a.tags || {}).required === true);
+        const parent_pk  = raw.filter((a: any) => (a.tags || {}).defines_picture === true
+            || (a.tags || {}).is_identifier === true
+            || a.id === 'BRAND' || a.id === 'MODEL');
+        const child_pk   = raw.filter((a: any) =>
+            (a.tags || {}).allow_variations === true &&
+            !(a.tags || {}).defines_picture
+        );
+        const optional   = raw.filter((a: any) => !(a.tags || {}).required);
+
+        logger.info(
+            { accountId, categoryId, total: raw.length, required: required.length, parent_pk: parent_pk.length, child_pk: child_pk.length },
+            'getCategoryAttributes completado'
+        );
+        return { required, parent_pk, child_pk, optional, raw };
+    }
+
+    /**
+     * createItem — Crea una publicación nueva en MeLi.
+     * Soporta modelo User Products (UP): family_name, sin title, sin variations[].
+     * Soporta modelo legacy: title, con variations[] si aplica.
+     * El caller debe construir el body correcto y pasarlo completo.
+     * Retorna la respuesta completa de MeLi: item_id, user_product_id, permalink, title generado, etc.
+     */
+    async createItem(accountId: string, itemBody: {
+        // Modelo UP (obligatorio si model='up')
+        family_name?: string;
+        // Modelo legacy (obligatorio si model='legacy')
+        title?: string;
+        // Campos comunes obligatorios
+        category_id: string;
+        price: number;
+        currency_id: string;
+        available_quantity: number;
+        buying_mode: string;
+        listing_type_id: string;
+        sale_terms: Array<{ id: string; value_name: string }>;
+        pictures: Array<{ source: string }>;
+        attributes: Array<{ id: string; value_name?: string; value_id?: string }>;
+        // Opcionales
+        condition?: string;
+        shipping?: any;
+        channels?: string[];
+    }): Promise<{
+        item_id: string;
+        user_product_id: string | null;
+        family_id: string | null;
+        permalink: string;
+        title: string;
+        status: string;
+        raw: any;
+    }> {
+        const accessToken = await this.getAccessToken(accountId);
+
+        // Nunca enviar title en modelo UP — MeLi lo genera
+        // Nunca enviar variations[] — en UP cada variante es un POST separado
+        const body = { ...itemBody };
+
+        logger.info(
+            { accountId, family_name: body.family_name, title: body.title, category_id: body.category_id, price: body.price },
+            'createItem: iniciando POST /items'
+        );
+
+        let respData: any;
+        try {
+            const resp = await axios.post(
+                'https://api.mercadolibre.com/items',
+                body,
+                { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+            );
+            respData = resp.data;
+        } catch (err: any) {
+            const meliError = err.response?.data;
+            logger.error({ accountId, meliError, statusCode: err.response?.status }, 'createItem: MeLi rechazó el POST /items');
+            // Re-lanzar con el cuerpo de error de MeLi visible
+            throw new Error(
+                `MeLi POST /items falló [${err.response?.status}]: ${JSON.stringify(meliError)}`
+            );
+        }
+
+        logger.info(
+            {
+                accountId,
+                item_id: respData.id,
+                user_product_id: respData.user_product_id,
+                title: respData.title,
+                status: respData.status,
+            },
+            'createItem: publicación creada exitosamente en MeLi'
+        );
+
+        return {
+            item_id: respData.id,
+            user_product_id: respData.user_product_id || null,
+            family_id: respData.family_id || null,
+            permalink: respData.permalink || '',
+            title: respData.title || '',
+            status: respData.status || '',
+            raw: respData,
+        };
+    }
+
+    /**
+     * addDescription — Agrega descripción en texto plano a un item ya creado.
+     * Llama POST /items/{item_id}/description
+     * Debe llamarse DESPUÉS de createItem. No es posible incluirla en el POST inicial.
+     */
+    async addDescription(accountId: string, itemId: string, plainText: string): Promise<{
+        item_id: string;
+        ok: boolean;
+        raw: any;
+    }> {
+        const accessToken = await this.getAccessToken(accountId);
+        const text = plainText.trim().slice(0, 50000); // límite de MeLi
+
+        logger.info({ accountId, itemId, length: text.length }, 'addDescription: iniciando POST /items/{id}/description');
+
+        let respData: any;
+        try {
+            const resp = await axios.post(
+                `https://api.mercadolibre.com/items/${itemId}/description`,
+                { plain_text: text },
+                { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+            );
+            respData = resp.data;
+        } catch (err: any) {
+            const meliError = err.response?.data;
+            logger.error({ accountId, itemId, meliError }, 'addDescription: MeLi rechazó el POST description');
+            throw new Error(
+                `MeLi POST /items/${itemId}/description falló [${err.response?.status}]: ${JSON.stringify(meliError)}`
+            );
+        }
+
+        logger.info({ accountId, itemId }, 'addDescription: descripción agregada exitosamente');
+        return { item_id: itemId, ok: true, raw: respData };
+    }
+
     async refreshToken(accountId: string): Promise<void> {
         // 1. Extraer refresh_token actual
         const { data, error } = await supabase
