@@ -209,7 +209,22 @@ export async function POST(req: NextRequest) {
         // ITEM_CONDITION: 2230284 = Nuevo
         attributes.push({ id: 'ITEM_CONDITION', value_id: '2230284' });
 
+        // Dimensiones de paquete del vendedor — hierarchy: ITEM, tags: hidden en MLM9171
+        // MeLi los valida en POST /items (cause_id: 5400) aunque el schema no los marque required.
+        // Los PACKAGE_* sin prefijo SELLER_ son read_only (hierarchy: FAMILY) y NO deben enviarse.
+        if (articulo.alto_cm)  attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: String(articulo.alto_cm) });
+        if (articulo.ancho_cm) attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: String(articulo.ancho_cm) });
+        if (articulo.largo_cm) attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: String(articulo.largo_cm) });
+        if (articulo.peso_kg)  attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: String(articulo.peso_kg) });
+
         trace.paso_7_attributes_mapeados = attributes;
+        trace.paso_7_package_dimensions = {
+            SELLER_PACKAGE_HEIGHT: articulo.alto_cm  ?? null,
+            SELLER_PACKAGE_WIDTH:  articulo.ancho_cm ?? null,
+            SELLER_PACKAGE_LENGTH: articulo.largo_cm ?? null,
+            SELLER_PACKAGE_WEIGHT: articulo.peso_kg  ?? null,
+        };
+
 
         // Atributos requeridos que NO pudimos mapear automáticamente
         const mappedIds = new Set(attributes.map(a => a.id));
