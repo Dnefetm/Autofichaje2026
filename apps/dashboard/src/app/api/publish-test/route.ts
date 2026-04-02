@@ -96,10 +96,20 @@ export async function POST(req: NextRequest) {
             trace.paso_1_articulo.advertencia = `Ya tiene publicacion_ml: ${articulo.publicacion_ml}. Continuando de todas formas (puede ser cuenta distinta).`;
         }
 
-        // ── 2. Detectar modelo del seller ────────────────────────────────────
+        // ── 2. Detectar modelo del seller ─────────────────────────────────────
+        // POLÍTICA: este endpoint solo opera en modelo UP (User Products).
+        // Si la cuenta es legacy, falla aquí antes de construir el body.
         const meli = new MeliAdapter();
         const sellerInfo = await (meli as any).detectSellerModel(marketplace_id);
         trace.paso_2_seller_model = sellerInfo;
+
+        if (sellerInfo.model !== 'up') {
+            return NextResponse.json({
+                ok: false,
+                error: `La cuenta ${marketplace_id} opera en modelo '${sellerInfo.model}', no en User Products. Este endpoint solo soporta modelo UP.`,
+                trace,
+            }, { status: 422 });
+        }
 
         // ── 3. Obtener precio de marketplace_prices ───────────────────────────
         // CORRECCIÓN Bug 2: marketplace_prices.sku almacena articulo_id, NO el sku de tienda
@@ -112,15 +122,20 @@ export async function POST(req: NextRequest) {
             .maybeSingle();
         precio_data = precio;
 
-        // Si no hay precio específico por cuenta, buscar sin filtro de cuenta
+        // Si no hay precio específico por cuenta, buscar el más reciente sin filtro de cuenta
+        // .order('updated_at', desc) evita tomar un precio arbitrario si hay múltiples registros
         if (!precio_data) {
             const { data: precioGeneral } = await supabaseAdmin
                 .from('marketplace_prices')
-                .select('sale_price, base_price, currency')
-                .eq('sku', articulo_id)      // articulo_id siempre
+                .select('sale_price, base_price, currency, updated_at')
+                .eq('sku', articulo_id)
+                .order('updated_at', { ascending: false })
                 .limit(1)
                 .maybeSingle();
             precio_data = precioGeneral;
+            if (precioGeneral) {
+                trace.paso_3_precio_advertencia = 'Precio tomado de registro general (no específico de esta cuenta). Verificar.';
+            }
         }
 
         trace.paso_3_precio = precio_data
@@ -130,16 +145,20 @@ export async function POST(req: NextRequest) {
         const price = precio_data?.sale_price || 0;
 
         // ── 4. Calcular stock disponible ──────────────────────────────────────
-        // CORRECCIÓN Bug 1: inventory_snapshot.sku almacena articulo_id, NO el sku de tienda
+        // inventory_snapshot.sku almacena articulo_id (migración V27)
         let stock = 0;
+        let stockFailed = false;
         try {
             const { SKU_Service } = await import('@gestor/shared/sku-service');
-            stock = await SKU_Service.calculateAvailableStock(articulo_id); // articulo_id siempre
+            stock = await SKU_Service.calculateAvailableStock(articulo_id);
         } catch (stockErr: any) {
-            trace.paso_4_stock = { advertencia: `No se pudo calcular stock: ${stockErr.message}. Se usará 1 para prueba.` };
+            stockFailed = true;
+            // En dry_run permitimos continuar con stock=1 para inspection del trace
+            // En publicación real esto se bloquea más abajo en validaciones
             stock = 1;
+            trace.paso_4_stock = { error: `Fallo en calculateAvailableStock: ${stockErr.message}` };
         }
-        trace.paso_4_stock = { ...trace.paso_4_stock, available_quantity: stock };
+        trace.paso_4_stock = { ...trace.paso_4_stock, available_quantity: stock, stock_failed: stockFailed };
 
         // ── 5. Predecir o usar categoría ──────────────────────────────────────
         let category_id = category_id_override;
@@ -215,17 +234,41 @@ export async function POST(req: NextRequest) {
             max_family_name_chars:  50, // MeLi agrega marca+modelo ~ 10-20 chars extra
         });
 
+        // Construir mapa de valores permitidos por atributo para validación posterior
+        const allowedValuesByAttr: Map<string, Set<string>> = new Map();
+        for (const attr of attrInfo.required) {
+            if (attr.values?.length > 0) {
+                allowedValuesByAttr.set(attr.id, new Set(attr.values.map((v: any) => String(v.id))));
+            }
+        }
+
+        // Filtrar atributos AI: descartar los que tengan value_id inválido para la categoría
+        const validatedAIAttrs: typeof aiResult.attributes = [];
+        const invalidAIAttrs: Array<{ id: string; value_id?: string; reason: string }> = [];
+        for (const aiAttr of aiResult.attributes) {
+            if (aiAttr.value_id && allowedValuesByAttr.has(aiAttr.id)) {
+                if (!allowedValuesByAttr.get(aiAttr.id)!.has(String(aiAttr.value_id))) {
+                    invalidAIAttrs.push({ ...aiAttr, reason: `value_id '${aiAttr.value_id}' no existe en los valores permitidos de ${aiAttr.id}` });
+                    continue; // no incluir este atributo inválido
+                }
+            }
+            validatedAIAttrs.push(aiAttr);
+        }
+
         trace.paso_8_ai = {
-            ai_used:      aiResult.ai_used,
-            family_name:  aiResult.family_name,
-            tokens_used:  aiResult.tokens_used,
-            attrs_resueltos: aiResult.attributes,
+            ai_used:          aiResult.ai_used,
+            family_name:      aiResult.family_name,
+            family_name_origen: aiResult.ai_used ? 'gpt-4o-mini' : 'fallback_nombre_truncado',
+            tokens_used:      aiResult.tokens_used,
+            attrs_resueltos:  validatedAIAttrs,
+            attrs_descartados_invalidos: invalidAIAttrs,
+            ...((!aiResult.ai_used) ? { advertencia_family_name: 'AI no disponible — family_name puede contener marca/modelo. Verificar antes de publicar.' } : {}),
         };
 
-        // Fusionar atributos mapeados + resueltos por AI (AI no sobreescribe los ya mapeados)
+        // Fusionar: mapeados automáticos + AI validados (AI no sobreescribe los ya mapeados)
         const allAttributes = [
             ...attributes,
-            ...aiResult.attributes.filter(a => !mappedIds.has(a.id)),
+            ...validatedAIAttrs.filter(a => !mappedIds.has(a.id)),
         ];
         trace.paso_8_attributes_final = allAttributes;
 
@@ -277,6 +320,10 @@ export async function POST(req: NextRequest) {
             erroresDuros.push(
                 `Atributos requeridos sin resolver después del AI: ${stillMissing.map((a: any) => a.id).join(', ')}`
             );
+        }
+        // Stock fallido solo bloquea en publicación real, no en dry_run
+        if (stockFailed && !dry_run) {
+            erroresDuros.push('No se pudo calcular el stock disponible. No se publicará con stock ficticio.');
         }
 
         if (erroresDuros.length > 0) {
@@ -335,7 +382,9 @@ export async function POST(req: NextRequest) {
                 permalink:            created.permalink,
                 listing_type_id,
                 category_id,
-                tipo_publicacion:     'tradicional',
+                // tipo_publicacion derivado de la respuesta real de MeLi:
+                // Si MeLi devuelve user_product_id, es un item del modelo User Products
+                tipo_publicacion:     created.user_product_id ? 'up' : 'tradicional',
                 es_fuente_stock:      true,
                 actualizado_el:       new Date().toISOString(),
                 // Campos del nuevo modelo UP
