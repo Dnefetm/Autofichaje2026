@@ -5,6 +5,7 @@
  * Propósito: validar el flujo completo paso a paso con datos reales.
  * Cada paso retorna su resultado en el objeto de respuesta para inspección.
  *
+ * v2: Corrige bugs de Comet (stock/precio por articulo_id, family_name por AI, validaciones 422)
  * NO usar en producción. Reemplazar por el job 'publish_item' cuando el flujo esté validado.
  *
  * Body esperado:
@@ -21,6 +22,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
+import { resolvePublicationAI } from '@gestor/sync/meli-ai-helper';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +57,8 @@ export async function POST(req: NextRequest) {
             .select(`
                 articulo_id, nombre, marca, modelo, variante,
                 categoria, descripcion, codigo_universal,
-                pais_origen, peso_kg, largo_cm, ancho_cm, alto_cm,
+                atributos_especificos, pais_origen,
+                peso_kg, largo_cm, ancho_cm, alto_cm,
                 activo, es_obsoleto, publicacion_ml, sku
             `)
             .eq('articulo_id', articulo_id)
@@ -99,23 +102,22 @@ export async function POST(req: NextRequest) {
         trace.paso_2_seller_model = sellerInfo;
 
         // ── 3. Obtener precio de marketplace_prices ───────────────────────────
+        // CORRECCIÓN Bug 2: marketplace_prices.sku almacena articulo_id, NO el sku de tienda
         let precio_data: any = null;
-        if (articulo.sku) {
-            const { data: precio } = await supabaseAdmin
-                .from('marketplace_prices')
-                .select('sale_price, base_price, currency')
-                .eq('sku', articulo.sku)
-                .eq('marketplace_id', marketplace_id)
-                .maybeSingle();
-            precio_data = precio;
-        }
+        const { data: precio } = await supabaseAdmin
+            .from('marketplace_prices')
+            .select('sale_price, base_price, currency')
+            .eq('sku', articulo_id)          // articulo_id siempre, nunca articulo.sku
+            .eq('marketplace_id', marketplace_id)
+            .maybeSingle();
+        precio_data = precio;
 
-        // Si no hay precio en marketplace_prices, intentar sin filtro de cuenta
-        if (!precio_data && articulo.sku) {
+        // Si no hay precio específico por cuenta, buscar sin filtro de cuenta
+        if (!precio_data) {
             const { data: precioGeneral } = await supabaseAdmin
                 .from('marketplace_prices')
                 .select('sale_price, base_price, currency')
-                .eq('sku', articulo.sku)
+                .eq('sku', articulo_id)      // articulo_id siempre
                 .limit(1)
                 .maybeSingle();
             precio_data = precioGeneral;
@@ -128,14 +130,14 @@ export async function POST(req: NextRequest) {
         const price = precio_data?.sale_price || 0;
 
         // ── 4. Calcular stock disponible ──────────────────────────────────────
+        // CORRECCIÓN Bug 1: inventory_snapshot.sku almacena articulo_id, NO el sku de tienda
         let stock = 0;
         try {
             const { SKU_Service } = await import('@gestor/shared/sku-service');
-            const identifier = articulo.sku || articulo.articulo_id;
-            stock = await SKU_Service.calculateAvailableStock(identifier);
+            stock = await SKU_Service.calculateAvailableStock(articulo_id); // articulo_id siempre
         } catch (stockErr: any) {
             trace.paso_4_stock = { advertencia: `No se pudo calcular stock: ${stockErr.message}. Se usará 1 para prueba.` };
-            stock = 1; // mínimo para poder publicar en prueba
+            stock = 1;
         }
         trace.paso_4_stock = { ...trace.paso_4_stock, available_quantity: stock };
 
@@ -181,31 +183,66 @@ export async function POST(req: NextRequest) {
         if (articulo.marca)            attributes.push({ id: 'BRAND',  value_name: articulo.marca });
         if (articulo.modelo)           attributes.push({ id: 'MODEL',  value_name: articulo.modelo });
         if (articulo.codigo_universal) attributes.push({ id: 'GTIN',   value_name: articulo.codigo_universal });
-        if (articulo.sku)              attributes.push({ id: 'SELLER_SKU', value_name: articulo.sku });
+        if (articulo.sku)              attributes.push({ id: 'SELLER_SKU', value_name: articulo.sku }); // sku de tienda — solo como referencia en MeLi
         if (articulo.pais_origen)      attributes.push({ id: 'ORIGIN_COUNTRY', value_name: articulo.pais_origen });
-        if (articulo.variante)         attributes.push({ id: 'COLOR',  value_name: articulo.variante }); // asume variante=color; ajustar según categoría
+        if (articulo.variante)         attributes.push({ id: 'COLOR',  value_name: articulo.variante });
 
         // ITEM_CONDITION: 2230284 = Nuevo
         attributes.push({ id: 'ITEM_CONDITION', value_id: '2230284' });
 
-        trace.paso_7_attributes = attributes;
+        trace.paso_7_attributes_mapeados = attributes;
 
         // Atributos requeridos que NO pudimos mapear automáticamente
         const mappedIds = new Set(attributes.map(a => a.id));
-        trace.paso_7_atributos_faltantes = attrInfo.required
+        const unresolvedAttrs = attrInfo.required
             .filter((a: any) => !mappedIds.has(a.id))
+            .map((a: any) => ({
+                id:         a.id,
+                name:       a.name,
+                value_type: a.value_type || 'list',
+                values:     (a.values || []).slice(0, 30).map((v: any) => ({ id: String(v.id), name: v.name })),
+            }));
+        trace.paso_7_atributos_faltantes = unresolvedAttrs.map((a: any) => ({ id: a.id, name: a.name }));
+
+        // ── 8. GPT-4o-mini: family_name limpio + resolver atributos faltantes ──
+        const aiResult = await resolvePublicationAI({
+            nombre:                 articulo.nombre || '',
+            marca:                  articulo.marca  || '',
+            modelo:                 articulo.modelo || '',
+            descripcion:            articulo.descripcion,
+            atributos_especificos:  articulo.atributos_especificos,
+            unresolved_attributes:  unresolvedAttrs,
+            max_family_name_chars:  50, // MeLi agrega marca+modelo ~ 10-20 chars extra
+        });
+
+        trace.paso_8_ai = {
+            ai_used:      aiResult.ai_used,
+            family_name:  aiResult.family_name,
+            tokens_used:  aiResult.tokens_used,
+            attrs_resueltos: aiResult.attributes,
+        };
+
+        // Fusionar atributos mapeados + resueltos por AI (AI no sobreescribe los ya mapeados)
+        const allAttributes = [
+            ...attributes,
+            ...aiResult.attributes.filter(a => !mappedIds.has(a.id)),
+        ];
+        trace.paso_8_attributes_final = allAttributes;
+
+        // Atributos requeridos todavía faltantes después del AI
+        const stillMissingIds = new Set(allAttributes.map((a: any) => a.id));
+        const stillMissing = attrInfo.required
+            .filter((a: any) => !stillMissingIds.has(a.id))
             .map((a: any) => ({ id: a.id, name: a.name }));
+        trace.paso_8_atributos_aun_faltantes = stillMissing;
 
-        // ── 8. Construir el body del POST /items ─────────────────────────────
-        const family_name = [articulo.nombre, articulo.marca, articulo.modelo]
-            .filter(Boolean).join(' ').slice(0, 120); // max_title_length típico de MeLi
-
+        // ── 9. Construir el body del POST /items (solo modelo UP) ─────────────
         const itemBody: any = {
-            family_name,
+            family_name: aiResult.family_name,
             category_id,
             price,
             currency_id: precio_data?.currency || 'MXN',
-            available_quantity: Math.max(stock, 1), // al menos 1 para publicar
+            available_quantity: Math.max(stock, 1),
             buying_mode: 'buy_it_now',
             listing_type_id,
             sale_terms: [
@@ -213,7 +250,9 @@ export async function POST(req: NextRequest) {
                 { id: 'WARRANTY_TIME', value_name: '1 mes' },
             ],
             pictures: pictures.map((url: string) => ({ source: url })),
-            attributes,
+            attributes: allAttributes,
+            // NO enviar title — MeLi lo genera en modelo UP
+            // NO enviar variations[] — en UP cada variante es POST separado
         };
 
         // Dimensiones si están disponibles
@@ -228,17 +267,29 @@ export async function POST(req: NextRequest) {
             };
         }
 
-        trace.paso_8_body = itemBody;
-        trace.paso_8_advertencias = [];
-        if (pictures.length === 0) trace.paso_8_advertencias.push('Sin imágenes — MeLi puede rechazar la publicación');
-        if (price === 0)           trace.paso_8_advertencias.push('Precio = 0 — MeLi rechazará la publicación');
-        if (trace.paso_7_atributos_faltantes.length > 0) {
-            trace.paso_8_advertencias.push(
-                `Atributos requeridos faltantes: ${trace.paso_7_atributos_faltantes.map((a: any) => a.id).join(', ')}`
+        trace.paso_9_body = itemBody;
+
+        // ── 10. Validaciones DURAS — errores 422 bloqueantes ─────────────────
+        const erroresDuros: string[] = [];
+        if (pictures.length === 0) erroresDuros.push('Sin imágenes: MeLi rechaza publicaciones sin pictures[]');
+        if (price === 0)           erroresDuros.push('Precio = 0: MeLi rechazará la publicación');
+        if (stillMissing.length > 0) {
+            erroresDuros.push(
+                `Atributos requeridos sin resolver después del AI: ${stillMissing.map((a: any) => a.id).join(', ')}`
             );
         }
 
-        // ── 9. DRY RUN — retornar sin publicar ───────────────────────────────
+        if (erroresDuros.length > 0) {
+            return NextResponse.json({
+                ok: false,
+                error: 'Validación fallida — corregir antes de publicar',
+                errores: erroresDuros,
+                duracion_ms: Date.now() - startTime,
+                trace,
+            }, { status: 422 });
+        }
+
+        // ── 11. DRY RUN — retornar sin publicar ──────────────────────────────
         if (dry_run) {
             return NextResponse.json({
                 ok: true,
@@ -249,9 +300,9 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // ── 10. Publicar en MeLi ──────────────────────────────────────────────
+        // ── 12. Publicar en MeLi ──────────────────────────────────────────────
         const created = await (meli as any).createItem(marketplace_id, itemBody);
-        trace.paso_10_meli_create = {
+        trace.paso_12_meli_create = {
             item_id:         created.item_id,
             user_product_id: created.user_product_id,
             family_id:       created.family_id,
@@ -259,18 +310,18 @@ export async function POST(req: NextRequest) {
             title_generado:  created.title,
             status:          created.status,
         };
-        trace.paso_10_meli_raw = created.raw; // respuesta completa para inspección
+        trace.paso_12_meli_raw = created.raw; // respuesta completa de MeLi para inspección
 
-        // ── 11. Agregar descripción ───────────────────────────────────────────
+        // ── 13. Agregar descripción ───────────────────────────────────────────
         let descResult: any = null;
         if (articulo.descripcion) {
             descResult = await (meli as any).addDescription(marketplace_id, created.item_id, articulo.descripcion);
-            trace.paso_11_descripcion = { ok: descResult.ok };
+            trace.paso_13_descripcion = { ok: descResult.ok };
         } else {
-            trace.paso_11_descripcion = { omitido: 'El artículo no tiene descripción' };
+            trace.paso_13_descripcion = { omitido: 'El artículo no tiene descripción' };
         }
 
-        // ── 12. Guardar en BD: publicaciones_externas ─────────────────────────
+        // ── 14. Guardar en BD: publicaciones_externas ─────────────────────────
         const { data: pubInserted, error: pubErr } = await supabaseAdmin
             .from('publicaciones_externas')
             .upsert({
@@ -293,11 +344,11 @@ export async function POST(req: NextRequest) {
             .select('id')
             .single();
 
-        trace.paso_12_publicaciones_externas = pubErr
+        trace.paso_14_publicaciones_externas = pubErr
             ? { error: pubErr.message }
             : { publicacion_id: pubInserted?.id };
 
-        // ── 13. Guardar en BD: mapeo_publicacion_articulo ─────────────────────
+        // ── 15. Guardar en BD: mapeo_publicacion_articulo ─────────────────────
         if (pubInserted?.id) {
             const { error: mapErr } = await supabaseAdmin
                 .from('mapeo_publicacion_articulo')
@@ -307,15 +358,15 @@ export async function POST(req: NextRequest) {
                     cantidad_requerida: 1,
                 }, { onConflict: 'publicacion_id,articulo_id' });
 
-            trace.paso_13_mapeo = mapErr ? { error: mapErr.message } : { ok: true };
+            trace.paso_15_mapeo = mapErr ? { error: mapErr.message } : { ok: true };
 
-            // ── 14. Actualizar articulos.publicacion_ml ───────────────────────
+            // ── 16. Actualizar articulos.publicacion_ml ───────────────────────
             const { error: artUpdateErr } = await supabaseAdmin
                 .from('articulos')
                 .update({ publicacion_ml: created.item_id })
                 .eq('articulo_id', articulo_id);
 
-            trace.paso_14_articulo_update = artUpdateErr
+            trace.paso_16_articulo_update = artUpdateErr
                 ? { error: artUpdateErr.message }
                 : { publicacion_ml: created.item_id };
         }
