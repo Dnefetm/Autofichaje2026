@@ -1,12 +1,12 @@
 /**
- * POST /api/publish-test
+ * POST /api/publish
  *
- * Endpoint TEMPORAL de diagnóstico para publicar 1 artículo en MeLi.
- * Propósito: validar el flujo completo paso a paso con datos reales.
- * Cada paso retorna su resultado en el objeto de respuesta para inspección.
+ * Endpoint para publicar 1 artículo en MeLi (modelo User Products).
+ * Flujo de 16 pasos con validaciones y trace completo para diagnóstico.
+ * Prueba real exitosa: MLM5120247290 (02/04/2026).
  *
  * v2: Corrige bugs de Comet (stock/precio por articulo_id, family_name por AI, validaciones 422)
- * NO usar en producción. Reemplazar por el job 'publish_item' cuando el flujo esté validado.
+ * v3: Paso 1.5 anti-duplicados (409 si ya existe publicación activa en la misma cuenta)
  *
  * Body esperado:
  * {
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
             category_id: category_id_override,
             listing_type_id = 'gold_special',
             dry_run = false,
+            force_duplicate = false,  // Solo para uso avanzado. La UI nunca lo expone.
         } = body;
 
         trace.input = { articulo_id, marketplace_id, pictures_count: pictures.length, listing_type_id, dry_run };
@@ -93,8 +94,36 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, error: 'El artículo está marcado como obsoleto', trace }, { status: 422 });
         }
         if (articulo.publicacion_ml) {
-            trace.paso_1_articulo.advertencia = `Ya tiene publicacion_ml: ${articulo.publicacion_ml}. Continuando de todas formas (puede ser cuenta distinta).`;
+            trace.paso_1_articulo.advertencia = `Ya tiene publicacion_ml: ${articulo.publicacion_ml}. Verificando estado real en BD...`;
         }
+
+        // ── 1.5 Verificar duplicados activos en la misma cuenta ────────────────
+        // Fuente de verdad: publicaciones_externas + mapeo_publicacion_articulo
+        // (NO articulo.publicacion_ml, que puede apuntar a un item ya cerrado)
+        const { data: pubActiva } = await supabaseAdmin
+            .from('publicaciones_externas')
+            .select(`
+                id, external_item_id, status_externo,
+                mapeo_publicacion_articulo!inner (sku_articulo)
+            `)
+            .eq('marketplace_id', marketplace_id)
+            .eq('mapeo_publicacion_articulo.sku_articulo', articulo_id)
+            .in('status_externo', ['active', 'paused', 'under_review'])
+            .limit(1)
+            .maybeSingle();
+
+        if (pubActiva && !force_duplicate) {
+            return NextResponse.json({
+                ok: false,
+                error: `Ya existe una publicación activa para este artículo en esta cuenta: ${pubActiva.external_item_id} (status: ${pubActiva.status_externo}). Ciérrala primero o usa force_duplicate: true.`,
+                publicacion_existente: pubActiva.external_item_id,
+                trace,
+            }, { status: 409 });
+        }
+
+        trace.paso_1_5_duplicado = pubActiva
+            ? { advertencia: 'force_duplicate=true — publicando pese a existente', item_existente: pubActiva.external_item_id }
+            : { ok: true, sin_duplicados: true };
 
         // ── 2. Detectar modelo del seller ─────────────────────────────────────
         // POLÍTICA: este endpoint solo opera en modelo UP (User Products).
@@ -112,23 +141,22 @@ export async function POST(req: NextRequest) {
         }
 
         // ── 3. Obtener precio de marketplace_prices ───────────────────────────
-        // CORRECCIÓN Bug 2: marketplace_prices.sku almacena articulo_id, NO el sku de tienda
+        // marketplace_prices.articulo_id (renombrado desde sku en v47)
         let precio_data: any = null;
         const { data: precio } = await supabaseAdmin
             .from('marketplace_prices')
             .select('sale_price, base_price, currency')
-            .eq('sku', articulo_id)          // articulo_id siempre, nunca articulo.sku
+            .eq('articulo_id', articulo_id)
             .eq('marketplace_id', marketplace_id)
             .maybeSingle();
         precio_data = precio;
 
         // Si no hay precio específico por cuenta, buscar el más reciente sin filtro de cuenta
-        // .order('updated_at', desc) evita tomar un precio arbitrario si hay múltiples registros
         if (!precio_data) {
             const { data: precioGeneral } = await supabaseAdmin
                 .from('marketplace_prices')
                 .select('sale_price, base_price, currency, updated_at')
-                .eq('sku', articulo_id)
+                .eq('articulo_id', articulo_id)
                 .order('updated_at', { ascending: false })
                 .limit(1)
                 .maybeSingle();
@@ -420,11 +448,12 @@ export async function POST(req: NextRequest) {
                 .from('mapeo_publicacion_articulo')
                 .upsert({
                     publicacion_id:    pubInserted.id,
-                    articulo_id:       articulo_id,
+                    sku_articulo:      articulo_id,   // columna real: sku_articulo (DDL v14), NO articulo_id
                     cantidad_requerida: 1,
-                }, { onConflict: 'publicacion_id,articulo_id' });
+                }, { onConflict: 'publicacion_id,sku_articulo' });
 
             trace.paso_15_mapeo = mapErr ? { error: mapErr.message } : { ok: true };
+
 
             // ── 16. Actualizar articulos.publicacion_ml ───────────────────────
             const { error: artUpdateErr } = await supabaseAdmin

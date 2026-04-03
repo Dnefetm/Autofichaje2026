@@ -253,8 +253,8 @@ async function handleBulkUpdatePrice(job: any) {
     // 1. Obtener los precios base actuales de todos los SKUs seleccionados
     const { data: currentPrices, error } = await supabase
         .from('marketplace_prices')
-        .select('sku, sale_price')
-        .in('sku', skus)
+        .select('articulo_id, sale_price')
+        .in('articulo_id', skus)
         .eq('marketplace_id', marketplace_id);
 
     if (error) throw new Error(`Fallo al consultar precios actuales: ${error.message}`);
@@ -268,7 +268,7 @@ async function handleBulkUpdatePrice(job: any) {
         if (operation === 'fixed') {
             newPrice = value;
         } else if (operation === 'percentage') {
-            const currentRecord = currentPrices?.find(p => p.sku === sku);
+            const currentRecord = currentPrices?.find(p => p.articulo_id === sku);
             // Si no tenía precio registrado antes, asumimos 0 (o podríamos fallar/omitir).
             // Usaremos 0 como punto de quiebre seguro.
             const basePrice = currentRecord?.sale_price || 0;
@@ -282,7 +282,7 @@ async function handleBulkUpdatePrice(job: any) {
         }
 
         updates.push({
-            sku,
+            articulo_id: sku,
             marketplace_id,
             sale_price: newPrice,
             updated_at: new Date().toISOString()
@@ -302,7 +302,7 @@ async function handleBulkUpdatePrice(job: any) {
     if (updates.length > 0) {
         const { error: upsertError } = await supabase
             .from('marketplace_prices')
-            .upsert(updates, { onConflict: 'sku,marketplace_id' });
+            .upsert(updates, { onConflict: 'articulo_id,marketplace_id' });
 
         if (upsertError) throw new Error(`Error actualizando Precios Locales: ${upsertError.message}`);
 

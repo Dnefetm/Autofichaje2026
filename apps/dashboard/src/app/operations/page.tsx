@@ -78,10 +78,10 @@ export default function OperationsPage() {
                     const { error } = await supabase
                         .from('marketplace_prices')
                         .upsert({
-                            sku: row.sku,
+                            articulo_id: row.sku,
                             sale_price: parseFloat(row.precio),
                             marketplace_id: '00000000-0000-0000-0000-000000000000' // Placeholder para cuenta principal
-                        }, { onConflict: 'sku,marketplace_id' });
+                        }, { onConflict: 'articulo_id,marketplace_id' });
 
                     if (error) throw error;
                 }

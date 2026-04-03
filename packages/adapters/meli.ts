@@ -719,6 +719,91 @@ export class MeliAdapter implements MarketplaceAdapter {
 
 
     // ─────────────────────────────────────────────────────────────────────────
+    // reconcileClosedItems — Detecta publicaciones en BD con status aparentemente
+    // activo que MeLi ya cerró/desactivó. El sync normal no las detecta porque
+    // getAccountItems solo devuelve items que MeLi indexa activamente.
+    // Usa multiGET directo /items?ids=... que sí retorna items cerrados.
+    //
+    // Cuándo se llama:
+    // - Como post-step del sync completo de catálogo
+    // - Como job programado 1 vez/día (futuro)
+    //
+    // Costo: 1 request por cada 20 items con status activo en BD. Negligible.
+    // ─────────────────────────────────────────────────────────────────────────
+    async reconcileClosedItems(accountId: string): Promise<{
+        checked: number;
+        updated: number;
+        details: Array<{ item_id: string; old_status: string; new_status: string }>;
+    }> {
+        // 1. IDs de items que en BD aparecen activos (solo filas padre)
+        const { data: bdActivos } = await supabase
+            .from('publicaciones_externas')
+            .select('external_item_id, status_externo')
+            .eq('marketplace_id', accountId)
+            .eq('external_variation_id', '0')
+            .in('status_externo', ['active', 'paused', 'under_review']);
+
+        if (!bdActivos || bdActivos.length === 0) {
+            logger.info({ accountId }, 'reconcileClosedItems: sin items activos en BD, nada que verificar');
+            return { checked: 0, updated: 0, details: [] };
+        }
+
+        const itemIds = bdActivos.map((r: any) => r.external_item_id);
+        const bdStatusMap = new Map(bdActivos.map((r: any) => [r.external_item_id, r.status_externo]));
+        const details: Array<{ item_id: string; old_status: string; new_status: string }> = [];
+        let updated = 0;
+
+        // Obtener token via el accessor existente del adapter
+        const accessToken = await this.getAccessToken(accountId);
+        const CHUNK = 20;
+
+        for (let i = 0; i < itemIds.length; i += CHUNK) {
+            const chunk = itemIds.slice(i, i + CHUNK);
+            try {
+                // MultiGET — MeLi retorna status real incluso de items cerrados
+                const resp = await axios.get(
+                    `https://api.mercadolibre.com/items?ids=${chunk.join(',')}&attributes=id,status,sub_status`,
+                    { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+
+                for (const res of resp.data) {
+                    if (res.code !== 200 || !res.body) continue;
+
+                    const meliStatus: string = res.body.status;
+                    const itemId: string = res.body.id;
+                    const oldStatus = bdStatusMap.get(itemId) || 'unknown';
+
+                    // Solo actualizar si MeLi reporta un estado terminal que difiere del de BD
+                    if (['closed', 'inactive'].includes(meliStatus) && oldStatus !== meliStatus) {
+                        const { error } = await supabase
+                            .from('publicaciones_externas')
+                            .update({
+                                status_externo: meliStatus,
+                                sub_status: res.body.sub_status || [],
+                                actualizado_el: new Date().toISOString(),
+                            })
+                            .eq('marketplace_id', accountId)
+                            .eq('external_item_id', itemId);
+
+                        if (!error) {
+                            details.push({ item_id: itemId, old_status: oldStatus, new_status: meliStatus });
+                            updated++;
+                        } else {
+                            logger.warn({ accountId, itemId, error: error.message }, 'reconcileClosedItems: error al actualizar status');
+                        }
+                    }
+                }
+            } catch (err: any) {
+                logger.warn({ accountId, chunk, error: err.message }, 'reconcileClosedItems: error en chunk multiGET');
+            }
+        }
+
+        logger.info({ accountId, checked: itemIds.length, updated }, 'reconcileClosedItems completado');
+        return { checked: itemIds.length, updated, details };
+    }
+
+
+    // ─────────────────────────────────────────────────────────────────────────
     // V27 — enrichCatalogBatch: comisiones + visitas + descripciones (separado del sync)
     // Se llama desde /api/sync/enrich — NO desde syncCatalogBatchFast
     // ─────────────────────────────────────────────────────────────────────────

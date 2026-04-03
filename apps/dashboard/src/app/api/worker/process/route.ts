@@ -156,6 +156,11 @@ async function processOneJob(job: any, meli: MeliAdapter) {
                 // ANTES: loop N×syncCatalogItem + 1s delay → N+N segundos → timeout a >55 items
                 const accessToken = await (meli as any).getAccessToken(accountId);
                 await meli.syncCatalogBatchFast(accountId, accessToken, itemIds);
+                // Post-step: detectar items que MeLi cerró sin pasar por el sync (no aparecen en getAccountItems)
+                const reconcile = await meli.reconcileClosedItems(accountId);
+                if (reconcile.updated > 0) {
+                    console.log(`[sync_account_catalog] reconcileClosedItems: ${reconcile.checked} chequeados, ${reconcile.updated} actualizados`);
+                }
                 break;
             }
 

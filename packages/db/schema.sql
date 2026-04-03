@@ -50,14 +50,15 @@ CREATE TABLE IF NOT EXISTS sku_marketplace_mapping (
 -- 5. Precios por Marketplace (GESTOR + AUTOFICHAS)
 CREATE TABLE IF NOT EXISTS marketplace_prices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sku TEXT REFERENCES articulos(articulo_id) ON DELETE CASCADE,
+    articulo_id TEXT NOT NULL REFERENCES articulos(articulo_id) ON DELETE CASCADE,
     marketplace_id UUID REFERENCES marketplace_configs(id),
+    sku_tienda TEXT,          -- SKU de tienda (= articulo.modelo por default)
     base_price NUMERIC(12, 2),
     sale_price NUMERIC(12, 2) NOT NULL,
     shipping_cost NUMERIC(12, 2) DEFAULT 0,
     currency TEXT DEFAULT 'MXN',
     updated_at TIMESTAMPTZ DEFAULT now(),
-    UNIQUE(sku, marketplace_id)
+    UNIQUE(articulo_id, marketplace_id)
 );
 
 -- 6. Cola de Trabajos (GESTOR)

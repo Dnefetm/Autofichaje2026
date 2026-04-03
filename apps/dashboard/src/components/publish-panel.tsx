@@ -1,0 +1,588 @@
+"use client";
+
+/**
+ * PublishPanel — Panel de publicación en MeLi (3 etapas)
+ *
+ * Etapa 1 — Configuración: cuenta, categoría, tipo de listado, imágenes
+ * Etapa 2 — Preview (dry_run: true): trace del endpoint sin publicar
+ * Etapa 3 — Resultado: éxito (MLM ID + permalink) o error (409/422/500)
+ *
+ * NO expone force_duplicate. Si hay 409, muestra el item existente.
+ */
+
+import { useState, useEffect, useRef } from 'react';
+import {
+    Send, Eye, ChevronDown, ChevronUp, Plus, Trash2,
+    ArrowUp, ArrowDown, Loader2, CheckCircle2, AlertCircle,
+    ExternalLink, ImageIcon, Store, Tag, RefreshCw, XCircle
+} from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
+
+// ── Tipos ────────────────────────────────────────────────────────────────────
+interface Account { id: string; account_name: string; }
+
+type Stage = 'config' | 'preview' | 'result';
+
+interface PublishPanelProps {
+    articulo_id: string;
+    nombreArticulo: string;
+    /** URLs de imagenes del artículo (articulos.imagenes) para pre-cargar como sugerencia */
+    imagenesBase?: string[];
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function TraceBlock({ trace }: { trace: Record<string, any> }) {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className="mt-3 border border-slate-200 rounded-lg overflow-hidden">
+            <button
+                onClick={() => setOpen(o => !o)}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors"
+            >
+                <span>Ver trace técnico</span>
+                {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+            {open && (
+                <pre className="text-[10px] leading-relaxed text-slate-600 bg-slate-50 p-3 overflow-auto max-h-80 whitespace-pre-wrap break-all">
+                    {JSON.stringify(trace, null, 2)}
+                </pre>
+            )}
+        </div>
+    );
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
+export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }: PublishPanelProps) {
+    // Cuentas
+    const [accounts, setAccounts] = useState<Account[]>([]);
+    const [selectedAccount, setSelectedAccount] = useState<string>('');
+
+    // Config
+    const [categoryId, setCategoryId] = useState('');
+    const [listingType, setListingType] = useState('gold_special');
+
+    // Imágenes
+    const [images, setImages] = useState<string[]>([]);
+    const [newImageUrl, setNewImageUrl] = useState('');
+    const [imgInputError, setImgInputError] = useState<string | null>(null);
+    const [preloadedSuggestions, setPreloadedSuggestions] = useState<string[]>([]);
+
+    // Estado
+    const [stage, setStage] = useState<Stage>('config');
+    const [loading, setLoading] = useState(false);
+    const [previewResult, setPreviewResult] = useState<any>(null);
+    const [publishResult, setPublishResult] = useState<any>(null);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    // Panel abierto/cerrado
+    const [panelOpen, setPanelOpen] = useState(false);
+
+    // ── Cargar cuentas ──────────────────────────────────────────────────────
+    useEffect(() => {
+        supabase
+            .from('marketplace_configs')
+            .select('id, account_name')
+            .eq('is_active', true)
+            .then(({ data }) => {
+                setAccounts(data || []);
+                if (data && data.length === 1) setSelectedAccount(data[0].id);
+            });
+    }, []);
+
+    // Pre-cargar sugerencias de imágenes del artículo
+    useEffect(() => {
+        const validUrls = imagenesBase.filter(u => u?.startsWith('http'));
+        setPreloadedSuggestions(validUrls);
+    }, [imagenesBase]);
+
+    // ── Gestión de imágenes ──────────────────────────────────────────────────
+    function addImage() {
+        const url = newImageUrl.trim();
+        if (!url) return;
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            setImgInputError('La URL debe empezar con http:// o https://');
+            return;
+        }
+        if (images.includes(url)) {
+            setImgInputError('Esta URL ya está en la lista');
+            return;
+        }
+        setImages(prev => [...prev, url]);
+        setNewImageUrl('');
+        setImgInputError(null);
+    }
+
+    function removeImage(idx: number) {
+        setImages(prev => prev.filter((_, i) => i !== idx));
+    }
+
+    function moveImage(idx: number, dir: -1 | 1) {
+        setImages(prev => {
+            const next = [...prev];
+            const target = idx + dir;
+            if (target < 0 || target >= next.length) return prev;
+            [next[idx], next[target]] = [next[target], next[idx]];
+            return next;
+        });
+    }
+
+    function addSuggestion(url: string) {
+        if (!images.includes(url)) setImages(prev => [...prev, url]);
+    }
+
+    // ── Preview (dry_run) ─────────────────────────────────────────────────────
+    async function handlePreview() {
+        if (!selectedAccount) { setErrorMsg('Selecciona una cuenta MeLi'); return; }
+        if (images.length === 0) { setErrorMsg('Agrega al menos 1 imagen'); return; }
+        setErrorMsg(null);
+        setLoading(true);
+        setPreviewResult(null);
+        try {
+            const res = await fetch('/api/publish', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    articulo_id,
+                    marketplace_id: selectedAccount,
+                    pictures: images,
+                    category_id: categoryId || undefined,
+                    listing_type_id: listingType,
+                    dry_run: true,
+                }),
+            });
+            const data = await res.json();
+            setPreviewResult({ status: res.status, data });
+            setStage('preview');
+        } catch (e: any) {
+            setErrorMsg(e.message);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    // ── Publicar real ─────────────────────────────────────────────────────────
+    async function handlePublish() {
+        setLoading(true);
+        setErrorMsg(null);
+        try {
+            const res = await fetch('/api/publish', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    articulo_id,
+                    marketplace_id: selectedAccount,
+                    pictures: images,
+                    category_id: categoryId || undefined,
+                    listing_type_id: listingType,
+                    dry_run: false,
+                }),
+            });
+            const data = await res.json();
+            setPublishResult({ status: res.status, data });
+            setStage('result');
+        } catch (e: any) {
+            setErrorMsg(e.message);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function resetPanel() {
+        setStage('config');
+        setPreviewResult(null);
+        setPublishResult(null);
+        setErrorMsg(null);
+    }
+
+    const accountName = accounts.find(a => a.id === selectedAccount)?.account_name || selectedAccount;
+
+    // ── Render ────────────────────────────────────────────────────────────────
+    return (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Header — toggle del panel */}
+            <button
+                id="publish-panel-toggle"
+                onClick={() => setPanelOpen(o => !o)}
+                className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-yellow-100 rounded-lg">
+                        <Send className="w-4 h-4 text-yellow-600" />
+                    </div>
+                    <div className="text-left">
+                        <h2 className="text-base font-bold text-slate-900">Publicar en MeLi</h2>
+                        <p className="text-xs text-slate-400 mt-0.5">Modelo User Products · Aprobación manual requerida</p>
+                    </div>
+                </div>
+                {panelOpen
+                    ? <ChevronUp className="w-5 h-5 text-slate-400" />
+                    : <ChevronDown className="w-5 h-5 text-slate-400" />
+                }
+            </button>
+
+            {panelOpen && (
+                <div className="border-t border-slate-100 px-6 py-5 space-y-5">
+
+                    {/* ── ETAPA 1: CONFIGURACIÓN ──────────────────────────── */}
+                    {stage === 'config' && (
+                        <>
+                            {/* Cuenta */}
+                            <div>
+                                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">
+                                    <Store className="w-3 h-3 inline mr-1" />Cuenta de destino <span className="text-rose-400">*</span>
+                                </label>
+                                <select
+                                    id="publish-account-select"
+                                    value={selectedAccount}
+                                    onChange={e => setSelectedAccount(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white"
+                                >
+                                    <option value="">— Selecciona una cuenta —</option>
+                                    {accounts.map(a => (
+                                        <option key={a.id} value={a.id}>{a.account_name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Categoría + Tipo de listado */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">
+                                        <Tag className="w-3 h-3 inline mr-1" />Categoría MeLi
+                                    </label>
+                                    <input
+                                        id="publish-category-id"
+                                        type="text"
+                                        value={categoryId}
+                                        onChange={e => setCategoryId(e.target.value)}
+                                        placeholder="Auto-detectada por AI"
+                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">
+                                        Tipo de listado
+                                    </label>
+                                    <select
+                                        id="publish-listing-type"
+                                        value={listingType}
+                                        onChange={e => setListingType(e.target.value)}
+                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white"
+                                    >
+                                        <option value="gold_special">Gold Special (recomendado)</option>
+                                        <option value="gold_pro">Gold Pro</option>
+                                        <option value="silver">Silver</option>
+                                        <option value="free">Free</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Imágenes */}
+                            <div>
+                                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">
+                                    <ImageIcon className="w-3 h-3 inline mr-1" />Imágenes <span className="text-rose-400">*</span>
+                                    <span className="ml-1 text-slate-300 font-normal normal-case">Mín. 1 — la primera es la imagen principal</span>
+                                </label>
+
+                                {/* Sugerencias del artículo */}
+                                {preloadedSuggestions.length > 0 && images.length === 0 && (
+                                    <div className="mb-2 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                                        <p className="text-[10px] font-bold text-indigo-400 uppercase mb-2">Imágenes del artículo (haz clic para agregar)</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {preloadedSuggestions.map((url, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => addSuggestion(url)}
+                                                    title={url}
+                                                    className="group relative w-12 h-12 rounded-md overflow-hidden border border-indigo-200 hover:border-indigo-500 transition-all"
+                                                >
+                                                    <img src={url} alt="" className="w-full h-full object-cover" onError={e => (e.currentTarget.src = '')} />
+                                                    <div className="absolute inset-0 bg-indigo-600/0 group-hover:bg-indigo-600/20 transition-all flex items-center justify-center">
+                                                        <Plus className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Lista de imágenes seleccionadas */}
+                                {images.length > 0 && (
+                                    <div className="space-y-1.5 mb-2">
+                                        {images.map((url, i) => (
+                                            <div key={i} id={`publish-image-${i}`} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200 group">
+                                                {/* Thumbnail */}
+                                                <div className="w-10 h-10 rounded-md overflow-hidden shrink-0 border border-slate-200 bg-white">
+                                                    <img src={url} alt="" className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} />
+                                                </div>
+                                                {/* Orden badge */}
+                                                <span className="text-xs font-black text-slate-300 w-5 shrink-0">#{i + 1}</span>
+                                                {/* URL truncada */}
+                                                <span className="flex-1 text-xs text-slate-500 truncate font-mono">{url}</span>
+                                                {/* Controles */}
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => moveImage(i, -1)} disabled={i === 0} className="p-1 rounded hover:bg-slate-200 disabled:opacity-30" title="Subir">
+                                                        <ArrowUp className="w-3 h-3" />
+                                                    </button>
+                                                    <button onClick={() => moveImage(i, 1)} disabled={i === images.length - 1} className="p-1 rounded hover:bg-slate-200 disabled:opacity-30" title="Bajar">
+                                                        <ArrowDown className="w-3 h-3" />
+                                                    </button>
+                                                    <button onClick={() => removeImage(i)} className="p-1 rounded hover:bg-rose-100 text-rose-400" title="Eliminar">
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Input URL nueva */}
+                                <div className="flex gap-2">
+                                    <input
+                                        id="publish-image-url-input"
+                                        type="url"
+                                        value={newImageUrl}
+                                        onChange={e => { setNewImageUrl(e.target.value); setImgInputError(null); }}
+                                        onKeyDown={e => e.key === 'Enter' && addImage()}
+                                        placeholder="https://... URL pública de la imagen"
+                                        className={cn(
+                                            "flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 bg-white",
+                                            imgInputError
+                                                ? "border-rose-300 focus:ring-rose-400"
+                                                : "border-slate-200 focus:ring-yellow-400"
+                                        )}
+                                    />
+                                    <button
+                                        id="publish-add-image-btn"
+                                        onClick={addImage}
+                                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-bold transition-colors flex items-center gap-1"
+                                    >
+                                        <Plus className="w-4 h-4" /> Agregar
+                                    </button>
+                                </div>
+                                {imgInputError && <p className="text-xs text-rose-500 mt-1">{imgInputError}</p>}
+                            </div>
+
+                            {/* Error general */}
+                            {errorMsg && (
+                                <div className="flex items-center gap-2 p-3 bg-rose-50 rounded-lg border border-rose-200">
+                                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                                    <p className="text-xs text-rose-700 font-medium">{errorMsg}</p>
+                                </div>
+                            )}
+
+                            {/* CTA — Preview */}
+                            <button
+                                id="publish-preview-btn"
+                                onClick={handlePreview}
+                                disabled={loading || !selectedAccount || images.length === 0}
+                                className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-sm"
+                            >
+                                {loading
+                                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                                    : <Eye className="w-4 h-4" />
+                                }
+                                {loading ? 'Procesando...' : 'Ver preview antes de publicar'}
+                            </button>
+                        </>
+                    )}
+
+                    {/* ── ETAPA 2: PREVIEW (dry_run) ──────────────────────── */}
+                    {stage === 'preview' && previewResult && (
+                        <>
+                            {/* 409 — duplicado */}
+                            {previewResult.status === 409 && (
+                                <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <AlertCircle className="w-5 h-5 text-orange-500" />
+                                        <h3 className="font-bold text-orange-800 text-sm">Ya existe una publicación activa para esta cuenta</h3>
+                                    </div>
+                                    <p className="text-xs text-orange-700 mb-3">{previewResult.data.error}</p>
+                                    {previewResult.data.publicacion_existente && (
+                                        <a
+                                            href={`https://www.mercadolibre.com.mx/p/${previewResult.data.publicacion_existente}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 hover:underline"
+                                        >
+                                            <ExternalLink className="w-3 h-3" />
+                                            Ver {previewResult.data.publicacion_existente} en MeLi
+                                        </a>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* 422 — error de validación */}
+                            {previewResult.status === 422 && (
+                                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <XCircle className="w-5 h-5 text-rose-500" />
+                                        <h3 className="font-bold text-rose-800 text-sm">Error de validación</h3>
+                                    </div>
+                                    <p className="text-xs text-rose-700 mb-2">{previewResult.data.error}</p>
+                                    {previewResult.data.errores?.map((e: string, i: number) => (
+                                        <p key={i} className="text-xs text-rose-600 font-mono bg-rose-100 px-2 py-1 rounded mt-1">• {e}</p>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* OK — preview exitoso */}
+                            {previewResult.status === 200 && previewResult.data.ok && (
+                                <div className="space-y-3">
+                                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                                            <h3 className="font-bold text-emerald-800 text-sm">Preview exitoso — Listo para publicar</h3>
+                                        </div>
+                                        <p className="text-xs text-emerald-600">Cuenta: <span className="font-bold">{accountName}</span></p>
+                                        {previewResult.data.trace?.paso_3_precio && (
+                                            <p className="text-xs text-emerald-600 mt-0.5">
+                                                Precio: <span className="font-bold">
+                                                    {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' })
+                                                        .format(previewResult.data.trace.paso_3_precio.sale_price || 0)}
+                                                </span>
+                                                {previewResult.data.trace.paso_3_precio_advertencia && (
+                                                    <span className="text-orange-500 ml-2">⚠ {previewResult.data.trace.paso_3_precio_advertencia}</span>
+                                                )}
+                                            </p>
+                                        )}
+                                        {previewResult.data.trace?.paso_5_categoria && (
+                                            <p className="text-xs text-emerald-600 mt-0.5">
+                                                Categoría: <span className="font-bold font-mono">{previewResult.data.trace.paso_5_categoria.category_id}</span>
+                                                {' '}({previewResult.data.trace.paso_5_categoria.category_name})
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Trace técnico colapsado */}
+                                    <TraceBlock trace={previewResult.data.trace || {}} />
+
+                                    {/* CTAs */}
+                                    <div className="flex gap-3">
+                                        <button
+                                            id="publish-back-btn"
+                                            onClick={resetPanel}
+                                            className="flex-1 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
+                                        >
+                                            Volver a configurar
+                                        </button>
+                                        <button
+                                            id="publish-confirm-btn"
+                                            onClick={handlePublish}
+                                            disabled={loading}
+                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-50"
+                                        >
+                                            {loading
+                                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                : <Send className="w-4 h-4" />
+                                            }
+                                            {loading ? 'Publicando...' : 'Publicar en MeLi'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Si fue error, volver */}
+                            {(previewResult.status === 409 || previewResult.status === 422) && (
+                                <button
+                                    onClick={resetPanel}
+                                    className="w-full py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
+                                >
+                                    <RefreshCw className="w-4 h-4 inline mr-1" />
+                                    Volver a configurar
+                                </button>
+                            )}
+
+                            {/* Si el trace existe pero el status no es 200/409/422 */}
+                            {previewResult.status >= 500 && (
+                                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
+                                    <p className="text-xs text-rose-700 font-bold">Error del servidor: {previewResult.data.error}</p>
+                                    <button onClick={resetPanel} className="mt-2 text-xs text-rose-500 underline">Volver</button>
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {/* ── ETAPA 3: RESULTADO FINAL ─────────────────────────── */}
+                    {stage === 'result' && publishResult && (
+                        <div className="space-y-3">
+                            {/* Éxito */}
+                            {publishResult.status === 200 && publishResult.data.ok && (
+                                <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                                    <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                                    <h3 className="font-bold text-emerald-800 text-base mb-1">¡Publicación exitosa!</h3>
+                                    <p className="text-sm font-mono font-bold text-emerald-700 mb-3">
+                                        {publishResult.data.item_id}
+                                    </p>
+                                    <p className="text-xs text-emerald-600 mb-3">
+                                        Título generado: <span className="font-bold">{publishResult.data.title}</span>
+                                    </p>
+                                    {publishResult.data.permalink && (
+                                        <a
+                                            href={publishResult.data.permalink}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-lg text-sm transition-colors"
+                                        >
+                                            <ExternalLink className="w-4 h-4" />
+                                            Ver en MeLi
+                                        </a>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* 409 en publicación real (raro si pasó el preview, pero posible) */}
+                            {publishResult.status === 409 && (
+                                <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <AlertCircle className="w-4 h-4 text-orange-500" />
+                                        <h3 className="font-bold text-orange-800 text-sm">Publicación duplicada — ya existe una activa</h3>
+                                    </div>
+                                    <p className="text-xs text-orange-700">{publishResult.data.error}</p>
+                                    {publishResult.data.publicacion_existente && (
+                                        <a
+                                            href={`https://www.mercadolibre.com.mx/p/${publishResult.data.publicacion_existente}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 hover:underline mt-2"
+                                        >
+                                            <ExternalLink className="w-3 h-3" />
+                                            Ver {publishResult.data.publicacion_existente}
+                                        </a>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Error genérico */}
+                            {!publishResult.data.ok && publishResult.status !== 409 && (
+                                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <XCircle className="w-4 h-4 text-rose-500" />
+                                        <h3 className="font-bold text-rose-800 text-sm">Error al publicar</h3>
+                                    </div>
+                                    <p className="text-xs text-rose-700">{publishResult.data.error}</p>
+                                    {publishResult.data.errores?.map((e: string, i: number) => (
+                                        <p key={i} className="text-xs text-rose-600 font-mono bg-rose-100 px-2 py-1 rounded mt-1">• {e}</p>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Trace colapsado */}
+                            {publishResult.data.trace && <TraceBlock trace={publishResult.data.trace} />}
+
+                            {/* Volver */}
+                            <button
+                                onClick={resetPanel}
+                                className="w-full py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
+                            >
+                                <RefreshCw className="w-4 h-4 inline mr-1" />
+                                Nueva publicación
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
