@@ -21,7 +21,7 @@ export async function GET(
     _req: NextRequest,
     { params }: { params: { id: string } }
 ) {
-    const articulo_id = params.id;
+    const articulo_id = decodeURIComponent(params.id);
 
     // Precios del artículo en todas las cuentas
     const { data: prices, error } = await supabaseAdmin
@@ -55,7 +55,7 @@ export async function PATCH(
     req: NextRequest,
     { params }: { params: { id: string } }
 ) {
-    const articulo_id = params.id;
+    const articulo_id = decodeURIComponent(params.id);
 
     const body = await req.json().catch(() => null);
     if (!body || !body.marketplace_id || body.sale_price == null) {
@@ -82,7 +82,11 @@ export async function PATCH(
         .single();
 
     if (artErr || !articulo) {
-        return NextResponse.json({ ok: false, error: 'Artículo no encontrado' }, { status: 404 });
+        return NextResponse.json({
+            ok: false,
+            error: `Artículo no encontrado (id recibido: "${articulo_id}")`,
+            debug: { articulo_id, artErr: artErr?.message }
+        }, { status: 404 });
     }
 
     // Upsert — si sku_tienda no se envía, usar el modelo del artículo como default

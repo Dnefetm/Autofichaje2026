@@ -391,6 +391,23 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                     {/* ── ETAPA 2: PREVIEW (dry_run) ──────────────────────── */}
                     {stage === 'preview' && previewResult && (
                         <>
+                            {/* 404 — artículo no encontrado */}
+                            {previewResult.status === 404 && (
+                                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <XCircle className="w-5 h-5 text-rose-500" />
+                                        <h3 className="font-bold text-rose-800 text-sm">Artículo no encontrado en BD</h3>
+                                    </div>
+                                    <p className="text-xs text-rose-700 mb-2">{previewResult.data.error}</p>
+                                    {previewResult.data.trace?.input && (
+                                        <p className="text-xs font-mono bg-rose-100 px-2 py-1 rounded text-rose-600">
+                                            articulo_id enviado: <strong>{previewResult.data.trace.input.articulo_id}</strong>
+                                        </p>
+                                    )}
+                                    <p className="text-xs text-rose-500 mt-2">Verifica que el artículo siga existiendo en el catálogo.</p>
+                                </div>
+                            )}
+
                             {/* 409 — duplicado */}
                             {previewResult.status === 409 && (
                                 <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
@@ -484,7 +501,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                             )}
 
                             {/* Si fue error, volver */}
-                            {(previewResult.status === 409 || previewResult.status === 422) && (
+                            {(previewResult.status === 404 || previewResult.status === 409 || previewResult.status === 422) && (
                                 <button
                                     onClick={resetPanel}
                                     className="w-full py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
@@ -494,10 +511,17 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                 </button>
                             )}
 
-                            {/* Si el trace existe pero el status no es 200/409/422 */}
+                            {/* Si el trace existe pero el status no es 200/409/422/404 */}
                             {previewResult.status >= 500 && (
-                                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
+                                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg space-y-2">
                                     <p className="text-xs text-rose-700 font-bold">Error del servidor: {previewResult.data.error}</p>
+                                    {previewResult.data.error?.includes('404') && (
+                                        <p className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded border border-orange-200">
+                                            ⚠ El error 404 interno suele indicar que el token de MeLi fue revocado.
+                                            Ve a la sección de cuentas y re-autoriza la cuenta seleccionada.
+                                        </p>
+                                    )}
+                                    {previewResult.data.trace && <TraceBlock trace={previewResult.data.trace} />}
                                     <button onClick={resetPanel} className="mt-2 text-xs text-rose-500 underline">Volver</button>
                                 </div>
                             )}
