@@ -1043,7 +1043,7 @@ export class MeliAdapter implements MarketplaceAdapter {
         const accessToken = await this.getAccessToken(accountId);
         const encoded = encodeURIComponent(query.trim().slice(0, 100));
         const resp = await axios.get(
-            `https://api.mercadolibre.com/sites/MLM/domain-discovery/search?q=${encoded}`,
+            `https://api.mercadolibre.com/sites/MLM/domain_discovery/search?q=${encoded}`,
             { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         const results: any[] = resp.data || [];

@@ -515,12 +515,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                             {previewResult.status >= 500 && (
                                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg space-y-2">
                                     <p className="text-xs text-rose-700 font-bold">Error del servidor: {previewResult.data.error}</p>
-                                    {previewResult.data.error?.includes('404') && (
-                                        <p className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded border border-orange-200">
-                                            ⚠ El error 404 interno suele indicar que el token de MeLi fue revocado.
-                                            Ve a la sección de cuentas y re-autoriza la cuenta seleccionada.
-                                        </p>
-                                    )}
+
                                     {previewResult.data.trace && <TraceBlock trace={previewResult.data.trace} />}
                                     <button onClick={resetPanel} className="mt-2 text-xs text-rose-500 underline">Volver</button>
                                 </div>
