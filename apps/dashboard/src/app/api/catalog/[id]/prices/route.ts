@@ -19,9 +19,10 @@ export const dynamic = 'force-dynamic';
 // ── GET ─────────────────────────────────────────────────────────────────────
 export async function GET(
     _req: NextRequest,
-    { params }: { params: { id: string } }
+    props: { params: Promise<{ id: string }> }
 ) {
-    const articulo_id = decodeURIComponent(params.id);
+    const { id } = await props.params;
+    const articulo_id = decodeURIComponent(id);
 
     // Precios del artículo en todas las cuentas
     const { data: prices, error } = await supabaseAdmin
@@ -53,9 +54,10 @@ export async function GET(
 // ── PATCH ────────────────────────────────────────────────────────────────────
 export async function PATCH(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    props: { params: Promise<{ id: string }> }
 ) {
-    const articulo_id = decodeURIComponent(params.id);
+    const { id } = await props.params;
+    const articulo_id = decodeURIComponent(id);
 
     const body = await req.json().catch(() => null);
     if (!body || !body.marketplace_id || body.sale_price == null) {

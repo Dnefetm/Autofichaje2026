@@ -74,6 +74,10 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
     const [previewResult, setPreviewResult] = useState<any>(null);
     const [publishResult, setPublishResult] = useState<any>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    // Overrides del preview editable
+    const [attrOverrides, setAttrOverrides] = useState<Record<string, { value_name?: string; value_id?: string }>>({});
+    const [categoryOverride, setCategoryOverride] = useState<string>('');
+    const [familyNameOverride, setFamilyNameOverride] = useState<string>('');
 
     // Panel abierto/cerrado
     const [panelOpen, setPanelOpen] = useState(false);
@@ -166,6 +170,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         setLoading(true);
         setErrorMsg(null);
         try {
+            const overrides = Object.entries(attrOverrides).map(([id, v]) => ({ id, ...v }));
             const res = await fetch('/api/publish', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -173,9 +178,11 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                     articulo_id,
                     marketplace_id: selectedAccount,
                     pictures: images,
-                    category_id: categoryId || undefined,
+                    category_id: categoryOverride || categoryId || undefined,
                     listing_type_id: listingType,
                     dry_run: false,
+                    ...(overrides.length > 0 ? { attribute_overrides: overrides } : {}),
+                    ...(familyNameOverride ? { family_name_override: familyNameOverride } : {}),
                 }),
             });
             const data = await res.json();
@@ -193,6 +200,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         setPreviewResult(null);
         setPublishResult(null);
         setErrorMsg(null);
+        setAttrOverrides({});
+        setCategoryOverride('');
+        setFamilyNameOverride('');
     }
 
     const accountName = accounts.find(a => a.id === selectedAccount)?.account_name || selectedAccount;
@@ -441,64 +451,101 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                     {previewResult.data.errores?.map((e: string, i: number) => (
                                         <p key={i} className="text-xs text-rose-600 font-mono bg-rose-100 px-2 py-1 rounded mt-1">• {e}</p>
                                     ))}
-                                </div>
-                            )}
-
-                            {/* OK — preview exitoso */}
-                            {previewResult.status === 200 && previewResult.data.ok && (
-                                <div className="space-y-3">
-                                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                                            <h3 className="font-bold text-emerald-800 text-sm">Preview exitoso — Listo para publicar</h3>
+                                    {previewResult.data.meli_error && (
+                                        <div className="mt-3 p-3 bg-rose-100 rounded-lg border border-rose-300">
+                                            <p className="text-[10px] font-bold uppercase text-rose-500 mb-1.5">Detalle de MeLi</p>
+                                            {previewResult.data.meli_error.message && (
+                                                <p className="text-xs font-bold text-rose-800 mb-1">{previewResult.data.meli_error.message}</p>
+                                            )}
+                                            {previewResult.data.meli_error.cause?.map((c: any, i: number) => (
+                                                <p key={i} className="text-xs text-rose-700 font-mono bg-white px-2 py-1 rounded mt-1">[{c.code}] {c.message}</p>
+                                            ))}
                                         </div>
-                                        <p className="text-xs text-emerald-600">Cuenta: <span className="font-bold">{accountName}</span></p>
-                                        {previewResult.data.trace?.paso_3_precio && (
-                                            <p className="text-xs text-emerald-600 mt-0.5">
-                                                Precio: <span className="font-bold">
-                                                    {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' })
-                                                        .format(previewResult.data.trace.paso_3_precio.sale_price || 0)}
-                                                </span>
-                                                {previewResult.data.trace.paso_3_precio_advertencia && (
-                                                    <span className="text-orange-500 ml-2">⚠ {previewResult.data.trace.paso_3_precio_advertencia}</span>
-                                                )}
-                                            </p>
-                                        )}
-                                        {previewResult.data.trace?.paso_5_categoria && (
-                                            <p className="text-xs text-emerald-600 mt-0.5">
-                                                Categoría: <span className="font-bold font-mono">{previewResult.data.trace.paso_5_categoria.category_id}</span>
-                                                {' '}({previewResult.data.trace.paso_5_categoria.category_name})
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {/* Trace técnico colapsado */}
-                                    <TraceBlock trace={previewResult.data.trace || {}} />
-
-                                    {/* CTAs */}
-                                    <div className="flex gap-3">
-                                        <button
-                                            id="publish-back-btn"
-                                            onClick={resetPanel}
-                                            className="flex-1 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
-                                        >
-                                            Volver a configurar
-                                        </button>
-                                        <button
-                                            id="publish-confirm-btn"
-                                            onClick={handlePublish}
-                                            disabled={loading}
-                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-50"
-                                        >
-                                            {loading
-                                                ? <Loader2 className="w-4 h-4 animate-spin" />
-                                                : <Send className="w-4 h-4" />
-                                            }
-                                            {loading ? 'Publicando...' : 'Publicar en MeLi'}
-                                        </button>
-                                    </div>
+                                    )}
                                 </div>
                             )}
+
+                            {/* OK — preview editable */}
+                            {previewResult.status === 200 && previewResult.data.ok && (() => {
+                                const t = previewResult.data.trace;
+                                const alternativas: any[] = t?.paso_5_categoria?.alternativas || [];
+                                const curCatId = categoryOverride || t?.paso_5_categoria?.category_id || '';
+                                const allCatOptions = [
+                                    { category_id: t?.paso_5_categoria?.category_id, category_name: t?.paso_5_categoria?.category_name },
+                                    ...alternativas.filter((a: any) => a.category_id !== t?.paso_5_categoria?.category_id),
+                                ];
+                                const reqAttrs: any[] = t?.paso_6_atributos?.required_detail || [];
+                                const finalAttrs: any[] = t?.paso_8_attributes_final || [];
+                                return (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                                            <div>
+                                                <p className="font-bold text-emerald-800 text-sm">Preview listo — revisa y confirma</p>
+                                                <p className="text-xs text-emerald-600">Cuenta: <strong>{accountName}</strong>{t?.paso_3_precio?.sale_price ? <span> · Precio: <strong>{new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(t.paso_3_precio.sale_price)}</strong></span> : null}</p>
+                                            </div>
+                                        </div>
+                                        {/* Categoría */}
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5"><Tag className="w-3 h-3 inline mr-1" />Categoría MeLi</label>
+                                            <select value={curCatId} onChange={e => setCategoryOverride(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono">
+                                                {allCatOptions.map((opt: any) => opt?.category_id && (
+                                                    <option key={opt.category_id} value={opt.category_id}>{opt.category_id} — {opt.category_name}</option>
+                                                ))}
+                                            </select>
+                                            {categoryOverride && categoryOverride !== t?.paso_5_categoria?.category_id && (
+                                                <p className="text-[10px] text-orange-500 mt-1">⚠ Cambiaste la categoría. Los atributos son de la original.</p>
+                                            )}
+                                        </div>
+                                        {/* Family name */}
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">Family Name (título base)</label>
+                                            <input type="text" value={familyNameOverride !== '' ? familyNameOverride : (t?.paso_8_ai?.family_name || '')} onChange={e => setFamilyNameOverride(e.target.value)} maxLength={60} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono" />
+                                        </div>
+                                        {/* Atributos requeridos */}
+                                        {reqAttrs.length > 0 && (
+                                            <div>
+                                                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-2">Atributos requeridos ({reqAttrs.length})</label>
+                                                <div className="space-y-2">
+                                                    {reqAttrs.map((attr: any) => {
+                                                        const cur = finalAttrs.find(a => a.id === attr.id);
+                                                        const ov = attrOverrides[attr.id];
+                                                        const valId = ov?.value_id ?? cur?.value_id ?? '';
+                                                        const valName = ov?.value_name ?? cur?.value_name ?? '';
+                                                        const isMissing = !cur && !ov;
+                                                        return (
+                                                            <div key={attr.id} className={cn('p-2.5 rounded-lg border', isMissing ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50')}>
+                                                                <div className="flex items-center justify-between mb-1.5">
+                                                                    <span className="text-xs font-bold text-slate-700">{attr.name}</span>
+                                                                    <span className={cn('text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase', ov ? 'bg-blue-100 text-blue-700' : isMissing ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700')}>{ov ? 'Editado' : isMissing ? 'Faltante' : 'Auto'}</span>
+                                                                </div>
+                                                                {attr.values?.length > 0 ? (
+                                                                    <select value={valId} onChange={e => { const opt = attr.values.find((v: any) => v.id === e.target.value); setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_id: e.target.value, value_name: opt?.name } })); }} className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-yellow-400">
+                                                                        <option value="">— Seleccionar —</option>
+                                                                        {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                                                    </select>
+                                                                ) : (
+                                                                    <input type="text" value={valName} onChange={e => setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_name: e.target.value } }))} placeholder={`Ingresa ${attr.name}`} className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-yellow-400 font-mono" />
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {/* Trace */}
+                                        <TraceBlock trace={t || {}} />
+                                        {/* CTAs */}
+                                        <div className="flex gap-3">
+                                            <button id="publish-back-btn" onClick={resetPanel} className="flex-1 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors">Volver</button>
+                                            <button id="publish-confirm-btn" onClick={handlePublish} disabled={loading} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-50">
+                                                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                                {loading ? 'Publicando...' : 'Publicar con estos datos'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
                             {/* Si fue error, volver */}
                             {(previewResult.status === 404 || previewResult.status === 409 || previewResult.status === 422) && (
@@ -584,20 +631,52 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                     {publishResult.data.errores?.map((e: string, i: number) => (
                                         <p key={i} className="text-xs text-rose-600 font-mono bg-rose-100 px-2 py-1 rounded mt-1">• {e}</p>
                                     ))}
+                                    {publishResult.data.meli_error && (
+                                        <div className="mt-3 p-3 bg-rose-100 rounded-lg border border-rose-300">
+                                            <p className="text-[10px] font-bold uppercase text-rose-500 mb-1.5">Detalle de rechazo MeLi</p>
+                                            {publishResult.data.meli_error.message && (
+                                                <p className="text-xs font-bold text-rose-800 mb-1">{publishResult.data.meli_error.message}</p>
+                                            )}
+                                            {publishResult.data.meli_error.cause?.map((c: any, i: number) => (
+                                                <p key={i} className="text-xs text-rose-700 font-mono bg-white px-2 py-1 rounded mt-1">[{c.code}] {c.message}</p>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
                             {/* Trace colapsado */}
                             {publishResult.data.trace && <TraceBlock trace={publishResult.data.trace} />}
 
-                            {/* Volver */}
-                            <button
-                                onClick={resetPanel}
-                                className="w-full py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
-                            >
-                                <RefreshCw className="w-4 h-4 inline mr-1" />
-                                Nueva publicación
-                            </button>
+                            {/* Botones de acción post-resultado */}
+                            {!publishResult.data.ok && publishResult.status !== 409 ? (
+                                <div className="flex gap-3">
+                                    <button
+                                        id="publish-result-back-edit-btn"
+                                        onClick={() => setStage('preview')}
+                                        className="flex-1 py-2.5 border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
+                                    >
+                                        <RefreshCw className="w-4 h-4 inline mr-1" />
+                                        Volver a editar
+                                    </button>
+                                    <button
+                                        id="publish-result-reset-btn"
+                                        onClick={resetPanel}
+                                        className="flex-1 py-2.5 border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
+                                    >
+                                        Nueva publicación
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    id="publish-result-new-btn"
+                                    onClick={resetPanel}
+                                    className="w-full py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
+                                >
+                                    <RefreshCw className="w-4 h-4 inline mr-1" />
+                                    Nueva publicación
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
