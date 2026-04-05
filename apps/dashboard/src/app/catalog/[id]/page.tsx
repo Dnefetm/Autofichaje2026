@@ -440,11 +440,11 @@ export default function ArticuloDetailPage() {
             </div>
 
             {/* ── Sección de Precios MeLi ─────────────────────────────────── */}
-            <PricesSection articulo_id={product.articulo_id} modeloDefault={product.modelo || null} />
+            <PricesSection articulo_id={product.articulo_id || id} modeloDefault={product.modelo || null} />
 
             {/* ── Panel de Publicación ─────────────────────────────────────── */}
             <PublishPanel
-                articulo_id={product.articulo_id}
+                articulo_id={product.articulo_id || id}
                 nombreArticulo={product.nombre || ''}
                 imagenesBase={Array.isArray(product.imagenes) ? product.imagenes : []}
             />
