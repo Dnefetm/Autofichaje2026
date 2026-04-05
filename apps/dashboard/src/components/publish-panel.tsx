@@ -488,11 +488,24 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                         {/* Categoría */}
                                         <div>
                                             <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5"><Tag className="w-3 h-3 inline mr-1" />Categoría MeLi</label>
-                                            <select value={curCatId} onChange={e => setCategoryOverride(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono">
-                                                {allCatOptions.map((opt: any) => opt?.category_id && (
-                                                    <option key={opt.category_id} value={opt.category_id}>{opt.category_id} — {opt.category_name}</option>
-                                                ))}
-                                            </select>
+                                            {allCatOptions.length > 1 ? (
+                                                <select value={curCatId} onChange={e => setCategoryOverride(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono">
+                                                    {allCatOptions.map((opt: any) => opt?.category_id && (
+                                                        <option key={opt.category_id} value={opt.category_id}>{opt.category_id} — {opt.category_name}</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <div>
+                                                    <input
+                                                        type="text"
+                                                        value={curCatId}
+                                                        onChange={e => setCategoryOverride(e.target.value)}
+                                                        placeholder="MLM438009"
+                                                        className="w-full px-3 py-2 text-sm border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono bg-amber-50"
+                                                    />
+                                                    <p className="text-[10px] text-amber-600 mt-1">⚠ MeLi solo devolvió 1 categoría para esta búsqueda. Edita el ID si es incorrecto (ej. MLM438009 para Dados).</p>
+                                                </div>
+                                            )}
                                             {categoryOverride && categoryOverride !== t?.paso_5_categoria?.category_id && (
                                                 <p className="text-[10px] text-orange-500 mt-1">⚠ Cambiaste la categoría. Los atributos son de la original.</p>
                                             )}
