@@ -213,6 +213,8 @@ export default function FichaDetallePage() {
     const [enrichCampos, setEnrichCampos] = useState<Set<string>>(
         () => new Set(TODOS_CAMPOS_ENRICH.map(c => c.key))
     );
+    // Producto objetivo: para docs con varios productos (tabla comparativa, catálogo, etc.)
+    const [enrichProductoObjetivo, setEnrichProductoObjetivo] = useState('');
 
     // Modal comparación
     const [conflictos, setConflictos]         = useState<Discrepancia[]>([]);
@@ -413,11 +415,16 @@ export default function FichaDetallePage() {
             const form = new FormData();
             form.append('file', enrichFile);
             form.append('campos_solicitados', JSON.stringify(camposArray));
+            if (enrichProductoObjetivo.trim()) form.append('producto_objetivo', enrichProductoObjetivo.trim());
             res = await fetch(`/api/fichas/${ficha.id}/enriquecer`, { method: 'POST', body: form });
         } else {
             res = await fetch(`/api/fichas/${ficha.id}/enriquecer`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: enrichUrl, campos_solicitados: camposArray }),
+                body: JSON.stringify({
+                    url: enrichUrl,
+                    campos_solicitados: camposArray,
+                    producto_objetivo: enrichProductoObjetivo.trim() || undefined,
+                }),
             });
         }
 
@@ -1075,6 +1082,24 @@ export default function FichaDetallePage() {
                             </div>
                         ) : (
                             <div className="space-y-3">
+                                {/* ─── Campo: Producto objetivo ─── */}
+                                <div className="bg-white/10 rounded-xl p-3 space-y-1.5">
+                                    <label className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest flex items-center gap-1">
+                                        🎯 Producto a extraer
+                                        <span className="font-normal normal-case text-indigo-300 ml-1">(opcional)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ej: Würth 8890402, grasa multiuso..."
+                                        value={enrichProductoObjetivo}
+                                        onChange={e => setEnrichProductoObjetivo(e.target.value)}
+                                        className="w-full p-2 rounded-lg bg-indigo-700/60 border border-indigo-500 text-xs text-white placeholder-indigo-300 focus:outline-none focus:ring-1 focus:ring-white/50"
+                                    />
+                                    <p className="text-[10px] text-indigo-300 leading-tight">
+                                        Si el documento tiene varios productos (catálogo, tabla comparativa), indica nombre, modelo o SKU del que quieres extraer.
+                                    </p>
+                                </div>
+
                                 {/* ─── PASO 1: Selector de campos ─── */}
                                 <div className="bg-indigo-800/60 rounded-xl p-3 space-y-2">
                                     <div className="flex items-center justify-between">

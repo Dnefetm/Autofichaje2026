@@ -167,18 +167,21 @@ export async function POST(
     let fileName: string;
     let storagePath: string | undefined;
     let camposHint: string[] | undefined;
+    let productoObjetivo: string | undefined;
 
     try {
         if (contentType.includes('multipart/form-data')) {
             const form = await req.formData();
             const file = form.get('file') as File | null;
-            if (!file) return NextResponse.json({ error: 'No se reció archivo' }, { status: 400 });
+            if (!file) return NextResponse.json({ error: 'No se recibió archivo' }, { status: 400 });
             if (!ALLOWED_MIME.includes(file.type)) return NextResponse.json({ error: `Formato no soportado: ${file.type}` }, { status: 400 });
             if (file.size > MAX_BYTES) return NextResponse.json({ error: 'Archivo demasiado grande (máx 4 MB)' }, { status: 400 });
             buffer = Buffer.from(await file.arrayBuffer()); mimeType = file.type; fileName = file.name;
-            // Leer campos_solicitados del formData si los envía el frontend
+            // campos_solicitados y producto_objetivo del formData
             const camposRaw = form.get('campos_solicitados') as string | null;
             if (camposRaw) { try { camposHint = JSON.parse(camposRaw); } catch { /* ignorar mal formato */ } }
+            const poRaw = form.get('producto_objetivo') as string | null;
+            if (poRaw?.trim()) productoObjetivo = poRaw.trim();
         } else if (contentType.includes('application/json')) {
             const body = await req.json();
             const url: string = body?.url;
@@ -189,6 +192,7 @@ export async function POST(
             if (!ALLOWED_MIME.includes(mimeType)) return NextResponse.json({ error: `Formato no soportado: ${mimeType}` }, { status: 400 });
             buffer = Buffer.from(await resp.arrayBuffer()); fileName = url.split('/').pop()?.split('?')[0] || 'documento';
             if (Array.isArray(body?.campos_solicitados)) camposHint = body.campos_solicitados;
+            if (body?.producto_objetivo?.trim()) productoObjetivo = body.producto_objetivo.trim();
         } else {
             return NextResponse.json({ error: 'Content-Type no soportado' }, { status: 400 });
         }
@@ -215,7 +219,7 @@ export async function POST(
         : undefined;
     let extracted: any;
     try {
-        extracted = await processProductDocument(buffer, fileName, mimeType, storagePath, camposLLM);
+        extracted = await processProductDocument(buffer, fileName, mimeType, storagePath, camposLLM, productoObjetivo);
     } catch (err: any) {
         return NextResponse.json({ error: err?.message || 'Error de OCR/LLM' }, { status: 500 });
     }
