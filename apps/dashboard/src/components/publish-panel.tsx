@@ -218,6 +218,37 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         }
     }
 
+    // ── Re-preview con categoría forzada ─────────────────────────────────────
+    // Relanza el dry_run completo con category_id forzado. Reemplaza el trace entero.
+    async function handleRePreview(forcedCategoryId: string) {
+        if (!selectedAccount || !forcedCategoryId) return;
+        setLoading(true);
+        setErrorMsg(null);
+        try {
+            const res = await fetch('/api/publish', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    articulo_id,
+                    marketplace_id: selectedAccount,
+                    pictures: images,
+                    category_id: forcedCategoryId,
+                    listing_type_id: listingType,
+                    dry_run: true,
+                }),
+            });
+            const data = await res.json();
+            setPreviewResult({ status: res.status, data });
+            setCategoryOverride('');
+            setAttrOverrides({});
+            setCurrentAttrValues(new Map());
+        } catch (e: any) {
+            setErrorMsg(e.message);
+        } finally {
+            setLoading(false);
+        }
+    }
+
     // ── Publicar real ─────────────────────────────────────────────────────────
     async function handlePublish() {
         setLoading(true);
@@ -555,7 +586,26 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                                 ))}
                                             </select>
                                             {allCatOptions.length <= 1 && (
-                                                <p className="text-[10px] text-amber-600 mt-1">⚠ MeLi devolvió solo 1 categoría. Puedes cambiar el ID directamente en el select si es incorrecto.</p>
+                                                <>
+                                                    <input
+                                                        type="text"
+                                                        value={categoryOverride !== '' ? categoryOverride : curCatId}
+                                                        onChange={e => setCategoryOverride(e.target.value)}
+                                                        placeholder="Escribe un ID diferente (ej. MLM438009)"
+                                                        className="w-full mt-1 px-3 py-2 text-sm border border-amber-300 rounded-lg font-mono bg-amber-50 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                                    />
+                                                    <p className="text-[10px] text-amber-600 mt-1">⚠ MeLi devolvió solo 1 categoría. Escribe arriba un ID diferente si es incorrecto.</p>
+                                                </>
+                                            )}
+                                            {categoryOverride && categoryOverride !== t?.paso_5_categoria?.category_id && (
+                                                <button
+                                                    id="re-preview-btn"
+                                                    onClick={() => handleRePreview(categoryOverride)}
+                                                    disabled={loading}
+                                                    className="mt-2 w-full py-2 text-xs font-bold bg-blue-50 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                                                >
+                                                    {loading ? <Loader2 className="w-3 h-3 animate-spin inline mr-1" /> : '🔄'} Re-ejecutar preview con <span className="font-mono">{categoryOverride}</span>
+                                                </button>
                                             )}
                                         </div>
                                         {/* Family name */}
