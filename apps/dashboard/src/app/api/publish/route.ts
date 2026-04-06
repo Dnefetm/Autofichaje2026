@@ -242,10 +242,10 @@ export async function POST(req: NextRequest) {
         // Dimensiones de paquete del vendedor — hierarchy: ITEM, tags: hidden en MLM9171
         // MeLi exige enteros: dimensiones en cm, peso en GRAMOS (no kg).
         // cause_id 5402 si se mandan decimales o unidad equivocada.
-        if (articulo.alto_cm)  { const v = Math.round(articulo.alto_cm);        attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: String(v), value_struct: { number: v, unit: 'cm' } }); }
-        if (articulo.ancho_cm) { const v = Math.round(articulo.ancho_cm);       attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: String(v), value_struct: { number: v, unit: 'cm' } }); }
-        if (articulo.largo_cm) { const v = Math.round(articulo.largo_cm);       attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: String(v), value_struct: { number: v, unit: 'cm' } }); }
-        if (articulo.peso_kg)  { const v = Math.round(articulo.peso_kg * 1000); attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: String(v), value_struct: { number: v, unit: 'g'  } }); } // kg → gramos enteros
+        if (articulo.alto_cm)  attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: `${Math.round(articulo.alto_cm)} cm` });
+        if (articulo.ancho_cm) attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: `${Math.round(articulo.ancho_cm)} cm` });
+        if (articulo.largo_cm) attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: `${Math.round(articulo.largo_cm)} cm` });
+        if (articulo.peso_kg)  attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: `${Math.round(articulo.peso_kg * 1000)} g` }); // kg → gramos enteros
 
         trace.paso_7_attributes_mapeados = attributes;
         trace.paso_7_package_dimensions = {
