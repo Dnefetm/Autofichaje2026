@@ -47,7 +47,9 @@ export async function POST(req: NextRequest) {
             category_id: category_id_override,
             listing_type_id = 'gold_special',
             dry_run = false,
-            force_duplicate = false,  // Solo para uso avanzado. La UI nunca lo expone.
+            force_duplicate = false,
+            attribute_overrides = [] as Array<{ id: string; value_name?: string; value_id?: string }>,
+            family_name_override = null as string | null,
         } = body;
 
         trace.input = { articulo_id, marketplace_id, pictures_count: pictures.length, listing_type_id, dry_run };
@@ -193,7 +195,7 @@ export async function POST(req: NextRequest) {
         let category_info: any = null;
 
         if (!category_id) {
-            const query = [articulo.nombre, articulo.marca, articulo.modelo].filter(Boolean).join(' ');
+            const query = [articulo.nombre, articulo.marca].filter(Boolean).join(' '); // excluir modelo: números de catálogo confunden a domain_discovery
             category_info = await (meli as any).predictCategory(marketplace_id, query);
             category_id = category_info.category_id;
         }
@@ -202,7 +204,7 @@ export async function POST(req: NextRequest) {
             category_id,
             category_name: category_info?.category_name || '(provisto manualmente)',
             domain_id: category_info?.domain_id || null,
-            alternativas: category_info?.raw?.slice(0, 3).map((r: any) => ({
+            alternativas: category_info?.raw?.slice(0, 5).map((r: any) => ({
                 category_id: r.category_id,
                 domain_id: r.domain_id,
                 category_name: r.category_name || r.domain_name,
@@ -220,7 +222,7 @@ export async function POST(req: NextRequest) {
                 id: a.id,
                 name: a.name,
                 type: a.value_type,
-                values: a.values?.slice(0, 5).map((v: any) => ({ id: v.id, name: v.name })) || [],
+                values: a.values?.slice(0, 50).map((v: any) => ({ id: v.id, name: v.name })) || [],
             })),
         };
 
@@ -240,10 +242,10 @@ export async function POST(req: NextRequest) {
         // Dimensiones de paquete del vendedor — hierarchy: ITEM, tags: hidden en MLM9171
         // MeLi exige enteros: dimensiones en cm, peso en GRAMOS (no kg).
         // cause_id 5402 si se mandan decimales o unidad equivocada.
-        if (articulo.alto_cm)  attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: `${Math.round(articulo.alto_cm)} cm` });
-        if (articulo.ancho_cm) attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: `${Math.round(articulo.ancho_cm)} cm` });
-        if (articulo.largo_cm) attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: `${Math.round(articulo.largo_cm)} cm` });
-        if (articulo.peso_kg)  attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: `${Math.round(articulo.peso_kg * 1000)} g` }); // kg → gramos enteros
+        if (articulo.alto_cm)  { const v = Math.round(articulo.alto_cm);        attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: String(v), value_struct: { number: v, unit: 'cm' } }); }
+        if (articulo.ancho_cm) { const v = Math.round(articulo.ancho_cm);       attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: String(v), value_struct: { number: v, unit: 'cm' } }); }
+        if (articulo.largo_cm) { const v = Math.round(articulo.largo_cm);       attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: String(v), value_struct: { number: v, unit: 'cm' } }); }
+        if (articulo.peso_kg)  { const v = Math.round(articulo.peso_kg * 1000); attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: String(v), value_struct: { number: v, unit: 'g'  } }); } // kg → gramos enteros
 
         trace.paso_7_attributes_mapeados = attributes;
         trace.paso_7_package_dimensions = {
@@ -313,6 +315,19 @@ export async function POST(req: NextRequest) {
             ...attributes,
             ...validatedAIAttrs.filter(a => !mappedIds.has(a.id)),
         ];
+        // Aplicar attribute_overrides del usuario (sobreescriben/adicionan tras el AI)
+        if (attribute_overrides.length > 0) {
+            for (const ov of attribute_overrides) {
+                const idx = allAttributes.findIndex((a: any) => a.id === ov.id);
+                if (idx !== -1) {
+                    allAttributes[idx] = { ...allAttributes[idx], ...ov };
+                } else {
+                    allAttributes.push(ov);
+                }
+            }
+            trace.paso_8_overrides_usuario = attribute_overrides;
+        }
+
         trace.paso_8_attributes_final = allAttributes;
 
         // Atributos requeridos todavía faltantes después del AI
@@ -324,7 +339,7 @@ export async function POST(req: NextRequest) {
 
         // ── 9. Construir el body del POST /items (solo modelo UP) ─────────────
         const itemBody: any = {
-            family_name: aiResult.family_name,
+            family_name: family_name_override || aiResult.family_name,
             category_id,
             price,
             currency_id: precio_data?.currency || 'MXN',

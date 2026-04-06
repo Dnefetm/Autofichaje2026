@@ -1121,7 +1121,7 @@ export class MeliAdapter implements MarketplaceAdapter {
         listing_type_id: string;
         sale_terms: Array<{ id: string; value_name: string }>;
         pictures: Array<{ source: string }>;
-        attributes: Array<{ id: string; value_name?: string; value_id?: string }>;
+        attributes: Array<{ id: string; value_name?: string; value_id?: string; value_struct?: { number: number; unit: string } }>;
         // Opcionales
         condition?: string;
         shipping?: any;
