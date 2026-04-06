@@ -25,6 +25,19 @@ export async function GET(req: NextRequest) {
         const meli = new MeliAdapter();
         const attrInfo = await (meli as any).getCategoryAttributes(marketplaceId, categoryId);
 
+        // Obtener nombre humano de la categoría
+        let category_name = '';
+        try {
+            const catResp = await fetch(
+                `https://api.mercadolibre.com/categories/${encodeURIComponent(categoryId)}`,
+                { headers: { 'Content-Type': 'application/json' } }
+            );
+            if (catResp.ok) {
+                const catData = await catResp.json();
+                category_name = catData.name || '';
+            }
+        } catch { /* no bloquear si falla */ }
+
         // Misma forma que trace.paso_6_atributos.required_detail en /api/publish
         const required = attrInfo.required.map((a: any) => ({
             id:     a.id,
@@ -34,10 +47,11 @@ export async function GET(req: NextRequest) {
         }));
 
         return NextResponse.json({
-            ok:          true,
-            category_id: categoryId,
+            ok:            true,
+            category_id:   categoryId,
+            category_name,
             required,
-            total:       attrInfo.raw?.length ?? 0,
+            total:         attrInfo.raw?.length ?? 0,
         });
     } catch (err: any) {
         console.error('[/api/publish/attributes] Error:', err);

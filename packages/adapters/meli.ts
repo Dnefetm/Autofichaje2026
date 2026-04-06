@@ -1038,6 +1038,7 @@ export class MeliAdapter implements MarketplaceAdapter {
         category_id: string;
         domain_id: string;
         category_name: string;
+        candidates: { category_id: string; category_name: string; domain_id: string }[];
         raw: any[];
     }> {
         const accessToken = await this.getAccessToken(accountId);
@@ -1059,6 +1060,11 @@ export class MeliAdapter implements MarketplaceAdapter {
             category_id: top.category_id,
             domain_id: top.domain_id,
             category_name: top.category_name || top.domain_name || '',
+            candidates: results.slice(0, 10).map((r: any) => ({
+                category_id: r.category_id,
+                category_name: r.category_name || r.domain_name || '',
+                domain_id: r.domain_id,
+            })),
             raw: results,
         };
     }

@@ -195,7 +195,8 @@ export async function POST(req: NextRequest) {
         let category_info: any = null;
 
         if (!category_id) {
-            const query = [articulo.nombre, articulo.marca].filter(Boolean).join(' '); // excluir modelo: números de catálogo confunden a domain_discovery
+            const query = [articulo.nombre, articulo.marca, articulo.modelo, articulo.codigo_universal, articulo.categoria]
+                .filter(Boolean).join(' ').trim().slice(0, 100);
             category_info = await (meli as any).predictCategory(marketplace_id, query);
             category_id = category_info.category_id;
         }
@@ -204,11 +205,8 @@ export async function POST(req: NextRequest) {
             category_id,
             category_name: category_info?.category_name || '(provisto manualmente)',
             domain_id: category_info?.domain_id || null,
-            alternativas: category_info?.raw?.slice(0, 5).map((r: any) => ({
-                category_id: r.category_id,
-                domain_id: r.domain_id,
-                category_name: r.category_name || r.domain_name,
-            })) || [],
+            candidates: category_info?.candidates || [],
+            alternativas: category_info?.candidates || [],
         };
 
         // ── 6. Obtener atributos requeridos de la categoría ───────────────────
@@ -242,10 +240,28 @@ export async function POST(req: NextRequest) {
         // Dimensiones de paquete del vendedor — hierarchy: ITEM, tags: hidden en MLM9171
         // MeLi exige enteros: dimensiones en cm, peso en GRAMOS (no kg).
         // cause_id 5402 si se mandan decimales o unidad equivocada.
-        if (articulo.alto_cm)  attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: `${Math.round(articulo.alto_cm)} cm` });
-        if (articulo.ancho_cm) attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: `${Math.round(articulo.ancho_cm)} cm` });
-        if (articulo.largo_cm) attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: `${Math.round(articulo.largo_cm)} cm` });
-        if (articulo.peso_kg)  attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: `${Math.round(articulo.peso_kg * 1000)} g` }); // kg → gramos enteros
+        //
+        // POLÍTICA (propuesta comet 2026-04-05): solo enviar SELLER_PACKAGE_* si la categoría
+        // los reconoce (aparecen en attrInfo.raw). Si la categoría no los tiene, omitirlos.
+        // Razón: MeLi puede rechazar atributos que no existen en su catálogo para esa categoría
+        // aunque el formato sea correcto — error "do not have proper values".
+        // Esto es testeable sin asumir coherencia de catálogo.
+        const categoryAttrIds = new Set((attrInfo.required || []).map((a: any) => a.id));
+        const sellerPackageOmitidos: string[] = [];
+
+        const maybePushPackage = (id: string, value_name: string, hasValue: boolean) => {
+            if (!hasValue) return;
+            if (categoryAttrIds.has(id)) {
+                attributes.push({ id, value_name });
+            } else {
+                sellerPackageOmitidos.push(`${id} (no existe en atributos de ${category_id})`);
+            }
+        };
+
+        maybePushPackage('SELLER_PACKAGE_HEIGHT', `${Math.round(articulo.alto_cm ?? 0)} cm`,  !!articulo.alto_cm);
+        maybePushPackage('SELLER_PACKAGE_WIDTH',  `${Math.round(articulo.ancho_cm ?? 0)} cm`, !!articulo.ancho_cm);
+        maybePushPackage('SELLER_PACKAGE_LENGTH', `${Math.round(articulo.largo_cm ?? 0)} cm`, !!articulo.largo_cm);
+        maybePushPackage('SELLER_PACKAGE_WEIGHT', `${Math.round((articulo.peso_kg ?? 0) * 1000)} g`, !!articulo.peso_kg); // kg → gramos enteros
 
         trace.paso_7_attributes_mapeados = attributes;
         trace.paso_7_package_dimensions = {
@@ -253,6 +269,7 @@ export async function POST(req: NextRequest) {
             SELLER_PACKAGE_WIDTH:  articulo.ancho_cm != null ? `${Math.round(articulo.ancho_cm)} cm`           : null,
             SELLER_PACKAGE_LENGTH: articulo.largo_cm != null ? `${Math.round(articulo.largo_cm)} cm`           : null,
             SELLER_PACKAGE_WEIGHT: articulo.peso_kg  != null ? `${Math.round(articulo.peso_kg * 1000)} g`      : null,
+            seller_package_omitidos: sellerPackageOmitidos,  // vacios si la categoría los acepta
         };
 
 
@@ -371,15 +388,16 @@ export async function POST(req: NextRequest) {
         if (stockFailed && !dry_run) {
             erroresDuros.push('No se pudo calcular el stock disponible. No se publicará con stock ficticio.');
         }
-        // Validaçión anticipada de formato SELLER_PACKAGE_*:
-        // MeLi (cause_id 5402) exige enteros en cm/g. Verificamos que los valores generados sean enteros.
-        const pkgDims = trace.paso_7_package_dimensions as Record<string, string | null>;
+        // Validación anticipada de formato SELLER_PACKAGE_*:
+        // MeLi (cause_id 5402) exige enteros en cm/g.
+        // Solo validar los que sí pasaron el filtro de categoría y están en allAttributes[].
         const pkgFormatErrors: string[] = [];
-        for (const [key, val] of Object.entries(pkgDims)) {
-            if (val === null) continue;
-            const num = parseInt(val, 10);
+        const SELLER_PKG_IDS = new Set(['SELLER_PACKAGE_HEIGHT','SELLER_PACKAGE_WIDTH','SELLER_PACKAGE_LENGTH','SELLER_PACKAGE_WEIGHT']);
+        for (const attr of allAttributes) {
+            if (!SELLER_PKG_IDS.has(attr.id) || !attr.value_name) continue;
+            const num = parseInt(attr.value_name, 10);
             if (isNaN(num) || num <= 0) {
-                pkgFormatErrors.push(`${key}: valor '${val}' no es un entero positivo válido`);
+                pkgFormatErrors.push(`${attr.id}: valor '${attr.value_name}' no es un entero positivo válido`);
             }
         }
         if (pkgFormatErrors.length > 0) {

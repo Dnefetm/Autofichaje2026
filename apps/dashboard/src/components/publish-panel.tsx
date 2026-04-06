@@ -81,6 +81,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
     // Atributos dinámicos al cambiar de categoría
     const [dynamicReqAttrs, setDynamicReqAttrs] = useState<any[] | null>(null);
     const [loadingAttrs, setLoadingAttrs] = useState(false);
+    const [currentAttrValues, setCurrentAttrValues] = useState<Map<string, { value_id?: string; value_name?: string }>>(new Map());
 
     // Panel abierto/cerrado
     const [panelOpen, setPanelOpen] = useState(false);
@@ -107,20 +108,47 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
     useEffect(() => {
         if (!categoryOverride || !selectedAccount || stage !== 'preview') {
             setDynamicReqAttrs(null);
+            setCurrentAttrValues(new Map());
             return;
         }
         const originalCat = previewResult?.data?.trace?.paso_5_categoria?.category_id;
         if (categoryOverride === originalCat) {
-            setDynamicReqAttrs(null); // usar los del trace original
+            setDynamicReqAttrs(null);
+            setCurrentAttrValues(new Map());
             return;
         }
-        // Categoría diferente: limpiar overrides anteriores y recargar
+        // Categoría diferente: limpiar estado anterior y recargar
         setDynamicReqAttrs(null);
         setAttrOverrides({});
+        setCurrentAttrValues(new Map());
         setLoadingAttrs(true);
+        const originalAttrs: any[] = previewResult?.data?.trace?.paso_8_attributes_final || [];
         fetch(`/api/publish/attributes?category_id=${encodeURIComponent(categoryOverride)}&marketplace_id=${encodeURIComponent(selectedAccount)}`)
             .then(r => r.json())
-            .then(data => { if (data.ok) setDynamicReqAttrs(data.required); })
+            .then(data => {
+                if (data.ok) {
+                    setDynamicReqAttrs(data.required);
+                    // Reconciliar valores: portar solo los compatibles con la nueva categoría
+                    const reconciled = new Map<string, { value_id?: string; value_name?: string }>();
+                    for (const attr of data.required) {
+                        const fromOriginal = originalAttrs.find((a: any) => a.id === attr.id);
+                        if (!fromOriginal) continue;
+                        if (attr.values?.length > 0) {
+                            // Lista cerrada: solo portar si el value_id sigue siendo válido
+                            const validIds = new Set(attr.values.map((v: any) => String(v.id)));
+                            if (fromOriginal.value_id && validIds.has(String(fromOriginal.value_id))) {
+                                reconciled.set(attr.id, { value_id: String(fromOriginal.value_id), value_name: fromOriginal.value_name });
+                            }
+                        } else {
+                            // Texto libre: portar siempre (BRAND, MODEL, GTIN son cross-categoría)
+                            if (fromOriginal.value_name) {
+                                reconciled.set(attr.id, { value_name: fromOriginal.value_name });
+                            }
+                        }
+                    }
+                    setCurrentAttrValues(reconciled);
+                }
+            })
             .catch(() => {})
             .finally(() => setLoadingAttrs(false));
     }, [categoryOverride, selectedAccount, stage]);
@@ -228,6 +256,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         setAttrOverrides({});
         setCategoryOverride('');
         setFamilyNameOverride('');
+        setCurrentAttrValues(new Map());
     }
 
     const accountName = accounts.find(a => a.id === selectedAccount)?.account_name || selectedAccount;
@@ -493,14 +522,15 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                             {/* OK — preview editable */}
                             {previewResult.status === 200 && previewResult.data.ok && (() => {
                                 const t = previewResult.data.trace;
-                                const alternativas: any[] = t?.paso_5_categoria?.alternativas || [];
+                                const candidates: any[] = t?.paso_5_categoria?.candidates || t?.paso_5_categoria?.alternativas || [];
                                 const curCatId = categoryOverride || t?.paso_5_categoria?.category_id || '';
+                                const primaryOpt = { category_id: t?.paso_5_categoria?.category_id, category_name: t?.paso_5_categoria?.category_name };
                                 const allCatOptions = [
-                                    { category_id: t?.paso_5_categoria?.category_id, category_name: t?.paso_5_categoria?.category_name },
-                                    ...alternativas.filter((a: any) => a.category_id !== t?.paso_5_categoria?.category_id),
+                                    primaryOpt,
+                                    ...candidates.filter((a: any) => a.category_id !== t?.paso_5_categoria?.category_id),
                                 ];
                                 const reqAttrs: any[] = dynamicReqAttrs ?? (t?.paso_6_atributos?.required_detail || []);
-                                const finalAttrs: any[] = t?.paso_8_attributes_final || [];
+                                const originalAttrs: any[] = t?.paso_8_attributes_final || [];
                                 return (
                                     <div className="space-y-4">
                                         <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
@@ -513,26 +543,19 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                         {/* Categoría */}
                                         <div>
                                             <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5"><Tag className="w-3 h-3 inline mr-1" />Categoría MeLi</label>
-                                            {allCatOptions.length > 1 ? (
-                                                <select value={curCatId} onChange={e => setCategoryOverride(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono">
-                                                    {allCatOptions.map((opt: any) => opt?.category_id && (
-                                                        <option key={opt.category_id} value={opt.category_id}>{opt.category_id} — {opt.category_name}</option>
-                                                    ))}
-                                                </select>
-                                            ) : (
-                                                <div>
-                                                    <input
-                                                        type="text"
-                                                        value={curCatId}
-                                                        onChange={e => setCategoryOverride(e.target.value)}
-                                                        placeholder="MLM438009"
-                                                        className="w-full px-3 py-2 text-sm border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono bg-amber-50"
-                                                    />
-                                                    <p className="text-[10px] text-amber-600 mt-1">⚠ MeLi solo devolvió 1 categoría para esta búsqueda. Edita el ID si es incorrecto (ej. MLM438009 para Dados).</p>
-                                                </div>
-                                            )}
-                                            {categoryOverride && categoryOverride !== t?.paso_5_categoria?.category_id && (
-                                                <p className="text-[10px] text-orange-500 mt-1">⚠ Cambiaste la categoría. Los atributos son de la original.</p>
+                                            <select
+                                                value={curCatId}
+                                                onChange={e => setCategoryOverride(e.target.value)}
+                                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono"
+                                            >
+                                                {allCatOptions.map((opt: any) => opt?.category_id && (
+                                                    <option key={opt.category_id} value={opt.category_id}>
+                                                        {opt.category_id}{opt.category_name ? ` — ${opt.category_name}` : ''}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {allCatOptions.length <= 1 && (
+                                                <p className="text-[10px] text-amber-600 mt-1">⚠ MeLi devolvió solo 1 categoría. Puedes cambiar el ID directamente en el select si es incorrecto.</p>
                                             )}
                                         </div>
                                         {/* Family name */}
@@ -551,11 +574,14 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                                 <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-2">Atributos requeridos ({reqAttrs.length})</label>
                                                 <div className="space-y-2">
                                                     {reqAttrs.map((attr: any) => {
-                                                        const cur = finalAttrs.find(a => a.id === attr.id);
                                                         const ov = attrOverrides[attr.id];
-                                                        const valId = ov?.value_id ?? cur?.value_id ?? '';
-                                                        const valName = ov?.value_name ?? cur?.value_name ?? '';
-                                                        const isMissing = !cur && !ov;
+                                                        // Fuente de valores: currentAttrValues si hay cambio de categoría, original trace si no
+                                                        const curVal = dynamicReqAttrs
+                                                            ? (currentAttrValues.get(attr.id) ?? null)
+                                                            : (originalAttrs.find((a: any) => a.id === attr.id) ?? null);
+                                                        const valId = ov?.value_id ?? curVal?.value_id ?? '';
+                                                        const valName = ov?.value_name ?? curVal?.value_name ?? '';
+                                                        const isMissing = !curVal && !ov;
                                                         return (
                                                             <div key={attr.id} className={cn('p-2.5 rounded-lg border', isMissing ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50')}>
                                                                 <div className="flex items-center justify-between mb-1.5">
