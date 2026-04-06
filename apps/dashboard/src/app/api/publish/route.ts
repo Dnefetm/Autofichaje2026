@@ -248,9 +248,11 @@ export async function POST(req: NextRequest) {
         // MeLi exige enteros: dimensiones en cm, peso en GRAMOS (no kg).
         // cause_id 5402 si se mandan decimales o unidad equivocada.
         //
-        // POLÍTICA: solo enviar SELLER_PACKAGE_* si la categoría los tiene como requeridos.
-        // Razón: MeLi rechaza atributos no requeridos con error "do not have proper values".
-        const categoryAttrIds = new Set((attrInfo.required || []).map((a: any) => a.id));
+        // POLÍTICA: enviar SELLER_PACKAGE_* si el atributo EXISTE en la categoría (attrInfo.raw).
+        // NOTA: MeLi no siempre marca SELLER_PACKAGE_* con tags.required=true en la API,
+        // pero sí los exige al publicar (error missing.seller.package.dimensions).
+        // Usar .raw (existe en catálogo) en lugar de .required (tag explícito) es el criterio correcto.
+        const categoryAttrIds = new Set((attrInfo.raw || []).map((a: any) => a.id));
         const sellerPackageOmitidos: string[] = [];
 
         const maybePushPackage = (id: string, value_name: string, hasValue: boolean) => {

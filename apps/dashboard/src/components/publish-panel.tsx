@@ -652,8 +652,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                                                 }}
                                                                 className="w-full text-left px-3 py-2 text-xs hover:bg-yellow-50 border-b border-slate-100 last:border-0"
                                                             >
-                                                                <span className="font-mono font-bold text-slate-700">{c.category_id}</span>
-                                                                {c.category_name && <span className="text-slate-500 ml-2">{c.category_name}</span>}
+                                                                <span className="font-mono font-bold text-slate-700 text-[10px]">{c.category_id}</span>
+                                                                <span className="text-slate-600 ml-2">{c.path || c.category_name || ''}</span>
                                                             </button>
                                                         ))}
                                                     </div>
