@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type Estado = 'borrador' | 'revision' | 'publicada';
+type Estado = 'borrador' | 'revision' | 'publicado';
 
 interface Articulo {
     articulo_id: string; nombre: string; marca: string;
@@ -81,7 +81,7 @@ function EstadoBadge({ estado }: { estado: string }) {
     const MAP: Record<string, string> = {
         borrador: 'bg-slate-100 text-slate-600',
         revision: 'bg-amber-100 text-amber-700',
-        publicada: 'bg-emerald-100 text-emerald-700',
+        publicado: 'bg-emerald-100 text-emerald-700',
     };
     return (
         <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${MAP[estado] ?? 'bg-slate-100 text-slate-500'}`}>
@@ -155,7 +155,7 @@ function EditField({ label, value, onChange, type = 'text' }: {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-const ESTADOS: Estado[] = ['borrador', 'revision', 'publicada'];
+const ESTADOS: Estado[] = ['borrador', 'revision', 'publicado'];
 
 export default function FichaDetallePage() {
     const { id }  = useParams<{ id: string }>();
@@ -621,6 +621,9 @@ export default function FichaDetallePage() {
     const camposEval = [
         ficha.descripcion, ficha.descripcion_larga, ficha.fabricante,
         ficha.especificaciones, ficha.uso_recomendado, ficha.precauciones, ficha.ingredientes,
+        // Campos regulatorios v46 — relevantes para venta en marketplaces
+        ficha.informacion_normativa, ficha.instrucciones_uso,
+        ficha.leyendas_precautorias, ficha.indicaciones_almacenamiento,
     ];
     const listasEval = [ficha.bullet_points?.length, ficha.palabras_clave?.length];
     const filled = camposEval.filter(Boolean).length + listasEval.filter(l => l && l > 0).length;
@@ -1112,7 +1115,7 @@ export default function FichaDetallePage() {
                         <Link href="/autoficha" className="block w-full py-2.5 px-4 rounded-xl text-sm font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 text-center transition-colors">
                             Nueva ficha con IA
                         </Link>
-                        {ficha.estado !== 'publicada' && (
+                        {ficha.estado !== 'publicado' && (
                             <button type="button" onClick={eliminarFicha} disabled={deleting}
                                 className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
                                 {deleting ? <><Loader2 className="w-4 h-4 animate-spin" />Eliminando…</> : <><Trash2 className="w-4 h-4" />Eliminar ficha</>}

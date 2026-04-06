@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Search, Filter, RefreshCcw, Loader2, FileText, ExternalLink, AlertCircle, Trash2 } from 'lucide-react';
 
-type Estado = '' | 'borrador' | 'revision' | 'publicada';
+type Estado = '' | 'borrador' | 'revision' | 'publicado';
 
 interface Ficha {
     id:              string;
@@ -20,7 +20,7 @@ function EstadoBadge({ estado }: { estado: string }) {
     const map: Record<string, string> = {
         borrador:  'bg-slate-100 text-slate-600',
         revision:  'bg-amber-100 text-amber-700',
-        publicada: 'bg-emerald-100 text-emerald-700',
+        publicado: 'bg-emerald-100 text-emerald-700',
     };
     return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${map[estado] || 'bg-slate-100 text-slate-500'}`}>{estado}</span>;
 }
@@ -111,7 +111,7 @@ export default function FichasPage() {
                             <option value="">Todos los estados</option>
                             <option value="borrador">Borrador</option>
                             <option value="revision">En revisión</option>
-                            <option value="publicada">Publicada</option>
+                            <option value="publicado">Publicada</option>
                         </select>
                     </div>
                     <button type="submit" className="px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
@@ -180,7 +180,7 @@ export default function FichasPage() {
                                                 className="inline-flex items-center gap-1 text-indigo-500 hover:text-indigo-700 text-xs font-semibold">
                                                 Ver <ExternalLink className="w-3 h-3" />
                                             </Link>
-                                            {f.estado !== 'publicada' && (
+                                            {f.estado !== 'publicado' && (
                                                 <button
                                                     type="button"
                                                     aria-label="Eliminar ficha"

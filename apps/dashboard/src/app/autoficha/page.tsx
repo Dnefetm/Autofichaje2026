@@ -153,56 +153,66 @@ function AutofichaPageInner() {
         setIsMobile(/iPhone|iPad|Android/i.test(navigator.userAgent));
         loadBorradores();
 
-        // Si viene de /catalog con ?articulo_id=X, pre-vincular automáticamente
+        // Si viene de /catalog con ?articulo_id=X, pre-vincular automáticamente.
+        // Usa el API route server-side (/api/articulos/[id]) para bypassear RLS —
+        // la anon key del cliente puede no tener SELECT en 'articulos'.
         const artIdFromUrl = searchParams.get('articulo_id');
         if (artIdFromUrl) {
-            supabase
-                .from('articulos')
-                .select('articulo_id, nombre, marca, modelo, variante, categoria, descripcion, codigo_universal, codigo_sat, peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen')
-                .eq('articulo_id', artIdFromUrl)
-                .single()
-                .then(({ data }) => {
-                    if (data) {
-                        setLinkedArticulo({
-                            articulo_id: data.articulo_id,
-                            nombre:      data.nombre,
-                            marca:       data.marca,
-                            modelo:      data.modelo,
-                            variante:    data.variante,
-                            categoria:   data.categoria,
-                            descripcion: data.descripcion,
-                            codigo_universal: data.codigo_universal,
-                            codigo_sat:  data.codigo_sat,
-                            score: 100, score_label: 'Pre-vinculado',
-                        });
-                        setSaveMode('link_only');
-                        // Pre-llenar el formulario con los datos del artículo
-                        // El operador puede subir un doc para enriquecer, o guardar directamente
-                        setEdited({
-                            sku_detectado:    data.articulo_id,
-                            articulo_id:      data.articulo_id,
-                            nombre:           data.nombre,
-                            marca:            data.marca,
-                            fabricante:       data.marca,   // fallback razonable
-                            modelo:           data.modelo  ?? undefined,
-                            variante:         data.variante ?? undefined,
-                            categoria:        data.categoria ?? undefined,
-                            descripcion:      data.descripcion ?? undefined,
-                            codigo_universal: data.codigo_universal ?? undefined,
-                            codigo_sat:       data.codigo_sat  ?? undefined,
-                            peso_kg:          data.peso_kg  ?? undefined,
-                            largo_cm:         data.largo_cm ?? undefined,
-                            ancho_cm:         data.ancho_cm ?? undefined,
-                            alto_cm:          data.alto_cm  ?? undefined,
-                            materiales:       data.materiales  ?? undefined,
-                            pais_origen:      data.pais_origen ?? undefined,
-                            confidence: 1,
-                            rawText:        '',  // sin OCR — viene del catálogo
-                            bullet_points:  [],
-                            palabras_clave: [],
-                        });
-                        setStatus('done'); // Mostrar formulario directamente
+            fetch(`/api/articulos/${encodeURIComponent(artIdFromUrl)}`)
+                .then(async (res) => {
+                    const body = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        // Mostrar error claro al usuario: artículo no encontrado o error de servidor
+                        setErrorMsg(body?.error || `No se pudo pre-vincular el artículo "${artIdFromUrl}".`);
+                        return;
                     }
+                    const data = body.articulo;
+                    if (!data) {
+                        setErrorMsg(`Artículo "${artIdFromUrl}" no encontrado en el catálogo.`);
+                        return;
+                    }
+                    setLinkedArticulo({
+                        articulo_id:      data.articulo_id,
+                        nombre:           data.nombre,
+                        marca:            data.marca,
+                        modelo:           data.modelo,
+                        variante:         data.variante,
+                        categoria:        data.categoria,
+                        descripcion:      data.descripcion,
+                        codigo_universal: data.codigo_universal,
+                        codigo_sat:       data.codigo_sat,
+                        score: 100, score_label: 'Pre-vinculado',
+                    });
+                    setSaveMode('link_only');
+                    // Pre-llenar el formulario — el operador puede subir un doc para enriquecer
+                    // o guardar directamente para crear la ficha técnica del artículo.
+                    setEdited({
+                        sku_detectado:    data.articulo_id,
+                        articulo_id:      data.articulo_id,
+                        nombre:           data.nombre,
+                        marca:            data.marca,
+                        fabricante:       data.marca,   // fallback razonable
+                        modelo:           data.modelo   ?? undefined,
+                        variante:         data.variante ?? undefined,
+                        categoria:        data.categoria ?? undefined,
+                        descripcion:      data.descripcion ?? undefined,
+                        codigo_universal: data.codigo_universal ?? undefined,
+                        codigo_sat:       data.codigo_sat  ?? undefined,
+                        peso_kg:          data.peso_kg  ?? undefined,
+                        largo_cm:         data.largo_cm ?? undefined,
+                        ancho_cm:         data.ancho_cm ?? undefined,
+                        alto_cm:          data.alto_cm  ?? undefined,
+                        materiales:       data.materiales  ?? undefined,
+                        pais_origen:      data.pais_origen ?? undefined,
+                        confidence: 1,
+                        rawText:        '',  // sin OCR — viene del catálogo
+                        bullet_points:  [],
+                        palabras_clave: [],
+                    });
+                    setStatus('done'); // Mostrar formulario directamente
+                })
+                .catch((err) => {
+                    setErrorMsg(`Error de red al pre-vincular artículo: ${err?.message || 'desconocido'}`);
                 });
         }
     }, []);

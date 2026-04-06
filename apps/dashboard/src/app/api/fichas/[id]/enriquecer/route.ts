@@ -45,6 +45,27 @@ const CAMPOS_TEXTO: Array<{ key: string; label: string; llmKey: string }> = [
     { key: 'uso_recomendado',   label: 'Uso recomendado',      llmKey: 'uso_recomendado' },
     { key: 'precauciones',      label: 'Precauciones',         llmKey: 'precauciones' },
     { key: 'ingredientes',      label: 'Ingredientes',         llmKey: 'ingredientes' },
+    // Identidad propia de la ficha (v41a)
+    { key: 'marca',             label: 'Marca',                llmKey: 'marca' },
+    { key: 'modelo',            label: 'Modelo',               llmKey: 'modelo' },
+    { key: 'variante',          label: 'Variante',             llmKey: 'variante' },
+    { key: 'codigo_universal',  label: 'Código EAN/UPC',       llmKey: 'codigo_universal' },
+    { key: 'categoria',         label: 'Categoría',            llmKey: 'categoria' },
+    { key: 'materiales',        label: 'Materiales',           llmKey: 'materiales' },
+    { key: 'pais_origen',       label: 'País de origen',       llmKey: 'pais_origen' },
+    // Campos regulatorios / etiquetado obligatorio (v46)
+    { key: 'informacion_normativa',       label: 'Información normativa',       llmKey: 'informacion_normativa' },
+    { key: 'instrucciones_uso',           label: 'Instrucciones de uso',        llmKey: 'instrucciones_uso' },
+    { key: 'leyendas_precautorias',       label: 'Leyendas precautorias',       llmKey: 'leyendas_precautorias' },
+    { key: 'indicaciones_almacenamiento', label: 'Indicaciones de almacenamiento', llmKey: 'indicaciones_almacenamiento' },
+];
+
+// Campos numéricos (dimensiones y peso) — requieren comparación numérica, no de string
+const CAMPOS_NUM: Array<{ key: string; label: string; llmKey: string }> = [
+    { key: 'peso_kg',  label: 'Peso (kg)',   llmKey: 'peso_kg' },
+    { key: 'largo_cm', label: 'Largo (cm)',  llmKey: 'largo_cm' },
+    { key: 'ancho_cm', label: 'Ancho (cm)',  llmKey: 'ancho_cm' },
+    { key: 'alto_cm',  label: 'Alto (cm)',   llmKey: 'alto_cm' },
 ];
 
 const CAMPOS_LISTA: Array<{ key: string; label: string; llmKey: string }> = [
@@ -118,10 +139,22 @@ export async function POST(
 
     const supabase = getSupabaseAdmin();
 
-    // 1. Cargar ficha actual
+    // 1. Cargar ficha actual — incluyendo TODOS los campos comparables (v41a + v46)
     const { data: ficha, error: fichaErr } = await supabase
         .from('fichas_tecnicas')
-        .select('id, nombre_producto, descripcion, descripcion_larga, fabricante, especificaciones, uso_recomendado, precauciones, ingredientes, bullet_points, palabras_clave, atributos_dinamicos, atributos_categoria, atributos_extras')
+        .select(`
+            id,
+            nombre_producto, descripcion, descripcion_larga,
+            fabricante, especificaciones, uso_recomendado,
+            precauciones, ingredientes,
+            bullet_points, palabras_clave,
+            atributos_dinamicos, atributos_categoria, atributos_extras,
+            marca, modelo, variante, codigo_universal, categoria,
+            materiales, pais_origen,
+            peso_kg, largo_cm, ancho_cm, alto_cm,
+            informacion_normativa, instrucciones_uso,
+            leyendas_precautorias, indicaciones_almacenamiento
+        `)
         .eq('id', fichaId)
         .single();
 
@@ -216,6 +249,23 @@ export async function POST(
         } else {
             resultados.push(r);
         }
+    }
+
+    // Loop de campos numéricos: usa clasificarTexto pero compara números con tolerancia
+    for (const { key, label, llmKey } of CAMPOS_NUM) {
+        const actual = (ficha as any)[key];           // number | null
+        const nuevo  = extracted[llmKey];             // number | string | null
+        const nuevoNum = nuevo != null && nuevo !== '' ? Number(nuevo) : null;
+        if (nuevoNum == null || isNaN(nuevoNum)) continue;  // IA no extrajo este campo
+        if (actual == null) {
+            // Auto-agregar sin decisión del usuario
+            camposAgregadosAutomaticamente[key] = nuevoNum;
+        } else if (Math.abs(Number(actual) - nuevoNum) > 0.001) {
+            // Diferencia real — mostrar al usuario para decidir
+            resultados.push({ campo: key, label, tipo: 'texto', accion: 'conflicto',
+                valor_actual: actual, valor_nuevo: nuevoNum });
+        }
+        // Si son iguales → no hace nada (idéntico)
     }
 
     // 7. Aplicar automáticamente los campos sin conflicto

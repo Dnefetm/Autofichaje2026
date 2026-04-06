@@ -51,7 +51,7 @@ export async function DELETE(
         return NextResponse.json({ error: 'Ficha no encontrada' }, { status: 404 });
     }
 
-    if (ficha.estado === 'publicada') {
+    if (ficha.estado === 'publicado') {
         return NextResponse.json(
             { error: 'No se puede eliminar una ficha publicada. Cámbiala a borrador primero.' },
             { status: 422 }
