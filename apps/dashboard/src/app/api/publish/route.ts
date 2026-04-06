@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
         let precio_data: any = null;
         const { data: precio } = await supabaseAdmin
             .from('marketplace_prices')
-            .select('sale_price, base_price, currency')
+            .select('sale_price, base_price, currency, sku_tienda')
             .eq('articulo_id', articulo_id)
             .eq('marketplace_id', marketplace_id)
             .maybeSingle();
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
         if (!precio_data) {
             const { data: precioGeneral } = await supabaseAdmin
                 .from('marketplace_prices')
-                .select('sale_price, base_price, currency, updated_at')
+                .select('sale_price, base_price, currency, sku_tienda, updated_at')
                 .eq('articulo_id', articulo_id)
                 .order('updated_at', { ascending: false })
                 .limit(1)
@@ -173,6 +173,13 @@ export async function POST(req: NextRequest) {
             : { advertencia: 'No se encontró precio en marketplace_prices. Se usará 0 — CORREGIR antes de publicar en producción.', sale_price: 0 };
 
         const price = precio_data?.sale_price || 0;
+
+        // -- 3.1 Resolver SKU efectivo: articulos.sku > marketplace_prices.sku_tienda > articulos.modelo --
+        const sku_efectivo = articulo.sku || precio_data?.sku_tienda || articulo.modelo || null;
+        trace.paso_3_1_sku_efectivo = {
+            origen: articulo.sku ? 'articulos.sku' : precio_data?.sku_tienda ? 'marketplace_prices.sku_tienda' : articulo.modelo ? 'articulos.modelo' : 'null',
+            valor: sku_efectivo,
+        };
 
         // ── 4. Calcular stock disponible ──────────────────────────────────────
         // inventory_snapshot.sku almacena articulo_id (migración V27)
@@ -232,7 +239,7 @@ export async function POST(req: NextRequest) {
         if (articulo.marca)            attributes.push({ id: 'BRAND',  value_name: articulo.marca });
         if (articulo.modelo)           attributes.push({ id: 'MODEL',  value_name: articulo.modelo });
         if (articulo.codigo_universal) attributes.push({ id: 'GTIN',   value_name: articulo.codigo_universal });
-        if (articulo.sku)              attributes.push({ id: 'SELLER_SKU', value_name: articulo.sku }); // sku de tienda — solo como referencia en MeLi
+                if (sku_efectivo)          attributes.push({ id: 'SELLER_SKU', value_name: sku_efectivo }); // sku de tienda — fallback desde sku_tienda/modelo
         if (articulo.pais_origen)      attributes.push({ id: 'ORIGIN_COUNTRY', value_name: articulo.pais_origen });
         if (articulo.variante)         attributes.push({ id: 'COLOR',  value_name: articulo.variante });
 
@@ -448,7 +455,7 @@ export async function POST(req: NextRequest) {
                 es_fuente_stock:      true,
                 actualizado_el:       new Date().toISOString(),
                 // Campos del nuevo modelo UP
-                ...(created.user_product_id ? { seller_sku: articulo.sku || null } : {}),
+                ...(created.user_product_id ? { seller_sku: sku_efectivo || null } : {}),
             }, { onConflict: 'marketplace_id,external_item_id,external_variation_id' })
             .select('id')
             .single();
