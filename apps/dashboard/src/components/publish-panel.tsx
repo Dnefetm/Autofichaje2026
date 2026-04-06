@@ -87,6 +87,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
     const [catSearch, setCatSearch] = useState('');
     const [catSearchResults, setCatSearchResults] = useState<any[]>([]);
     const [catSearchLoading, setCatSearchLoading] = useState(false);
+    const [catSelectedPath, setCatSelectedPath] = useState('');   // ruta de la cat elegida manualmente
     const catSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Dimensiones del paquete editables
@@ -305,6 +306,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         setDimOverrides({});
         setCatSearch('');
         setCatSearchResults([]);
+        setCatSelectedPath('');
     }
 
     const accountName = accounts.find(a => a.id === selectedAccount)?.account_name || selectedAccount;
@@ -572,11 +574,19 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                 const t = previewResult.data.trace;
                                 const candidates: any[] = t?.paso_5_categoria?.candidates || t?.paso_5_categoria?.alternativas || [];
                                 const curCatId = categoryOverride || t?.paso_5_categoria?.category_id || '';
-                                const primaryOpt = { category_id: t?.paso_5_categoria?.category_id, category_name: t?.paso_5_categoria?.category_name };
+                                const primaryOpt = {
+                                    category_id:   t?.paso_5_categoria?.category_id,
+                                    category_name: t?.paso_5_categoria?.category_name,
+                                    path:          t?.paso_5_categoria?.category_path || t?.paso_5_categoria?.category_name,
+                                };
                                 const allCatOptions = [
                                     primaryOpt,
                                     ...candidates.filter((a: any) => a.category_id !== t?.paso_5_categoria?.category_id),
                                 ];
+                                // Ruta a mostrar como display activo
+                                const activePath = categoryOverride
+                                    ? (catSelectedPath || categoryOverride)
+                                    : (primaryOpt.path || primaryOpt.category_name || curCatId);
                                 const reqAttrs: any[] = dynamicReqAttrs ?? (t?.paso_6_atributos?.required_detail || []);
                                 const originalAttrs: any[] = t?.paso_8_attributes_final || [];
                                 return (
@@ -591,26 +601,26 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                         {/* Categoría */}
                                         <div>
                                             <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5"><Tag className="w-3 h-3 inline mr-1" />Categoría MeLi</label>
-                                            {/* Select con candidatos del dry-run */}
+                                            {/* Ruta activa (auto-predicha o seleccionada) */}
+                                            <div className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50">
+                                                <span className="font-mono text-[10px] text-slate-400 mr-2">{curCatId}</span>
+                                                <span className="text-slate-700">{activePath}</span>
+                                            </div>
+                                            {/* Select multi-opción solo si hay varias del dry-run */}
                                             {allCatOptions.length > 1 && (
                                                 <select
                                                     value={curCatId}
-                                                    onChange={e => setCategoryOverride(e.target.value)}
-                                                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono"
+                                                    onChange={e => { setCategoryOverride(e.target.value); setCatSelectedPath(''); }}
+                                                    className="mt-1 w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono"
                                                 >
                                                     {allCatOptions.map((opt: any) => opt?.category_id && (
                                                         <option key={opt.category_id} value={opt.category_id}>
-                                                            {opt.category_id}{opt.category_name ? ` — ${opt.category_name}` : ''}
+                                                            {opt.category_id}{opt.path ? ` — ${opt.path}` : (opt.category_name ? ` — ${opt.category_name}` : '')}
                                                         </option>
                                                     ))}
                                                 </select>
                                             )}
-                                            {/* Valor actual cuando 1 sola opción */}
-                                            {allCatOptions.length <= 1 && (
-                                                <div className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono bg-slate-50 text-slate-500">
-                                                    {curCatId}{allCatOptions[0]?.category_name ? ` — ${allCatOptions[0].category_name}` : ''}
-                                                </div>
-                                            )}
+
                                             {/* Buscador live */}
                                             <div className="relative mt-2">
                                                 <div className="flex items-center gap-1 px-3 py-2 border border-slate-300 rounded-lg bg-white focus-within:ring-2 focus-within:ring-yellow-400">
@@ -647,6 +657,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                                                 type="button"
                                                                 onClick={() => {
                                                                     setCategoryOverride(c.category_id);
+                                                                    setCatSelectedPath(c.path || c.category_name || c.category_id);
                                                                     setCatSearch('');
                                                                     setCatSearchResults([]);
                                                                 }}

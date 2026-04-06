@@ -208,13 +208,26 @@ export async function POST(req: NextRequest) {
             category_id = category_info.category_id;
         }
 
+        // Enriquecer con ruta completa (Herramientas / Herramientas Manuales / Dados)
+        let category_path = category_info?.category_name || '';
+        try {
+            const catR = await fetch(`https://api.mercadolibre.com/categories/${encodeURIComponent(category_id)}`);
+            if (catR.ok) {
+                const catData = await catR.json();
+                const fromRoot: string = (catData.path_from_root || []).map((p: any) => p.name).join(' / ');
+                if (fromRoot) category_path = fromRoot;
+            }
+        } catch { /* non-blocking */ }
+
         trace.paso_5_categoria = {
             category_id,
             category_name: category_info?.category_name || '(provisto manualmente)',
+            category_path: category_path || category_info?.category_name || '',
             domain_id: category_info?.domain_id || null,
             candidates: category_info?.candidates || [],
             alternativas: category_info?.candidates || [],
         };
+
 
         // ── 6. Obtener atributos requeridos de la categoría ───────────────────
         const attrInfo = await (meli as any).getCategoryAttributes(marketplace_id, category_id);
