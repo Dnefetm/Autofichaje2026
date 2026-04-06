@@ -246,14 +246,14 @@ export async function POST(req: NextRequest) {
         // ITEM_CONDITION: 2230284 = Nuevo
         attributes.push({ id: 'ITEM_CONDITION', value_id: '2230284' });
 
-                // Dimensiones de paquete del vendedor — DESHABILITADO en modelo UP.
-        // En User Products, MeLi controla las dimensiones desde el catálogo.
-        // Enviar SELLER_PACKAGE_* causa error 5401: "do not have proper values for the product".
-        // Si en el futuro se necesita publicar en modelo tradicional, descomentar estas líneas:
-        // if (articulo.alto_cm)  attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: `${Math.round(articulo.alto_cm)} cm` });
-        // if (articulo.ancho_cm) attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: `${Math.round(articulo.ancho_cm)} cm` });
-        // if (articulo.largo_cm) attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: `${Math.round(articulo.largo_cm)} cm` });
-        // if (articulo.peso_kg)  attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: `${Math.round(articulo.peso_kg * 1000)} g` });
+                        // Dimensiones de paquete del vendedor — hierarchy: ITEM, tags: hidden en MLM9171
+        // MeLi exige enteros: dimensiones en cm, peso en GRAMOS (no kg).
+        // cause_id 5402 si se mandan decimales o unidad equivocada.
+        // Formato: value_struct con number + unit (value_name string rechazado por MeLi en UP).
+        if (articulo.alto_cm)  attributes.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: String(Math.round(articulo.alto_cm)), value_struct: { number: Math.round(articulo.alto_cm), unit: 'cm' } });
+        if (articulo.ancho_cm) attributes.push({ id: 'SELLER_PACKAGE_WIDTH',  value_name: String(Math.round(articulo.ancho_cm)), value_struct: { number: Math.round(articulo.ancho_cm), unit: 'cm' } });
+        if (articulo.largo_cm) attributes.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: String(Math.round(articulo.largo_cm)), value_struct: { number: Math.round(articulo.largo_cm), unit: 'cm' } });
+        if (articulo.peso_kg)  attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: String(Math.round(articulo.peso_kg * 1000)), value_struct: { number: Math.round(articulo.peso_kg * 1000), unit: 'g' } });
         trace.paso_7_attributes_mapeados = attributes;
         trace.paso_7_package_dimensions = {
             SELLER_PACKAGE_HEIGHT: articulo.alto_cm  != null ? `${Math.round(articulo.alto_cm)} cm`            : null,
