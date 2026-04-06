@@ -78,6 +78,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
     const [attrOverrides, setAttrOverrides] = useState<Record<string, { value_name?: string; value_id?: string }>>({});
     const [categoryOverride, setCategoryOverride] = useState<string>('');
     const [familyNameOverride, setFamilyNameOverride] = useState<string>('');
+    // Atributos dinámicos al cambiar de categoría
+    const [dynamicReqAttrs, setDynamicReqAttrs] = useState<any[] | null>(null);
+    const [loadingAttrs, setLoadingAttrs] = useState(false);
 
     // Panel abierto/cerrado
     const [panelOpen, setPanelOpen] = useState(false);
@@ -99,6 +102,28 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         const validUrls = imagenesBase.filter(u => u?.startsWith('http'));
         setPreloadedSuggestions(validUrls);
     }, [imagenesBase]);
+
+    // Re-fetch atributos requeridos cuando el usuario cambia la categoría en el preview
+    useEffect(() => {
+        if (!categoryOverride || !selectedAccount || stage !== 'preview') {
+            setDynamicReqAttrs(null);
+            return;
+        }
+        const originalCat = previewResult?.data?.trace?.paso_5_categoria?.category_id;
+        if (categoryOverride === originalCat) {
+            setDynamicReqAttrs(null); // usar los del trace original
+            return;
+        }
+        // Categoría diferente: limpiar overrides anteriores y recargar
+        setDynamicReqAttrs(null);
+        setAttrOverrides({});
+        setLoadingAttrs(true);
+        fetch(`/api/publish/attributes?category_id=${encodeURIComponent(categoryOverride)}&marketplace_id=${encodeURIComponent(selectedAccount)}`)
+            .then(r => r.json())
+            .then(data => { if (data.ok) setDynamicReqAttrs(data.required); })
+            .catch(() => {})
+            .finally(() => setLoadingAttrs(false));
+    }, [categoryOverride, selectedAccount, stage]);
 
     // ── Gestión de imágenes ──────────────────────────────────────────────────
     function addImage() {
@@ -474,7 +499,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                     { category_id: t?.paso_5_categoria?.category_id, category_name: t?.paso_5_categoria?.category_name },
                                     ...alternativas.filter((a: any) => a.category_id !== t?.paso_5_categoria?.category_id),
                                 ];
-                                const reqAttrs: any[] = t?.paso_6_atributos?.required_detail || [];
+                                const reqAttrs: any[] = dynamicReqAttrs ?? (t?.paso_6_atributos?.required_detail || []);
                                 const finalAttrs: any[] = t?.paso_8_attributes_final || [];
                                 return (
                                     <div className="space-y-4">
@@ -516,7 +541,12 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                             <input type="text" value={familyNameOverride !== '' ? familyNameOverride : (t?.paso_8_ai?.family_name || '')} onChange={e => setFamilyNameOverride(e.target.value)} maxLength={60} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono" />
                                         </div>
                                         {/* Atributos requeridos */}
-                                        {reqAttrs.length > 0 && (
+                                        {loadingAttrs ? (
+                                            <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-yellow-700">
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                                                Cargando atributos de la nueva categoría...
+                                            </div>
+                                        ) : reqAttrs.length > 0 && (
                                             <div>
                                                 <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-2">Atributos requeridos ({reqAttrs.length})</label>
                                                 <div className="space-y-2">
