@@ -14,7 +14,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
     Send, Eye, ChevronDown, ChevronUp, Plus, Trash2,
     ArrowUp, ArrowDown, Loader2, CheckCircle2, AlertCircle,
-    ExternalLink, ImageIcon, Store, Tag, RefreshCw, XCircle
+    ExternalLink, ImageIcon, Store, Tag, RefreshCw, XCircle, Search, Package
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -82,6 +82,15 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
     const [dynamicReqAttrs, setDynamicReqAttrs] = useState<any[] | null>(null);
     const [loadingAttrs, setLoadingAttrs] = useState(false);
     const [currentAttrValues, setCurrentAttrValues] = useState<Map<string, { value_id?: string; value_name?: string }>>(new Map());
+
+    // Buscador live de categorías MeLi
+    const [catSearch, setCatSearch] = useState('');
+    const [catSearchResults, setCatSearchResults] = useState<any[]>([]);
+    const [catSearchLoading, setCatSearchLoading] = useState(false);
+    const catSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Dimensiones del paquete editables
+    const [dimOverrides, setDimOverrides] = useState<Record<string, string>>({});
 
     // Panel abierto/cerrado
     const [panelOpen, setPanelOpen] = useState(false);
@@ -254,7 +263,12 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         setLoading(true);
         setErrorMsg(null);
         try {
-            const overrides = Object.entries(attrOverrides).map(([id, v]) => ({ id, ...v }));
+            const attrOvList = Object.entries(attrOverrides).map(([id, v]) => ({ id, ...v }));
+            // Merge dimensiones: convierten a attribute_overrides con value_name
+            const dimOvList = Object.entries(dimOverrides)
+                .filter(([, v]) => v.trim() !== '')
+                .map(([id, v]) => ({ id, value_name: v.trim() }));
+            const allOverrides = [...attrOvList, ...dimOvList];
             const res = await fetch('/api/publish', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -265,7 +279,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                     category_id: categoryOverride || categoryId || undefined,
                     listing_type_id: listingType,
                     dry_run: false,
-                    ...(overrides.length > 0 ? { attribute_overrides: overrides } : {}),
+                    ...(allOverrides.length > 0 ? { attribute_overrides: allOverrides } : {}),
                     ...(familyNameOverride ? { family_name_override: familyNameOverride } : {}),
                 }),
             });
@@ -288,6 +302,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         setCategoryOverride('');
         setFamilyNameOverride('');
         setCurrentAttrValues(new Map());
+        setDimOverrides({});
+        setCatSearch('');
+        setCatSearchResults([]);
     }
 
     const accountName = accounts.find(a => a.id === selectedAccount)?.account_name || selectedAccount;
@@ -574,29 +591,75 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                         {/* Categoría */}
                                         <div>
                                             <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5"><Tag className="w-3 h-3 inline mr-1" />Categoría MeLi</label>
-                                            <select
-                                                value={curCatId}
-                                                onChange={e => setCategoryOverride(e.target.value)}
-                                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono"
-                                            >
-                                                {allCatOptions.map((opt: any) => opt?.category_id && (
-                                                    <option key={opt.category_id} value={opt.category_id}>
-                                                        {opt.category_id}{opt.category_name ? ` — ${opt.category_name}` : ''}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {allCatOptions.length <= 1 && (
-                                                <>
-                                                    <input
-                                                        type="text"
-                                                        value={categoryOverride !== '' ? categoryOverride : curCatId}
-                                                        onChange={e => setCategoryOverride(e.target.value)}
-                                                        placeholder="Escribe un ID diferente (ej. MLM438009)"
-                                                        className="w-full mt-1 px-3 py-2 text-sm border border-amber-300 rounded-lg font-mono bg-amber-50 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                                    />
-                                                    <p className="text-[10px] text-amber-600 mt-1">⚠ MeLi devolvió solo 1 categoría. Escribe arriba un ID diferente si es incorrecto.</p>
-                                                </>
+                                            {/* Select con candidatos del dry-run */}
+                                            {allCatOptions.length > 1 && (
+                                                <select
+                                                    value={curCatId}
+                                                    onChange={e => setCategoryOverride(e.target.value)}
+                                                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono"
+                                                >
+                                                    {allCatOptions.map((opt: any) => opt?.category_id && (
+                                                        <option key={opt.category_id} value={opt.category_id}>
+                                                            {opt.category_id}{opt.category_name ? ` — ${opt.category_name}` : ''}
+                                                        </option>
+                                                    ))}
+                                                </select>
                                             )}
+                                            {/* Valor actual cuando 1 sola opción */}
+                                            {allCatOptions.length <= 1 && (
+                                                <div className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg font-mono bg-slate-50 text-slate-500">
+                                                    {curCatId}{allCatOptions[0]?.category_name ? ` — ${allCatOptions[0].category_name}` : ''}
+                                                </div>
+                                            )}
+                                            {/* Buscador live */}
+                                            <div className="relative mt-2">
+                                                <div className="flex items-center gap-1 px-3 py-2 border border-slate-300 rounded-lg bg-white focus-within:ring-2 focus-within:ring-yellow-400">
+                                                    <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                    <input
+                                                        id="cat-search-input"
+                                                        type="text"
+                                                        value={catSearch}
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            setCatSearch(val);
+                                                            if (catSearchTimer.current) clearTimeout(catSearchTimer.current);
+                                                            if (val.trim().length < 2) { setCatSearchResults([]); return; }
+                                                            catSearchTimer.current = setTimeout(async () => {
+                                                                setCatSearchLoading(true);
+                                                                try {
+                                                                    const r = await fetch(`/api/publish/category-search?q=${encodeURIComponent(val.trim())}&marketplace_id=${encodeURIComponent(selectedAccount || '')}`);
+                                                                    const d = await r.json();
+                                                                    setCatSearchResults(d.ok ? d.candidates : []);
+                                                                } catch { setCatSearchResults([]); }
+                                                                finally { setCatSearchLoading(false); }
+                                                            }, 400);
+                                                        }}
+                                                        placeholder="Buscar categoría en MeLi (ej. dado métrico)"
+                                                        className="flex-1 text-sm bg-transparent outline-none placeholder-slate-400"
+                                                    />
+                                                    {catSearchLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400 shrink-0" />}
+                                                </div>
+                                                {catSearchResults.length > 0 && (
+                                                    <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                                        {catSearchResults.map((c: any) => (
+                                                            <button
+                                                                key={c.category_id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setCategoryOverride(c.category_id);
+                                                                    setCatSearch('');
+                                                                    setCatSearchResults([]);
+                                                                }}
+                                                                className="w-full text-left px-3 py-2 text-xs hover:bg-yellow-50 border-b border-slate-100 last:border-0"
+                                                            >
+                                                                <span className="font-mono font-bold text-slate-700">{c.category_id}</span>
+                                                                {c.category_name && <span className="text-slate-500 ml-2">{c.category_name}</span>}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {/* Botón Re-ejecutar preview */}
                                             {categoryOverride && categoryOverride !== t?.paso_5_categoria?.category_id && (
                                                 <button
                                                     id="re-preview-btn"
@@ -612,6 +675,39 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                                         <div>
                                             <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">Family Name (título base)</label>
                                             <input type="text" value={familyNameOverride !== '' ? familyNameOverride : (t?.paso_8_ai?.family_name || '')} onChange={e => setFamilyNameOverride(e.target.value)} maxLength={60} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono" />
+                                        </div>
+                                        {/* Dimensiones del paquete */}
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5"><Package className="w-3 h-3 inline mr-1" />Dimensiones del paquete</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {[
+                                                    { id: 'SELLER_PACKAGE_HEIGHT', label: 'Alto',   unit: 'cm', traceKey: 'SELLER_PACKAGE_HEIGHT' },
+                                                    { id: 'SELLER_PACKAGE_WIDTH',  label: 'Ancho',  unit: 'cm', traceKey: 'SELLER_PACKAGE_WIDTH'  },
+                                                    { id: 'SELLER_PACKAGE_LENGTH', label: 'Largo',  unit: 'cm', traceKey: 'SELLER_PACKAGE_LENGTH' },
+                                                    { id: 'SELLER_PACKAGE_WEIGHT', label: 'Peso',   unit: 'g',  traceKey: 'SELLER_PACKAGE_WEIGHT'  },
+                                                ].map(({ id, label, unit, traceKey }) => {
+                                                    const traceVal = t?.paso_7_package_dimensions?.[traceKey] ?? '';
+                                                    const currentVal = dimOverrides[id] !== undefined ? dimOverrides[id] : traceVal;
+                                                    const isEdited = dimOverrides[id] !== undefined && dimOverrides[id] !== traceVal;
+                                                    return (
+                                                        <div key={id} className="relative">
+                                                            <label className="text-[9px] uppercase text-slate-400 font-bold">{label}</label>
+                                                            <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden focus-within:ring-2 focus-within:ring-yellow-400">
+                                                                <input
+                                                                    type="text"
+                                                                    value={currentVal}
+                                                                    onChange={e => setDimOverrides(prev => ({ ...prev, [id]: e.target.value }))}
+                                                                    placeholder={`ej. 10 ${unit}`}
+                                                                    className="flex-1 px-2 py-1.5 text-xs font-mono bg-transparent outline-none"
+                                                                />
+                                                                <span className="text-[9px] text-slate-400 px-2 border-l border-slate-100">{unit}</span>
+                                                            </div>
+                                                            {isEdited && <span className="text-[8px] text-blue-500 absolute right-0 top-0">editado</span>}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            <p className="text-[9px] text-slate-400 mt-1">Valores actuales del artículo. Edítalos si MeLi los rechazó. Formato: número espacio unidad (ej. &quot;10 cm&quot;, &quot;500 g&quot;)</p>
                                         </div>
                                         {/* Atributos requeridos */}
                                         {loadingAttrs ? (
