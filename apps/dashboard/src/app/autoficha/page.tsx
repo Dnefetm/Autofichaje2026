@@ -125,6 +125,8 @@ function AutofichaPageInner() {
     // Resultado IA
     const [result, setResult]         = useState<AutofichaResult | null>(null);
     const [edited, setEdited]         = useState<AutofichaResult | null>(null);
+    // Foco de extraccion: qué producto o datos extraer (para docs multi-producto)
+    const [productoObjetivo, setProductoObjetivo] = useState('');
     // Vinculación al catálogo
     const [suggestions, setSuggestions]     = useState<ArticuloMatch[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -368,14 +370,16 @@ function AutofichaPageInner() {
                 setStatus('processing');
                 response = await fetch('/api/autoficha', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(urls.length === 1 ? { url: urls[0] } : { urls }),
+                    body: JSON.stringify(urls.length === 1
+                        ? { url: urls[0], producto_objetivo: productoObjetivo || undefined }
+                        : { urls, producto_objetivo: productoObjetivo || undefined }),
                 });
             } else {
                 if (!url.trim()) { setStatus('idle'); return; }
                 setStatus('processing');
                 response = await fetch('/api/autoficha', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: url.trim() }),
+                    body: JSON.stringify({ url: url.trim(), producto_objetivo: productoObjetivo || undefined }),
                 });
             }
 
@@ -673,6 +677,23 @@ function AutofichaPageInner() {
                             <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" /><p className="text-sm">{errorMsg}</p>
                         </div>
                     )}
+
+                    {/* Campo: Producto u objetivo para el LLM */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+                        <label className="text-xs font-bold text-amber-700 uppercase tracking-widest flex items-center gap-1">
+                            <span>🎯</span> Producto / datos a extraer (opcional)
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="Ej: 'Grasa Würth 8890402' — si el doc tiene varios productos, indica cuál"
+                            value={productoObjetivo}
+                            onChange={e => setProductoObjetivo(e.target.value)}
+                            className="w-full p-3 bg-white border border-amber-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 outline-none"
+                        />
+                        <p className="text-[11px] text-amber-600">
+                            Si el documento tiene más de un producto, indica cuál extraer. Si dejas en blanco, la IA extrae el producto principal del documento.
+                        </p>
+                    </div>
 
                     {/* Botones de acción */}
                     {canProcess && (

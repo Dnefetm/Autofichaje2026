@@ -178,15 +178,23 @@ function _normalizeReg(value: unknown): string | undefined {
 async function structureWithAI(
     rawText: string,
     category: string,
+    camposHint?: string[], // Campos solicitados — si vienen, el LLM solo los extrae
 ): Promise<Omit<AutofichaResult, 'rawText' | 'storage_path'>> {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    // Si el operador especificó qué campos extraer, añadir instruccion al final del prompt
+    const promptFinal = camposHint?.length
+        ? PROMPT_SISTEMA_BASE +
+          `\n\nINSTRUCCIÓN DEL OPERADOR: Extrae ÚNICAMENTE estos campos: ${camposHint.join(', ')}.` +
+          ` Para TODOS los demás campos devuelve null. No inventes ni rellenes datos que no estén en el documento.`
+        : PROMPT_SISTEMA_BASE;
 
     const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         temperature: 0.2,
         response_format: { type: 'json_object' },
         messages: [
-            { role: 'system', content: PROMPT_SISTEMA_BASE },
+            { role: 'system', content: promptFinal },
             { role: 'user',   content: `Texto OCR del documento:\n\n${rawText.slice(0, 100_000)}` },
         ],
     });
@@ -246,6 +254,8 @@ export async function processProductDocument(
     fileName: string,
     mimeType = 'application/octet-stream',
     storagePath?: string,
+    camposHint?: string[],  // Campos a extraer (undefined = todos)
+    productoObjetivo?: string, // Texto libre: "extrae solo el producto WÜRTH 8890402"
 ): Promise<AutofichaResult> {
     const { text: rawText } = await extractTextFromBuffer(fileBuffer, mimeType);
 
@@ -256,8 +266,14 @@ export async function processProductDocument(
         );
     }
 
+    // Combinar camposHint y productoObjetivo en el hint al LLM
+    const hintFinal = [
+        ...(camposHint ?? []),
+        productoObjetivo ? `PRODUCTO OBJETIVO: "${productoObjetivo}"` : '',
+    ].filter(Boolean);
+
     const { category } = await classifyProduct(rawText);
-    const structured    = await structureWithAI(rawText, category);
+    const structured    = await structureWithAI(rawText, category, hintFinal.length ? hintFinal : undefined);
 
     return { ...structured, rawText, storage_path: storagePath };
 }
@@ -278,17 +294,15 @@ export interface MultiDocInput {
  */
 export async function processMultipleDocuments(
     docs: MultiDocInput[],
+    camposHint?: string[],
+    productoObjetivo?: string,
 ): Promise<AutofichaResult> {
     if (docs.length === 0) throw new Error('Se requiere al menos un documento.');
 
-    // 1. OCR en paralelo para todos los archivos
     const ocrResults = await Promise.all(
         docs.map(d => extractTextFromBuffer(d.buffer, d.mimeType).catch(() => ({ text: '', confidence: 0 })))
     );
 
-    // 2. Truncar cada doc proporcionalmente antes de concatenar
-    // Limit total = 100K chars (igual que structureWithAI). Con N docs → 100K/N por doc.
-    // Esto evita que los últimos documentos se pierdan por el slice posterior.
     const MAX_TOTAL   = 100_000;
     const perDocLimit = Math.floor(MAX_TOTAL / docs.length);
 
@@ -304,13 +318,15 @@ export async function processMultipleDocuments(
         throw new Error('Ninguno de los documentos contiene texto legible suficiente.');
     }
 
-    // 3. Clasificar una sola vez con el texto combinado
     const { category } = await classifyProduct(combinedText);
 
-    // 4. Estructurar con prompt especializado — GPT consolida automáticamente
-    const structured = await structureWithAI(combinedText, category);
+    const hintFinal = [
+        ...(camposHint ?? []),
+        productoObjetivo ? `PRODUCTO OBJETIVO: "${productoObjetivo}"` : '',
+    ].filter(Boolean);
 
-    // El storage_path apunta al primer archivo subido
+    const structured = await structureWithAI(combinedText, category, hintFinal.length ? hintFinal : undefined);
+
     const primaryStoragePath = docs.find(d => d.storagePath)?.storagePath;
 
     return {

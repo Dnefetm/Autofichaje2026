@@ -112,6 +112,9 @@ export async function POST(req: NextRequest) {
             }
 
             const buffer = Buffer.from(await file.arrayBuffer());
+            const productoObjetivo = (form.get('producto_objetivo') as string | null) || undefined;
+            const camposRaw = form.get('campos_solicitados') as string | null;
+            const camposHint: string[] | undefined = camposRaw ? JSON.parse(camposRaw) : undefined;
 
             // Subir a Storage
             let storagePath: string | undefined;
@@ -121,7 +124,7 @@ export async function POST(req: NextRequest) {
                 await supabase.storage.from('documentos-fuente').upload(storagePath, buffer, { contentType: mime, upsert: false });
             } catch { storagePath = undefined; }
 
-            const result = await processProductDocument(buffer, file.name, mime, storagePath);
+            const result = await processProductDocument(buffer, file.name, mime, storagePath, camposHint, productoObjetivo);
             const { atributos_categoria, atributos_extras } = await splitAtributos(
                 result.categoria, result.atributos_tecnicos
             );
@@ -150,7 +153,7 @@ export async function POST(req: NextRequest) {
                     mimeType: d.mimeType,
                 }));
 
-                const result = await processMultipleDocuments(docs);
+                const result = await processMultipleDocuments(docs, body.campos_solicitados, body.producto_objetivo);
                 const { atributos_categoria, atributos_extras } = await splitAtributos(
                     result.categoria, result.atributos_tecnicos
                 );
@@ -181,7 +184,7 @@ export async function POST(req: NextRequest) {
                 storagePath = url.split('/documentos-fuente/').pop();
             }
 
-            const result = await processProductDocument(buffer, fileName, mimeType, storagePath);
+            const result = await processProductDocument(buffer, fileName, mimeType, storagePath, body.campos_solicitados, body.producto_objetivo);
             const { atributos_categoria, atributos_extras } = await splitAtributos(
                 result.categoria, result.atributos_tecnicos
             );

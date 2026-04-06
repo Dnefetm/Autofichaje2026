@@ -182,6 +182,37 @@ export default function FichaDetallePage() {
     const [enrichLoading, setEnrichLoading] = useState(false);
     const [enrichError, setEnrichError]   = useState('');
     const enrichFileRef                   = useRef<HTMLInputElement>(null);
+    // Grupos de campos seleccionables — todos pre-marcados por defecto
+    const TODOS_CAMPOS_ENRICH = [
+        { key: 'nombre_producto',              label: 'Nombre del producto',            grupo: 'Identidad' },
+        { key: 'marca',                        label: 'Marca',                          grupo: 'Identidad' },
+        { key: 'modelo',                       label: 'Modelo',                         grupo: 'Identidad' },
+        { key: 'variante',                     label: 'Variante',                       grupo: 'Identidad' },
+        { key: 'categoria',                    label: 'Categoría',                      grupo: 'Identidad' },
+        { key: 'codigo_universal',             label: 'Código EAN/UPC',                 grupo: 'Identidad' },
+        { key: 'descripcion',                  label: 'Descripción corta',              grupo: 'Descripción' },
+        { key: 'descripcion_larga',            label: 'Descripción extendida',          grupo: 'Descripción' },
+        { key: 'especificaciones',             label: 'Especificaciones',               grupo: 'Descripción' },
+        { key: 'ingredientes',                 label: 'Ingredientes',                   grupo: 'Descripción' },
+        { key: 'uso_recomendado',              label: 'Uso recomendado',                grupo: 'Uso y seguridad' },
+        { key: 'precauciones',                 label: 'Precauciones',                  grupo: 'Uso y seguridad' },
+        { key: 'informacion_normativa',        label: 'Información normativa',          grupo: 'Regulatorio' },
+        { key: 'instrucciones_uso',            label: 'Instrucciones de uso',           grupo: 'Regulatorio' },
+        { key: 'leyendas_precautorias',        label: 'Leyendas precautorias',         grupo: 'Regulatorio' },
+        { key: 'indicaciones_almacenamiento',  label: 'Indicaciones de almacenamiento', grupo: 'Regulatorio' },
+        { key: 'peso_kg',                      label: 'Peso (kg)',                      grupo: 'Logística' },
+        { key: 'largo_cm',                     label: 'Largo (cm)',                     grupo: 'Logística' },
+        { key: 'ancho_cm',                     label: 'Ancho (cm)',                     grupo: 'Logística' },
+        { key: 'alto_cm',                      label: 'Alto (cm)',                      grupo: 'Logística' },
+        { key: 'materiales',                   label: 'Materiales',                     grupo: 'Logística' },
+        { key: 'pais_origen',                  label: 'País de origen',                grupo: 'Logística' },
+        { key: 'bullet_points',               label: 'Puntos clave',                   grupo: 'Marketing' },
+        { key: 'palabras_clave',              label: 'Palabras clave',                 grupo: 'Marketing' },
+        { key: 'atributos_dinamicos',         label: 'Atributos técnicos',             grupo: 'Marketing' },
+    ] as const;
+    const [enrichCampos, setEnrichCampos] = useState<Set<string>>(
+        () => new Set(TODOS_CAMPOS_ENRICH.map(c => c.key))
+    );
 
     // Modal comparación
     const [conflictos, setConflictos]         = useState<Discrepancia[]>([]);
@@ -372,59 +403,58 @@ export default function FichaDetallePage() {
         if (!ficha) return;
         if (enrichMode === 'file' && !enrichFile) { setEnrichError('Selecciona un archivo.'); return; }
         if (enrichMode === 'url' && !enrichUrl.startsWith('http')) { setEnrichError('URL inválida.'); return; }
+        if (enrichCampos.size === 0) { setEnrichError('Selecciona al menos un campo para enriquecer.'); return; }
         setEnrichLoading(true); setEnrichError('');
+
+        const camposArray = Array.from(enrichCampos);
 
         let res: Response;
         if (enrichMode === 'file' && enrichFile) {
             const form = new FormData();
             form.append('file', enrichFile);
+            form.append('campos_solicitados', JSON.stringify(camposArray));
             res = await fetch(`/api/fichas/${ficha.id}/enriquecer`, { method: 'POST', body: form });
         } else {
             res = await fetch(`/api/fichas/${ficha.id}/enriquecer`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: enrichUrl }),
+                body: JSON.stringify({ url: enrichUrl, campos_solicitados: camposArray }),
             });
         }
 
         const data = await res.json().catch(() => ({}));
         setEnrichLoading(false);
         setEnrichOpen(false); setEnrichFile(null); setEnrichUrl('');
-        if (!res.ok) { setEnrichError(data?.error || 'Error al enriquecer.'); return; }
+        if (!res.ok) { setEnrichError(data?.error || 'Error al enriquecer.'); setEnrichOpen(true); return; }
 
         if (data.sin_cambios) {
-            setEnrichedMsg('Sin cambios — los datos ya estaban en la ficha.');
-            return;
-        }
-        if (data.campos_agregados?.length > 0 && data.total_conflictos === 0) {
-            setEnrichedMsg(`✓ ${data.campos_agregados.length} campo(s) agregados automáticamente.`);
-            // Reload ficha
-            const { data: updated } = await supabase.from('fichas_tecnicas')
-                .select('*, articulos(*), ficha_extracciones(*)')
-                .eq('id', ficha.id).single();
-            if (updated) setFicha(updated as unknown as FichaDetalle);
+            setEnrichedMsg('Sin cambios — el documento no aportó datos nuevos para los campos seleccionados.');
             return;
         }
 
-        // Inicializar selección — texto: 'actual'; listas/jsonb con solo nuevos: 'nuevo'
+        // Inicializar selección para todos los campos a revisar
+        // agregar → preseleccionado en 'nuevo' (usuario aprueba o descarta)
+        // conflicto → preseleccionado en 'actual' (usuario debe decidir activamente)
         const sel: Record<string, string> = {};
         const checks: Record<string, Set<string>> = {};
-        for (const d of (data.conflictos ?? [])) {
+        for (const d of (data.campos_para_revisar ?? [])) {
             if (d.tipo === 'lista') {
                 sel[d.campo] = 'nuevo';
                 checks[d.campo] = new Set(d.items_nuevos ?? []);
+            } else if (d.accion === 'agregar') {
+                sel[d.campo] = 'nuevo';    // campo vacío: sugerimos aceptar, usuario puede rechazar
             } else {
-                sel[d.campo] = 'actual';
+                sel[d.campo] = 'actual';   // conflicto: usuario debe elegir activamente
             }
         }
 
-        setConflictos(data.conflictos ?? []);
+        setConflictos(data.campos_para_revisar ?? []);
         setExtraccionId(data.extraccion_id);
         setSeleccion(sel);
         setListChecks(checks);
         setCombinados({});
-        if (data.campos_agregados?.length > 0) {
-            setEnrichedMsg(`✓ ${data.campos_agregados.length} campo(s) vacíos completados automáticamente.`);
-        }
+        setEnrichedMsg(
+            `${(data.campos_para_revisar ?? []).length} campo(s) para revisar. Aprueba los cambios antes de guardar.`
+        );
         setShowModal(true);
     }
 
@@ -1032,7 +1062,7 @@ export default function FichaDetallePage() {
                         )}
                         {!enrichOpen ? (
                             <div className="space-y-2">
-                                <button type="button" onClick={() => { setEnrichOpen(true); setEnrichedMsg(''); }}
+                                <button type="button" onClick={() => { setEnrichOpen(true); setEnrichedMsg(''); setEnrichError(''); }}
                                     className="w-full py-2.5 px-4 rounded-xl text-sm font-bold bg-white text-indigo-700 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2">
                                     <Upload className="w-4 h-4" /> Agregar documento
                                 </button>
@@ -1045,6 +1075,57 @@ export default function FichaDetallePage() {
                             </div>
                         ) : (
                             <div className="space-y-3">
+                                {/* ─── PASO 1: Selector de campos ─── */}
+                                <div className="bg-indigo-800/60 rounded-xl p-3 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Campos a extraer</p>
+                                        <div className="flex gap-2">
+                                            <button type="button" onClick={() => setEnrichCampos(new Set(TODOS_CAMPOS_ENRICH.map(c => c.key)))}
+                                                className="text-[10px] text-indigo-300 hover:text-white">Todos</button>
+                                            <button type="button" onClick={() => setEnrichCampos(new Set())}
+                                                className="text-[10px] text-indigo-300 hover:text-white">Ninguno</button>
+                                        </div>
+                                    </div>
+                                    {(['Identidad','Descripción','Uso y seguridad','Regulatorio','Logística','Marketing'] as const).map(grupo => {
+                                        const campos = TODOS_CAMPOS_ENRICH.filter(c => c.grupo === grupo);
+                                        const todosGrupo = campos.every(c => enrichCampos.has(c.key));
+                                        return (
+                                            <div key={grupo}>
+                                                <button type="button" onClick={() => {
+                                                    setEnrichCampos(prev => {
+                                                        const s = new Set(prev);
+                                                        if (todosGrupo) campos.forEach(c => s.delete(c.key));
+                                                        else campos.forEach(c => s.add(c.key));
+                                                        return s;
+                                                    });
+                                                }} className="text-[10px] font-bold text-indigo-300 hover:text-white mb-1 flex items-center gap-1">
+                                                    {todosGrupo ? '▾' : '▸'} {grupo}
+                                                </button>
+                                                <div className="grid grid-cols-1 gap-0.5 pl-3">
+                                                    {campos.map(c => (
+                                                        <label key={c.key} className="flex items-center gap-1.5 cursor-pointer">
+                                                            <input type="checkbox" checked={enrichCampos.has(c.key)}
+                                                                onChange={e => {
+                                                                    setEnrichCampos(prev => {
+                                                                        const s = new Set(prev);
+                                                                        e.target.checked ? s.add(c.key) : s.delete(c.key);
+                                                                        return s;
+                                                                    });
+                                                                }}
+                                                                className="accent-indigo-400 w-3 h-3" />
+                                                            <span className="text-[11px] text-indigo-100">{c.label}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {enrichCampos.size === 0 && (
+                                        <p className="text-[10px] text-rose-300">Selecciona al menos un campo</p>
+                                    )}
+                                </div>
+
+                                {/* ─── PASO 2: Fuente del documento ─── */}
                                 <div className="flex gap-1">
                                     {(['file', 'url'] as const).map(m => (
                                         <button key={m} type="button" onClick={() => setEnrichMode(m)}
@@ -1071,9 +1152,10 @@ export default function FichaDetallePage() {
                                 <div className="flex gap-2">
                                     <button type="button" onClick={() => { setEnrichOpen(false); setEnrichFile(null); setEnrichUrl(''); setEnrichError(''); }}
                                         className="flex-1 py-2 rounded-xl text-xs border border-indigo-400 text-indigo-200 hover:text-white transition-colors">Cancelar</button>
-                                    <button type="button" onClick={lanzarEnriquecimiento} disabled={enrichLoading}
+                                    <button type="button" onClick={lanzarEnriquecimiento}
+                                        disabled={enrichLoading || enrichCampos.size === 0}
                                         className="flex-1 py-2 rounded-xl text-xs font-bold bg-white text-indigo-700 hover:bg-indigo-50 transition-colors disabled:opacity-60 flex items-center justify-center gap-1">
-                                        {enrichLoading ? <><Loader2 className="w-3 h-3 animate-spin" />Procesando…</> : 'Extraer con IA'}
+                                        {enrichLoading ? <><Loader2 className="w-3 h-3 animate-spin" />Procesando…</> : `Extraer (${enrichCampos.size} campos)`}
                                     </button>
                                 </div>
                             </div>
@@ -1136,8 +1218,12 @@ export default function FichaDetallePage() {
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                             <div>
-                                <h2 className="text-lg font-bold">Resolver conflictos</h2>
-                                <p className="text-xs text-slate-400">{conflictos.length} campo(s) con datos diferentes. Mantener, usar nuevo o combinar.</p>
+                                <h2 className="text-lg font-bold">Revisar datos extraídos</h2>
+                                <p className="text-xs text-slate-400">
+                                    {conflictos.filter(d => d.accion === 'agregar').length} campo(s) nuevos ·{' '}
+                                    {conflictos.filter(d => d.accion === 'conflicto').length} conflicto(s).
+                                    Nada se guarda hasta que apruebes.
+                                </p>
                                 {enrichedMsg && <p className="text-xs text-emerald-600 font-semibold mt-1">{enrichedMsg}</p>}
                             </div>
                             <button type="button" onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
@@ -1148,7 +1234,13 @@ export default function FichaDetallePage() {
                                 <div key={d.campo} className="border border-slate-200 rounded-xl overflow-hidden">
                                     <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                                         <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">{d.label}</p>
-                                        <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{d.tipo}</span>
+                                        <div className="flex items-center gap-2">
+                                            {d.accion === 'agregar'
+                                                ? <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Campo nuevo</span>
+                                                : <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Conflicto</span>
+                                            }
+                                            <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{d.tipo}</span>
+                                        </div>
                                     </div>
 
                                     {/* LISTAS — checkboxes de items nuevos */}

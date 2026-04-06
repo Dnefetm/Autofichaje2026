@@ -160,21 +160,25 @@ export async function POST(
 
     if (fichaErr || !ficha) return NextResponse.json({ error: 'Ficha no encontrada' }, { status: 404 });
 
-    // 2. Obtener documento
+    // 2. Obtener documento y campos_solicitados
     const contentType = req.headers.get('content-type') || '';
     let buffer: Buffer;
     let mimeType: string;
     let fileName: string;
     let storagePath: string | undefined;
+    let camposHint: string[] | undefined;
 
     try {
         if (contentType.includes('multipart/form-data')) {
             const form = await req.formData();
             const file = form.get('file') as File | null;
-            if (!file) return NextResponse.json({ error: 'No se recibió archivo' }, { status: 400 });
+            if (!file) return NextResponse.json({ error: 'No se reció archivo' }, { status: 400 });
             if (!ALLOWED_MIME.includes(file.type)) return NextResponse.json({ error: `Formato no soportado: ${file.type}` }, { status: 400 });
             if (file.size > MAX_BYTES) return NextResponse.json({ error: 'Archivo demasiado grande (máx 4 MB)' }, { status: 400 });
             buffer = Buffer.from(await file.arrayBuffer()); mimeType = file.type; fileName = file.name;
+            // Leer campos_solicitados del formData si los envía el frontend
+            const camposRaw = form.get('campos_solicitados') as string | null;
+            if (camposRaw) { try { camposHint = JSON.parse(camposRaw); } catch { /* ignorar mal formato */ } }
         } else if (contentType.includes('application/json')) {
             const body = await req.json();
             const url: string = body?.url;
@@ -184,6 +188,7 @@ export async function POST(
             mimeType = resp.headers.get('content-type')?.split(';')[0] || 'application/pdf';
             if (!ALLOWED_MIME.includes(mimeType)) return NextResponse.json({ error: `Formato no soportado: ${mimeType}` }, { status: 400 });
             buffer = Buffer.from(await resp.arrayBuffer()); fileName = url.split('/').pop()?.split('?')[0] || 'documento';
+            if (Array.isArray(body?.campos_solicitados)) camposHint = body.campos_solicitados;
         } else {
             return NextResponse.json({ error: 'Content-Type no soportado' }, { status: 400 });
         }
@@ -191,16 +196,26 @@ export async function POST(
         return NextResponse.json({ error: err?.message || 'Error al obtener el documento' }, { status: 500 });
     }
 
-    // 3. Storage (auditoría)
+    // 3. Storage (auditíria)
     try {
         storagePath = `enriquecimientos/${fichaId}/${Date.now()}_${fileName}`;
         await supabase.storage.from('documentos-fuente').upload(storagePath, buffer, { contentType: mimeType, upsert: false });
     } catch { storagePath = undefined; }
 
-    // 4. OCR + LLM
+    // 4. OCR + LLM — con hint de campos si el operador los especificó
+    // Si camposHint viene vacío (sin campos seleccionados), rechazar
+    if (camposHint && camposHint.length === 0) {
+        return NextResponse.json({ error: 'Selecciona al menos un campo para enriquecer.' }, { status: 400 });
+    }
+
+    // Mapear keys de BD a labels que el LLM entiende (usa los llmKey de cada array)
+    const todosLosCampos = [...CAMPOS_TEXTO, ...CAMPOS_NUM, ...CAMPOS_LISTA, ...CAMPOS_JSONB];
+    const camposLLM = camposHint
+        ? camposHint.map(k => todosLosCampos.find(c => c.key === k)?.llmKey ?? k).filter(Boolean)
+        : undefined;
     let extracted: any;
     try {
-        extracted = await processProductDocument(buffer, fileName, mimeType, storagePath);
+        extracted = await processProductDocument(buffer, fileName, mimeType, storagePath, camposLLM);
     } catch (err: any) {
         return NextResponse.json({ error: err?.message || 'Error de OCR/LLM' }, { status: 500 });
     }
@@ -216,81 +231,67 @@ export async function POST(
         .select('id')
         .single();
 
-    // 6. Clasificar por campo: agregar | conflicto | identico
-    const resultados: ResultadoCampo[] = [];
-    const camposAgregadosAutomaticamente: Record<string, any> = {};
+    // 6. Clasificar TODOS los campos — filtrar por campos_solicitados si vienen
+    // IMPORTANTE: ninguno se auto-aplica. Todo va al modal para aprobación del operador.
+    const camposParaRevisar: ResultadoCampo[] = [];
 
-    for (const { key, label, llmKey } of CAMPOS_TEXTO) {
+    const camposFiltradosTexto = camposHint
+        ? CAMPOS_TEXTO.filter(c => camposHint.includes(c.key))
+        : CAMPOS_TEXTO;
+    const camposFiltradosNum = camposHint
+        ? CAMPOS_NUM.filter(c => camposHint.includes(c.key))
+        : CAMPOS_NUM;
+    const camposFiltradosLista = camposHint
+        ? CAMPOS_LISTA.filter(c => camposHint.includes(c.key))
+        : CAMPOS_LISTA;
+    const camposFiltradosJsonb = camposHint
+        ? CAMPOS_JSONB.filter(c => camposHint.includes(c.key))
+        : CAMPOS_JSONB;
+
+    for (const { key, label, llmKey } of camposFiltradosTexto) {
         const r = clasificarTexto((ficha as any)[key], extracted[llmKey], key, label);
-        if (!r) continue;
-        if (r.accion === 'agregar') {
-            // Agregar automáticamente — sin decisión del usuario
-            camposAgregadosAutomaticamente[key] = r.valor_nuevo;
-        } else {
-            resultados.push(r);
-        }
+        if (r) camposParaRevisar.push(r);
     }
 
-    for (const { key, label, llmKey } of CAMPOS_LISTA) {
+    for (const { key, label, llmKey } of camposFiltradosLista) {
         const r = clasificarLista((ficha as any)[key], extracted[llmKey], key, label);
-        if (!r) continue;
-        if (r.accion === 'agregar') {
-            camposAgregadosAutomaticamente[key] = r.valor_nuevo;
-        } else {
-            resultados.push(r);
-        }
+        if (r) camposParaRevisar.push(r);
     }
 
-    for (const { key, label, llmKey } of CAMPOS_JSONB) {
+    for (const { key, label, llmKey } of camposFiltradosJsonb) {
         const r = clasificarJsonb((ficha as any)[key], extracted[llmKey], key, label);
-        if (!r) continue;
-        if (r.accion === 'agregar') {
-            camposAgregadosAutomaticamente[key] = { ...(ficha as any)[key] ?? {}, ...r.keys_nuevas };
-        } else {
-            resultados.push(r);
-        }
+        if (r) camposParaRevisar.push(r);
     }
 
-    // Loop de campos numéricos: usa clasificarTexto pero compara números con tolerancia
-    for (const { key, label, llmKey } of CAMPOS_NUM) {
-        const actual = (ficha as any)[key];           // number | null
-        const nuevo  = extracted[llmKey];             // number | string | null
+    for (const { key, label, llmKey } of camposFiltradosNum) {
+        const actual = (ficha as any)[key];
+        const nuevo  = extracted[llmKey];
         const nuevoNum = nuevo != null && nuevo !== '' ? Number(nuevo) : null;
-        if (nuevoNum == null || isNaN(nuevoNum)) continue;  // IA no extrajo este campo
+        if (nuevoNum == null || isNaN(nuevoNum)) continue;
         if (actual == null) {
-            // Auto-agregar sin decisión del usuario
-            camposAgregadosAutomaticamente[key] = nuevoNum;
+            // Campo vacío — va al modal con acción 'agregar' (operador puede rechazar)
+            camposParaRevisar.push({ campo: key, label, tipo: 'texto', accion: 'agregar',
+                valor_actual: null, valor_nuevo: nuevoNum });
         } else if (Math.abs(Number(actual) - nuevoNum) > 0.001) {
-            // Diferencia real — mostrar al usuario para decidir
-            resultados.push({ campo: key, label, tipo: 'texto', accion: 'conflicto',
+            camposParaRevisar.push({ campo: key, label, tipo: 'texto', accion: 'conflicto',
                 valor_actual: actual, valor_nuevo: nuevoNum });
         }
-        // Si son iguales → no hace nada (idéntico)
     }
 
-    // 7. Aplicar automáticamente los campos sin conflicto
-    let camposAgregados: string[] = [];
-    if (Object.keys(camposAgregadosAutomaticamente).length > 0) {
-        const { error: autoErr } = await supabase
-            .from('fichas_tecnicas')
-            .update(camposAgregadosAutomaticamente)
-            .eq('id', fichaId);
-        if (!autoErr) camposAgregados = Object.keys(camposAgregadosAutomaticamente);
-    }
-
-    // Si no hay conflictos y sí hubo campos agregados: marcar extracción como aplicada
-    if (resultados.length === 0 && extraccion?.id) {
-        await supabase.from('ficha_extracciones')
-            .update({ aplicada_a_ficha: true })
-            .eq('id', extraccion.id);
+    // 7. Sin cambios detectados
+    if (camposParaRevisar.length === 0) {
+        if (extraccion?.id) {
+            await supabase.from('ficha_extracciones').update({ aplicada_a_ficha: true }).eq('id', extraccion.id);
+        }
+        return NextResponse.json({ ok: true, extraccion_id: extraccion?.id ?? null,
+            campos_para_revisar: [], sin_cambios: true });
     }
 
     return NextResponse.json({
         ok: true,
-        extraccion_id:     extraccion?.id ?? null,
-        conflictos:        resultados,
-        campos_agregados:  camposAgregados,
-        total_conflictos:  resultados.length,
-        sin_cambios:       resultados.length === 0 && camposAgregados.length === 0,
+        extraccion_id:      extraccion?.id ?? null,
+        campos_para_revisar: camposParaRevisar,
+        total:              camposParaRevisar.length,
+        sin_cambios:        false,
     });
 }
