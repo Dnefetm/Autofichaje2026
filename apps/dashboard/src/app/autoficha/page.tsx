@@ -186,7 +186,7 @@ function AutofichaPageInner() {
                     setSaveMode('link_only');
                     // Pre-llenar el formulario — el operador puede subir un doc para enriquecer
                     // o guardar directamente para crear la ficha técnica del artículo.
-                    setEdited({
+                    const prefilledData: AutofichaResult = {
                         sku_detectado:    data.articulo_id,
                         articulo_id:      data.articulo_id,
                         nombre:           data.nombre,
@@ -208,7 +208,9 @@ function AutofichaPageInner() {
                         rawText:        '',  // sin OCR — viene del catálogo
                         bullet_points:  [],
                         palabras_clave: [],
-                    });
+                    };
+                    setResult(prefilledData);  // ← desbloquea el gate de render (!result)
+                    setEdited(prefilledData);
                     setStatus('done'); // Mostrar formulario directamente
                 })
                 .catch((err) => {
