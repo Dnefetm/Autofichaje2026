@@ -215,6 +215,13 @@ export default function FichaDetallePage() {
     );
     // Producto objetivo: para docs con varios productos (tabla comparativa, catálogo, etc.)
     const [enrichProductoObjetivo, setEnrichProductoObjetivo] = useState('');
+    // Flujo de 2 etapas
+    type EnrichStep = 'config' | 'discovering' | 'picking' | 'extracting';
+    const [enrichStep, setEnrichStep]                         = useState<EnrichStep>('config');
+    const [productosDescubiertos, setProductosDescubiertos]   = useState<Array<{nombre:string;codigo:string;descripcion_breve:string}>>([]);
+    const [productoSeleccionado, setProductoSeleccionado]     = useState<string>('');
+    // Buffer de archivo para reutilizar en etapa 2
+    const enrichFileBufferRef = useRef<File | null>(null);
 
     // Modal comparación
     const [conflictos, setConflictos]         = useState<Discrepancia[]>([]);
@@ -406,16 +413,78 @@ export default function FichaDetallePage() {
         if (enrichMode === 'file' && !enrichFile) { setEnrichError('Selecciona un archivo.'); return; }
         if (enrichMode === 'url' && !enrichUrl.startsWith('http')) { setEnrichError('URL inválida.'); return; }
         if (enrichCampos.size === 0) { setEnrichError('Selecciona al menos un campo para enriquecer.'); return; }
-        setEnrichLoading(true); setEnrichError('');
 
+        // ── Flujo de 2 etapas: solo cuando el usuario especificó un producto objetivo ────
+        if (enrichProductoObjetivo.trim() && enrichMode === 'file' && enrichFile) {
+            setEnrichError('');
+            setEnrichStep('discovering');
+            enrichFileBufferRef.current = enrichFile;
+            const form = new FormData();
+            form.append('file', enrichFile);
+            const res = await fetch(`/api/fichas/${ficha.id}/descubrir-productos`, { method: 'POST', body: form });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.productos?.length) {
+                // Fallback: no se pudo descubrir, ir directo a extracción con hint
+                setEnrichStep('config');
+                await lanzarExtraccionConProducto(enrichProductoObjetivo.trim());
+                return;
+            }
+            setProductosDescubiertos(data.productos);
+            // Pre-seleccionar el más cercano al hint del usuario
+            const hint = enrichProductoObjetivo.trim().toLowerCase();
+            const match = data.productos.find((p: any) =>
+                p.nombre.toLowerCase().includes(hint) || p.codigo.toLowerCase().includes(hint)
+            );
+            setProductoSeleccionado(match
+                ? `${match.nombre}${match.codigo ? ' ' + match.codigo : ''}`
+                : '');
+            setEnrichStep('picking');
+            return;
+        }
+
+        // ── Flujo de URL con producto objetivo ──────────────────────────────────────────
+        if (enrichProductoObjetivo.trim() && enrichMode === 'url') {
+            setEnrichError('');
+            setEnrichStep('discovering');
+            const res = await fetch(`/api/fichas/${ficha.id}/descubrir-productos`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: enrichUrl }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.productos?.length) {
+                setEnrichStep('config');
+                await lanzarExtraccionConProducto(enrichProductoObjetivo.trim());
+                return;
+            }
+            setProductosDescubiertos(data.productos);
+            const hint = enrichProductoObjetivo.trim().toLowerCase();
+            const match = data.productos.find((p: any) =>
+                p.nombre.toLowerCase().includes(hint) || p.codigo.toLowerCase().includes(hint)
+            );
+            setProductoSeleccionado(match
+                ? `${match.nombre}${match.codigo ? ' ' + match.codigo : ''}`
+                : '');
+            setEnrichStep('picking');
+            return;
+        }
+
+        // ── Sin producto objetivo: ir directo ──────────────────────────────────────────
+        await lanzarExtraccionConProducto(undefined);
+    }
+
+    async function lanzarExtraccionConProducto(productoFinal: string | undefined) {
+        if (!ficha) return;
+        setEnrichLoading(true); setEnrichError('');
+        setEnrichStep('extracting');
         const camposArray = Array.from(enrichCampos);
 
         let res: Response;
-        if (enrichMode === 'file' && enrichFile) {
+        if (enrichMode === 'file' && (enrichFile || enrichFileBufferRef.current)) {
+            const archivo = enrichFile ?? enrichFileBufferRef.current!;
             const form = new FormData();
-            form.append('file', enrichFile);
+            form.append('file', archivo);
             form.append('campos_solicitados', JSON.stringify(camposArray));
-            if (enrichProductoObjetivo.trim()) form.append('producto_objetivo', enrichProductoObjetivo.trim());
+            if (productoFinal) form.append('producto_objetivo', productoFinal);
             res = await fetch(`/api/fichas/${ficha.id}/enriquecer`, { method: 'POST', body: form });
         } else {
             res = await fetch(`/api/fichas/${ficha.id}/enriquecer`, {
@@ -423,14 +492,15 @@ export default function FichaDetallePage() {
                 body: JSON.stringify({
                     url: enrichUrl,
                     campos_solicitados: camposArray,
-                    producto_objetivo: enrichProductoObjetivo.trim() || undefined,
+                    producto_objetivo: productoFinal || undefined,
                 }),
             });
         }
 
         const data = await res.json().catch(() => ({}));
         setEnrichLoading(false);
-        setEnrichOpen(false); setEnrichFile(null); setEnrichUrl('');
+        setEnrichStep('config');
+        setEnrichOpen(false); setEnrichFile(null); setEnrichUrl(''); enrichFileBufferRef.current = null;
         if (!res.ok) { setEnrichError(data?.error || 'Error al enriquecer.'); setEnrichOpen(true); return; }
 
         if (data.sin_cambios) {
@@ -438,9 +508,6 @@ export default function FichaDetallePage() {
             return;
         }
 
-        // Inicializar selección para todos los campos a revisar
-        // agregar → preseleccionado en 'nuevo' (usuario aprueba o descarta)
-        // conflicto → preseleccionado en 'actual' (usuario debe decidir activamente)
         const sel: Record<string, string> = {};
         const checks: Record<string, Set<string>> = {};
         for (const d of (data.campos_para_revisar ?? [])) {
@@ -448,9 +515,9 @@ export default function FichaDetallePage() {
                 sel[d.campo] = 'nuevo';
                 checks[d.campo] = new Set(d.items_nuevos ?? []);
             } else if (d.accion === 'agregar') {
-                sel[d.campo] = 'nuevo';    // campo vacío: sugerimos aceptar, usuario puede rechazar
+                sel[d.campo] = 'nuevo';
             } else {
-                sel[d.campo] = 'actual';   // conflicto: usuario debe elegir activamente
+                sel[d.campo] = 'actual';
             }
         }
 
@@ -459,6 +526,9 @@ export default function FichaDetallePage() {
         setSeleccion(sel);
         setListChecks(checks);
         setCombinados({});
+        setEnrichProductoObjetivo('');
+        setProductoSeleccionado('');
+        setProductosDescubiertos([]);
         setEnrichedMsg(
             `${(data.campos_para_revisar ?? []).length} campo(s) para revisar. Aprueba los cambios antes de guardar.`
         );
@@ -1242,6 +1312,94 @@ export default function FichaDetallePage() {
                     </div>
                 </div>
             </div>
+
+            {/* ── Overlay: Descubriendo productos (Etapa 1) ── */}
+            {enrichStep === 'discovering' && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4 max-w-sm w-full">
+                        <Loader2 className="w-10 h-10 animate-spin text-indigo-500" />
+                        <div className="text-center">
+                            <p className="font-bold text-slate-700">Analizando el documento…</p>
+                            <p className="text-xs text-slate-400 mt-1">Identificando todos los productos para que puedas elegir el exacto.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Modal: Elegir producto (Etapa 1.5) ── */}
+            {enrichStep === 'picking' && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+                        <div className="px-6 py-4 border-b border-slate-100">
+                            <h2 className="text-lg font-bold">Elige el producto a extraer</h2>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                                Se encontraron {productosDescubiertos.length} producto(s) en el documento.
+                                Selecciona el que quieres enriquecer en la ficha.
+                            </p>
+                        </div>
+
+                        <div className="overflow-y-auto flex-1 p-4 space-y-2">
+                            {/* Opción: escribir manualmente */}
+                            <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition-colors">
+                                <input type="radio" name="producto_pick" value="__manual__"
+                                    checked={!productosDescubiertos.some(p =>
+                                        `${p.nombre}${p.codigo ? ' ' + p.codigo : ''}` === productoSeleccionado
+                                    ) && productoSeleccionado !== ''}
+                                    onChange={() => {}}
+                                    className="accent-indigo-600 mt-0.5 shrink-0" />
+                                <div className="flex-1">
+                                    <p className="text-xs font-bold text-slate-500 uppercase">Otro / Escribir manualmente</p>
+                                    <input
+                                        type="text"
+                                        placeholder="Nombre o código del producto..."
+                                        value={productosDescubiertos.some(p =>
+                                            `${p.nombre}${p.codigo ? ' ' + p.codigo : ''}` === productoSeleccionado
+                                        ) ? '' : productoSeleccionado}
+                                        onChange={e => setProductoSeleccionado(e.target.value)}
+                                        onClick={() => setProductoSeleccionado('')}
+                                        className="mt-1 w-full p-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-400 outline-none"
+                                    />
+                                </div>
+                            </label>
+
+                            {/* Productos descubiertos */}
+                            {productosDescubiertos.map((p, i) => {
+                                const val = `${p.nombre}${p.codigo ? ' ' + p.codigo : ''}`;
+                                return (
+                                    <label key={i} onClick={() => setProductoSeleccionado(val)}
+                                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${productoSeleccionado === val ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400' : 'border-slate-200 hover:border-indigo-200'}`}>
+                                        <input type="radio" name="producto_pick" value={val}
+                                            checked={productoSeleccionado === val}
+                                            onChange={() => setProductoSeleccionado(val)}
+                                            className="accent-indigo-600 mt-0.5 shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-semibold text-slate-700">{p.nombre}</p>
+                                            {p.codigo && <p className="text-xs font-mono text-indigo-600">{p.codigo}</p>}
+                                            {p.descripcion_breve && <p className="text-xs text-slate-400 mt-0.5">{p.descripcion_breve}</p>}
+                                        </div>
+                                    </label>
+                                );
+                            })}
+                        </div>
+
+                        <div className="flex gap-3 px-6 py-4 border-t border-slate-100">
+                            <button type="button"
+                                onClick={() => { setEnrichStep('config'); setProductosDescubiertos([]); setProductoSeleccionado(''); }}
+                                className="flex-1 py-2.5 rounded-xl text-sm border border-slate-200 text-slate-600 hover:bg-slate-50">
+                                Cancelar
+                            </button>
+                            <button type="button"
+                                disabled={!productoSeleccionado.trim() || enrichLoading}
+                                onClick={() => lanzarExtraccionConProducto(productoSeleccionado.trim())}
+                                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                                {enrichLoading
+                                    ? <><Loader2 className="w-4 h-4 animate-spin" />Extrayendo…</>
+                                    : <><Sparkles className="w-4 h-4" />Extraer este producto</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── Modal enriquecimiento v2 ── */}
             {showModal && (

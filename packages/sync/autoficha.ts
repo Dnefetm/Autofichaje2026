@@ -268,6 +268,63 @@ async function structureWithAI(
     };
 }
 
+// ─── Descubrimiento de productos (Etapa 1 del flujo 2-etapas) ─────────────────
+// Se usa cuando el usuario indica que el doc tiene varios productos y quiere elegir uno.
+// Costo: ~400 tokens. Latencia: ~1-2 segundos.
+
+export interface ProductoDescubierto {
+    nombre:            string;
+    codigo:            string;  // Código de parte, modelo, SKU — vacío si no aplica
+    descripcion_breve: string;  // ≤80 chars
+}
+
+export async function discoverProducts(
+    fileBuffer: Buffer,
+    mimeType = 'application/octet-stream',
+): Promise<ProductoDescubierto[]> {
+    const { text: rawText } = await extractTextFromBuffer(fileBuffer, mimeType);
+    if (!rawText || rawText.trim().length < 30) return [];
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const res = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+        messages: [
+            {
+                role: 'system',
+                content:
+                    'Eres un extractor de inventario. Analiza el texto OCR e identifica TODOS los productos distintos del documento.\n' +
+                    'El documento puede ser: tabla de precios, catálogo, lista de materiales, ficha técnica multi-producto.\n' +
+                    'Devuelve SOLO un JSON con la clave "productos" (array). Cada elemento:\n' +
+                    '  { "nombre": string, "codigo": string, "descripcion_breve": string (≤80 chars) }\n' +
+                    'Si el documento tiene UN SOLO producto, devuelve ese en el array.\n' +
+                    'Si hay más de 40 productos, devuelve solo los primeros 40.\n' +
+                    'Si un campo no aplica, usa string vacío. NUNCA inventes datos.',
+            },
+            {
+                role: 'user',
+                content: `Texto OCR:\n\n${rawText.slice(0, 60_000)}`,
+            },
+        ],
+    });
+
+    try {
+        const parsed = JSON.parse(res.choices[0]?.message?.content ?? '{}');
+        const arr = Array.isArray(parsed.productos) ? parsed.productos : [];
+        return arr
+            .filter((p: any) => typeof p === 'object' && p !== null)
+            .map((p: any) => ({
+                nombre:            String(p.nombre           ?? '').trim(),
+                codigo:            String(p.codigo            ?? '').trim(),
+                descripcion_breve: String(p.descripcion_breve ?? '').trim().slice(0, 100),
+            }))
+            .filter((p: ProductoDescubierto) => p.nombre.length > 0);
+    } catch {
+        return [];
+    }
+}
+
 // ─── Función principal: documento único ────────────────────────────────────────
 
 export async function processProductDocument(
