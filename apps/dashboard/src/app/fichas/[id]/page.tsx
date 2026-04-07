@@ -593,11 +593,31 @@ export default function FichaDetallePage() {
                 // Union: actual + items marcados en listChecks
                 const checks = listChecks[d.campo] ?? new Set();
                 const actual = d.valor_actual ?? [];
-                const merged = [...actual, ...(d.items_nuevos ?? []).filter(i => checks.has(i))];
+                const merged = [...actual, ...(d.items_nuevos ?? []).filter((i: string) => checks.has(i))];
                 if (merged.length > actual.length) campos_aceptados[d.campo] = merged;
             } else if (d.tipo === 'jsonb') {
-                if (sel === 'nuevo') {
-                    campos_aceptados[d.campo] = { ...(d.valor_actual ?? {}), ...d.valor_nuevo };
+                // Construir objeto final: keys_nuevas filtradas por checkbox + keys_conflicto por selección
+                const base = { ...(d.valor_actual ?? {}) };
+                // Atributos nuevos: agrega solo los que tienen el check en 'yes'
+                if (d.keys_nuevas) {
+                    for (const k of Object.keys(d.keys_nuevas)) {
+                        const checkKey = `${d.campo}::${k}`;
+                        const checked = listChecks[checkKey] !== undefined
+                            ? listChecks[checkKey].has('yes')
+                            : true; // pre-marcado si no se tocó
+                        if (checked) base[k] = d.keys_nuevas[k];
+                    }
+                }
+                // Atributos en conflicto: honra la selección por clave
+                if (d.keys_conflicto) {
+                    for (const [k, vals] of Object.entries(d.keys_conflicto)) {
+                        const conflictSel = seleccion[`${d.campo}::conflict::${k}`];
+                        base[k] = conflictSel === 'nuevo' ? (vals as any).nuevo : (vals as any).actual;
+                    }
+                }
+                if (Object.keys(base).length > Object.keys(d.valor_actual ?? {}).length ||
+                    Object.keys(d.keys_conflicto ?? {}).length > 0) {
+                    campos_aceptados[d.campo] = base;
                 }
             } else {
                 if (sel === 'nuevo')    campos_aceptados[d.campo] = d.valor_nuevo;
@@ -1329,24 +1349,49 @@ export default function FichaDetallePage() {
                                         </div>
                                     )}
 
-                                    {/* JSONB — merge con keys en conflicto */}
+                                    {/* JSONB — checkboxes por atributo */}
                                     {d.tipo === 'jsonb' && (
-                                        <div className="p-4 space-y-2">
+                                        <div className="p-4 space-y-3">
                                             {d.keys_nuevas && Object.keys(d.keys_nuevas).length > 0 && (
-                                                <p className="text-[10px] font-bold text-emerald-600 uppercase">Se agregarán automáticamente: {Object.keys(d.keys_nuevas).join(', ')}</p>
+                                                <>
+                                                    <p className="text-[10px] font-bold text-emerald-600 uppercase mb-2">Atributos nuevos — elige cuáles agregar</p>
+                                                    {Object.entries(d.keys_nuevas).map(([k, v]) => {
+                                                        const checkKey = `${d.campo}::${k}`;
+                                                        const checked = listChecks[checkKey] !== undefined
+                                                            ? listChecks[checkKey].has('yes')
+                                                            : true; // pre-marcado
+                                                        return (
+                                                            <label key={k} className="flex items-start gap-2 cursor-pointer">
+                                                                <input type="checkbox" checked={checked}
+                                                                    onChange={e => {
+                                                                        setListChecks(prev => {
+                                                                            const s = new Set(prev[checkKey] ?? ['yes']);
+                                                                            e.target.checked ? s.add('yes') : s.delete('yes');
+                                                                            return { ...prev, [checkKey]: s };
+                                                                        });
+                                                                    }}
+                                                                    className="accent-indigo-600 mt-0.5 shrink-0" />
+                                                                <span className="text-xs">
+                                                                    <span className="font-semibold text-slate-700">{k}:</span>{' '}
+                                                                    <span className="text-emerald-700">{String(v)}</span>
+                                                                </span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </>
                                             )}
                                             {d.keys_conflicto && Object.keys(d.keys_conflicto).length > 0 && (
                                                 <>
-                                                    <p className="text-[10px] font-bold text-amber-600 uppercase">En conflicto — elige cuál conservar:</p>
+                                                    <p className="text-[10px] font-bold text-amber-600 uppercase mt-2">En conflicto — elige cuál conservar:</p>
                                                     {Object.entries(d.keys_conflicto).map(([k, vals]) => (
                                                         <div key={k} className="grid grid-cols-2 gap-2">
-                                                            <button type="button" onClick={() => setSeleccion(s => ({ ...s, [d.campo]: 'actual' }))}
-                                                                className={`p-2 rounded-lg text-xs text-left border ${seleccion[d.campo] === 'actual' ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200'}`}>
+                                                            <button type="button" onClick={() => setSeleccion(s => ({ ...s, [`${d.campo}::conflict::${k}`]: 'actual' }))}
+                                                                className={`p-2 rounded-lg text-xs text-left border ${seleccion[`${d.campo}::conflict::${k}`] !== 'nuevo' ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200'}`}>
                                                                 <p className="text-[10px] text-slate-400 font-bold">{k} (actual)</p>
                                                                 <p className="text-slate-700">{String((vals as any).actual)}</p>
                                                             </button>
-                                                            <button type="button" onClick={() => setSeleccion(s => ({ ...s, [d.campo]: 'nuevo' }))}
-                                                                className={`p-2 rounded-lg text-xs text-left border ${seleccion[d.campo] === 'nuevo' ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200'}`}>
+                                                            <button type="button" onClick={() => setSeleccion(s => ({ ...s, [`${d.campo}::conflict::${k}`]: 'nuevo' }))}
+                                                                className={`p-2 rounded-lg text-xs text-left border ${seleccion[`${d.campo}::conflict::${k}`] === 'nuevo' ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200'}`}>
                                                                 <p className="text-[10px] text-slate-400 font-bold">{k} (nuevo)</p>
                                                                 <p className="text-slate-700">{String((vals as any).nuevo)}</p>
                                                             </button>
