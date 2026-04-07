@@ -1,14 +1,25 @@
 // triggerPeriodico.gs
-// Propósito: Crear y gestionar el trigger automático de sincronización.
-// Llama a sincIngresos() + sincEgresos() cada 15 minutos como respaldo automático.
+// Propósito: Respaldo periódico de sincronización (1 vez por hora).
+//
+// ARQUITECTURA PUSH-FIRST:
+//   El mecanismo primario son los installable triggers de onEdit (pushArticulos.gs):
+//     - onEditArticulos(e)  → push inmediato al editar hoja Artículos
+//     - onEditIngresos(e)   → push inmediato al editar hoja Ingresos
+//     - onEditEgresos(e)    → push inmediato al editar hoja Egresos
+//
+//   Este timer (1 hora) es la red de seguridad: captura ediciones que el push
+//   no alcanzó (fallo HTTP, edición programática de AppSheet, etc.).
+//   Con hash V2 en los 3 scripts, el costo del respaldo es mínimo:
+//   solo se envían filas que realmente cambiaron.
 //
 // CUÁNDO EJECUTAR crearTriggerPeriodico():
-//   - Solo después de validar que sincIngresos() y sincEgresos() funcionan correctamente
-//     con UPSERT (no crean duplicados, actualizan correctamente).
+//   - Una sola vez, después de validar que los pushes funcionan.
+//   - Si ya existe un trigger de 15 min: eliminar con eliminarTriggerSinc()
+//     y recrear con crearTriggerPeriodico() para actualizar a 1 hora.
 //
 // FUNCIONES:
 //   crearTriggerPeriodico()  — crea el trigger (llamar una sola vez)
-//   eliminarTriggerSinc()    — elimina el trigger si hay que desactivarlo de emergencia
+//   eliminarTriggerSinc()    — elimina el trigger (emergencia o actualización)
 //   verTriggers()            — lista todos los triggers activos del proyecto
 
 // ─────────────────────────────────────────────────────────────────────
@@ -19,6 +30,7 @@ function sincInventarioCompleto() {
   Logger.log('=== sincInventarioCompleto START ' + new Date().toISOString() + ' ===');
   sincIngresos();
   sincEgresos();
+  sincArticulos(); // respaldo: solo aplica el UPSERT a filas que cambiaron (V2 con hash)
   Logger.log('=== sincInventarioCompleto END ' + new Date().toISOString() + ' ===');
 }
 
@@ -44,10 +56,11 @@ function crearTriggerPeriodico() {
 
   ScriptApp.newTrigger('sincInventarioCompleto')
     .timeBased()
-    .everyMinutes(15)
+    .everyHours(1)
     .create();
 
-  Logger.log('✅ Trigger creado: sincInventarioCompleto cada 15 minutos');
+  Logger.log('✅ Trigger creado: sincInventarioCompleto cada 1 hora (respaldo)');
+  Logger.log('Mecanismo primario: installable onEdit triggers en pushArticulos.gs');
   Logger.log('Verificar en Apps Script > Activadores que aparece activo.');
 }
 
