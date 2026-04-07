@@ -179,19 +179,40 @@ async function structureWithAI(
     rawText: string,
     category: string,
     camposHint?: string[], // Campos solicitados — si vienen, el LLM solo los extrae
+    productoObjetivo?: string, // Producto específico a extraer en doc multi-producto
 ): Promise<Omit<AutofichaResult, 'rawText' | 'storage_path'>> {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    // Si el operador especificó qué campos extraer, añadir instruccion al final del prompt
-    const promptFinal = camposHint?.length
-        ? PROMPT_SISTEMA_BASE +
-          `\n\nINSTRUCCIÓN DEL OPERADOR: Extrae ÚNICAMENTE estos campos: ${camposHint.join(', ')}.` +
-          ` Para TODOS los demás campos devuelve null. No inventes ni rellenes datos que no estén en el documento.`
-        : PROMPT_SISTEMA_BASE;
+    // Construir instrucciones adicionales según lo que el operador especificó
+    const extras: string[] = [];
+
+    if (camposHint?.length) {
+        extras.push(
+            `\n\nINSTRUCCIÓN DE CAMPOS: Extrae ÚNICAMENTE estos campos: ${camposHint.join(', ')}.` +
+            ` Para TODOS los demás campos devuelve null. No inventes ni rellenes datos que no estén en el documento.`
+        );
+    }
+
+    if (productoObjetivo) {
+        extras.push(
+            `\n\nINSTRUCCIÓN DE PRODUCTO OBJETIVO: El documento puede contener información de varios productos` +
+            ` (tabla comparativa, lista de precios, catálogo multi-producto).` +
+            ` DEBES extraer EXCLUSIVAMENTE los datos del producto: "${productoObjetivo}".` +
+            `\n\nREGLAS PARA TABLAS:` +
+            `\n- Si el documento es una tabla/matriz con columnas por producto, localiza la COLUMNA que corresponde a "${productoObjetivo}" y lee SOLO esa columna.` +
+            `\n- NO mezcles valores de columnas de otros productos aunque estén en la misma fila.` +
+            `\n- Si hay sub-columnas (ej: 6 puntas / 12 puntas), elige la que corresponda al modelo exacto solicitado.` +
+            `\n- Si el código del producto aparece en una columna de "CÓDIGO" o "MODELO", úsalo para localizar su fila/columna.` +
+            `\n- Si el producto no aparece en el documento, devuelve confidence: 0.1 y todos los campos null.` +
+            `\n- No asumas valores: si un dato no está explícitamente en la columna del producto objetivo, devuelve null para ese campo.`
+        );
+    }
+
+    const promptFinal = PROMPT_SISTEMA_BASE + extras.join('');
 
     const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        temperature: 0.2,
+        temperature: 0.1, // Más determinista para tablas
         response_format: { type: 'json_object' },
         messages: [
             { role: 'system', content: promptFinal },
@@ -266,14 +287,11 @@ export async function processProductDocument(
         );
     }
 
-    // Combinar camposHint y productoObjetivo en el hint al LLM
-    const hintFinal = [
-        ...(camposHint ?? []),
-        productoObjetivo ? `PRODUCTO OBJETIVO: "${productoObjetivo}"` : '',
-    ].filter(Boolean);
-
+    // Combinar camposHint y productoObjetivo — pasarlos por separado a structureWithAI
     const { category } = await classifyProduct(rawText);
-    const structured    = await structureWithAI(rawText, category, hintFinal.length ? hintFinal : undefined);
+    const structured    = await structureWithAI(rawText, category,
+        camposHint?.length ? camposHint : undefined,
+        productoObjetivo || undefined);
 
     return { ...structured, rawText, storage_path: storagePath };
 }
@@ -320,12 +338,9 @@ export async function processMultipleDocuments(
 
     const { category } = await classifyProduct(combinedText);
 
-    const hintFinal = [
-        ...(camposHint ?? []),
-        productoObjetivo ? `PRODUCTO OBJETIVO: "${productoObjetivo}"` : '',
-    ].filter(Boolean);
-
-    const structured = await structureWithAI(combinedText, category, hintFinal.length ? hintFinal : undefined);
+    const structured = await structureWithAI(combinedText, category,
+        camposHint?.length ? camposHint : undefined,
+        productoObjetivo || undefined);
 
     const primaryStoragePath = docs.find(d => d.storagePath)?.storagePath;
 

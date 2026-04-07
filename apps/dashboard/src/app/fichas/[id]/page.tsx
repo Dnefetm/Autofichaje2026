@@ -470,57 +470,63 @@ export default function FichaDetallePage() {
         setEnrichedMsg('');
         const art = ficha.articulos as any;
 
-        // ── Paso 1: Rellenar columnas canónicas vacías de la ficha con datos del artículo ──
-        // Solo rellena si la ficha tiene null/undefined en la columna propia;
-        // NUNCA sobreescribe valores que el operador ya editó en la ficha.
-        const canonicoPatch: Record<string, any> = {};
-        const mapTexto: Array<[keyof FichaDetalle, string]> = [
-            ['nombre_producto', art.nombre],
-            ['marca',           art.marca],
-            ['modelo',          art.modelo],
-            ['variante',        art.variante],
-            ['codigo_universal', art.codigo_universal],
+        // Construir lista de todos los campos candidatos del catálogo
+        // NUNCA se aplica nada automáticamente — todo pasa por el modal
+        const LABEL_MAP: Record<string, string> = {
+            nombre_producto: 'Nombre del producto', marca: 'Marca', modelo: 'Modelo',
+            variante: 'Variante', codigo_universal: 'Código EAN/UPC', categoria: 'Categoría',
+            materiales: 'Materiales', pais_origen: 'País de origen', descripcion: 'Descripción',
+            peso_kg: 'Peso (kg)', largo_cm: 'Largo (cm)', ancho_cm: 'Ancho (cm)', alto_cm: 'Alto (cm)',
+        };
 
-            ['categoria',       art.categoria],
-            ['materiales',      art.materiales],
-            ['pais_origen',     art.pais_origen],
-            ['descripcion',     art.descripcion],
+        const todosParaRevisar: Discrepancia[] = [];
+
+        // Campos de texto canónicos
+        const mapTexto: Array<[keyof FichaDetalle, any, string]> = [
+            ['nombre_producto', art.nombre,          'nombre_producto'],
+            ['marca',           art.marca,           'marca'],
+            ['modelo',          art.modelo,          'modelo'],
+            ['variante',        art.variante,        'variante'],
+            ['codigo_universal', art.codigo_universal, 'codigo_universal'],
+            ['categoria',       art.categoria,       'categoria'],
+            ['materiales',      art.materiales,      'materiales'],
+            ['pais_origen',     art.pais_origen,     'pais_origen'],
+            ['descripcion',     art.descripcion,     'descripcion'],
         ];
-        for (const [fichaKey, artVal] of mapTexto) {
-            if (artVal != null && artVal !== '' && !ficha[fichaKey]) {
-                canonicoPatch[fichaKey as string] = artVal;
+        for (const [fichaKey, artVal, campo] of mapTexto) {
+            if (artVal == null || artVal === '') continue;
+            const valorActual = ficha[fichaKey];
+            if (!valorActual) {
+                // Campo vacío en ficha — candidato a agregar
+                todosParaRevisar.push({ campo, label: LABEL_MAP[campo] ?? campo,
+                    tipo: 'texto', accion: 'agregar', valor_actual: null, valor_nuevo: artVal });
+            } else if (String(valorActual) !== String(artVal)) {
+                // Dato diferente — conflicto
+                todosParaRevisar.push({ campo, label: LABEL_MAP[campo] ?? campo,
+                    tipo: 'texto', accion: 'conflicto', valor_actual: valorActual, valor_nuevo: artVal });
             }
         }
-        const mapNum: Array<[keyof FichaDetalle, number | undefined]> = [
-            ['peso_kg',  art.peso_kg],
-            ['largo_cm', art.largo_cm],
-            ['ancho_cm', art.ancho_cm],
-            ['alto_cm',  art.alto_cm],
+
+        // Campos numéricos
+        const mapNum: Array<[keyof FichaDetalle, number | undefined, string]> = [
+            ['peso_kg',  art.peso_kg,  'peso_kg'],
+            ['largo_cm', art.largo_cm, 'largo_cm'],
+            ['ancho_cm', art.ancho_cm, 'ancho_cm'],
+            ['alto_cm',  art.alto_cm,  'alto_cm'],
         ];
-        for (const [fichaKey, artVal] of mapNum) {
-            if (artVal != null && !ficha[fichaKey]) {
-                canonicoPatch[fichaKey as string] = artVal;
+        for (const [fichaKey, artVal, campo] of mapNum) {
+            if (artVal == null) continue;
+            const valorActual = ficha[fichaKey] as number | null | undefined;
+            if (valorActual == null) {
+                todosParaRevisar.push({ campo, label: LABEL_MAP[campo] ?? campo,
+                    tipo: 'texto', accion: 'agregar', valor_actual: null, valor_nuevo: artVal });
+            } else if (Math.abs(Number(valorActual) - Number(artVal)) > 0.001) {
+                todosParaRevisar.push({ campo, label: LABEL_MAP[campo] ?? campo,
+                    tipo: 'texto', accion: 'conflicto', valor_actual: valorActual, valor_nuevo: artVal });
             }
         }
 
-        let canonicosAplicados = 0;
-        if (Object.keys(canonicoPatch).length > 0) {
-            const res = await fetch(`/api/fichas/${ficha.id}`, {
-                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(canonicoPatch),
-            });
-            const body = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                setEnrichedMsg(`Error al trasladar datos del catálogo: ${body?.error}`);
-                return;
-            }
-            // Actualizar estado local con los nuevos valores
-            setFicha(p => p ? { ...p, ...canonicoPatch } : p);
-            canonicosAplicados = Object.keys(canonicoPatch).length;
-        }
-
-        // ── Paso 2: Atributos especiales (garantia, atributos_especificos) → atributos_dinamicos ──
-        // Mantiene el comportamiento original para estos campos que no tienen columna propia.
+        // Atributos especiales (garantia, atributos_especificos)
         const candidatos: Array<{ key: string; label: string; valor: any }> = [];
         if (art.garantia) candidatos.push({ key: 'Garantía', label: 'Garantía', valor: art.garantia });
         if (art.atributos_especificos && typeof art.atributos_especificos === 'object') {
@@ -528,58 +534,38 @@ export default function FichaDetallePage() {
                 if (v != null && v !== '') candidatos.push({ key: k, label: k, valor: v });
             }
         }
-
         const actual = ficha.atributos_dinamicos ?? {};
-        const conflictosGenerados: Discrepancia[] = [];
-        const autoAgregar: Record<string, any> = {};
-
         for (const { key, label, valor } of candidatos) {
+            const campo = `atributos_dinamicos.${key}`;
             if (key in actual) {
                 if (String(actual[key]) !== String(valor)) {
-                    conflictosGenerados.push({
-                        campo: `atributos_dinamicos.${key}`,
-                        label,
-                        tipo: 'texto',
-                        accion: 'conflicto',
-                        valor_actual: actual[key],
-                        valor_nuevo:  valor,
-                    });
+                    todosParaRevisar.push({ campo, label, tipo: 'texto', accion: 'conflicto',
+                        valor_actual: actual[key], valor_nuevo: valor });
                 }
             } else {
-                autoAgregar[key] = valor;
+                todosParaRevisar.push({ campo, label, tipo: 'texto', accion: 'agregar',
+                    valor_actual: null, valor_nuevo: valor });
             }
         }
 
-        if (Object.keys(autoAgregar).length > 0) {
-            const merged = { ...actual, ...autoAgregar };
-            const res = await fetch(`/api/fichas/${ficha.id}`, {
-                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ atributos_dinamicos: merged }),
-            });
-            const body = await res.json().catch(() => ({}));
-            if (!res.ok) { setEnrichedMsg(`Error: ${body?.error}`); return; }
-            setFicha(p => p ? { ...p, atributos_dinamicos: merged } : p);
-        }
-
-        // ── Feedback consolidado ──
-        const totalAgregados = canonicosAplicados + Object.keys(autoAgregar).length;
-        if (totalAgregados === 0 && conflictosGenerados.length === 0) {
+        // Sin datos nuevos
+        if (todosParaRevisar.length === 0) {
             setEnrichedMsg('El catálogo no aporta datos nuevos (todos ya estaban en la ficha o son idénticos).');
-        } else if (totalAgregados > 0) {
-            const ejemplos = Object.keys(canonicoPatch).slice(0, 3).join(', ');
-            setEnrichedMsg(`✓ ${totalAgregados} campo(s) completados desde el catálogo${ejemplos ? ': ' + ejemplos : ''}${totalAgregados > 3 ? '…' : ''}.`);
+            return;
         }
 
-        if (conflictosGenerados.length > 0) {
-            const sel: Record<string, string> = {};
-            for (const d of conflictosGenerados) sel[d.campo] = 'actual';
-            setConflictos(conflictosGenerados);
-            setExtraccionId(null);
-            setSeleccion(sel);
-            setListChecks({});
-            setCombinados({});
-            setShowModal(true);
+        // Todos pasan por el modal — NINGUNO se aplica automáticamente
+        const sel: Record<string, string> = {};
+        for (const d of todosParaRevisar) {
+            sel[d.campo] = d.accion === 'agregar' ? 'nuevo' : 'actual';
         }
+        setConflictos(todosParaRevisar);
+        setExtraccionId(null);
+        setSeleccion(sel);
+        setListChecks({});
+        setCombinados({});
+        setEnrichedMsg(`${todosParaRevisar.length} campo(s) del catálogo para revisar. Ninguno se guardará hasta que apruebes.`);
+        setShowModal(true);
     }
 
     async function combinarConIA(d: Discrepancia) {
