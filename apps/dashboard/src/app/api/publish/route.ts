@@ -7,12 +7,15 @@
  *
  * v2: Corrige bugs de Comet (stock/precio por articulo_id, family_name por AI, validaciones 422)
  * v3: Paso 1.5 anti-duplicados (409 si ya existe publicación activa en la misma cuenta)
+ * v4: ficha_id opcional — ficha técnica tiene prioridad sobre articulos en TODOS los campos;
+ *     limpieza de títulos con anotaciones; descripción ≤2000 chars con bullets.
  *
  * Body esperado:
  * {
  *   articulo_id: string,           // UUID del artículo en tabla articulos
  *   marketplace_id: string,        // ID de la cuenta MeLi (marketplace_configs.id)
- *   pictures: string[],            // URLs públicas de imágenes (provistos manualmente por ahora)
+ *   pictures: string[],            // URLs públicas de imágenes
+ *   ficha_id?: string,             // UUID de fichas_tecnicas — si viene, ficha tiene prioridad
  *   category_id?: string,          // Opcional: si ya se conoce la categoría MeLi
  *   listing_type_id?: string,      // Opcional: default "gold_special"
  *   dry_run?: boolean              // Si true, construye el body pero NO envía a MeLi
@@ -25,6 +28,67 @@ import { MeliAdapter } from '@gestor/adapters/meli';
 import { resolvePublicationAI } from '@gestor/sync/meli-ai-helper';
 
 export const dynamic = 'force-dynamic';
+
+// ── Helper: limpiar título de anotaciones operativas ─────────────────────────
+// Elimina notas como "publicar y corregir", "revisar", "pendiente" etc.
+// que los usuarios añaden al nombre pero no deben llegar a MeLi.
+function limpiarTitulo(nombre: string | null | undefined): string {
+    if (!nombre) return '';
+    // Patrones de anotaciones comunes (case-insensitive)
+    const ANOTACIONES = [
+        /publicar\s+y\s+corregir/gi,
+        /publicar\s+y\s+revisar/gi,
+        /revisar\s+y\s+corregir/gi,
+        /pendiente\s+de\s+revisi[oó]n/gi,
+        /corregir\s+despu[eé]s/gi,
+        /publicar.*$\*/gi,  // trailing *
+        /\brevisar\b.*$/gi,
+        /\bcorregir\b.*$/gi,
+        /\bpendiente\b.*$/gi,
+        /\bcheck\b.*$/gi,
+    ];
+    let limpio = nombre.trim();
+    for (const pat of ANOTACIONES) {
+        limpio = limpio.replace(pat, '').trim();
+    }
+    // Eliminar separadores sobrantes al final (guion, coma, barra)
+    limpio = limpio.replace(/[-,/|]+\s*$/, '').trim();
+    return limpio;
+}
+
+// ── Helper: truncar a ≤N chars respetando palabras ───────────────────────────
+function truncarTitulo(titulo: string, maxLen: number = 60): string {
+    if (titulo.length <= maxLen) return titulo;
+    // Cortar en el último espacio antes del límite
+    const sub = titulo.slice(0, maxLen);
+    const lastSpace = sub.lastIndexOf(' ');
+    return (lastSpace > maxLen * 0.6 ? sub.slice(0, lastSpace) : sub).trim();
+}
+
+// ── Helper: resolver datos con prioridad ficha → artículo ────────────────────
+function resolvePublicationData(articulo: any, ficha: any | null) {
+    return {
+        nombre:              limpiarTitulo(ficha?.nombre_producto || articulo?.nombre),
+        descripcion:         ficha?.descripcion_larga || ficha?.descripcion || articulo?.descripcion || '',
+        marca:               ficha?.marca             || articulo?.marca,
+        modelo:              ficha?.modelo            || articulo?.modelo,
+        variante:            ficha?.variante          || articulo?.variante,
+        pais_origen:         ficha?.pais_origen       || articulo?.pais_origen,
+        categoria:           ficha?.categoria         || articulo?.categoria,
+        codigo_universal:    ficha?.codigo_universal  || articulo?.codigo_universal,
+        atributos_especificos: articulo?.atributos_especificos, // solo en articulos
+        // Solo en ficha:
+        bullet_points:       (ficha?.bullet_points as string[] | null | undefined) || [],
+        palabras_clave:      ficha?.palabras_clave   || [],
+        materiales:          ficha?.materiales        || null,
+        atributos_categoria: ficha?.atributos_categoria || null, // pares {MLBATTR: 'valor'} de ficha
+        // Dimensiones: ficha tiene prioridad, artículo como fallback
+        peso_kg:  ficha?.peso_kg  ?? articulo?.peso_kg,
+        largo_cm: ficha?.largo_cm ?? articulo?.largo_cm,
+        ancho_cm: ficha?.ancho_cm ?? articulo?.ancho_cm,
+        alto_cm:  ficha?.alto_cm  ?? articulo?.alto_cm,
+    };
+}
 
 export async function POST(req: NextRequest) {
     const startTime = Date.now();
@@ -44,6 +108,7 @@ export async function POST(req: NextRequest) {
             articulo_id,
             marketplace_id,
             pictures = [],
+            ficha_id = null as string | null,
             category_id: category_id_override,
             listing_type_id = 'gold_special',
             dry_run = false,
@@ -52,7 +117,7 @@ export async function POST(req: NextRequest) {
             family_name_override = null as string | null,
         } = body;
 
-        trace.input = { articulo_id, marketplace_id, pictures_count: pictures.length, listing_type_id, dry_run };
+        trace.input = { articulo_id, marketplace_id, ficha_id, pictures_count: pictures.length, listing_type_id, dry_run };
 
         // ── 1. Leer artículo de BD ────────────────────────────────────────────
         const { data: articulo, error: artErr } = await supabaseAdmin
@@ -86,6 +151,54 @@ export async function POST(req: NextRequest) {
             activo: articulo.activo,
             es_obsoleto: articulo.es_obsoleto,
             publicacion_ml_existente: articulo.publicacion_ml,
+        };
+
+        // ── 1b. Leer ficha técnica si se proveyó ficha_id ─────────────────────
+        let fichaData: any = null;
+        if (ficha_id) {
+            const { data: ficha, error: fichaErr } = await supabaseAdmin
+                .from('fichas_tecnicas')
+                .select(`
+                    id, nombre_producto, descripcion, descripcion_larga,
+                    marca, modelo, variante, categoria, codigo_universal,
+                    pais_origen, materiales,
+                    peso_kg, largo_cm, ancho_cm, alto_cm,
+                    bullet_points, palabras_clave,
+                    atributos_categoria, articulo_id
+                `)
+                .eq('id', ficha_id)
+                .single();
+
+            if (fichaErr || !ficha) {
+                trace.paso_1b_ficha = { advertencia: `ficha_id ${ficha_id} no encontrada — usando solo datos del artículo` };
+            } else if (ficha.articulo_id && ficha.articulo_id !== articulo_id) {
+                return NextResponse.json({
+                    ok: false,
+                    error: `La ficha ${ficha_id} pertenece al artículo ${ficha.articulo_id}, no a ${articulo_id}`,
+                    trace,
+                }, { status: 422 });
+            } else {
+                fichaData = ficha;
+                trace.paso_1b_ficha = {
+                    ficha_id,
+                    nombre_producto: ficha.nombre_producto,
+                    campos_con_datos: Object.entries(ficha)
+                        .filter(([k, v]) => !['id','articulo_id'].includes(k) && v !== null && v !== undefined &&
+                            !(Array.isArray(v) && v.length === 0) &&
+                            !(typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0))
+                        .map(([k]) => k),
+                };
+            }
+        } else {
+            trace.paso_1b_ficha = { omitido: 'No se proveyó ficha_id — usando datos del artículo' };
+        }
+
+        // Resolver datos con prioridad ficha → artículo
+        const resolved = resolvePublicationData(articulo, fichaData);
+        trace.paso_1b_resolved = {
+            nombre_limpio:   resolved.nombre,
+            descripcion_src: fichaData?.descripcion_larga ? 'ficha.descripcion_larga' : fichaData?.descripcion ? 'ficha.descripcion' : 'articulo.descripcion',
+            peso_src:        fichaData?.peso_kg != null ? 'ficha' : 'articulo',
         };
 
         // Verificar publicabilidad básica
@@ -202,10 +315,20 @@ export async function POST(req: NextRequest) {
         let category_info: any = null;
 
         if (!category_id) {
-            const query = [articulo.nombre, articulo.marca, articulo.modelo, articulo.codigo_universal, articulo.categoria]
-                .filter(Boolean).join(' ').trim().slice(0, 100);
-            category_info = await (meli as any).predictCategory(marketplace_id, query);
-            category_id = category_info.category_id;
+            // Si la ficha tiene atributos_categoria con un mapping MeLi, intentar extraer category_id de ahí
+            const fichaCategoria = resolved.atributos_categoria;
+            if (fichaCategoria?.category_id) {
+                category_id = fichaCategoria.category_id;
+                category_info = { category_id, category_name: fichaCategoria.category_name || '', candidates: [], from_ficha: true };
+            } else {
+                // Query enriquecida con datos de la ficha
+                const query = [
+                    resolved.nombre, resolved.marca, resolved.modelo,
+                    resolved.codigo_universal, resolved.categoria,
+                ].filter(Boolean).join(' ').trim().slice(0, 100);
+                category_info = await (meli as any).predictCategory(marketplace_id, query);
+                category_id = category_info.category_id;
+            }
         }
 
         // Enriquecer con ruta completa (Herramientas / Herramientas Manuales / Dados)
@@ -244,27 +367,34 @@ export async function POST(req: NextRequest) {
             })),
         };
 
-        // ── 7. Construir attributes[] a partir del artículo ───────────────────
+        // ── 7. Construir attributes[] usando datos resueltos (ficha → artículo) ─
         const attributes: Array<{ id: string; value_name?: string; value_id?: string }> = [];
 
-        if (articulo.marca)            attributes.push({ id: 'BRAND',  value_name: articulo.marca });
-        if (articulo.modelo)           attributes.push({ id: 'MODEL',  value_name: articulo.modelo });
-        if (articulo.codigo_universal) attributes.push({ id: 'GTIN',   value_name: articulo.codigo_universal });
-                if (sku_efectivo)          attributes.push({ id: 'SELLER_SKU', value_name: sku_efectivo }); // sku de tienda — fallback desde sku_tienda/modelo
-        if (articulo.pais_origen)      attributes.push({ id: 'ORIGIN_COUNTRY', value_name: articulo.pais_origen });
-        if (articulo.variante)         attributes.push({ id: 'COLOR',  value_name: articulo.variante });
+        if (resolved.marca)            attributes.push({ id: 'BRAND',  value_name: resolved.marca });
+        if (resolved.modelo)           attributes.push({ id: 'MODEL',  value_name: resolved.modelo });
+        if (resolved.codigo_universal) attributes.push({ id: 'GTIN',   value_name: resolved.codigo_universal });
+        if (sku_efectivo)              attributes.push({ id: 'SELLER_SKU', value_name: sku_efectivo });
+        if (resolved.pais_origen)      attributes.push({ id: 'ORIGIN_COUNTRY', value_name: resolved.pais_origen });
+        if (resolved.variante)         attributes.push({ id: 'COLOR',  value_name: resolved.variante });
+        if (resolved.materiales)       attributes.push({ id: 'MATERIAL', value_name: resolved.materiales });
 
         // ITEM_CONDITION: 2230284 = Nuevo
         attributes.push({ id: 'ITEM_CONDITION', value_id: '2230284' });
 
-        // Dimensiones de paquete del vendedor — hierarchy: ITEM, tags: hidden en MLM9171
-        // MeLi exige enteros: dimensiones en cm, peso en GRAMOS (no kg).
-        // cause_id 5402 si se mandan decimales o unidad equivocada.
-        //
-        // POLÍTICA: enviar SELLER_PACKAGE_* si el atributo EXISTE en la categoría (attrInfo.raw).
-        // NOTA: MeLi no siempre marca SELLER_PACKAGE_* con tags.required=true en la API,
-        // pero sí los exige al publicar (error missing.seller.package.dimensions).
-        // Usar .raw (existe en catálogo) en lugar de .required (tag explícito) es el criterio correcto.
+        // Atributos de categoría de la ficha — fusionar como hints adicionales
+        // Son pares { MLBATTR_ID: 'valor' } que el operador configuró en la ficha.
+        // Se agregan SOLO si el atributo no fue ya mapeado arriba.
+        const mappedIdsPre = new Set(attributes.map(a => a.id));
+        if (resolved.atributos_categoria && typeof resolved.atributos_categoria === 'object') {
+            for (const [attrId, attrVal] of Object.entries(resolved.atributos_categoria as Record<string, any>)) {
+                if (attrId === 'category_id' || attrId === 'category_name') continue; // meta-campos
+                if (!mappedIdsPre.has(attrId) && attrVal != null && attrVal !== '') {
+                    attributes.push({ id: attrId, value_name: String(attrVal) });
+                }
+            }
+        }
+
+        // Dimensiones del paquete — prioridad ficha, fallback artículo
         const categoryAttrIds = new Set((attrInfo.raw || []).map((a: any) => a.id));
         const sellerPackageOmitidos: string[] = [];
 
@@ -277,17 +407,18 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        maybePushPackage('SELLER_PACKAGE_HEIGHT', `${Math.round(articulo.alto_cm ?? 0)} cm`,  !!articulo.alto_cm);
-        maybePushPackage('SELLER_PACKAGE_WIDTH',  `${Math.round(articulo.ancho_cm ?? 0)} cm`, !!articulo.ancho_cm);
-        maybePushPackage('SELLER_PACKAGE_LENGTH', `${Math.round(articulo.largo_cm ?? 0)} cm`, !!articulo.largo_cm);
-        maybePushPackage('SELLER_PACKAGE_WEIGHT', `${Math.round((articulo.peso_kg ?? 0) * 1000)} g`, !!articulo.peso_kg);
+        maybePushPackage('SELLER_PACKAGE_HEIGHT', `${Math.round(resolved.alto_cm  ?? 0)} cm`, !!resolved.alto_cm);
+        maybePushPackage('SELLER_PACKAGE_WIDTH',  `${Math.round(resolved.ancho_cm ?? 0)} cm`, !!resolved.ancho_cm);
+        maybePushPackage('SELLER_PACKAGE_LENGTH', `${Math.round(resolved.largo_cm ?? 0)} cm`, !!resolved.largo_cm);
+        maybePushPackage('SELLER_PACKAGE_WEIGHT', `${Math.round((resolved.peso_kg ?? 0) * 1000)} g`, !!resolved.peso_kg);
         trace.paso_7_attributes_mapeados = attributes;
         trace.paso_7_package_dimensions = {
-            SELLER_PACKAGE_HEIGHT: articulo.alto_cm  != null ? `${Math.round(articulo.alto_cm)} cm`            : null,
-            SELLER_PACKAGE_WIDTH:  articulo.ancho_cm != null ? `${Math.round(articulo.ancho_cm)} cm`           : null,
-            SELLER_PACKAGE_LENGTH: articulo.largo_cm != null ? `${Math.round(articulo.largo_cm)} cm`           : null,
-            SELLER_PACKAGE_WEIGHT: articulo.peso_kg  != null ? `${Math.round(articulo.peso_kg * 1000)} g`      : null,
-            seller_package_omitidos: sellerPackageOmitidos,  // vacios si la categoría los acepta
+            SELLER_PACKAGE_HEIGHT: resolved.alto_cm  != null ? `${Math.round(resolved.alto_cm)} cm`             : null,
+            SELLER_PACKAGE_WIDTH:  resolved.ancho_cm != null ? `${Math.round(resolved.ancho_cm)} cm`            : null,
+            SELLER_PACKAGE_LENGTH: resolved.largo_cm != null ? `${Math.round(resolved.largo_cm)} cm`            : null,
+            SELLER_PACKAGE_WEIGHT: resolved.peso_kg  != null ? `${Math.round(resolved.peso_kg * 1000)} g`       : null,
+            fuente:                fichaData ? 'ficha_tecnica' : 'articulo',
+            seller_package_omitidos: sellerPackageOmitidos,
         };
 
 
@@ -305,14 +436,18 @@ export async function POST(req: NextRequest) {
 
         // ── 8. GPT-4o-mini: family_name limpio + resolver atributos faltantes ──
         const aiResult = await resolvePublicationAI({
-            nombre:                 articulo.nombre || '',
-            marca:                  articulo.marca  || '',
-            modelo:                 articulo.modelo || '',
-            descripcion:            articulo.descripcion,
-            atributos_especificos:  articulo.atributos_especificos,
+            nombre:                 resolved.nombre || '',
+            marca:                  resolved.marca  || '',
+            modelo:                 resolved.modelo || '',
+            descripcion:            resolved.descripcion,
+            atributos_especificos:  resolved.atributos_especificos,
             unresolved_attributes:  unresolvedAttrs,
             max_family_name_chars:  50, // MeLi agrega marca+modelo ~ 10-20 chars extra
         });
+        // Limpiar family_name generado por AI también
+        if (aiResult.family_name) {
+            aiResult.family_name = truncarTitulo(limpiarTitulo(aiResult.family_name), 50);
+        }
 
         // Construir mapa de valores permitidos por atributo para validación posterior
         const allowedValuesByAttr: Map<string, Set<string>> = new Map();
@@ -373,8 +508,19 @@ export async function POST(req: NextRequest) {
         trace.paso_8_atributos_aun_faltantes = stillMissing;
 
         // ── 9. Construir el body del POST /items (solo modelo UP) ─────────────
+        // Construir descripción enriquecida con bullets (máx 2000 chars)
+        const bulletsText = resolved.bullet_points.length > 0
+            ? '\n\n' + resolved.bullet_points.map((b: string) => `• ${b}`).join('\n')
+            : '';
+        const descripcionCompleta = ((resolved.descripcion || '') + bulletsText).slice(0, 2000);
+
+        // Título limpio final: override manual > AI > nombre resuelto (truncado ≤60 chars)
+        const familyNameFinal = family_name_override
+            ? truncarTitulo(limpiarTitulo(family_name_override), 60)
+            : (aiResult.family_name || truncarTitulo(resolved.nombre, 60));
+
         const itemBody: any = {
-            family_name: family_name_override || aiResult.family_name,
+            family_name: familyNameFinal,
             category_id,
             price,
             currency_id: precio_data?.currency || 'MXN',
@@ -390,6 +536,8 @@ export async function POST(req: NextRequest) {
             // NO enviar title — MeLi lo genera en modelo UP
             // NO enviar variations[] — en UP cada variante es POST separado
         };
+        trace.paso_9_titulo = { family_name_final: familyNameFinal, fuente: family_name_override ? 'override_manual' : aiResult.ai_used ? 'gpt_4o_mini' : 'nombre_resuelto' };
+        trace.paso_9_descripcion = { chars: descripcionCompleta.length, bullets: resolved.bullet_points.length };
 
         trace.paso_9_body = itemBody;
 
@@ -455,13 +603,13 @@ export async function POST(req: NextRequest) {
         };
         trace.paso_12_meli_raw = created.raw; // respuesta completa de MeLi para inspección
 
-        // ── 13. Agregar descripción ───────────────────────────────────────────
+        // ── 13. Agregar descripción (enriquecida con bullets, máx 2000 chars) ──
         let descResult: any = null;
-        if (articulo.descripcion) {
-            descResult = await (meli as any).addDescription(marketplace_id, created.item_id, articulo.descripcion);
-            trace.paso_13_descripcion = { ok: descResult.ok };
+        if (descripcionCompleta) {
+            descResult = await (meli as any).addDescription(marketplace_id, created.item_id, descripcionCompleta);
+            trace.paso_13_descripcion = { ok: descResult.ok, chars: descripcionCompleta.length };
         } else {
-            trace.paso_13_descripcion = { omitido: 'El artículo no tiene descripción' };
+            trace.paso_13_descripcion = { omitido: 'Sin descripción disponible (ni en ficha ni en artículo)' };
         }
 
         // ── 14. Guardar en BD: publicaciones_externas ─────────────────────────

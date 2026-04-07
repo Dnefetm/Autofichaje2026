@@ -27,8 +27,12 @@ type Stage = 'config' | 'preview' | 'result';
 interface PublishPanelProps {
     articulo_id: string;
     nombreArticulo: string;
-    /** URLs de imagenes del artículo (articulos.imagenes) para pre-cargar como sugerencia */
+    /** UUID de fichas_tecnicas — si viene, el backend usa la ficha como fuente principal */
+    ficha_id?: string;
+    /** URLs de imágenes base para pre-cargar como sugerencias */
     imagenesBase?: string[];
+    /** Modo modal: si true, el panel arranca abierto sin el toggle header */
+    modalMode?: boolean;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -53,7 +57,7 @@ function TraceBlock({ trace }: { trace: Record<string, any> }) {
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
-export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }: PublishPanelProps) {
+export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBase = [], modalMode = false }: PublishPanelProps) {
     // Cuentas
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [selectedAccount, setSelectedAccount] = useState<string>('');
@@ -113,6 +117,25 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         const validUrls = imagenesBase.filter(u => u?.startsWith('http'));
         setPreloadedSuggestions(validUrls);
     }, [imagenesBase]);
+
+    // Si viene ficha_id, cargar también las imágenes propias de la ficha (ficha_imagenes)
+    useEffect(() => {
+        if (!ficha_id) return;
+        fetch(`/api/fichas/${ficha_id}/imagenes`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.ok) return;
+                const fichaUrls: string[] = (data.imagenes ?? []).map((img: any) => img.url).filter(Boolean);
+                if (fichaUrls.length > 0) {
+                    setPreloadedSuggestions(prev => {
+                        // Merge: fichaUrls primero (tienen prioridad), sin duplicar
+                        const merged = [...fichaUrls, ...prev.filter(u => !fichaUrls.includes(u))];
+                        return merged;
+                    });
+                }
+            })
+            .catch(() => { /* silencioso */ });
+    }, [ficha_id]);
 
     // Re-fetch atributos requeridos cuando el usuario cambia la categoría en el preview
     useEffect(() => {
@@ -198,7 +221,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         if (!images.includes(url)) setImages(prev => [...prev, url]);
     }
 
-    // ── Preview (dry_run) ─────────────────────────────────────────────────────
+    // ── Preview (dry_run) ────────────────────────────────────────────────────
     async function handlePreview() {
         if (!selectedAccount) { setErrorMsg('Selecciona una cuenta MeLi'); return; }
         if (images.length === 0) { setErrorMsg('Agrega al menos 1 imagen'); return; }
@@ -213,6 +236,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                     articulo_id,
                     marketplace_id: selectedAccount,
                     pictures: images,
+                    ...(ficha_id ? { ficha_id } : {}),
                     category_id: categoryId || undefined,
                     listing_type_id: listingType,
                     dry_run: true,
@@ -228,7 +252,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         }
     }
 
-    // ── Re-preview con categoría forzada ─────────────────────────────────────
+    // ── Re-preview con categoría forzada ───────────────────────────────────────
     // Relanza el dry_run completo con category_id forzado. Reemplaza el trace entero.
     async function handleRePreview(forcedCategoryId: string) {
         if (!selectedAccount || !forcedCategoryId) return;
@@ -242,6 +266,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                     articulo_id,
                     marketplace_id: selectedAccount,
                     pictures: images,
+                    ...(ficha_id ? { ficha_id } : {}),
                     category_id: forcedCategoryId,
                     listing_type_id: listingType,
                     dry_run: true,
@@ -259,7 +284,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
         }
     }
 
-    // ── Publicar real ─────────────────────────────────────────────────────────
+    // ── Publicar real ──────────────────────────────────────────────────────
     async function handlePublish() {
         setLoading(true);
         setErrorMsg(null);
@@ -277,6 +302,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
                     articulo_id,
                     marketplace_id: selectedAccount,
                     pictures: images,
+                    ...(ficha_id ? { ficha_id } : {}),
                     category_id: categoryOverride || categoryId || undefined,
                     listing_type_id: listingType,
                     dry_run: false,
@@ -311,34 +337,49 @@ export function PublishPanel({ articulo_id, nombreArticulo, imagenesBase = [] }:
 
     const accountName = accounts.find(a => a.id === selectedAccount)?.account_name || selectedAccount;
 
-    // ── Render ────────────────────────────────────────────────────────────────
+    // ── Render ───────────────────────────────────────────────────────
+    // En modalMode (desde fichas), el panel arranca abierto directamente
+    const isOpen = modalMode ? true : panelOpen;
+
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Header — toggle del panel */}
-            <button
-                id="publish-panel-toggle"
-                onClick={() => setPanelOpen(o => !o)}
-                className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
-            >
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-yellow-100 rounded-lg">
-                        <Send className="w-4 h-4 text-yellow-600" />
+            {/* Header — toggle del panel (se oculta en modalMode) */}
+            {!modalMode && (
+                <button
+                    id="publish-panel-toggle"
+                    onClick={() => setPanelOpen(o => !o)}
+                    className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-yellow-100 rounded-lg">
+                            <Send className="w-4 h-4 text-yellow-600" />
+                        </div>
+                        <div className="text-left">
+                            <h2 className="text-base font-bold text-slate-900">Publicar en MeLi</h2>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                                Modelo User Products · Aprobación manual requerida
+                                {ficha_id && <span className="ml-2 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[9px] font-bold">Datos desde ficha técnica</span>}
+                            </p>
+                        </div>
                     </div>
-                    <div className="text-left">
-                        <h2 className="text-base font-bold text-slate-900">Publicar en MeLi</h2>
-                        <p className="text-xs text-slate-400 mt-0.5">Modelo User Products · Aprobación manual requerida</p>
-                    </div>
-                </div>
-                {panelOpen
-                    ? <ChevronUp className="w-5 h-5 text-slate-400" />
-                    : <ChevronDown className="w-5 h-5 text-slate-400" />
-                }
-            </button>
+                    {panelOpen
+                        ? <ChevronUp className="w-5 h-5 text-slate-400" />
+                        : <ChevronDown className="w-5 h-5 text-slate-400" />
+                    }
+                </button>
+            )}
 
-            {panelOpen && (
-                <div className="border-t border-slate-100 px-6 py-5 space-y-5">
+            {isOpen && (
+                <div className={`${!modalMode ? 'border-t border-slate-100' : ''} px-6 py-5 space-y-5`}>
+                    {/* Badge de ficha en modal mode */}
+                    {modalMode && ficha_id && (
+                        <div className="flex items-center gap-2 p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl">
+                            <span className="text-xs font-bold text-indigo-700">📄 Publicando con datos de la ficha técnica</span>
+                            <span className="text-[10px] text-indigo-400 font-mono">{ficha_id.slice(0, 8)}…</span>
+                        </div>
+                    )}
 
-                    {/* ── ETAPA 1: CONFIGURACIÓN ──────────────────────────── */}
+                    {/* ── ETAPA 1: CONFIGURACIÓN ──────────────────────── */}
                     {stage === 'config' && (
                         <>
                             {/* Cuenta */}

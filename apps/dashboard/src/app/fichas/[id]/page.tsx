@@ -6,9 +6,10 @@ import Link from 'next/link';
 import {
     ArrowLeft, Loader2, AlertCircle, FileText, Link2, CheckCircle2,
     ExternalLink, Trash2, Edit2, Save, X, Tag, List, Sparkles,
-    Upload, ChevronDown, ChevronRight, Unlink, Search,
+    Upload, ChevronDown, ChevronRight, Unlink, Search, Send,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { PublishPanel } from '@/components/publish-panel';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -174,6 +175,9 @@ export default function FichaDetallePage() {
     const [patchSaving, setPatchSaving] = useState(false);
     const [patchError, setPatchError]   = useState('');
 
+    // Panel de publicación
+    const [publishOpen, setPublishOpen] = useState(false);
+
     // Enriquecimiento
     const [enrichOpen, setEnrichOpen]     = useState(false);
     const [enrichFile, setEnrichFile]     = useState<File | null>(null);
@@ -245,6 +249,27 @@ export default function FichaDetallePage() {
     const [vinculandoLoading, setVinculandoLoading] = useState(false);
     const [vinculandoError, setVinculandoError]   = useState('');
 
+    // Imágenes de la ficha (tabla ficha_imagenes)
+    const [imagenes, setImagenes]               = useState<any[]>([]);
+    const [imagenesLoading, setImagenesLoading] = useState(false);
+    const [imagenesError, setImagenesError]     = useState('');
+    const [imgUrlInput, setImgUrlInput]         = useState('');
+    const [imgUrlLoading, setImgUrlLoading]     = useState(false);
+    const [imgExtractUrl, setImgExtractUrl]     = useState('');
+    const [imgExtractLoading, setImgExtractLoading] = useState(false);
+    const [imgExtractResults, setImgExtractResults] = useState<any[]>([]);
+    const [imgExtractOpen, setImgExtractOpen]   = useState(false);
+    const [imgExtractSelected, setImgExtractSelected] = useState<Set<string>>(new Set());
+    const [imgSaving, setImgSaving]             = useState<Set<string>>(new Set());
+    const imgFileRef                            = useRef<HTMLInputElement>(null);
+
+    // Autocompletar campos vacíos
+    const [autocompletarLoading, setAutocompletarLoading] = useState(false);
+    const [autocompletarSugerencias, setAutocompletarSugerencias] = useState<Record<string,any> | null>(null);
+    const [autocompletarChecks, setAutocompletarChecks] = useState<Set<string>>(new Set());
+    const [autocompletarApplying, setAutocompletarApplying] = useState(false);
+    const [autocompletarMsg, setAutocompletarMsg] = useState('');
+
     // Fetch datos
     useEffect(() => {
         if (!id) return;
@@ -262,16 +287,169 @@ export default function FichaDetallePage() {
                     ficha_tecnica_data, articulo_id,
                     marca, modelo, variante, codigo_universal, categoria,
                     peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen,
-                    articulos ( articulo_id, nombre, marca, modelo, variante, codigo_universal, codigo_sat, categoria, peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen, descripcion ),
+                    informacion_normativa, instrucciones_uso, leyendas_precautorias, indicaciones_almacenamiento,
+                    articulos ( articulo_id, nombre, marca, modelo, variante, codigo_universal, codigo_sat, categoria, peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen, descripcion, imagenes ),
                     ficha_extracciones ( id, extraccion_cruda, aplicada_a_ficha, created_at )
                 `)
                 .eq('id', id)
                 .single();
             if (err) setError(err.message);
-            else setFicha(data as unknown as FichaDetalle);
+            else {
+                setFicha(data as unknown as FichaDetalle);
+                // Cargar imágenes de la ficha
+                loadImagenes(id);
+            }
             setLoading(false);
         })();
     }, [id]);
+
+    async function loadImagenes(fichaId: string) {
+        setImagenesLoading(true);
+        try {
+            const res = await fetch(`/api/fichas/${fichaId}/imagenes`);
+            const data = await res.json();
+            if (data.ok) setImagenes(data.imagenes ?? []);
+        } catch { /* silencioso */ }
+        finally { setImagenesLoading(false); }
+    }
+
+    async function addImageFromUrl() {
+        if (!ficha || !imgUrlInput.trim()) return;
+        setImgUrlLoading(true); setImagenesError('');
+        try {
+            const res = await fetch(`/api/fichas/${ficha.id}/imagenes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: imgUrlInput.trim(), tipo: 'producto', fuente: 'url_directa' }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error al guardar imagen');
+            setImgUrlInput('');
+            await loadImagenes(ficha.id);
+        } catch (e: any) { setImagenesError(e.message); }
+        finally { setImgUrlLoading(false); }
+    }
+
+    async function addImageFromFile(file: File) {
+        if (!ficha) return;
+        setImgUrlLoading(true); setImagenesError('');
+        try {
+            const form = new FormData();
+            form.append('file', file);
+            form.append('tipo', 'producto');
+            const res = await fetch(`/api/fichas/${ficha.id}/imagenes`, { method: 'POST', body: form });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error al subir imagen');
+            await loadImagenes(ficha.id);
+        } catch (e: any) { setImagenesError(e.message); }
+        finally { setImgUrlLoading(false); }
+    }
+
+    async function deleteImagen(imagenId: string) {
+        if (!ficha) return;
+        setImgSaving(prev => new Set([...prev, imagenId]));
+        try {
+            await fetch(`/api/fichas/${ficha.id}/imagenes?imagen_id=${imagenId}`, { method: 'DELETE' });
+            setImagenes(prev => prev.filter(i => i.id !== imagenId));
+        } finally { setImgSaving(prev => { const s = new Set(prev); s.delete(imagenId); return s; }); }
+    }
+
+    async function reorderImagen(idx: number, dir: -1 | 1) {
+        if (!ficha) return;
+        const next = [...imagenes];
+        const target = idx + dir;
+        if (target < 0 || target >= next.length) return;
+        [next[idx], next[target]] = [next[target], next[idx]];
+        // Actualizar orden localmente primero (optimistic)
+        setImagenes(next);
+        // Sincronizar con BD
+        const ordenes = next.map((img, i) => ({ id: img.id, orden: i }));
+        await fetch(`/api/fichas/${ficha.id}/imagenes`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ordenes }),
+        });
+    }
+
+    async function extractImagenesFromUrl() {
+        if (!ficha || !imgExtractUrl.trim()) return;
+        setImgExtractLoading(true); setImagenesError(''); setImgExtractResults([]);
+        try {
+            const res = await fetch(`/api/fichas/${ficha.id}/imagenes/extract-url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: imgExtractUrl.trim() }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            const results = data.imagenes ?? [];
+            setImgExtractResults(results);
+            // Pre-seleccionar las que tienen confianza >= 70
+            setImgExtractSelected(new Set(results.filter((i: any) => i.confianza >= 70).map((i: any) => i.url)));
+            setImgExtractOpen(true);
+        } catch (e: any) { setImagenesError(e.message); }
+        finally { setImgExtractLoading(false); }
+    }
+
+    async function saveExtractedImages(urls: string[]) {
+        if (!ficha) return;
+        for (const url of urls) {
+            await fetch(`/api/fichas/${ficha.id}/imagenes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url, tipo: 'producto', fuente: 'extraccion_web', url_original: imgExtractUrl }),
+            });
+        }
+        await loadImagenes(ficha.id);
+        setImgExtractOpen(false);
+        setImgExtractResults([]);
+        setImgExtractUrl('');
+    }
+
+    // ── Autocompletar ────────────────────────────────────────────────────────
+    async function lanzarAutocompletar() {
+        if (!ficha) return;
+        setAutocompletarLoading(true); setAutocompletarSugerencias(null); setAutocompletarMsg('');
+        try {
+            const res = await fetch(`/api/fichas/${ficha.id}/autocompletar`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) { setAutocompletarMsg(data.error || 'Error'); return; }
+            if (data.mensaje) { setAutocompletarMsg(data.mensaje); return; }
+            if (!data.sugerencias || Object.keys(data.sugerencias).length === 0) {
+                setAutocompletarMsg('No se encontraron datos adicionales en el texto existente.');
+                return;
+            }
+            setAutocompletarSugerencias(data.sugerencias);
+            // Pre-marcar todos los campos sugeridos
+            setAutocompletarChecks(new Set(Object.keys(data.sugerencias)));
+        } catch (e: any) { setAutocompletarMsg(e.message); }
+        finally { setAutocompletarLoading(false); }
+    }
+
+    async function aplicarAutocompletar() {
+        if (!ficha || !autocompletarSugerencias) return;
+        const patch: Record<string, any> = {};
+        for (const key of autocompletarChecks) {
+            if (autocompletarSugerencias[key] !== undefined) patch[key] = autocompletarSugerencias[key];
+        }
+        if (Object.keys(patch).length === 0) return;
+        setAutocompletarApplying(true);
+        const res = await fetch(`/api/fichas/${ficha.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+        });
+        const data = await res.json().catch(() => ({}));
+        setAutocompletarApplying(false);
+        if (!res.ok) { setAutocompletarMsg(data.error || 'Error al guardar'); return; }
+        // Actualizar estado local
+        setFicha(prev => prev ? { ...prev, ...patch } : prev);
+        setAutocompletarSugerencias(null);
+        setAutocompletarChecks(new Set());
+        setAutocompletarMsg(`✓ ${Object.keys(patch).length} campo(s) actualizados`);
+        setTimeout(() => setAutocompletarMsg(''), 3000);
+    }
+
 
     // ── Cambiar estado ────────────────────────────────────────────────────────
 
@@ -1008,7 +1186,7 @@ export default function FichaDetallePage() {
                                             <div className="space-y-1.5 mt-1">
                                                 {Object.entries(obj).map(([k, v]) => (
                                                     <div key={k} className="flex gap-1.5 items-center">
-                                                        <input value={k} readOnly className="w-2/5 p-1.5 text-xs bg-slate-100 border border-slate-200 rounded-lg text-slate-500" />
+                                                        <input value={k.startsWith('__n_') ? '' : k} placeholder="Nombre del atributo" onChange={e => { const nk = e.target.value || k; const r = {}; for (const [ek,ev] of Object.entries(draft[campo] ?? {})) r[ek === k ? nk : ek] = ev; setDraft(d => ({...d, [campo]: r})); }} className="w-2/5 p-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-400 outline-none text-slate-700 placeholder-slate-300" />
                                                         <input value={String(v ?? '')} onChange={e => setDraft(d => ({ ...d, [campo]: { ...((d[campo] ?? {}) as object), [k]: e.target.value } }))} className="flex-1 p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-400 outline-none" />
                                                         <button type="button" onClick={() => {
                                                             const copy = { ...(draft[campo] as Record<string, any>) }; delete copy[k];
@@ -1017,7 +1195,7 @@ export default function FichaDetallePage() {
                                                     </div>
                                                 ))}
                                                 <button type="button" onClick={() => {
-                                                    const key = `Atributo ${Object.keys(obj).length + 1}`;
+                                                    const key = `__n_${Date.now()}`;
                                                     setDraft(d => ({ ...d, [campo]: { ...((d[campo] ?? {}) as object), [key]: '' } }));
                                                 }} className="text-xs text-indigo-500 hover:text-indigo-700">+ Agregar atributo</button>
                                             </div>
@@ -1129,7 +1307,117 @@ export default function FichaDetallePage() {
                             </div>
                         </details>
                     )}
-                </div>
+
+                    {/* ── Imágenes del producto ───────────────────────────────── */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Imágenes del producto</h2>
+                            <div className="flex items-center gap-2">
+                                {imagenesLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-300" />}
+                                <span className="text-xs text-slate-400">{imagenes.length} imagen{imagenes.length !== 1 ? 'es' : ''} • WebP</span>
+                            </div>
+                        </div>
+
+                        {imagenesError && (
+                            <p className="text-xs text-rose-500 font-medium">{imagenesError}</p>
+                        )}
+
+                        {/* Miniaturas con reordenamiento */}
+                        {imagenes.length > 0 && (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                                {imagenes.map((img, idx) => (
+                                    <div key={img.id} className="group relative aspect-square rounded-xl overflow-hidden border-2 border-slate-100 bg-slate-50 hover:border-indigo-300 transition-all">
+                                        {/* Badge de orden */}
+                                        <span className="absolute top-1.5 left-1.5 z-10 bg-slate-900/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                            #{idx + 1}
+                                        </span>
+                                        {/* Badge imagen principal */}
+                                        {idx === 0 && (
+                                            <span className="absolute top-1.5 right-1.5 z-10 bg-emerald-500 text-white text-[8px] font-bold px-1 py-0.5 rounded">PRINCIPAL</span>
+                                        )}
+                                        <img src={img.url} alt={`Imagen ${idx + 1}`} className="w-full h-full object-cover" loading="lazy"
+                                            onError={e => { (e.currentTarget as HTMLImageElement).src = ''; (e.currentTarget as HTMLImageElement).style.opacity = '0.3'; }} />
+                                        {/* Overlay de controles */}
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100">
+                                            <button type="button" onClick={() => reorderImagen(idx, -1)} disabled={idx === 0}
+                                                className="p-1.5 bg-white/90 hover:bg-white rounded-lg disabled:opacity-30 transition-all" title="Mover adelante">
+                                                <ArrowLeft className="w-3 h-3" />
+                                            </button>
+                                            <button type="button" onClick={() => reorderImagen(idx, 1)} disabled={idx === imagenes.length - 1}
+                                                className="p-1.5 bg-white/90 hover:bg-white rounded-lg disabled:opacity-30 transition-all" title="Mover atrás">
+                                                <ArrowLeft className="w-3 h-3 rotate-180" />
+                                            </button>
+                                            <button type="button" onClick={() => deleteImagen(img.id)} disabled={imgSaving.has(img.id)}
+                                                className="p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg disabled:opacity-60 transition-all" title="Eliminar">
+                                                {imgSaving.has(img.id) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Input URL directa */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Agregar por URL directa</label>
+                            <div className="flex gap-2">
+                                <input type="url" value={imgUrlInput}
+                                    onChange={e => setImgUrlInput(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && addImageFromUrl()}
+                                    placeholder="https://...imagen.jpg"
+                                    className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                                <button type="button" onClick={addImageFromUrl} disabled={!imgUrlInput.trim() || imgUrlLoading}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold rounded-xl disabled:opacity-50 flex items-center gap-2 transition-colors">
+                                    {imgUrlLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                    Agregar
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Upload archivo */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subir archivo (convierte a WebP)</label>
+                            <input ref={imgFileRef} type="file" accept="image/*" className="hidden"
+                                onChange={e => { const f = e.target.files?.[0]; if (f) addImageFromFile(f); }} />
+                            <button type="button" onClick={() => imgFileRef.current?.click()} disabled={imgUrlLoading}
+                                className="w-full py-2.5 rounded-xl border-2 border-dashed border-slate-300 text-sm text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
+                                <Upload className="w-4 h-4" /> Seleccionar imagen del equipo
+                            </button>
+                        </div>
+
+                        {/* Extracción con IA desde URL de página */}
+                        <details className="border border-slate-200 rounded-xl overflow-hidden">
+                            <summary className="px-4 py-3 cursor-pointer text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 list-none hover:bg-slate-50 transition-colors">
+                                <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+                                Extraer imágenes desde página web con IA
+                                <ChevronRight className="w-3.5 h-3.5 ml-auto text-slate-300" />
+                            </summary>
+                            <div className="px-4 pb-4 pt-3 space-y-3 border-t border-slate-100">
+                                <p className="text-[11px] text-slate-400">Pega la URL de una página de producto. La IA identificará las imágenes relevantes para que tú elijas cuáles guardar.</p>
+                                <div className="flex gap-2">
+                                    <input type="url" value={imgExtractUrl}
+                                        onChange={e => setImgExtractUrl(e.target.value)}
+                                        placeholder="https://prod.fabrica.com/producto"
+                                        className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                                    <button type="button" onClick={extractImagenesFromUrl}
+                                        disabled={!imgExtractUrl.trim() || imgExtractLoading}
+                                        className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold rounded-xl disabled:opacity-50 flex items-center gap-2 transition-colors">
+                                        {imgExtractLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                                        Analizar
+                                    </button>
+                                </div>
+                            </div>
+                        </details>
+
+                        {imagenes.length === 0 && !imagenesLoading && (
+                            <div className="flex flex-col items-center gap-2 py-4 border-2 border-dashed border-slate-200 rounded-xl text-center">
+                                <p className="text-xs text-slate-400">Sin imágenes aún.</p>
+                                <p className="text-xs text-slate-400">La primera imagen será la imagen principal en MeLi.</p>
+                            </div>
+                        )}
+                    </div>
+
+                </div>{/* fin columna principal */}
 
                 {/* ── Sidebar ── */}
                 <div className="space-y-4">
@@ -1289,6 +1577,31 @@ export default function FichaDetallePage() {
                         <p className="text-xs text-slate-400">{filled} de {totalEval} campos de contenido llenos</p>
                     </div>
 
+                    {/* Autocompletar campos vacíos */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
+                        <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-violet-500" />
+                            <h3 className="text-sm font-bold">Autocompletar campos</h3>
+                        </div>
+                        {autocompletarMsg && (
+                            <p className={`text-xs rounded-lg px-3 py-2 font-medium ${
+                                autocompletarMsg.startsWith('✓')
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>{autocompletarMsg}</p>
+                        )}
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Analiza el texto existente y sugiere valores para campos vacíos (materiales, regulatorio, etc.). Tú apruebas campo por campo.
+                        </p>
+                        <button type="button" onClick={lanzarAutocompletar}
+                            disabled={autocompletarLoading || !ficha.descripcion_larga && !ficha.descripcion && !ficha.especificaciones}
+                            className="w-full py-2.5 px-4 rounded-xl text-sm font-bold bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
+                            {autocompletarLoading
+                                ? <><Loader2 className="w-4 h-4 animate-spin" />Analizando…</>
+                                : <><Sparkles className="w-4 h-4" />Sugerir campos vacíos</>}
+                        </button>
+                    </div>
+
                     {/* Acciones */}
                     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
                         <h3 className="text-sm font-bold">Acciones</h3>
@@ -1303,6 +1616,49 @@ export default function FichaDetallePage() {
                                 className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
                                 {deleting ? <><Loader2 className="w-4 h-4 animate-spin" />Eliminando…</> : <><Trash2 className="w-4 h-4" />Eliminar ficha</>}
                             </button>
+                        )}
+                    </div>
+
+                    {/* Panel Publicar en MeLi */}
+                    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setPublishOpen(o => !o)}
+                            disabled={!ficha.articulo_id}
+                            title={!ficha.articulo_id ? 'Vincula un artículo primero para publicar' : undefined}
+                            className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${
+                                ficha.articulo_id
+                                    ? 'hover:bg-slate-50 cursor-pointer'
+                                    : 'opacity-50 cursor-not-allowed'
+                            }`}
+                        >
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-yellow-100 rounded-lg">
+                                    <Send className="w-4 h-4 text-yellow-600" />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-bold text-slate-900">Publicar en MeLi</p>
+                                    <p className="text-[10px] text-slate-400">
+                                        {ficha.articulo_id ? 'Con datos de esta ficha' : 'Vincula un artículo primero'}
+                                    </p>
+                                </div>
+                            </div>
+                            {ficha.articulo_id && (
+                                publishOpen
+                                    ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                                    : <ChevronRight className="w-4 h-4 text-slate-400" />
+                            )}
+                        </button>
+                        {publishOpen && ficha.articulo_id && (
+                            <div className="border-t border-slate-100 p-4">
+                                <PublishPanel
+                                    articulo_id={ficha.articulo_id}
+                                    nombreArticulo={ficha.nombre_producto || ficha.articulo_id}
+                                    ficha_id={ficha.id}
+                                    imagenesBase={(ficha.articulos as any)?.imagenes ?? []}
+                                    modalMode
+                                />
+                            </div>
                         )}
                     </div>
 
@@ -1604,8 +1960,9 @@ export default function FichaDetallePage() {
                                 />
                                 <button type="button" onClick={buscarParaVincular} disabled={vinculandoLoading || vinculandoQ.trim().length < 2}
                                     className="px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-1.5">
-                                    {vinculandoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                                    Buscar
+                                    {vinculandoLoading
+                                        ? <><Loader2 className="w-4 h-4 animate-spin" />Buscando…</>
+                                        : <><Search className="w-4 h-4" />Buscar</>}
                                 </button>
                             </div>
                             {vinculandoError && <p className="text-xs text-rose-600 mt-2">{vinculandoError}</p>}
@@ -1623,13 +1980,132 @@ export default function FichaDetallePage() {
                                     <p className="text-sm font-semibold text-slate-800 leading-tight">{art.nombre}</p>
                                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
                                         <span>SKU: <code className="text-slate-700">{art.articulo_id}</code></span>
-                                        {art.marca   && <span>Marca: {art.marca}</span>}
-                                        {art.modelo  && <span>Modelo: {art.modelo}</span>}
+                                        {art.marca    && <span>Marca: {art.marca}</span>}
+                                        {art.modelo   && <span>Modelo: {art.modelo}</span>}
                                         {art.variante && <span>Variante: {art.variante}</span>}
                                         {art.codigo_universal && <span>EAN: {art.codigo_universal}</span>}
                                     </div>
                                 </button>
                             ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Modal: Imágenes extraídas por IA ──────────────────────── */}
+            {imgExtractOpen && imgExtractResults.length > 0 && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+                        <div className="px-6 py-4 border-b border-slate-100">
+                            <h2 className="text-lg font-bold text-slate-900">Imágenes encontradas</h2>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                                La IA encontró {imgExtractResults.length} imagen(es). Selecciona las que quieres guardar en la ficha.
+                            </p>
+                        </div>
+                        <div className="overflow-y-auto flex-1 p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {imgExtractResults.map((img, i) => {
+                                const sel = imgExtractSelected.has(img.url);
+                                return (
+                                    <button key={i} type="button"
+                                        onClick={() => setImgExtractSelected(prev => {
+                                            const s = new Set(prev);
+                                            sel ? s.delete(img.url) : s.add(img.url);
+                                            return s;
+                                        })}
+                                        className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${sel ? 'border-indigo-500 ring-2 ring-indigo-300' : 'border-slate-200 hover:border-slate-300'}`}>
+                                        <img src={img.url} alt={img.descripcion} className="w-full h-full object-cover"
+                                            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                        {sel && (
+                                            <div className="absolute top-1.5 right-1.5 bg-indigo-600 rounded-full p-0.5">
+                                                <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                                            </div>
+                                        )}
+                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                                            <p className="text-[9px] text-white font-semibold truncate">{img.descripcion}</p>
+                                            <p className="text-[8px] text-white/70">{img.confianza}% confianza</p>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="flex gap-3 px-6 py-4 border-t border-slate-100">
+                            <button type="button"
+                                onClick={() => { setImgExtractOpen(false); setImgExtractResults([]); }}
+                                className="flex-1 py-2.5 rounded-xl text-sm border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold transition-colors">
+                                Cancelar
+                            </button>
+                            <button type="button"
+                                disabled={imgExtractSelected.size === 0}
+                                onClick={() => saveExtractedImages([...imgExtractSelected])}
+                                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                                Guardar {imgExtractSelected.size} imagen(es)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Modal: Autocompletar — aprobar sugerencias ─────────── */}
+            {autocompletarSugerencias && Object.keys(autocompletarSugerencias).length > 0 && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+                        <div className="px-6 py-4 border-b border-slate-100">
+                            <div className="flex items-center gap-2">
+                                <Sparkles className="w-5 h-5 text-violet-600" />
+                                <h2 className="text-lg font-bold text-slate-900">Sugerencias de campos</h2>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                                La IA extrajo {Object.keys(autocompletarSugerencias).length} valor(es) del texto existente.
+                                Marca los que quieres aplicar — nada se guarda sin tu aprobación.
+                            </p>
+                        </div>
+                        <div className="overflow-y-auto flex-1 p-4 space-y-3">
+                            {Object.entries(autocompletarSugerencias).map(([campo, valor]) => {
+                                const LABELS: Record<string, string> = {
+                                    descripcion:                  'Descripción corta',
+                                    materiales:                   'Materiales',
+                                    informacion_normativa:         'Información normativa',
+                                    instrucciones_uso:             'Instrucciones de uso',
+                                    leyendas_precautorias:         'Leyendas precautorias',
+                                    indicaciones_almacenamiento:   'Indicaciones de almacenamiento',
+                                    palabras_clave:               'Palabras clave',
+                                };
+                                const label = LABELS[campo] || campo;
+                                const checked = autocompletarChecks.has(campo);
+                                return (
+                                    <label key={campo}
+                                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${checked ? 'border-violet-400 bg-violet-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                                        <input type="checkbox" checked={checked}
+                                            onChange={e => setAutocompletarChecks(prev => {
+                                                const s = new Set(prev);
+                                                e.target.checked ? s.add(campo) : s.delete(campo);
+                                                return s;
+                                            })}
+                                            className="accent-violet-600 mt-0.5 shrink-0 w-4 h-4" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">{label}</p>
+                                            <p className="text-sm text-slate-800 mt-0.5 leading-snug">
+                                                {Array.isArray(valor) ? valor.join(', ') : String(valor)}
+                                            </p>
+                                        </div>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                        <div className="flex gap-3 px-6 py-4 border-t border-slate-100">
+                            <button type="button"
+                                onClick={() => { setAutocompletarSugerencias(null); setAutocompletarChecks(new Set()); }}
+                                className="flex-1 py-2.5 rounded-xl text-sm border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold transition-colors">
+                                Cancelar
+                            </button>
+                            <button type="button"
+                                disabled={autocompletarChecks.size === 0 || autocompletarApplying}
+                                onClick={aplicarAutocompletar}
+                                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+                                {autocompletarApplying
+                                    ? <><Loader2 className="w-4 h-4 animate-spin" />Guardando…</>
+                                    : `Aplicar ${autocompletarChecks.size} campo(s)`}
+                            </button>
                         </div>
                     </div>
                 </div>
