@@ -6,10 +6,11 @@ import Link from 'next/link';
 import {
     ArrowLeft, Loader2, AlertCircle, FileText, Link2, CheckCircle2,
     ExternalLink, Trash2, Edit2, Save, X, Tag, List, Sparkles,
-    Upload, ChevronDown, ChevronRight, Unlink, Search, Send,
+    Upload, ChevronRight, Unlink, Search,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { PublishPanel } from '@/components/publish-panel';
+import { PricesSection } from '@/components/prices-section';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -1417,6 +1418,22 @@ export default function FichaDetallePage() {
                         )}
                     </div>
 
+                    {/* Precios y Publicación MeLi — visible solo si la ficha tiene artículo vinculado */}
+                    {ficha.articulo_id && (
+                        <>
+                            <PricesSection
+                                articulo_id={ficha.articulo_id}
+                                modeloDefault={(ficha.articulos as any)?.modelo ?? null}
+                            />
+                            <PublishPanel
+                                articulo_id={ficha.articulo_id}
+                                nombreArticulo={ficha.nombre_producto || ficha.articulo_id}
+                                ficha_id={ficha.id}
+                                imagenesBase={(ficha.articulos as any)?.imagenes ?? []}
+                            />
+                        </>
+                    )}
+
                 </div>{/* fin columna principal */}
 
                 {/* ── Sidebar ── */}
@@ -1616,49 +1633,6 @@ export default function FichaDetallePage() {
                                 className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
                                 {deleting ? <><Loader2 className="w-4 h-4 animate-spin" />Eliminando…</> : <><Trash2 className="w-4 h-4" />Eliminar ficha</>}
                             </button>
-                        )}
-                    </div>
-
-                    {/* Panel Publicar en MeLi */}
-                    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                        <button
-                            type="button"
-                            onClick={() => setPublishOpen(o => !o)}
-                            disabled={!ficha.articulo_id}
-                            title={!ficha.articulo_id ? 'Vincula un artículo primero para publicar' : undefined}
-                            className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${
-                                ficha.articulo_id
-                                    ? 'hover:bg-slate-50 cursor-pointer'
-                                    : 'opacity-50 cursor-not-allowed'
-                            }`}
-                        >
-                            <div className="flex items-center gap-2.5">
-                                <div className="p-2 bg-yellow-100 rounded-lg">
-                                    <Send className="w-4 h-4 text-yellow-600" />
-                                </div>
-                                <div className="text-left">
-                                    <p className="text-sm font-bold text-slate-900">Publicar en MeLi</p>
-                                    <p className="text-[10px] text-slate-400">
-                                        {ficha.articulo_id ? 'Con datos de esta ficha' : 'Vincula un artículo primero'}
-                                    </p>
-                                </div>
-                            </div>
-                            {ficha.articulo_id && (
-                                publishOpen
-                                    ? <ChevronDown className="w-4 h-4 text-slate-400" />
-                                    : <ChevronRight className="w-4 h-4 text-slate-400" />
-                            )}
-                        </button>
-                        {publishOpen && ficha.articulo_id && (
-                            <div className="border-t border-slate-100 p-4">
-                                <PublishPanel
-                                    articulo_id={ficha.articulo_id}
-                                    nombreArticulo={ficha.nombre_producto || ficha.articulo_id}
-                                    ficha_id={ficha.id}
-                                    imagenesBase={(ficha.articulos as any)?.imagenes ?? []}
-                                    modalMode
-                                />
-                            </div>
                         )}
                     </div>
 

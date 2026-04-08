@@ -663,6 +663,23 @@ export async function POST(req: NextRequest) {
             trace.paso_16_articulo_update = artUpdateErr
                 ? { error: artUpdateErr.message }
                 : { publicacion_ml: created.item_id };
+
+            // ── 17. Vincular fichas_tecnicas ← publicación (solo si vino ficha_id) ──
+            if (ficha_id) {
+                const { error: fichaLinkErr } = await supabaseAdmin
+                    .from('fichas_tecnicas')
+                    .update({
+                        publicacion_externa_id: pubInserted.id,
+                        ml_item_id:             created.item_id,
+                    })
+                    .eq('id', ficha_id);
+
+                trace.paso_17_ficha_vinculacion = fichaLinkErr
+                    ? { error: fichaLinkErr.message }
+                    : { ok: true, publicacion_externa_id: pubInserted.id, ml_item_id: created.item_id };
+            } else {
+                trace.paso_17_ficha_vinculacion = { omitido: 'No se proveyó ficha_id' };
+            }
         }
 
         // ── Respuesta final ───────────────────────────────────────────────────
