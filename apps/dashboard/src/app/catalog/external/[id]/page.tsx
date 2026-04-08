@@ -524,7 +524,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <div className="py-2 border-b border-slate-100">
                                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Acciones recomendadas</p>
                                     <div className="space-y-1.5">
-                                        {enrichData.health.actions.slice(0, 4).map((action: any, i: number) => {
+                                        {enrichData!.health.actions.slice(0, 4).map((action: any, i: number) => {
                                             const isCritical = action.severity === 'critical' || action.impact === 'high';
                                             return (
                                                 <div key={i} className={`text-[11px] px-2 py-1.5 rounded flex items-start gap-2 ${isCritical ? 'bg-rose-50 text-rose-700 border border-rose-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>

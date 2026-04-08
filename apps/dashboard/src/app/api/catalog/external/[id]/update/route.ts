@@ -4,7 +4,7 @@ import { MeliAdapter } from '@gestor/adapters/meli';
 
 // Campos editables permitidos
 const ALLOWED_FIELDS = ['price', 'stock', 'status'] as const;
-type AllowedField = typeof ALLOWED_FIELDS[number];
+type AllowedField = (typeof ALLOWED_FIELDS)[number];
 
 export async function PUT(
     req: NextRequest,
@@ -55,9 +55,13 @@ export async function PUT(
             }
 
             if (hasVariation) {
-                await meli.updatePrice(pub.marketplace_id, pub.external_item_id, numValue, pub.external_variation_id);
+                await meli.updatePrice(pub.marketplace_id, [
+                    { itemId: pub.external_item_id, variationId: pub.external_variation_id, price: numValue }
+                ]);
             } else {
-                await meli.updatePrice(pub.marketplace_id, pub.external_item_id, numValue);
+                await meli.updatePrice(pub.marketplace_id, [
+                    { itemId: pub.external_item_id, price: numValue }
+                ]);
             }
             dbUpdate = { precio_venta: numValue };
 
