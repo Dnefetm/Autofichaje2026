@@ -16,15 +16,14 @@ export async function POST(req: NextRequest) {
 
         logger.info({ topic, resource }, 'Recibido webhook de Mercado Libre');
 
-        // 1. Deduplicación con Redis (evitar procesar el mismo recurso dos veces en 24h)
-        const dedupeKey = `webhook:meli:${resource}`;
-        const isDuplicate = await redis.set(dedupeKey, 'processed', { nx: true, ex: 86400 });
-        if (!isDuplicate) {
-            return NextResponse.json({ status: 'ignored', reason: 'duplicate' });
-        }
-
         // 2. Procesar órdenes (ventas)
+        // Deduplicación de 24h solo para orders: un mismo resource de orden no necesita reprocesarse en el día.
         if (topic === 'orders_v2' || topic === 'orders') {
+            const dedupeKey = `webhook:meli:${resource}`;
+            const isDuplicate = await redis.set(dedupeKey, 'processed', { nx: true, ex: 86400 });
+            if (!isDuplicate) {
+                return NextResponse.json({ status: 'ignored', reason: 'duplicate' });
+            }
             // Encolar job de alta prioridad para procesar la venta
             await supabase.from('jobs').insert({
                 type: 'process_sale',
@@ -37,40 +36,41 @@ export async function POST(req: NextRequest) {
 
         // 3. Procesar cambios en publicaciones (items)
         // MeLi envía este topic cuando cambia precio, stock, logistic_type, status, etc.
-        // TTL de 5 min (no 24h) — un item puede cambiar múltiples veces al día.
+        // Dedup de 5 min — suficiente para absorber ráfagas sin bloquear cambios posteriores.
         if (topic === 'items') {
             const itemIdMatch = resource.match(/\/items\/(MLM\w+)/);
             if (itemIdMatch) {
                 const externalItemId = itemIdMatch[1];
-                // Deduplicación corta: 5 minutos — evita procesar el mismo cambio dos veces en ráfaga
                 const dedupeItemKey = `webhook:meli:items:${externalItemId}`;
-                const isItemDuplicate = await redis.set(dedupeItemKey, '1', { nx: true, ex: 300 });
-                if (isItemDuplicate) {
-                    // Resolver a qué cuenta pertenece (la BD ya lo sabe — no hace falta llamar a MeLi)
-                    const { data: pub } = await supabase
-                        .from('publicaciones_externas')
-                        .select('marketplace_id')
-                        .eq('external_item_id', externalItemId)
-                        .eq('external_variation_id', '0')
-                        .maybeSingle();
+                // redis.set nx devuelve 'OK' si insertó (NO es duplicado), null si ya existía (ES duplicado)
+                const inserted = await redis.set(dedupeItemKey, '1', { nx: true, ex: 300 });
+                if (!inserted) {
+                    // Ya procesado en los últimos 5 min — ignorar
+                    return NextResponse.json({ status: 'ignored', reason: 'duplicate_item_5min' });
+                }
+                // Resolver a qué cuenta pertenece (la BD ya lo sabe — no hace falta llamar a MeLi)
+                const { data: pub } = await supabase
+                    .from('publicaciones_externas')
+                    .select('marketplace_id')
+                    .eq('external_item_id', externalItemId)
+                    .eq('external_variation_id', '0')
+                    .maybeSingle();
 
-                    if (pub?.marketplace_id) {
-                        await supabase.from('jobs').insert({
-                            type: 'sync_item',
-                            payload: { marketplace_id: pub.marketplace_id, external_item_id: externalItemId },
-                            status: 'pending',
-                            priority: 2,
-                        });
-                        await dispatchWorker();
-                        logger.info({ externalItemId, marketplace_id: pub.marketplace_id }, 'Webhook items: sync_item encolado');
-                    } else {
-                        // Item no conocido en BD — ignorar silenciosamente (puede ser de otra app)
-                        logger.info({ externalItemId }, 'Webhook items: item no encontrado en BD, ignorado');
-                    }
+                if (pub?.marketplace_id) {
+                    await supabase.from('jobs').insert({
+                        type: 'sync_item',
+                        payload: { marketplace_id: pub.marketplace_id, external_item_id: externalItemId },
+                        status: 'pending',
+                        priority: 2,
+                    });
+                    await dispatchWorker();
+                    logger.info({ externalItemId, marketplace_id: pub.marketplace_id }, 'Webhook items: sync_item encolado');
+                } else {
+                    // Item no conocido en BD — ignorar silenciosamente (puede ser de otra app)
+                    logger.info({ externalItemId }, 'Webhook items: item no encontrado en BD, ignorado');
                 }
             }
         }
-
 
         return NextResponse.json({ status: 'received' });
     } catch (error: any) {
