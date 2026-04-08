@@ -46,6 +46,7 @@ const tipoPubConfig: Record<string, { label: string; color: string }> = {
     tradicional:        { label: 'Tradicional',  color: 'bg-blue-100 text-blue-700' },
     catalogo:           { label: 'Catálogo',     color: 'bg-purple-100 text-purple-700' },
     catalogo_derivada:  { label: 'Cat. Derivada',color: 'bg-purple-100 text-purple-600 border border-purple-300' },
+    up:                 { label: 'User Product', color: 'bg-emerald-100 text-emerald-700' },
 };
 
 function HealthBar({ value }: { value: number | null }) {
@@ -747,9 +748,10 @@ export default function VirtualCatalogPage() {
             // Condición: par_item_id IS NULL  →  incluir (huérfanos de catálogo + todas las tradicionales)
             // Solo aplica cuando el usuario NO filtra explícitamente por tipo catálogo.
             if (filters.tipoPublicacion.length === 0 || !filters.tipoPublicacion.some(t => t.startsWith('catalogo'))) {
-                // Muestra filas que sean: tradicionales (no-catálogo)  OR  catálogos sin par (huérfanos)
+                // Muestra filas que sean: tradicionales, up (User Products), null, catálogos sin par (huérfanos)
                 query = query.or(
                     'tipo_publicacion.eq.tradicional,' +
+                    'tipo_publicacion.eq.up,' +
                     'tipo_publicacion.is.null,' +
                     'and(tipo_publicacion.eq.catalogo,par_item_id.is.null),' +
                     'and(tipo_publicacion.eq.catalogo_derivada,par_item_id.is.null)'

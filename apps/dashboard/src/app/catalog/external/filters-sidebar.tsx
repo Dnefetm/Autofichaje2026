@@ -237,11 +237,12 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
 
                 {/* Tipo de Publicación */}
                 <Accordion title="Tipo de Publicación" defaultOpen>
-                    {([
+                    {[
                         { val: 'tradicional',       label: 'Tradicional' },
                         { val: 'catalogo',          label: 'Catálogo' },
                         { val: 'catalogo_derivada', label: 'Cat. Derivada' },
-                    ]).map(({ val, label }) => (
+                        { val: 'up',               label: 'User Product' },
+                    ].map(({ val, label }) => (
                         <CheckItem
                             key={val}
                             label={label}
