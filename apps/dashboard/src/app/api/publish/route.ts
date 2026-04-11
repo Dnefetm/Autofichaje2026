@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
                 categoria, descripcion, codigo_universal,
                 atributos_especificos, pais_origen,
                 peso_kg, largo_cm, ancho_cm, alto_cm,
-                activo, es_obsoleto, publicacion_ml, sku
+                activo, es_obsoleto, publicacion_ml
             `)
             .eq('articulo_id', articulo_id)
             .single();
@@ -147,7 +147,6 @@ export async function POST(req: NextRequest) {
             variante: articulo.variante,
             categoria: articulo.categoria,
             codigo_universal: articulo.codigo_universal,
-            sku: articulo.sku,
             activo: articulo.activo,
             es_obsoleto: articulo.es_obsoleto,
             publicacion_ml_existente: articulo.publicacion_ml,
@@ -287,10 +286,11 @@ export async function POST(req: NextRequest) {
 
         const price = precio_data?.sale_price || 0;
 
-        // -- 3.1 Resolver SKU efectivo: articulos.sku > marketplace_prices.sku_tienda > articulos.modelo --
-        const sku_efectivo = articulo.sku || precio_data?.sku_tienda || articulo.modelo || null;
+        // -- 3.1 Resolver SKU efectivo: marketplace_prices.sku_tienda > articulos.modelo --
+        // articulos.sku fue eliminada permanentemente de la BD (DROP COLUMN CASCADE).
+        const sku_efectivo = precio_data?.sku_tienda || articulo.modelo || null;
         trace.paso_3_1_sku_efectivo = {
-            origen: articulo.sku ? 'articulos.sku' : precio_data?.sku_tienda ? 'marketplace_prices.sku_tienda' : articulo.modelo ? 'articulos.modelo' : 'null',
+            origen: precio_data?.sku_tienda ? 'marketplace_prices.sku_tienda' : articulo.modelo ? 'articulos.modelo' : 'null',
             valor: sku_efectivo,
         };
 
