@@ -20,11 +20,12 @@ const FIXES = [
 ];
 
 async function getAccessToken(marketplaceId: string): Promise<string> {
-    // Buscar el ID completo del marketplace_config que empiece con el prefijo
+    // ilike no funciona sobre columnas UUID en supabase-js sin cast explícito.
+    // Usamos .filter con 'id::text' para que Postgres haga el cast correctamente.
     const { data: config } = await supabaseAdmin
         .from('marketplace_configs')
         .select('id')
-        .ilike('id', `${marketplaceId}%`)
+        .filter('id::text', 'ilike', `${marketplaceId}%`)
         .single();
 
     if (!config) throw new Error(`marketplace_config no encontrado: ${marketplaceId}`);
