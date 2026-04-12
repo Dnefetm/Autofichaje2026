@@ -66,8 +66,31 @@ export async function POST(req: NextRequest) {
                     await dispatchWorker();
                     logger.info({ externalItemId, marketplace_id: pub.marketplace_id }, 'Webhook items: sync_item encolado');
                 } else {
-                    // Item no conocido en BD — ignorar silenciosamente (puede ser de otra app)
-                    logger.info({ externalItemId }, 'Webhook items: item no encontrado en BD, ignorado');
+                    // B4: Item no conocido en BD — intentar resolver cuenta por user_id del webhook.
+                    // Cubre items creados directamente en MeLi fuera del gestor.
+                    if (user_id) {
+                        const { data: configs } = await supabase
+                            .from('marketplace_configs')
+                            .select('id, settings')
+                            .in('marketplace', ['meli', 'mercadolibre']);
+                        const matchedConfig = (configs || []).find((c: any) =>
+                            String(c.settings?.seller_id) === String(user_id)
+                        );
+                        if (matchedConfig) {
+                            await supabase.from('jobs').insert({
+                                type: 'sync_item',
+                                payload: { marketplace_id: matchedConfig.id, external_item_id: externalItemId },
+                                status: 'pending',
+                                priority: 2,
+                            });
+                            await dispatchWorker();
+                            logger.info({ externalItemId, marketplace_id: matchedConfig.id }, 'Webhook items: item desconocido — sync_item encolado por user_id');
+                        } else {
+                            logger.info({ externalItemId, user_id }, 'Webhook items: item no encontrado en BD ni en configs, ignorado');
+                        }
+                    } else {
+                        logger.info({ externalItemId }, 'Webhook items: item no encontrado en BD, ignorado');
+                    }
                 }
             }
         }

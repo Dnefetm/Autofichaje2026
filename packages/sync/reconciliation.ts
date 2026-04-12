@@ -1,15 +1,14 @@
-import { supabase } from '@gestor/shared/lib/supabase';
+﻿import { supabase } from '@gestor/shared/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import logger from '@gestor/shared/lib/logger';
 
 const meliAdapter = new MeliAdapter();
 
 export async function runReconciliation() {
-    logger.info('Iniciando reconciliación de inventario (v3 — multiGET batch)...');
+    logger.info('Iniciando reconciliacion de inventario (v4 - multiGET stock+status combinado)...');
 
     try {
         // 1. Obtener publicaciones que son fuente de stock, mapeadas y no-fulfillment.
-        // Filtramos fulfillment en la query SQL — más eficiente que hacerlo en el loop.
         const { data: publicaciones, error } = await supabase
             .from('publicaciones_externas')
             .select('id, marketplace_id, external_item_id, stock_publicado, logistic_type')
@@ -23,10 +22,9 @@ export async function runReconciliation() {
             return;
         }
 
-        logger.info({ count: publicaciones.length }, 'Publicaciones a reconciliar (v3 multiGET)');
+        logger.info({ count: publicaciones.length }, 'Publicaciones a reconciliar (v4 stock+status combinado)');
 
-        // 2. Agrupar por marketplace_id — así hacemos 1 batch de multiGET por cuenta,
-        //    no uno global (cada cuenta tiene su propio access token).
+        // 2. Agrupar por marketplace_id.
         const byAccount = new Map<string, typeof publicaciones>();
         for (const pub of publicaciones) {
             if (!byAccount.has(pub.marketplace_id)) byAccount.set(pub.marketplace_id, []);
@@ -35,20 +33,37 @@ export async function runReconciliation() {
 
         for (const [accountId, pubs] of byAccount.entries()) {
             try {
-                // 3. multiGET de stock remoto: 1 call por cada 20 items (vs 1 GET por item antes).
-                //    getStockBatch hace chunks internamente, retorna Map<itemId, availableQty>.
+                // 3. B3: multiGET combinado - stock + status + sub_status en un solo batch.
+                //    Reemplaza getStockBatch (solo stock) + llamada separada a reconcileClosedItems.
                 const itemIds = pubs.map(p => p.external_item_id);
-                const remoteStockMap = await meliAdapter.getStockBatch(accountId, itemIds);
+                const remoteMap = await meliAdapter.getStockAndStatusBatch(accountId, itemIds);
 
-                // 4. Comparar stock local vs remoto y encolar sync_stock_mapped si hay discrepancia.
+                // 4. Procesar cada publicacion.
                 for (const pub of pubs) {
                     try {
-                        // Si el item no está en el Map (error en chunk del multiGET),
-                        // lo saltamos para no generar una discrepancia falsa positiva.
-                        if (!remoteStockMap.has(pub.external_item_id)) continue;
-                        const remoteStock = remoteStockMap.get(pub.external_item_id)!;
+                        if (!remoteMap.has(pub.external_item_id)) continue;
+                        const remote = remoteMap.get(pub.external_item_id)!;
 
-                        // Calcular stock local — Kit-Aware (mismo algoritmo que v2)
+                        // 4a. Si MeLi reporta status terminal, actualizar BD directamente.
+                        if (['closed', 'inactive'].includes(remote.status)) {
+                            await supabase.from('publicaciones_externas')
+                                .update({
+                                    status_externo: remote.status,
+                                    sub_status: remote.sub_status,
+                                    actualizado_el: new Date().toISOString(),
+                                })
+                                .eq('marketplace_id', accountId)
+                                .eq('external_item_id', pub.external_item_id);
+                            logger.info({
+                                external_item_id: pub.external_item_id,
+                                status: remote.status,
+                            }, 'Reconciliacion: status terminal detectado y actualizado en BD');
+                            continue; // no reconciliar stock de items cerrados
+                        }
+
+                        // 4b. Reconciliar stock (logica existente).
+                        const remoteStock = remote.qty;
+
                         const { data: componentes } = await supabase
                             .from('mapeo_publicacion_articulo')
                             .select('articulo_id, cantidad_requerida')
@@ -79,7 +94,6 @@ export async function runReconciliation() {
                                 marketplace: pub.marketplace_id
                             }, 'Discrepancia de stock detectada');
 
-                            // Registrar discrepancia en logs (igual que v2)
                             await supabase.from('sync_logs').insert({
                                 marketplace_id: pub.marketplace_id,
                                 operation: 'reconciliation_fix',
@@ -89,11 +103,10 @@ export async function runReconciliation() {
                                     external_item_id: pub.external_item_id,
                                     expected: localStock,
                                     found: remoteStock,
-                                    message: 'Discrepancia detectada durante reconciliación automática (v3)'
+                                    message: 'Discrepancia detectada durante reconciliacion automatica (v4)'
                                 }
                             });
 
-                            // Deduplicación: no crear job si ya hay uno pending para esta publicación
                             const { data: existingJob } = await supabase
                                 .from('jobs')
                                 .select('id')
@@ -111,16 +124,16 @@ export async function runReconciliation() {
                             }
                         }
                     } catch (err: any) {
-                        logger.error({ publicacion_id: pub.id, error: err.message }, 'Error reconciliando publicación individual');
+                        logger.error({ publicacion_id: pub.id, error: err.message }, 'Error reconciliando publicacion individual');
                     }
                 }
             } catch (err: any) {
-                logger.error({ accountId, error: err.message }, 'Error en reconciliación de cuenta');
+                logger.error({ accountId, error: err.message }, 'Error en reconciliacion de cuenta');
             }
         }
 
-        logger.info('Reconciliación v3 finalizada.');
+        logger.info('Reconciliacion v4 finalizada.');
     } catch (err) {
-        logger.error({ err }, 'Fallo crítico en el servicio de reconciliación');
+        logger.error({ err }, 'Fallo critico en el servicio de reconciliacion');
     }
 }

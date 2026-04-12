@@ -93,14 +93,48 @@ export async function GET(req: NextRequest) {
         }
         results.jobsProcessed = jobs.length;
 
-        // 5. Reconciliación periódica (~cada 30 min)
-        const currentMinute = new Date().getMinutes();
-        if (currentMinute % 30 < 2) {
+        // 5. Reconciliación periódica (~cada 6h) — B2: reducida de 30min para aliviar carga
+        const now = new Date();
+        const currentMinute = now.getMinutes();
+        const currentHour = now.getUTCHours();
+        if (currentHour % 6 === 0 && currentMinute < 2) {
             try {
                 await runReconciliation();
                 (results as any).reconciliation = 'executed';
             } catch (reconErr: any) {
                 results.errors.push(`Reconciliation failed: ${reconErr.message}`);
+            }
+        }
+
+        // B0: Cada 8h — encolar sync_account_catalog por cuenta activa (priority 10 = baja)
+        // Garantiza que items cerrados, títulos y campos enriquecidos se actualicen periódicamente.
+        if (currentHour % 8 === 0 && currentMinute < 2) {
+            try {
+                const { data: cuentas } = await supabaseAdmin
+                    .from('marketplace_configs')
+                    .select('id')
+                    .in('marketplace', ['meli', 'mercadolibre'])
+                    .eq('is_active', true);
+                for (const cuenta of (cuentas || [])) {
+                    const { data: existing } = await supabaseAdmin
+                        .from('jobs')
+                        .select('id')
+                        .eq('type', 'sync_account_catalog')
+                        .eq('status', 'pending')
+                        .contains('payload', { marketplace_id: cuenta.id })
+                        .maybeSingle();
+                    if (!existing) {
+                        await supabaseAdmin.from('jobs').insert({
+                            type: 'sync_account_catalog',
+                            payload: { marketplace_id: cuenta.id },
+                            status: 'pending',
+                            priority: 10,
+                        });
+                    }
+                }
+                (results as any).catalog_sync_queued = true;
+            } catch (catalogErr: any) {
+                results.errors.push(`sync_account_catalog hook failed: ${catalogErr.message}`);
             }
         }
     } catch (err: any) {
@@ -333,7 +367,7 @@ async function handleSyncStockMapped(job: any, meli: MeliAdapter) {
     const { publicacion_id } = job.payload;
     const { data: pub } = await supabaseAdmin
         .from('publicaciones_externas')
-        .select('id, marketplace_id, external_item_id, es_fuente_stock, logistic_type')
+        .select('id, marketplace_id, external_item_id, es_fuente_stock, logistic_type, status_externo')
         .eq('id', publicacion_id)
         .single();
     if (!pub) return;
@@ -355,6 +389,22 @@ async function handleSyncStockMapped(job: any, meli: MeliAdapter) {
     await supabaseAdmin.from('publicaciones_externas')
         .update({ stock_publicado: finalStock, actualizado_el: new Date().toISOString() })
         .eq('id', pub.id);
+
+    // B1: Pause/activate automático — el flujo sync_stock_mapped es el principal (2173 ejecuciones)
+    // pero no tenía esta lógica. Ahora sí la tiene, igual que handleSyncStock.
+    if (finalStock > 0 && pub.status_externo === 'paused') {
+        try {
+            await meli.activateListing(pub.marketplace_id, pub.external_item_id);
+            await supabaseAdmin.from('publicaciones_externas')
+                .update({ status_externo: 'active' }).eq('id', pub.id);
+        } catch (_) {}
+    } else if (finalStock === 0 && pub.status_externo === 'active') {
+        try {
+            await meli.pauseListing(pub.marketplace_id, pub.external_item_id);
+            await supabaseAdmin.from('publicaciones_externas')
+                .update({ status_externo: 'paused' }).eq('id', pub.id);
+        } catch (_) {}
+    }
 }
 
 // ========================================

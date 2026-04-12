@@ -38,6 +38,14 @@ function clasificarPublicacion(item: any): {
     };
 }
 
+// A2: Detecta SKUs que son articulo_id UUID legacy (exactamente 8 chars hexadecimales).
+// Mismo patrón que esSkuBasura en fix-sku/route.ts
+const SKU_BASURA_RE = /^[0-9a-f]{8}$/i;
+function isSkuGarbage(sku: string | null | undefined): boolean {
+    if (!sku) return false;
+    return SKU_BASURA_RE.test(sku.trim());
+}
+
 export class MeliAdapter implements MarketplaceAdapter {
     readonly capabilities: MarketplaceCapabilities = {
         supportsBulkStock: false,
@@ -260,6 +268,39 @@ export class MeliAdapter implements MarketplaceAdapter {
         return result;
     }
 
+    // B3: multiGET que retorna stock + status + sub_status en un solo request.
+    // Reemplaza la necesidad de llamar getStockBatch + reconcileClosedItems por separado.
+    async getStockAndStatusBatch(accountId: string, itemIds: string[]): Promise<Map<string, { qty: number; status: string; sub_status: string[] }>> {
+        const result = new Map<string, { qty: number; status: string; sub_status: string[] }>();
+        if (itemIds.length === 0) return result;
+
+        const accessToken = await this.getAccessToken(accountId);
+        const CHUNK_SIZE = 20;
+        for (let i = 0; i < itemIds.length; i += CHUNK_SIZE) {
+            const chunk = itemIds.slice(i, i + CHUNK_SIZE);
+            try {
+                const resp = await axios.get(
+                    `https://api.mercadolibre.com/items?ids=${chunk.join(',')}&attributes=id,available_quantity,status,sub_status`,
+                    { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                for (const res of resp.data) {
+                    if (res.code === 200 && res.body) {
+                        result.set(res.body.id, {
+                            qty: res.body.available_quantity ?? 0,
+                            status: res.body.status ?? 'unknown',
+                            sub_status: res.body.sub_status ?? [],
+                        });
+                    } else {
+                        logger.warn({ itemId: res.body?.id ?? '?', code: res.code }, 'getStockAndStatusBatch: item con error en multiGET');
+                    }
+                }
+            } catch (err: any) {
+                logger.error({ accountId, chunk, error: err.message }, 'getStockAndStatusBatch: error en chunk multiGET');
+            }
+        }
+        return result;
+    }
+
     async syncCatalogItem(accountId: string, itemId: string): Promise<void> {
         const accessToken = await this.getAccessToken(accountId);
 
@@ -410,6 +451,10 @@ export class MeliAdapter implements MarketplaceAdapter {
                     const item = res.body;
                     const clasificacion = clasificarPublicacion(item);
 
+                    // A2: Filtrar SELLER_SKU garbage antes de construir cualquier fila
+                    const _rawItemSku = item.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name || null;
+                    const _cleanItemSku = isSkuGarbage(_rawItemSku) ? null : _rawItemSku;
+
                     // Campos comunes a todas las filas de este ítem (o variaciones)
                     const base = {
                         marketplace_id: accountId,
@@ -437,7 +482,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                         domain_id: item.domain_id || null,
                         condition: item.condition || null,
                         brand: item.attributes?.find((a: any) => a.id === 'BRAND')?.value_name || null,
-                        seller_sku: item.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name || null,
+                        seller_sku: _cleanItemSku,
                         sub_status: item.sub_status || [],
                         channels: item.channels || [],
                         meli_created_at: item.date_created || null,
@@ -470,7 +515,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                     // • Fila padre (variation_id='0'): datos de nivel item (brand, SKU, stock tot., precio base)
                     // • Filas de variación: datos individuales (stock/precio/attrs por variante)
                     if (item.variations && item.variations.length > 0) {
-                        const parentSellerSku = item.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name || null;
+                        const parentSellerSku = _cleanItemSku; // ya filtrado arriba
                         const parentRow = {
                             ...base,
                             external_variation_id: '0',
@@ -497,10 +542,13 @@ export class MeliAdapter implements MarketplaceAdapter {
                             // seller_sku = seller_custom_field → SELLER_SKU en attributes[] → SKU del padre → null
                             // (V25: con include_attributes=all, variation.attributes[] ya está disponible)
                             seller_custom_field: variation.seller_custom_field || null,
-                            seller_sku: variation.seller_custom_field
-                                || variation.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name
-                                || parentSellerSku
-                                || null,
+                            seller_sku: (() => {
+                                const raw = variation.seller_custom_field
+                                    || variation.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name
+                                    || _rawItemSku
+                                    || null;
+                                return isSkuGarbage(raw) ? null : raw;
+                            })(),
                             // EAN/GTIN por variación (V25: desde attributes[], no desde base del ítem)
                             ean:  variation.attributes?.find((a: any) => a.id === 'EAN')?.value_name  || base.ean  || null,
                             gtin: variation.attributes?.find((a: any) => a.id === 'GTIN')?.value_name || base.gtin || null,

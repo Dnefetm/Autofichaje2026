@@ -13,6 +13,13 @@ import { FiltersSidebar, FilterState, defaultFilters } from './filters-sidebar';
 import { cn } from '@/lib/utils';
 
 // ─── Helpers de presentación ───────────────────────────────────────────────
+// FIX: detectar SKU basura (prefijo UUID de 8 hex chars dejado por migración)
+// No se muestra en la UI ni se considera como SKU válido.
+function esSkuBasuraUI(sku: string | null | undefined): boolean {
+    if (!sku) return true;
+    return /^[0-9a-f]{8}$/i.test(sku);
+}
+
 const statusColors: Record<string, string> = {
     active: 'bg-green-100 text-green-700 border-green-200',
     paused: 'bg-amber-100 text-amber-700 border-amber-200',
@@ -216,13 +223,16 @@ function ListingRow({
             {/* 3 — MARCA / SKU */}
             <td className="px-4 py-3 align-top">
                 {listing.brand && <p className="text-xs font-semibold text-slate-700">{listing.brand}</p>}
-                {(listing.seller_custom_field || listing.seller_sku) && (
-                    <p className="text-[10px] font-mono text-slate-400 mt-0.5">{listing.seller_custom_field || listing.seller_sku}</p>
-                )}
+                {(() => {
+                    const sku = !esSkuBasuraUI(listing.seller_custom_field) ? listing.seller_custom_field
+                              : !esSkuBasuraUI(listing.seller_sku)          ? listing.seller_sku
+                              : null;
+                    return sku ? <p className="text-[10px] font-mono text-slate-400 mt-0.5">{sku}</p> : null;
+                })()}
                 {listing.model && (
                     <p className="text-[10px] text-slate-400 mt-0.5 italic truncate max-w-[120px]" title={listing.model}>{listing.model}</p>
                 )}
-                {!listing.brand && !listing.seller_custom_field && !listing.seller_sku && <span className="text-[10px] text-slate-300">—</span>}
+                {!listing.brand && esSkuBasuraUI(listing.seller_custom_field) && esSkuBasuraUI(listing.seller_sku) && <span className="text-[10px] text-slate-300">—</span>}
             </td>
 
             {/* 4 — PRECIO / VENTAS */}
@@ -458,13 +468,16 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                 {/* 3 — MARCA / SKU */}
                 <td className="px-4 py-3 align-top">
                     {parent.brand && <p className="text-xs font-semibold text-slate-700">{parent.brand}</p>}
-                    {(parent.seller_custom_field || parent.seller_sku) && (
-                        <p className="text-[10px] font-mono text-slate-400 mt-0.5">{parent.seller_custom_field || parent.seller_sku}</p>
-                    )}
+                    {(() => {
+                        const sku = !esSkuBasuraUI(parent.seller_custom_field) ? parent.seller_custom_field
+                                  : !esSkuBasuraUI(parent.seller_sku)          ? parent.seller_sku
+                                  : null;
+                        return sku ? <p className="text-[10px] font-mono text-slate-400 mt-0.5">{sku}</p> : null;
+                    })()}
                     {parent.model && (
                         <p className="text-[10px] text-slate-400 mt-0.5 italic truncate max-w-[120px]" title={parent.model}>{parent.model}</p>
                     )}
-                    {!parent.brand && !parent.seller_custom_field && !parent.seller_sku && <span className="text-[10px] text-slate-300">—</span>}
+                    {!parent.brand && esSkuBasuraUI(parent.seller_custom_field) && esSkuBasuraUI(parent.seller_sku) && <span className="text-[10px] text-slate-300">—</span>}
                 </td>
 
                 {/* 4 — PRECIO / VENTAS */}
@@ -591,12 +604,18 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                         {rel.listing_type_id && <ListingTypeBadge type={rel.listing_type_id} />}
                                         <TipoBadge tipo={rel.tipo_publicacion} />
                                     </div>
-                                    {(rel.brand || rel.seller_custom_field || rel.seller_sku) && (
-                                        <p className="text-[10px] text-slate-400 mt-0.5">
-                                            {rel.brand && <span className="font-semibold">{rel.brand} </span>}
-                                            {(rel.seller_custom_field || rel.seller_sku) && <span className="font-mono">{rel.seller_custom_field || rel.seller_sku}</span>}
-                                        </p>
-                                    )}
+                                    {(() => {
+                                        const relSku = !esSkuBasuraUI(rel.seller_custom_field) ? rel.seller_custom_field
+                                                     : !esSkuBasuraUI(rel.seller_sku)           ? rel.seller_sku
+                                                     : null;
+                                        if (!rel.brand && !relSku) return null;
+                                        return (
+                                            <p className="text-[10px] text-slate-400 mt-0.5">
+                                                {rel.brand && <span className="font-semibold">{rel.brand} </span>}
+                                                {relSku && <span className="font-mono">{relSku}</span>}
+                                            </p>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </td>
