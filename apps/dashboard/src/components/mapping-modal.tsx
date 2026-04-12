@@ -71,7 +71,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                     id,
                     cantidad_requerida,
                     articulo_id,
-                    articulos (nombre, articulo_id, marca, modelo, variante, codigo_universal, sku, caja_madre)
+                    articulos (nombre, articulo_id, marca, modelo, variante, codigo_universal, caja_madre)
                 `)
                 .eq('publicacion_id', listing.id);
             if (error) throw error;
@@ -85,7 +85,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                     variante: d.articulos?.variante || '',
                     codigo_universal: d.articulos?.codigo_universal || '',
                     caja_madre: d.articulos?.caja_madre || '',
-                    sku_code: d.articulos?.sku || '',
+                    : d.articulos?.sku || '',
                     quantity: d.cantidad_requerida
                 }));
                 setSelectedSkus(mapped);
@@ -125,7 +125,6 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             const exactParts: string[] = [];
             for (const s of combinedSkus) {
                 exactParts.push(`articulo_id.eq.${s}`);
-                exactParts.push(`sku.eq.${s}`);
                 exactParts.push(`modelo.eq.${s}`);
             }
             for (const m of combinedModels) {
@@ -140,7 +139,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             if (exactParts.length > 0) {
                 const { data } = await supabase
                     .from('articulos')
-                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, sku, caja_madre')
+                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
                     .not('nombre', 'like', '%PLACEHOLDER%')
                     .or(exactParts.join(','))
                     .limit(20);
@@ -150,15 +149,13 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             // === CAPA 2: Búsqueda PARCIAL por SKU/modelo/GTIN (ilike) ===
             const partialParts: string[] = [];
             for (const s of combinedSkus) {
-                partialParts.push(`articulo_id.ilike.%${s}%`);
-                partialParts.push(`sku.ilike.%${s}%`);
+                partialParts.push(`articulo_id.ilike.%${s}%`);            
                 partialParts.push(`modelo.ilike.%${s}%`);
                 partialParts.push(`codigo_universal.ilike.%${s}%`);
             }
             for (const m of combinedModels) {
                 partialParts.push(`modelo.ilike.%${m}%`);
-                partialParts.push(`articulo_id.ilike.%${m}%`);
-                partialParts.push(`sku.ilike.%${m}%`);
+                partialParts.push(`articulo_id.ilike.%${m}%`);            
             }
             for (const g of combinedGtins) {
                 partialParts.push(`codigo_universal.ilike.%${g}%`);
@@ -168,7 +165,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             if (partialParts.length > 0) {
                 const { data } = await supabase
                     .from('articulos')
-                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, sku, caja_madre')
+                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
                     .not('nombre', 'like', '%PLACEHOLDER%')
                     .or(partialParts.join(','))
                     .limit(30);
@@ -180,7 +177,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             if (brand) {
                 const { data } = await supabase
                     .from('articulos')
-                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, sku, caja_madre')
+                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
                     .not('nombre', 'like', '%PLACEHOLDER%')
                     .ilike('marca', `%${brand}%`)
                     .limit(20);
@@ -202,7 +199,6 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                 const scored = allItems.map(item => {
                     let score = 0;
                     const iId    = (item.articulo_id || '').toLowerCase();
-                    const iSku   = (item.sku || '').toLowerCase();
                     const iMod   = (item.modelo || '').toLowerCase();
                     const iCod   = (item.codigo_universal || '').toLowerCase();
                     const iMarca = (item.marca || '').toLowerCase();
@@ -210,8 +206,8 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                     // PRIORIDAD 1: SKU exacto (+5) o parcial (+3)
                     for (const s of combinedSkus) {
                         const sl = s.toLowerCase();
-                        if (iId === sl || iSku === sl || iMod === sl) { score += 5; break; }
-                        if (iId.includes(sl) || iSku.includes(sl) || iMod.includes(sl)) { score += 3; break; }
+                        if (iId === sl || iMod === sl) { score += 5; break; }
+                        if (iId.includes(sl) || iMod.includes(sl)) { score += 3; break; }
                     }
                     // PRIORIDAD 2: Modelo exacto (+4) o parcial (+2)
                     for (const m of combinedModels) {
@@ -254,14 +250,14 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
         try {
             const { data, error } = await supabase
                 .from('articulos')
-                .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, sku, caja_madre')
+                .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
                 .not('nombre', 'like', '%PLACEHOLDER%')
-                .or(`articulo_id.ilike.%${searchTerm}%,nombre.ilike.%${searchTerm}%,marca.ilike.%${searchTerm}%,modelo.ilike.%${searchTerm}%,sku.ilike.%${searchTerm}%,codigo_universal.ilike.%${searchTerm}%`)
+                .or(`articulo_id.ilike.%${searchTerm}%,nombre.ilike.%${searchTerm}%,marca.ilike.%${searchTerm}%,modelo.ilike.%${searchTerm}%,codigo_universal.ilike.%${searchTerm}%`)
                 .limit(10);
             if (error) { console.error('Error buscando articulos:', error.message); setSearchResults([]); return; }
             const ref = pubSku || pubEan || '';
             if (ref && data) {
-                const scored = data.map(item => ({ ...item, _score: Math.max(stringSimilarity(ref, item.articulo_id || ''), stringSimilarity(ref, item.sku || ''), stringSimilarity(ref, item.codigo_universal || '')) }));
+                const scored = data.map(item => ({ ...item, _score: Math.max(stringSimilarity(ref, item.articulo_id || ''),  stringSimilarity(ref, item.codigo_universal || '')) }));
                 scored.sort((a, b) => b._score - a._score);
                 setSearchResults(scored);
             } else { setSearchResults(data || []); }
@@ -270,7 +266,7 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
 
     function handleAddSku(product: any) {
         if (selectedSkus.find(s => s.sku === product.articulo_id)) return;
-        setSelectedSkus([...selectedSkus, { sku: product.articulo_id, name: product.nombre, marca: product.marca || '', modelo: product.modelo || '', variante: product.variante || '', codigo_universal: product.codigo_universal || '', caja_madre: product.caja_madre || '', sku_code: product.sku || '', quantity: 1, mapping_id: null }]);
+        setSelectedSkus([...selectedSkus, { sku: product.articulo_id, name: product.nombre, marca: product.marca || '', modelo: product.modelo || '', variante: product.variante || '', codigo_universal: product.codigo_universal || '', caja_madre: product.caja_madre || '', quantity: 1, mapping_id: null }]);
         setSearchTerm('');
     }
     function handleRemoveSku(sku: string) { setSelectedSkus(selectedSkus.filter(s => s.sku !== sku)); }
@@ -422,7 +418,6 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                                         <p className="text-xs font-medium text-slate-800 truncate">{res.nombre}</p>
                                         <div className="flex flex-wrap gap-1 mt-0.5">
                                             {res.marca && <span className="text-[10px] text-slate-500">{res.marca}</span>}
-                                            {res.sku && <span className="text-[10px] font-mono text-amber-600 bg-amber-50 px-1 rounded">SKU: {res.sku}</span>}
                                             {res.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {res.codigo_universal}</span>}
                                                                         {res.modelo && <span className="text-[10px] text-slate-400">Mod: {res.modelo}</span>}
                                                                         {res.variante && <span className="text-[10px] text-slate-400">Var: {res.variante}</span>}
@@ -455,7 +450,6 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                                             <p className="text-xs font-medium text-slate-800 truncate">{res.nombre}</p>
                                             <div className="flex flex-wrap gap-1 mt-0.5">
                                                 {res.marca && <span className="text-[10px] text-slate-500">{res.marca}</span>}
-                                                {res.sku && <span className="text-[10px] font-mono text-amber-600 bg-amber-50 px-1 rounded">SKU: {res.sku}</span>}
                                                 {res.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {res.codigo_universal}</span>}
                                                                                                 {res.modelo && <span className="text-[10px] text-slate-400">Mod: {res.modelo}</span>}
                                                 {res.variante && <span className="text-[10px] text-slate-400">Var: {res.variante}</span>}
@@ -482,7 +476,6 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                                         <p className="text-xs font-semibold text-slate-800 truncate">{s.name}</p>
                                         <div className="flex flex-wrap gap-1 mt-0.5">
                                             {s.marca && <span className="text-[10px] text-slate-500">{s.marca}</span>}
-                                            {s.sku_code && <span className="text-[10px] font-mono text-amber-600 bg-amber-50 px-1 rounded">SKU: {s.sku_code}</span>}
                                                                                         {s.modelo && <span className="text-[10px] text-slate-400">Mod: {s.modelo}</span>}
                                             {s.variante && <span className="text-[10px] text-slate-400">Var: {s.variante}</span>}
                                             {s.caja_madre && <span className="text-[10px] text-slate-400">Caja: {s.caja_madre}</span>}
