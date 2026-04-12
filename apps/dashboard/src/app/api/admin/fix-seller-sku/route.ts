@@ -15,8 +15,8 @@ export const dynamic = 'force-dynamic';
  */
 
 const FIXES = [
-    { external_item_id: 'MLM5147586196', marketplace_id: '897aa205-2c23-480e-bc4f-79fba69258da', sku_correcto: 'JBCS9' },
-    { external_item_id: 'MLM2848166379', marketplace_id: '709df7c0-e6b0-4773-a91c-0a6364b8437a', sku_correcto: 'JBCS9' },
+    { external_item_id: 'MLM5147586196', marketplace_id: '709df7c0-e6b0-4773-a91c-0a6364b8437a', sku_correcto: 'JBCS9' },
+    { external_item_id: 'MLM2848166379', marketplace_id: '897aa205-2c23-480e-bc4f-79fba69258da', sku_correcto: 'JBCS9' },
 ];
 
 async function getAccessToken(marketplaceId: string): Promise<string> {
