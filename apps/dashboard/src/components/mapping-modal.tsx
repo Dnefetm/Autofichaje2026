@@ -85,7 +85,6 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                     variante: d.articulos?.variante || '',
                     codigo_universal: d.articulos?.codigo_universal || '',
                     caja_madre: d.articulos?.caja_madre || '',
-                    : d.articulos?.sku || '',
                     quantity: d.cantidad_requerida
                 }));
                 setSelectedSkus(mapped);
