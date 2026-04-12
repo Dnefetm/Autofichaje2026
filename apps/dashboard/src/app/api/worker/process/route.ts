@@ -113,8 +113,7 @@ export async function GET(req: NextRequest) {
                 const { data: cuentas } = await supabaseAdmin
                     .from('marketplace_configs')
                     .select('id')
-                    .in('marketplace', ['meli', 'mercadolibre'])
-                    .eq('is_active', true);
+                    .in('marketplace', ['meli', 'mercadolibre']);
                 for (const cuenta of (cuentas || [])) {
                     const { data: existing } = await supabaseAdmin
                         .from('jobs')
