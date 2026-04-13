@@ -391,42 +391,44 @@ function WebhookControlPanel() {
                                                 </div>
                                             </div>
 
-                                            {/* Prioridad / modo */}
-                                            <div className="min-w-[130px]">
-                                                {isImmediate ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
-                                                        <Zap className="w-3 h-3" /> Inmediato
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
-                                                        <Clock className="w-3 h-3" /> Con ventana
-                                                    </span>
-                                                )}
+                                            {/* Toggle dispatch_immediate — editable para TODOS los topics */}
+                                            <div className="min-w-[160px]">
+                                                <button
+                                                    id={`dispatch-${topic}`}
+                                                    onClick={() => handleChange(topic, 'dispatch_immediate', !isImmediate)}
+                                                    disabled={!enabled}
+                                                    title={isImmediate ? 'Clic para cambiar a ventana' : 'Clic para activar despacho inmediato'}
+                                                    className={cn(
+                                                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer border",
+                                                        isImmediate
+                                                            ? "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200"
+                                                            : "bg-indigo-100 text-indigo-700 border-indigo-200 hover:bg-indigo-200"
+                                                    )}
+                                                >
+                                                    {isImmediate
+                                                        ? <><Zap className="w-3 h-3" /> Inmediato</>
+                                                        : <><Clock className="w-3 h-3" /> Con ventana</>}
+                                                </button>
                                             </div>
 
-                                            {/* Slider de ventana (solo para no-immediatos) */}
+                                            {/* Slider de ventana — visible para TODOS los topics */}
                                             <div className="flex items-center gap-3 flex-1">
-                                                {isImmediate ? (
-                                                    <p className="text-xs text-slate-400 italic">Sin ventana — procesamiento P0 inmediato</p>
-                                                ) : (
                                                     <div className="flex items-center gap-3 w-full">
-                                                        <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                        <input
-                                                            id={`window-${topic}`}
-                                                            type="range"
-                                                            min={30}
-                                                            max={300}
-                                                            step={30}
-                                                            value={windowSecs}
-                                                            onChange={e => handleChange(topic, 'window_seconds', Number(e.target.value))}
-                                                            className="flex-1 accent-indigo-600"
-                                                            disabled={!enabled}
-                                                        />
-                                                        <span className="text-sm font-bold text-slate-700 w-14 text-right tabular-nums">
-                                                            {windowSecs >= 60 ? `${windowSecs / 60} min` : `${windowSecs}s`}
-                                                        </span>
-                                                    </div>
-                                                )}
+                                                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                <input
+                                                    id={`window-${topic}`}
+                                                    type="range"
+                                                    min={0}
+                                                    max={300}
+                                                    step={30}
+                                                    value={windowSecs}
+                                                    onChange={e => handleChange(topic, 'window_seconds', Number(e.target.value))}
+                                                    className="flex-1 accent-indigo-600"
+                                                    disabled={!enabled}
+                                                />
+                                                <span className="text-sm font-bold text-slate-700 w-20 text-right tabular-nums">
+                                                    {windowSecs === 0 ? 'inmediato' : windowSecs >= 60 ? `${windowSecs / 60} min` : `${windowSecs}s`}
+                                                </span>
                                             </div>
 
                                             {/* Métricas 24h */}
