@@ -60,7 +60,6 @@ function SettingsContent() {
 
     async function loadConfigs() {
         try {
-            // Intentar via API route (usa service key)
             const res = await fetch('/api/settings/meli');
             if (res.ok) {
                 const data = await res.json();
@@ -71,7 +70,6 @@ function SettingsContent() {
                 }
             }
 
-            // Fallback: query directa a Supabase (por si el filtro de marketplace no coincide)
             const { data: directData, error } = await supabase
                 .from('marketplace_configs')
                 .select('*, marketplace_tokens(access_token, updated_at, expires_at)')
@@ -88,12 +86,10 @@ function SettingsContent() {
     }
 
     const handleLinkNewStore = () => {
-        // Buscar cuenta que necesite autorización (sin tokens)
         const needsAuth = configs.find((c: any) => !c.marketplace_tokens || c.marketplace_tokens.length === 0);
         if (needsAuth) {
             window.location.href = `/api/auth/meli?marketplace_id=${needsAuth.id}`;
         } else if (configs.length > 0) {
-            // Todas tienen tokens, re-vincular la primera (para refrescar)
             window.location.href = `/api/auth/meli?marketplace_id=${configs[0].id}`;
         } else {
             alert('Primero crea una configuración de tienda en la base de datos.');
@@ -302,18 +298,17 @@ function WebhookControlPanel() {
     const totalEventos = metrics.reduce((acc, m) => acc + (m.total_events ?? 0), 0);
     const totalPending = Object.values(jobsEnCola).reduce((a, b) => a + b, 0);
 
-    // Topics que ya tienen config en BD; completar con defaults para los que no
     const DEFAULT_TOPICS: WebhookConfigRow[] = [
-        { topic: 'orders_v2', label: 'Órdenes y pagos',               window_seconds: 0,   dispatch_immediate: true,  enabled: true, updated_at: '' },
-        { topic: 'items',     label: 'Publicaciones (precio, stock)',  window_seconds: 180, dispatch_immediate: false, enabled: true, updated_at: '' },
-        { topic: 'questions', label: 'Preguntas y mensajes',           window_seconds: 300, dispatch_immediate: false, enabled: true, updated_at: '' },
-        { topic: 'payments',  label: 'Pagos',                          window_seconds: 0,   dispatch_immediate: true,  enabled: true, updated_at: '' },
+        { topic: 'orders_v2', label: 'Órdenes y pagos',              window_seconds: 0,   dispatch_immediate: true,  enabled: true, updated_at: '' },
+        { topic: 'items',     label: 'Publicaciones (precio, stock)', window_seconds: 180, dispatch_immediate: false, enabled: true, updated_at: '' },
+        { topic: 'questions', label: 'Preguntas y mensajes',          window_seconds: 300, dispatch_immediate: false, enabled: true, updated_at: '' },
+        { topic: 'payments',  label: 'Pagos',                         window_seconds: 0,   dispatch_immediate: true,  enabled: true, updated_at: '' },
     ];
     const allTopics = DEFAULT_TOPICS.map(def => configs.find(c => c.topic === def.topic) ?? def);
 
     return (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Header */}
+            {/* Header colapsable */}
             <button
                 onClick={() => setExpanded(e => !e)}
                 className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
@@ -330,7 +325,6 @@ function WebhookControlPanel() {
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
-                    {/* Métricas resumen */}
                     {!loading && (
                         <div className="hidden md:flex items-center gap-4 text-xs text-slate-500">
                             <span className="flex items-center gap-1">
@@ -357,7 +351,6 @@ function WebhookControlPanel() {
                         <div className="p-8 text-center text-slate-400 text-sm">Cargando configuración...</div>
                     ) : (
                         <>
-                            {/* Tabla de topics */}
                             <div className="divide-y divide-slate-100">
                                 {allTopics.map(def => {
                                     const topic = def.topic;
@@ -366,103 +359,126 @@ function WebhookControlPanel() {
                                     const isImmediate = getVal(topic, 'dispatch_immediate', def.dispatch_immediate);
                                     const isDirty = !!pendingChanges[topic];
                                     const metric = metrics.find(m => m.topic === topic);
-                                    const jobsCount = (jobsEnCola['sync_item'] ?? 0) + (jobsEnCola['process_sale'] ?? 0);
 
                                     return (
-                                        <div key={topic} className={cn(
-                                            "p-5 flex flex-col md:flex-row md:items-center gap-4",
-                                            !enabled && "opacity-50"
-                                        )}>
-                                            {/* Nombre + toggle enable */}
-                                            <div className="flex items-center gap-3 min-w-[220px]">
-                                                <button
-                                                    onClick={() => handleChange(topic, 'enabled', !enabled)}
-                                                    title={enabled ? 'Deshabilitar topic' : 'Habilitar topic'}
-                                                    className="text-slate-400 hover:text-indigo-600 transition-colors"
-                                                    id={`toggle-${topic}`}
-                                                >
-                                                    {enabled
-                                                        ? <ToggleRight className="w-6 h-6 text-emerald-500" />
-                                                        : <ToggleLeft className="w-6 h-6 text-slate-300" />}
-                                                </button>
-                                                <div>
-                                                    <p className="font-semibold text-sm text-slate-800">{def.label}</p>
-                                                    <p className="text-[10px] text-slate-400 font-mono">{topic}</p>
+                                        <div key={topic} className={cn("px-6 py-5 flex flex-col gap-3", !enabled && "opacity-40")}>
+
+                                            {/* Fila 1: habilitar + nombre + métricas */}
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        id={`toggle-${topic}`}
+                                                        onClick={() => handleChange(topic, 'enabled', !enabled)}
+                                                        title={enabled ? 'Deshabilitar' : 'Habilitar'}
+                                                        className="shrink-0"
+                                                    >
+                                                        {enabled
+                                                            ? <ToggleRight className="w-6 h-6 text-emerald-500" />
+                                                            : <ToggleLeft className="w-6 h-6 text-slate-300" />}
+                                                    </button>
+                                                    <div>
+                                                        <p className="font-semibold text-sm text-slate-800">{def.label}</p>
+                                                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">{topic}</p>
+                                                    </div>
                                                 </div>
+                                                {metric && (
+                                                    <div className="flex items-center gap-3 text-xs text-slate-400 shrink-0">
+                                                        <span>{metric.total_events} recibidos</span>
+                                                        <span className="text-emerald-600 font-semibold">{metric.jobs_evitados} jobs evitados</span>
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            {/* Toggle dispatch_immediate — editable para TODOS los topics */}
-                                            <div className="min-w-[160px]">
-                                                <button
-                                                    id={`dispatch-${topic}`}
-                                                    onClick={() => handleChange(topic, 'dispatch_immediate', !isImmediate)}
-                                                    disabled={!enabled}
-                                                    title={isImmediate ? 'Clic para cambiar a ventana' : 'Clic para activar despacho inmediato'}
-                                                    className={cn(
-                                                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer border",
-                                                        isImmediate
-                                                            ? "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200"
-                                                            : "bg-indigo-100 text-indigo-700 border-indigo-200 hover:bg-indigo-200"
-                                                    )}
-                                                >
-                                                    {isImmediate
-                                                        ? <><Zap className="w-3 h-3" /> Inmediato</>
-                                                        : <><Clock className="w-3 h-3" /> Con ventana</>}
-                                                </button>
-                                            </div>
+                                            {/* Fila 2: selector de modo + control de ventana */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pl-9">
 
-                                            {/* Slider de ventana — visible para TODOS los topics */}
-                                            <div className="flex items-center gap-3 flex-1">
-                                                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                <input
-                                                    id={`window-${topic}`}
-                                                    type="range"
-                                                    min={0}
-                                                    max={1800}
-                                                    step={60}
-                                                    value={windowSecs}
-                                                    onChange={e => handleChange(topic, 'window_seconds', Number(e.target.value))}
-                                                    className="flex-1 accent-indigo-600"
-                                                    disabled={!enabled}
-                                                />
-                                                <span className="text-sm font-bold text-slate-700 w-20 text-right tabular-nums">
-                                                    {windowSecs === 0 ? 'inmediato' : windowSecs >= 60 ? `${Math.round(windowSecs / 60)} min` : `${windowSecs}s`}
-                                                </span>
-                                            </div>
-
-                                            {/* Métricas 24h */}
-                                            {metric && (
-                                                <div className="flex items-center gap-4 text-xs text-slate-500 shrink-0">
-                                                    <span title="Eventos recibidos en 24h">{metric.total_events} eventos</span>
-                                                    <span className="text-emerald-600 font-semibold" title="Jobs no creados por consolidación">
-                                                        {metric.jobs_evitados} evitados
-                                                    </span>
+                                                {/* Segmented control — dos opciones claras y clicables */}
+                                                <div className="flex rounded-lg border border-slate-200 overflow-hidden shrink-0 text-xs font-semibold">
+                                                    <button
+                                                        id={`mode-immediate-${topic}`}
+                                                        onClick={() => handleChange(topic, 'dispatch_immediate', true)}
+                                                        disabled={!enabled}
+                                                        title="Procesar en cuanto llega la notificación"
+                                                        className={cn(
+                                                            "flex items-center gap-1.5 px-3 py-2 transition-colors",
+                                                            isImmediate
+                                                                ? "bg-emerald-500 text-white"
+                                                                : "bg-white text-slate-500 hover:bg-slate-50"
+                                                        )}
+                                                    >
+                                                        <Zap className="w-3.5 h-3.5" /> Inmediato
+                                                    </button>
+                                                    <button
+                                                        id={`mode-window-${topic}`}
+                                                        onClick={() => handleChange(topic, 'dispatch_immediate', false)}
+                                                        disabled={!enabled}
+                                                        title="Acumular notificaciones y crear un solo job por producto"
+                                                        className={cn(
+                                                            "flex items-center gap-1.5 px-3 py-2 border-l border-slate-200 transition-colors",
+                                                            !isImmediate
+                                                                ? "bg-indigo-600 text-white"
+                                                                : "bg-white text-slate-500 hover:bg-slate-50"
+                                                        )}
+                                                    >
+                                                        <Clock className="w-3.5 h-3.5" /> Con ventana
+                                                    </button>
                                                 </div>
-                                            )}
 
-                                            {/* Guardar */}
-                                            {isDirty && (
-                                                <button
-                                                    onClick={() => saveTopic(topic)}
-                                                    disabled={saving === topic}
-                                                    id={`save-${topic}`}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shrink-0"
-                                                >
-                                                    {saving === topic ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                                    Guardar
-                                                </button>
-                                            )}
+                                                {/* Descripción y control según modo seleccionado */}
+                                                {isImmediate ? (
+                                                    <p className="text-xs text-slate-500 italic">
+                                                        Se procesa en cuanto llega la notificación — mayor gasto de Edge Requests.
+                                                    </p>
+                                                ) : (
+                                                    <div className="flex items-center gap-3 flex-1">
+                                                        <input
+                                                            id={`window-${topic}`}
+                                                            type="range"
+                                                            min={1}
+                                                            max={30}
+                                                            step={1}
+                                                            value={Math.max(1, Math.round(windowSecs / 60))}
+                                                            onChange={e => handleChange(topic, 'window_seconds', Number(e.target.value) * 60)}
+                                                            className="flex-1 accent-indigo-600"
+                                                            disabled={!enabled}
+                                                        />
+                                                        <span className="text-sm font-bold text-slate-700 w-44 shrink-0 tabular-nums">
+                                                            {`Consolidar ${Math.max(1, Math.round(windowSecs / 60))} min`}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {isDirty && (
+                                                    <button
+                                                        id={`save-${topic}`}
+                                                        onClick={() => saveTopic(topic)}
+                                                        disabled={saving === topic}
+                                                        className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                                                    >
+                                                        {saving === topic ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                                        Guardar
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     );
                                 })}
                             </div>
 
-                            {/* Footer con leyenda */}
-                            <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap gap-4 text-xs text-slate-500">
-                                <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5 text-emerald-500" /> <strong>Inmediato:</strong> el worker se activa al recibir la notificación.</span>
-                                <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-indigo-500" /> <strong>Con ventana:</strong> múltiples notificaciones del mismo item se consolidan. El cron las procesa en ≤1 min.</span>
-                                <button onClick={loadData} className="ml-auto flex items-center gap-1 text-slate-400 hover:text-slate-700 transition-colors">
-                                    <RefreshCw className="w-3 h-3" /> Actualizar métricas
+                            {/* Footer con explicación en lenguaje de negocio */}
+                            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500">
+                                <div className="flex flex-wrap gap-x-6 gap-y-2">
+                                    <span className="flex items-center gap-1.5">
+                                        <Zap className="w-3.5 h-3.5 text-emerald-500" />
+                                        <strong>Inmediato:</strong> el worker se activa al instante — ideal para órdenes y pagos.
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                                        <strong>Con ventana:</strong> si el mismo producto se modifica 20 veces en 3 min, se crea 1 solo job en lugar de 20. Reduce costos.
+                                    </span>
+                                </div>
+                                <button onClick={loadData} className="flex items-center gap-1 text-slate-400 hover:text-slate-700 transition-colors shrink-0">
+                                    <RefreshCw className="w-3 h-3" /> Actualizar
                                 </button>
                             </div>
                         </>
