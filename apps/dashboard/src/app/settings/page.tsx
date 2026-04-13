@@ -413,7 +413,6 @@ function WebhookControlPanel() {
 
                                             {/* Slider de ventana — visible para TODOS los topics */}
                                             <div className="flex items-center gap-3 flex-1">
-                                                    <div className="flex items-center gap-3 w-full">
                                                 <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                                 <input
                                                     id={`window-${topic}`}
