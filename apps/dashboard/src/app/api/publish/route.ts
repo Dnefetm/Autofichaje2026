@@ -288,7 +288,10 @@ export async function POST(req: NextRequest) {
 
         // -- 3.1 Resolver SKU efectivo: marketplace_prices.sku_tienda > articulos.modelo --
         // articulos.sku fue eliminada permanentemente de la BD (DROP COLUMN CASCADE).
-        const sku_efectivo = precio_data?.sku_tienda || articulo.modelo || null;
+        // Guard anti-basura: descartar si es exactamente 8 chars hex (prefijo UUID legacy).
+        const _SKU_BASURA = /^[0-9a-f]{8}$/i;
+        const _raw_sku = precio_data?.sku_tienda || articulo.modelo || null;
+        const sku_efectivo = (_raw_sku && _SKU_BASURA.test(_raw_sku)) ? null : _raw_sku;
         trace.paso_3_1_sku_efectivo = {
             origen: precio_data?.sku_tienda ? 'marketplace_prices.sku_tienda' : articulo.modelo ? 'articulos.modelo' : 'null',
             valor: sku_efectivo,

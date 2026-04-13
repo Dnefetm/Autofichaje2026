@@ -125,10 +125,21 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             for (const s of combinedSkus) {
                 exactParts.push(`articulo_id.eq.${s}`);
                 exactParts.push(`modelo.eq.${s}`);
+                // Normalización: "890 104 153" → "890104153" para match sin espacios
+                const sNorm = s.replace(/\s+/g, '');
+                if (sNorm !== s) {
+                    exactParts.push(`articulo_id.eq.${sNorm}`);
+                    exactParts.push(`modelo.eq.${sNorm}`);
+                }
             }
             for (const m of combinedModels) {
                 exactParts.push(`modelo.eq.${m}`);
                 exactParts.push(`articulo_id.eq.${m}`);
+                const mNorm = m.replace(/\s+/g, '');
+                if (mNorm !== m) {
+                    exactParts.push(`modelo.eq.${mNorm}`);
+                    exactParts.push(`articulo_id.eq.${mNorm}`);
+                }
             }
             for (const g of combinedGtins) {
                 exactParts.push(`codigo_universal.eq.${g}`);
