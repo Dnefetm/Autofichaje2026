@@ -419,15 +419,15 @@ function WebhookControlPanel() {
                                                     id={`window-${topic}`}
                                                     type="range"
                                                     min={0}
-                                                    max={300}
-                                                    step={30}
+                                                    max={1800}
+                                                    step={60}
                                                     value={windowSecs}
                                                     onChange={e => handleChange(topic, 'window_seconds', Number(e.target.value))}
                                                     className="flex-1 accent-indigo-600"
                                                     disabled={!enabled}
                                                 />
                                                 <span className="text-sm font-bold text-slate-700 w-20 text-right tabular-nums">
-                                                    {windowSecs === 0 ? 'inmediato' : windowSecs >= 60 ? `${windowSecs / 60} min` : `${windowSecs}s`}
+                                                    {windowSecs === 0 ? 'inmediato' : windowSecs >= 60 ? `${Math.round(windowSecs / 60)} min` : `${windowSecs}s`}
                                                 </span>
                                             </div>
 

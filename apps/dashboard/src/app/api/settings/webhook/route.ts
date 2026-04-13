@@ -87,8 +87,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'topic requerido' }, { status: 400 });
         }
 
-        if (window_seconds !== undefined && (window_seconds < 0 || window_seconds > 600)) {
-            return NextResponse.json({ error: 'window_seconds debe estar entre 0 y 600 segundos' }, { status: 400 });
+        if (window_seconds !== undefined && (window_seconds < 0 || window_seconds > 1800)) {
+            return NextResponse.json({ error: 'window_seconds debe estar entre 0 y 1800 segundos (30 min)' }, { status: 400 });
         }
 
         const update: any = { updated_at: new Date().toISOString() };
