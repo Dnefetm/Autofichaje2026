@@ -11,7 +11,14 @@ import {
     CheckCircle2,
     AlertCircle,
     Save,
-    RefreshCw
+    RefreshCw,
+    Zap,
+    Clock,
+    Activity,
+    ToggleLeft,
+    ToggleRight,
+    ChevronDown,
+    ChevronRight
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -94,7 +101,8 @@ function SettingsContent() {
     };
 
     return (
-        <div className="max-w-4xl space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* ── Tiendas ── */}
             <div className="flex justify-between items-start md:items-end flex-col md:flex-row gap-4">
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight text-slate-900">Tiendas Conectadas</h2>
@@ -144,6 +152,9 @@ function SettingsContent() {
                     </div>
                 </div>
             </div>
+
+            {/* ── Panel de control de Webhooks ── */}
+            <WebhookControlPanel />
         </div>
     );
 }
@@ -201,6 +212,262 @@ function StatusItem({ label, status }: { label: string, status: 'online' | 'offl
                 {status === 'offline' && <><span className="w-1.5 h-1.5 bg-rose-500 rounded-full shadow-[0_0_5px_rgba(244,63,94,0.5)]" /> <span className="text-rose-700">Offline</span></>}
                 {status === 'checking' && <><span className="w-1.5 h-1.5 bg-slate-400 animate-pulse rounded-full" /> <span className="text-slate-500">Validando</span></>}
             </div>
+        </div>
+    );
+}
+
+// ─── Webhook Control Panel ────────────────────────────────────────────────────
+
+type WebhookConfigRow = {
+    topic: string;
+    label: string;
+    window_seconds: number;
+    dispatch_immediate: boolean;
+    enabled: boolean;
+    updated_at: string;
+};
+
+type TopicMetric = {
+    topic: string;
+    total_events: number;
+    pending: number;
+    done: number;
+    jobs_evitados: number;
+    last_seen_at: string | null;
+};
+
+function WebhookControlPanel() {
+    const [configs, setConfigs] = useState<WebhookConfigRow[]>([]);
+    const [metrics, setMetrics] = useState<TopicMetric[]>([]);
+    const [jobsEnCola, setJobsEnCola] = useState<Record<string, number>>({});
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState<string | null>(null);
+    const [expanded, setExpanded] = useState(true);
+    const [pendingChanges, setPendingChanges] = useState<Record<string, Partial<WebhookConfigRow>>>({});
+
+    useEffect(() => { loadData(); }, []);
+
+    async function loadData() {
+        setLoading(true);
+        try {
+            const res = await fetch('/api/settings/webhook');
+            if (!res.ok) throw new Error('Error cargando configuración de webhook');
+            const data = await res.json();
+            setConfigs(data.configs || []);
+            setMetrics(data.metrics || []);
+            setJobsEnCola(data.jobs_en_cola || {});
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function handleChange(topic: string, key: keyof WebhookConfigRow, value: any) {
+        setPendingChanges(prev => ({
+            ...prev,
+            [topic]: { ...(prev[topic] ?? {}), [key]: value }
+        }));
+    }
+
+    function getVal<K extends keyof WebhookConfigRow>(topic: string, key: K, fallback: WebhookConfigRow[K]): WebhookConfigRow[K] {
+        const pending = pendingChanges[topic];
+        if (pending && key in pending) return pending[key] as WebhookConfigRow[K];
+        const cfg = configs.find(c => c.topic === topic);
+        return cfg ? cfg[key] : fallback;
+    }
+
+    async function saveTopic(topic: string) {
+        const changes = pendingChanges[topic];
+        if (!changes) return;
+        setSaving(topic);
+        try {
+            const res = await fetch('/api/settings/webhook', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic, ...changes }),
+            });
+            if (!res.ok) throw new Error('Error guardando');
+            await loadData();
+            setPendingChanges(prev => { const n = { ...prev }; delete n[topic]; return n; });
+        } catch (err) {
+            console.error(err);
+            alert('Error al guardar la configuración.');
+        } finally {
+            setSaving(null);
+        }
+    }
+
+    const totalJobsEvitados = metrics.reduce((acc, m) => acc + (m.jobs_evitados ?? 0), 0);
+    const totalEventos = metrics.reduce((acc, m) => acc + (m.total_events ?? 0), 0);
+    const totalPending = Object.values(jobsEnCola).reduce((a, b) => a + b, 0);
+
+    // Topics que ya tienen config en BD; completar con defaults para los que no
+    const DEFAULT_TOPICS: WebhookConfigRow[] = [
+        { topic: 'orders_v2', label: 'Órdenes y pagos',               window_seconds: 0,   dispatch_immediate: true,  enabled: true, updated_at: '' },
+        { topic: 'items',     label: 'Publicaciones (precio, stock)',  window_seconds: 180, dispatch_immediate: false, enabled: true, updated_at: '' },
+        { topic: 'questions', label: 'Preguntas y mensajes',           window_seconds: 300, dispatch_immediate: false, enabled: true, updated_at: '' },
+        { topic: 'payments',  label: 'Pagos',                          window_seconds: 0,   dispatch_immediate: true,  enabled: true, updated_at: '' },
+    ];
+    const allTopics = DEFAULT_TOPICS.map(def => configs.find(c => c.topic === def.topic) ?? def);
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Header */}
+            <button
+                onClick={() => setExpanded(e => !e)}
+                className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center">
+                        <Zap className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <div className="text-left">
+                        <h3 className="font-bold text-slate-900 text-base">Webhooks — Velocidad de reacción</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                            Controla qué tan rápido procesa cada tipo de notificación de MeLi
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4">
+                    {/* Métricas resumen */}
+                    {!loading && (
+                        <div className="hidden md:flex items-center gap-4 text-xs text-slate-500">
+                            <span className="flex items-center gap-1">
+                                <Activity className="w-3.5 h-3.5 text-indigo-500" />
+                                {totalEventos} eventos (24h)
+                            </span>
+                            <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                                {totalJobsEvitados} jobs evitados
+                            </span>
+                            {totalPending > 0 && (
+                                <span className="flex items-center gap-1 text-amber-600 font-semibold">
+                                    {totalPending} en cola
+                                </span>
+                            )}
+                        </div>
+                    )}
+                    {expanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                </div>
+            </button>
+
+            {expanded && (
+                <div className="border-t border-slate-100">
+                    {loading ? (
+                        <div className="p-8 text-center text-slate-400 text-sm">Cargando configuración...</div>
+                    ) : (
+                        <>
+                            {/* Tabla de topics */}
+                            <div className="divide-y divide-slate-100">
+                                {allTopics.map(def => {
+                                    const topic = def.topic;
+                                    const enabled = getVal(topic, 'enabled', def.enabled);
+                                    const windowSecs = getVal(topic, 'window_seconds', def.window_seconds);
+                                    const isImmediate = getVal(topic, 'dispatch_immediate', def.dispatch_immediate);
+                                    const isDirty = !!pendingChanges[topic];
+                                    const metric = metrics.find(m => m.topic === topic);
+                                    const jobsCount = (jobsEnCola['sync_item'] ?? 0) + (jobsEnCola['process_sale'] ?? 0);
+
+                                    return (
+                                        <div key={topic} className={cn(
+                                            "p-5 flex flex-col md:flex-row md:items-center gap-4",
+                                            !enabled && "opacity-50"
+                                        )}>
+                                            {/* Nombre + toggle enable */}
+                                            <div className="flex items-center gap-3 min-w-[220px]">
+                                                <button
+                                                    onClick={() => handleChange(topic, 'enabled', !enabled)}
+                                                    title={enabled ? 'Deshabilitar topic' : 'Habilitar topic'}
+                                                    className="text-slate-400 hover:text-indigo-600 transition-colors"
+                                                    id={`toggle-${topic}`}
+                                                >
+                                                    {enabled
+                                                        ? <ToggleRight className="w-6 h-6 text-emerald-500" />
+                                                        : <ToggleLeft className="w-6 h-6 text-slate-300" />}
+                                                </button>
+                                                <div>
+                                                    <p className="font-semibold text-sm text-slate-800">{def.label}</p>
+                                                    <p className="text-[10px] text-slate-400 font-mono">{topic}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Prioridad / modo */}
+                                            <div className="min-w-[130px]">
+                                                {isImmediate ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                                                        <Zap className="w-3 h-3" /> Inmediato
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                                                        <Clock className="w-3 h-3" /> Con ventana
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Slider de ventana (solo para no-immediatos) */}
+                                            <div className="flex items-center gap-3 flex-1">
+                                                {isImmediate ? (
+                                                    <p className="text-xs text-slate-400 italic">Sin ventana — procesamiento P0 inmediato</p>
+                                                ) : (
+                                                    <div className="flex items-center gap-3 w-full">
+                                                        <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                        <input
+                                                            id={`window-${topic}`}
+                                                            type="range"
+                                                            min={30}
+                                                            max={300}
+                                                            step={30}
+                                                            value={windowSecs}
+                                                            onChange={e => handleChange(topic, 'window_seconds', Number(e.target.value))}
+                                                            className="flex-1 accent-indigo-600"
+                                                            disabled={!enabled}
+                                                        />
+                                                        <span className="text-sm font-bold text-slate-700 w-14 text-right tabular-nums">
+                                                            {windowSecs >= 60 ? `${windowSecs / 60} min` : `${windowSecs}s`}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Métricas 24h */}
+                                            {metric && (
+                                                <div className="flex items-center gap-4 text-xs text-slate-500 shrink-0">
+                                                    <span title="Eventos recibidos en 24h">{metric.total_events} eventos</span>
+                                                    <span className="text-emerald-600 font-semibold" title="Jobs no creados por consolidación">
+                                                        {metric.jobs_evitados} evitados
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            {/* Guardar */}
+                                            {isDirty && (
+                                                <button
+                                                    onClick={() => saveTopic(topic)}
+                                                    disabled={saving === topic}
+                                                    id={`save-${topic}`}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                                                >
+                                                    {saving === topic ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                                    Guardar
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Footer con leyenda */}
+                            <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap gap-4 text-xs text-slate-500">
+                                <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5 text-emerald-500" /> <strong>Inmediato:</strong> el worker se activa al recibir la notificación.</span>
+                                <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-indigo-500" /> <strong>Con ventana:</strong> múltiples notificaciones del mismo item se consolidan. El cron las procesa en ≤1 min.</span>
+                                <button onClick={loadData} className="ml-auto flex items-center gap-1 text-slate-400 hover:text-slate-700 transition-colors">
+                                    <RefreshCw className="w-3 h-3" /> Actualizar métricas
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
