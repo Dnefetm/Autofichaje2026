@@ -1,22 +1,24 @@
 /**
  * PATCH /api/precios/importar/[id]/mapear
  *
- * 1. Guarda el mapeo de columnas elegido por el usuario en importaciones_excel.
+ * 1. Guarda el mapeo de columnas en importaciones_excel.
  * 2. Lee el Excel completo desde Storage.
- * 3. Para cada fila, busca el artículo en `articulos` usando el campo mapeado.
- * 4. Inserta registros en `costos_articulo` con estado_match:
- *    - 'sugerido'   si encontró un candidato (puntaje ≥ umbral)
- *    - 'sin_match'  si no encontró ninguno
- * 5. Actualiza el estado de la importación a 'en_revision'.
- * 6. Guarda el tipo_costo_default para futuras importaciones del mismo proveedor.
+ * 3. Para cada fila llama a la RPC `fn_match_articulo_proveedor` en Postgres
+ *    que usa pg_trgm (índice GIN). Lógica de prioridad:
+ *      a) Match exacto por código_excel → score 100, metodo 'codigo_exacto'
+ *      b) Fuzzy similarity(marca_excel + modelo_excel, marca + modelo) → score 0-100
+ * 4. Inserta en costos_articulo con trazabilidad completa (modelo_excel, marca_excel, codigo_excel).
+ * 5. Actualiza estado → 'en_revision'.
  *
  * Body:
  * {
- *   columna_modelo: string,       // nombre de la columna del Excel que es el identificador
- *   columna_precio: string,       // nombre de la columna de precio
- *   columna_moneda?: string,      // nombre de la columna de moneda (opcional)
- *   tipo_costo: string,           // distribuidor | subdistribuidor | lista | mayoreo | otro
- *   moneda_default?: string,      // MXN | USD (default MXN si no hay columna_moneda)
+ *   columna_modelo:  string,   // obligatoria — identificador de producto
+ *   columna_marca:   string,   // obligatoria — marca del proveedor
+ *   columna_precio:  string,   // obligatoria
+ *   columna_codigo?: string,   // opcional   — UPC/EAN/código universal
+ *   columna_moneda?: string,   // opcional
+ *   tipo_costo:      string,   // obligatoria
+ *   moneda_default?: string,   // default 'MXN'
  * }
  */
 
@@ -26,34 +28,37 @@ import ExcelJS from 'exceljs';
 
 export const dynamic = 'force-dynamic';
 
-// Umbral mínimo de score para considerar un match como "sugerido"
-const SCORE_UMBRAL = 50;
+// Llamadas concurrentes al RPC (sin saturar Supabase)
+const CONCURRENCY = 20;
+// Umbral mínimo de score para considerar como 'sugerido' (en lugar de 'sin_match')
+const SCORE_UMBRAL = 40;
 
-/** Normaliza texto para comparación fuzzy: minúsculas, sin acentos, sin espacios extra */
-function normalizar(text: string): string {
-    return text
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+/** Extrae el valor de celda como string limpio */
+function cellToString(v: any): string {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'object' && 'result' in v) return String(v.result ?? '');
+    if (typeof v === 'object' && 'text' in v) return String(v.text ?? '');
+    return String(v);
 }
 
-/**
- * Score de similitud simple: porcentaje de tokens del query que aparecen en el target.
- * 0-100 donde 100 = match perfecto.
- */
-function calcularScore(query: string, target: string): number {
-    const qNorm = normalizar(query);
-    const tNorm = normalizar(target);
-    if (qNorm === tNorm) return 100;
-    if (tNorm.includes(qNorm) || qNorm.includes(tNorm)) return 90;
+/** Ejecuta promesas en paralelo con límite de concurrencia */
+async function pMap<T, R>(
+    items: T[],
+    fn: (item: T, i: number) => Promise<R>,
+    concurrency: number
+): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let idx = 0;
 
-    const qTokens = qNorm.split(' ').filter(Boolean);
-    const tTokens = new Set(tNorm.split(' ').filter(Boolean));
-    const matches = qTokens.filter((t) => tTokens.has(t)).length;
-    return Math.round((matches / Math.max(qTokens.length, 1)) * 80);
+    async function worker() {
+        while (idx < items.length) {
+            const i = idx++;
+            results[i] = await fn(items[i], i);
+        }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, worker));
+    return results;
 }
 
 export async function PATCH(
@@ -63,14 +68,15 @@ export async function PATCH(
     const { id } = await props.params;
 
     const body = await req.json().catch(() => null);
-    if (!body?.columna_modelo || !body?.columna_precio || !body?.tipo_costo) {
+    const { columna_modelo, columna_marca, columna_precio, columna_codigo,
+        columna_moneda, tipo_costo, moneda_default = 'MXN' } = body ?? {};
+
+    if (!columna_modelo || !columna_marca || !columna_precio || !tipo_costo) {
         return NextResponse.json(
-            { ok: false, error: 'Se requieren: columna_modelo, columna_precio, tipo_costo' },
+            { ok: false, error: 'Se requieren: columna_modelo, columna_marca, columna_precio, tipo_costo' },
             { status: 400 }
         );
     }
-
-    const { columna_modelo, columna_precio, columna_moneda, tipo_costo, moneda_default = 'MXN' } = body;
 
     // ── Obtener la importación ───────────────────────────────────────────────
     const { data: importacion, error: fetchErr } = await supabaseAdmin
@@ -84,10 +90,7 @@ export async function PATCH(
     }
 
     if (importacion.estado === 'completado') {
-        return NextResponse.json(
-            { ok: false, error: 'Esta importación ya fue procesada' },
-            { status: 409 }
-        );
+        return NextResponse.json({ ok: false, error: 'Esta importación ya fue procesada' }, { status: 409 });
     }
 
     const mapeoActual = importacion.mapeo_columnas as Record<string, any> | null;
@@ -95,40 +98,30 @@ export async function PATCH(
     const bucket = (mapeoActual?._bucket as string | undefined) || 'excel-precios';
 
     if (!storagePath) {
-        return NextResponse.json(
-            { ok: false, error: 'No hay archivo asociado a esta importación' },
-            { status: 422 }
-        );
+        return NextResponse.json({ ok: false, error: 'No hay archivo asociado' }, { status: 422 });
     }
 
-    // ── Guardar el mapeo ─────────────────────────────────────────────────────
-    const nuevoMapeo = {
-        _storage_path: storagePath,
-        _bucket: bucket,
-        columna_modelo,
-        columna_precio,
-        ...(columna_moneda && { columna_moneda }),
-        tipo_costo,
-        moneda_default,
-    };
-
-    const { error: updateMapeoErr } = await supabaseAdmin
+    // ── Guardar mapeo de columnas ────────────────────────────────────────────
+    await supabaseAdmin
         .from('importaciones_excel')
         .update({
-            mapeo_columnas: nuevoMapeo,
+            mapeo_columnas: {
+                _storage_path: storagePath,
+                _bucket: bucket,
+                columna_modelo,
+                columna_marca,
+                columna_precio,
+                ...(columna_codigo && { columna_codigo }),
+                ...(columna_moneda && { columna_moneda }),
+                tipo_costo,
+                moneda_default,
+            },
             tipo_costo_default: tipo_costo,
             estado: 'procesando',
         })
         .eq('id', id);
 
-    if (updateMapeoErr) {
-        return NextResponse.json(
-            { ok: false, error: `No se pudo guardar el mapeo: ${updateMapeoErr.message}` },
-            { status: 500 }
-        );
-    }
-
-    // ── Descargar y parsear el Excel ─────────────────────────────────────────
+    // ── Descargar y parsear Excel ────────────────────────────────────────────
     const { data: fileData, error: downloadErr } = await supabaseAdmin.storage
         .from(bucket)
         .download(storagePath);
@@ -140,144 +133,137 @@ export async function PATCH(
         );
     }
 
-    const arrayBuffer = await fileData.arrayBuffer();
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(arrayBuffer);
+    await workbook.xlsx.load(await fileData.arrayBuffer());
 
     const sheet = workbook.worksheets[0];
     if (!sheet) {
-        return NextResponse.json({ ok: false, error: 'Hoja de cálculo no encontrada' }, { status: 422 });
+        return NextResponse.json({ ok: false, error: 'El Excel no tiene hojas de cálculo' }, { status: 422 });
     }
 
     // Leer todas las filas
-    const allRows: Record<string, string>[] = [];
+    type FilaExcel = {
+        modelo: string; marca: string; precio: number;
+        codigo: string | null; moneda: string;
+    };
+
+    const filas: FilaExcel[] = [];
     let headers: string[] = [];
 
     sheet.eachRow((row, rowIndex) => {
-        const values = (row.values as any[]).slice(1);
+        const vals = (row.values as any[]).slice(1); // exceljs es 1-based
         if (rowIndex === 1) {
-            headers = values.map((v) => String(v ?? ''));
+            headers = vals.map(cellToString);
             return;
         }
-        const obj: Record<string, string> = {};
-        headers.forEach((h, i) => {
-            let v = values[i];
-            if (v === null || v === undefined) v = '';
-            else if (typeof v === 'object' && 'result' in v) v = String(v.result);
-            else if (typeof v === 'object' && 'text' in v) v = String(v.text);
-            else v = String(v);
-            obj[h] = v;
-        });
-        allRows.push(obj);
+
+        const byHeader: Record<string, string> = {};
+        headers.forEach((h, i) => { byHeader[h] = cellToString(vals[i]); });
+
+        const modelo = byHeader[columna_modelo]?.trim() ?? '';
+        const marca = byHeader[columna_marca]?.trim() ?? '';
+        const precioStr = byHeader[columna_precio]?.trim() ?? '';
+        const codigo = columna_codigo ? (byHeader[columna_codigo]?.trim() || null) : null;
+        const moneda = columna_moneda ? (byHeader[columna_moneda]?.trim() || moneda_default) : moneda_default;
+
+        if (!modelo && !marca) return; // fila sin datos de identificación
+        const precioNum = parseFloat(precioStr.replace(/[^0-9.]/g, ''));
+        if (isNaN(precioNum) || precioNum <= 0) return;
+
+        filas.push({ modelo, marca, precio: precioNum, codigo, moneda });
     });
 
-    if (!headers.includes(columna_modelo) || !headers.includes(columna_precio)) {
-        return NextResponse.json(
-            { ok: false, error: `Las columnas "${columna_modelo}" o "${columna_precio}" no existen en el archivo. Columnas disponibles: ${headers.join(', ')}` },
-            { status: 422 }
-        );
+    if (filas.length === 0) {
+        return NextResponse.json({ ok: false, error: 'No se encontraron filas con datos válidos' }, { status: 422 });
     }
 
-    // ── Cargar artículos desde DB para matching ──────────────────────────────
-    const { data: articulos, error: artErr } = await supabaseAdmin
-        .from('articulos')
-        .select('articulo_id, nombre, marca, modelo')
-        .eq('activo', true)
-        .limit(5000);
+    // ── Matching via RPC fn_match_articulo_proveedor (pg_trgm en Postgres) ──
+    // Se ejecutan CONCURRENCY llamadas paralelas para procesar todas las filas.
 
-    if (artErr) {
-        return NextResponse.json(
-            { ok: false, error: `Error al cargar artículos: ${artErr.message}` },
-            { status: 500 }
-        );
-    }
+    type MatchResult = {
+        articulo_id: string;
+        puntaje_match: number;
+        metodo_match: string;
+    } | null;
 
-    // ── Matching por fila ────────────────────────────────────────────────────
-    let totalFilas = 0;
+    const matchResults = await pMap<FilaExcel, MatchResult>(
+        filas,
+        async (fila) => {
+            const { data, error } = await supabaseAdmin.rpc('fn_match_articulo_proveedor', {
+                p_modelo: fila.modelo || null,
+                p_marca:  fila.marca  || null,
+                p_codigo: fila.codigo || null,
+            });
+
+            if (error || !data || data.length === 0) return null;
+
+            const match = data[0] as any;
+            return {
+                articulo_id:  match.articulo_id,
+                puntaje_match: Number(match.puntaje_match),
+                metodo_match:  match.metodo_match,
+            };
+        },
+        CONCURRENCY
+    );
+
+    // ── Construir registros para costos_articulo ─────────────────────────────
     let filasConMatch = 0;
-    const costosAInsertar: any[] = [];
 
-    for (const row of allRows) {
-        const valorModelo = row[columna_modelo]?.trim();
-        const valorPrecio = row[columna_precio]?.trim();
-        const valorMoneda = columna_moneda ? row[columna_moneda]?.trim() : null;
-
-        // Saltar filas sin datos clave
-        if (!valorModelo || !valorPrecio) continue;
-
-        const precioNum = parseFloat(valorPrecio.replace(/[^0-9.]/g, ''));
-        if (isNaN(precioNum) || precioNum <= 0) continue;
-
-        totalFilas++;
-
-        // Buscar mejor match por modelo/nombre
-        let mejorScore = 0;
-        let mejorArticulo: (typeof articulos)[0] | null = null;
-
-        for (const art of articulos ?? []) {
-            const candidatos = [art.modelo, art.nombre, `${art.marca} ${art.modelo}`].filter(Boolean);
-            for (const candidato of candidatos) {
-                const score = calcularScore(valorModelo, candidato);
-                if (score > mejorScore) {
-                    mejorScore = score;
-                    mejorArticulo = art;
-                }
-            }
-        }
-
-        const estadoMatch = mejorScore >= SCORE_UMBRAL ? 'sugerido' : 'sin_match';
+    const costosAInsertar = filas.map((fila, i) => {
+        const match = matchResults[i];
+        const puntaje = match?.puntaje_match ?? 0;
+        const estadoMatch = puntaje >= SCORE_UMBRAL ? 'sugerido' : 'sin_match';
         if (estadoMatch === 'sugerido') filasConMatch++;
 
-        costosAInsertar.push({
-            importacion_id: id,
-            articulo_id: null,  // se confirma en paso siguiente (validación humana)
-            modelo_excel: valorModelo,  // valor crudo del Excel para trazabilidad
-            articulo_sugerido_id: mejorScore >= SCORE_UMBRAL ? mejorArticulo?.articulo_id : null,
+        return {
+            importacion_id:       id,
+            articulo_id:          null,           // se confirma en revisión humana
+            articulo_sugerido_id: match?.articulo_id ?? null,
+            modelo_excel:         fila.modelo,
+            marca_excel:          fila.marca,
+            codigo_excel:         fila.codigo,
             tipo_costo,
-            valor: precioNum,
-            moneda: valorMoneda || moneda_default,
-            fuente: 'excel',
-            puntaje_match: mejorScore > 0 ? mejorScore : null,
-            estado_match: estadoMatch,
-            vigente: false,  // se vuelve true al confirmar
-        });
-    }
+            valor:                fila.precio,
+            moneda:               fila.moneda,
+            fuente:               'excel',
+            puntaje_match:        puntaje > 0 ? puntaje : null,
+            estado_match:         estadoMatch,
+            vigente:              false,           // se activa al confirmar
+        };
+    });
 
-    // ── Insertar costos en lotes ─────────────────────────────────────────────
-    const BATCH = 100;
-    let insertadas = 0;
-
-    for (let i = 0; i < costosAInsertar.length; i += BATCH) {
-        const lote = costosAInsertar.slice(i, i + BATCH);
+    // ── Insertar en lotes de 100 ─────────────────────────────────────────────
+    const LOTE = 100;
+    for (let i = 0; i < costosAInsertar.length; i += LOTE) {
         const { error: insErr } = await supabaseAdmin
             .from('costos_articulo')
-            .insert(lote);
+            .insert(costosAInsertar.slice(i, i + LOTE));
 
         if (insErr) {
             return NextResponse.json(
-                { ok: false, error: `Error al insertar costos (lote ${i}): ${insErr.message}` },
+                { ok: false, error: `Error al insertar costos (lote ${i / LOTE + 1}): ${insErr.message}` },
                 { status: 500 }
             );
         }
-        insertadas += lote.length;
     }
 
-    // ── Actualizar estadísticas de la importación ────────────────────────────
+    // ── Actualizar estadísticas ──────────────────────────────────────────────
     await supabaseAdmin
         .from('importaciones_excel')
         .update({
-            total_filas: totalFilas,
+            total_filas:    filas.length,
             filas_con_match: filasConMatch,
-            estado: 'en_revision',
+            estado:         'en_revision',
         })
         .eq('id', id);
 
     return NextResponse.json({
         ok: true,
-        importacion_id: id,
-        total_filas: totalFilas,
-        filas_con_match: filasConMatch,
-        filas_sin_match: totalFilas - filasConMatch,
-        costos_insertados: insertadas,
+        importacion_id:   id,
+        total_filas:      filas.length,
+        filas_con_match:  filasConMatch,
+        filas_sin_match:  filas.length - filasConMatch,
+        costos_insertados: costosAInsertar.length,
     });
 }
