@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
             proveedor,
             estado: 'pendiente_mapeo',
             // Sugerencia de mapeo previo si existe
-            mapeo_columnas: prevImport?.mapeo_columnas ?? null,
+            mapeo_columnas: prevImport?.mapeo_columnas ?? {},
             tipo_costo_default: prevImport?.tipo_costo_default ?? null,
         })
         .select('id, nombre_archivo, proveedor, mapeo_columnas, tipo_costo_default')
