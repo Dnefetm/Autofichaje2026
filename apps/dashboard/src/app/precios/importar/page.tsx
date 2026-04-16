@@ -45,7 +45,7 @@ interface Costo {
   articulo_sugerido: { articulo_id: string; nombre: string; marca: string; modelo: string; codigo_universal?: string } | null;
 }
 
-interface Stats { sin_match: number; sugerido: number; confirmado: number; descartado: number; }
+interface Stats { sin_match: number; sugerido: number; confirmado: number; rechazado: number; }
 interface PrecioMapeo { columna: string; tipo_costo: string; }
 
 const TIPOS_COSTO = [
@@ -437,7 +437,7 @@ interface ArticuloBusqueda {
 
 function RemapModal({ costoId, onSelect, onClose }: {
   costoId: string;
-  onSelect: (articuloId: string) => void;
+  onSelect: (articulo: ArticuloBusqueda) => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState('');
@@ -504,7 +504,7 @@ function RemapModal({ costoId, onSelect, onClose }: {
                 </p>
               </div>
               <button
-                onClick={() => onSelect(art.articulo_id)}
+                onClick={() => onSelect(art)}
                 className="ml-3 shrink-0 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors">
                 Seleccionar
               </button>
@@ -533,7 +533,8 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
   const [erroresVisible, setErroresVisible] = useState(false);
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
   // Ticket 2: estado de remaps (costo_id → articulo_id override)
-  const [remaps, setRemaps] = useState<Record<string, string>>({});
+  // T6: almacenar el artículo completo para mostrar datos en la card
+  const [remaps, setRemaps] = useState<Record<string, ArticuloBusqueda>>({});
   const [remapCostoId, setRemapCostoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
@@ -561,6 +562,18 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
     setSeleccionados((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   }
 
+  // T7: función para refrescar costos y stats desde backend
+  async function refrescarCostos() {
+    try {
+      const res = await fetch(`/api/precios/importar/${importacionId}/costos`);
+      const d = await res.json();
+      if (d.ok) {
+        setCostos(d.costos || []);
+        setStats(d.stats || stats);
+      }
+    } catch { /* silencioso */ }
+  }
+
   async function handleConfirmar() {
     const tieneSeleccion = seleccionados.size > 0 || Object.keys(remaps).length > 0;
     if (!tieneSeleccion) { setError('Selecciona al menos un match o remapea un artículo'); return; }
@@ -572,7 +585,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
         .map((c) => ({
           costo_id: c.id,
           accion: (seleccionados.has(c.id) || remaps[c.id]) ? 'confirmar' : 'descartar',
-          ...(remaps[c.id] ? { articulo_id_override: remaps[c.id] } : {}),
+          ...(remaps[c.id] ? { articulo_id_override: remaps[c.id].articulo_id } : {}),
         }));
       const res = await fetch(`/api/precios/importar/${importacionId}/confirmar`, {
         method: 'POST',
@@ -583,7 +596,13 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       if (!d.ok && d.errores?.length > 0) {
         setErroresDetalle(d.errores);
         setError(`${d.errores.length} error(es). Confirmados: ${d.confirmados}, Descartados: ${d.descartados}.`);
-      } else { setGuardadoOk(true); }
+        // T7: refrescar la lista para que stats y cards reflejen el estado real
+        await refrescarCostos();
+      } else if (d.confirmados > 0 && d.errores?.length === 0) {
+        setGuardadoOk(true);
+      } else {
+        setGuardadoOk(true);
+      }
     } catch (e: any) { setError(e.message); } finally { setGuardando(false); }
   }
 
@@ -651,7 +670,11 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
                 <div className="space-y-3">
           {costosFiltrados.map((c) => {
             const sel = seleccionados.has(c.id);
-            const art = c.articulo_sugerido;
+            // T6: si hay remap, mostrar datos del artículo remapeado en lugar del sugerido
+            const remapInfo = remaps[c.id];
+            const art = remapInfo
+              ? { articulo_id: remapInfo.articulo_id, nombre: remapInfo.nombre, marca: remapInfo.marca, modelo: remapInfo.modelo, codigo_universal: remapInfo.codigo_universal ?? undefined }
+              : c.articulo_sugerido;
             return (
               <div
                 key={c.id}
@@ -712,14 +735,20 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
                       </div>
                     )}
                   </div>
-                  {/* Catálogo side — Ticket 2: muestra remap si existe */}
-                  <div className={cn('p-3 space-y-2', (art || remaps[c.id]) ? '' : 'flex flex-col items-center justify-center gap-2')}>
+                  {/* Catálogo side — T6: muestra artículo remapeado si existe, si no el sugerido */}
+                  <div className={cn('p-3 space-y-2', art ? '' : 'flex flex-col items-center justify-center gap-2')}>
                     {art ? (
                       <>
                         <span className={cn('inline-block px-2 py-0.5 rounded text-[10px] font-bold mb-1',
-                          remaps[c.id] ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700')}>
-                          {remaps[c.id] ? 'REMAPEADO' : 'DEL CATÁLOGO'}
+                          remapInfo ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700')}>
+                          {remapInfo ? 'REMAPEADO' : 'DEL CATÁLOGO'}
                         </span>
+                        {/* Si hay remap, mostrar el sugerido original tachado */}
+                        {remapInfo && c.articulo_sugerido && (
+                          <p className="text-[10px] text-slate-400 line-through truncate">
+                            Original: {c.articulo_sugerido.marca} · {c.articulo_sugerido.modelo}
+                          </p>
+                        )}
                         <div>
                           <span className="text-[10px] text-slate-400 uppercase block">Modelo</span>
                           <p className={cn('font-mono font-bold text-sm truncate', art.modelo?.toLowerCase() !== c.modelo_excel?.toLowerCase() ? 'text-amber-600' : '')}>{art.modelo}</p>
@@ -756,7 +785,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
                     </button>
                     {remaps[c.id] && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); setRemaps((r) => { const n = { ...r }; delete n[c.id]; return n; }); }}
+                        onClick={(e) => { e.stopPropagation(); setRemaps((r) => { const n = { ...r }; delete n[c.id]; return n; }); setSeleccionados((prev) => { const next = new Set(prev); if (!c.articulo_sugerido_id) next.delete(c.id); return next; }); }}
                         className="text-[10px] text-rose-400 hover:underline">
                         Limpiar remap
                       </button>
@@ -793,8 +822,8 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       {remapCostoId && (
         <RemapModal
           costoId={remapCostoId}
-          onSelect={(articuloId) => {
-            setRemaps((r) => ({ ...r, [remapCostoId]: articuloId }));
+          onSelect={(articulo) => {
+            setRemaps((r) => ({ ...r, [remapCostoId]: articulo }));
             setSeleccionados((prev) => { const next = new Set(prev); next.add(remapCostoId); return next; });
             setRemapCostoId(null);
           }}
