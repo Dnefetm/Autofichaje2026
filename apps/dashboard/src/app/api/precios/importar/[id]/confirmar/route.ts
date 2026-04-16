@@ -2,13 +2,14 @@
  * POST /api/precios/importar/[id]/confirmar
  *
  * Confirma o descarta matches seleccionados por el usuario.
- * Cada fila puede: confirmarse (ligando al artículo sugerido o a uno manual),
- * descartarse, o corregirse a un artículo diferente.
+ * Cada fila puede: confirmarse (ligando al articulo sugerido o a uno manual),
+ * descartarse, o corregirse a un articulo diferente.
  *
  * Al confirmar:
  *   - estado_match = 'confirmado'
  *   - articulo_id = articulo_sugerido_id (o el override manual)
  *   - confirmado_por = user_id (o 'operador' si no hay auth)
+ *   - Desactiva costos vigentes previos con mismo articulo_id + tipo_costo
  *
  * Al descartar:
  *   - estado_match = 'descartado'
@@ -18,11 +19,10 @@
  *   acciones: Array<{
  *     costo_id: string,
  *     accion: 'confirmar' | 'descartar',
- *     articulo_id_override?: string  // solo para 'confirmar' con corrección manual
+ *     articulo_id_override?: string  // solo para 'confirmar' con correccion manual
  *   }>
  * }
  */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -39,7 +39,6 @@ export async function POST(
     props: { params: Promise<{ id: string }> }
 ) {
     const { id } = await props.params;
-
     const body = await req.json().catch(() => null);
     const acciones: Accion[] = body?.acciones;
 
@@ -50,7 +49,7 @@ export async function POST(
         );
     }
 
-    // Validar que la importación existe
+    // Validar que la importacion existe
     const { data: importacion, error: fetchErr } = await supabaseAdmin
         .from('importaciones_excel')
         .select('id, estado')
@@ -58,7 +57,7 @@ export async function POST(
         .single();
 
     if (fetchErr || !importacion) {
-        return NextResponse.json({ ok: false, error: 'Importación no encontrada' }, { status: 404 });
+        return NextResponse.json({ ok: false, error: 'Importacion no encontrada' }, { status: 404 });
     }
 
     const resultados = {
@@ -67,20 +66,20 @@ export async function POST(
         errores: [] as { costo_id: string; error: string }[],
     };
 
-    // TODO: reemplazar por auth real cuando se implemente autenticación
+    // TODO: reemplazar por auth real cuando se implemente autenticacion
     const confirmado_por = 'operador';
 
     for (const accion of acciones) {
         if (!accion.costo_id || !['confirmar', 'descartar'].includes(accion.accion)) {
-            resultados.errores.push({ costo_id: accion.costo_id, error: 'Acción inválida' });
+            resultados.errores.push({ costo_id: accion.costo_id, error: 'Accion invalida' });
             continue;
         }
 
         if (accion.accion === 'confirmar') {
-            // Obtener el costo para saber el artículo sugerido
+            // Obtener el costo para saber el articulo sugerido y tipo_costo
             const { data: costo } = await supabaseAdmin
                 .from('costos_articulo')
-                .select('id, articulo_sugerido_id, estado_match')
+                .select('id, articulo_sugerido_id, tipo_costo, estado_match')
                 .eq('id', accion.costo_id)
                 .eq('importacion_id', id)
                 .single();
@@ -91,26 +90,48 @@ export async function POST(
             }
 
             if (costo.estado_match === 'confirmado') {
-                resultados.confirmados++; // ya estaba confirmado, skip
+                resultados.confirmados++;
                 continue;
             }
 
             const articuloFinal = accion.articulo_id_override || costo.articulo_sugerido_id;
+
             if (!articuloFinal) {
                 resultados.errores.push({
                     costo_id: accion.costo_id,
-                    error: 'No hay artículo sugerido ni override para confirmar. Usa articulo_id_override.',
+                    error: 'No hay articulo sugerido ni override para confirmar. Usa articulo_id_override.',
                 });
                 continue;
             }
 
+            // ── FIX BUG 1: Desactivar costos vigentes previos ──────────────
+            // Antes de marcar este costo como vigente, apagamos cualquier
+            // registro existente con la misma combinacion articulo_id + tipo_costo
+            // para respetar el indice UNIQUE parcial costos_articulo_vigente_unico
+            const { error: deactivateErr } = await supabaseAdmin
+                .from('costos_articulo')
+                .update({ vigente: false })
+                .eq('articulo_id', articuloFinal)
+                .eq('tipo_costo', costo.tipo_costo)
+                .eq('vigente', true)
+                .neq('id', accion.costo_id);
+
+            if (deactivateErr) {
+                resultados.errores.push({
+                    costo_id: accion.costo_id,
+                    error: `Error al desactivar vigentes previos: ${deactivateErr.message}`,
+                });
+                continue;
+            }
+
+            // Ahora si, confirmar el costo actual
             const { error: updErr } = await supabaseAdmin
                 .from('costos_articulo')
                 .update({
                     estado_match: 'confirmado',
                     articulo_id: articuloFinal,
                     confirmado_por,
-                    vigente: true,  // el costo está activo a partir de la confirmación
+                    vigente: true,
                 })
                 .eq('id', accion.costo_id);
 
@@ -119,7 +140,6 @@ export async function POST(
             } else {
                 resultados.confirmados++;
             }
-
         } else if (accion.accion === 'descartar') {
             const { error: updErr } = await supabaseAdmin
                 .from('costos_articulo')
@@ -135,7 +155,7 @@ export async function POST(
         }
     }
 
-    // ── Actualizar estado de importación si ya no quedan pendientes ──────────
+    // ── Actualizar estado de importacion si ya no quedan pendientes ──────────
     const { data: pendientes } = await supabaseAdmin
         .from('costos_articulo')
         .select('id')
