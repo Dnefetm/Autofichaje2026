@@ -10,26 +10,26 @@
  *
  * Body:
  * {
- *   columna_modelo:  string,          // obligatoria — identificador de producto
- *   columna_marca:   string,          // obligatoria — marca del proveedor
- *   precios: Array<{                  // obligatoria — uno o más tipos de precio
- *     columna:    string,             //   columna del Excel que tiene el precio
- *     tipo_costo: string,             //   distribuidor|subdistribuidor|lista|mayoreo|otro
+ *   columna_modelo:       string,          // obligatoria — identificador de producto
+ *   columna_marca:        string,          // obligatoria — marca del proveedor
+ *   precios: Array<{                       // obligatoria — uno o más tipos de precio
+ *     columna:   string,                   //   columna del Excel que tiene el precio
+ *     tipo_costo: string,                  //   distribuidor|subdistribuidor|lista|mayoreo|otro
  *   }>,
- *   columna_codigo?: string,          // opcional — UPC/EAN → match exacto score 100
- *   columna_moneda?: string,          // opcional
- *   moneda_default?: string,          // default 'MXN'
+ *   columna_codigo?:       string,         // opcional — UPC/EAN → match exacto score 100
+ *   columna_descripcion?:  string,         // opcional — descripción larga / título del producto
+ *   columna_moneda?:       string,         // opcional
+ *   moneda_default?:       string,         // default 'MXN'
  * }
  */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import ExcelJS from 'exceljs';
 
 export const dynamic = 'force-dynamic';
 
-const CONCURRENCY  = 20;   // llamadas RPC paralelas
-const SCORE_UMBRAL = 40;   // umbral mínimo para estado 'sugerido'
+const CONCURRENCY = 20;   // llamadas RPC paralelas
+const SCORE_UMBRAL = 40;  // umbral mínimo para estado 'sugerido'
 
 interface PrecioMapeo {
     columna:    string;
@@ -39,7 +39,7 @@ interface PrecioMapeo {
 function cellToString(v: any): string {
     if (v === null || v === undefined) return '';
     if (typeof v === 'object' && 'result' in v) return String(v.result ?? '');
-    if (typeof v === 'object' && 'text'   in v) return String(v.text   ?? '');
+    if (typeof v === 'object' && 'text' in v) return String(v.text ?? '');
     return String(v);
 }
 
@@ -47,7 +47,10 @@ async function pMap<T, R>(items: T[], fn: (item: T, i: number) => Promise<R>, co
     const results: R[] = new Array(items.length);
     let idx = 0;
     async function worker() {
-        while (idx < items.length) { const i = idx++; results[i] = await fn(items[i], i); }
+        while (idx < items.length) {
+            const i = idx++;
+            results[i] = await fn(items[i], i);
+        }
     }
     await Promise.all(Array.from({ length: concurrency }, worker));
     return results;
@@ -55,10 +58,16 @@ async function pMap<T, R>(items: T[], fn: (item: T, i: number) => Promise<R>, co
 
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
     const { id } = await props.params;
-
     const body = await req.json().catch(() => null);
-    const { columna_modelo, columna_marca, precios, columna_codigo,
-            columna_moneda, moneda_default = 'MXN' } = body ?? {};
+    const {
+        columna_modelo,
+        columna_marca,
+        precios,
+        columna_codigo,
+        columna_descripcion,
+        columna_moneda,
+        moneda_default = 'MXN'
+    } = body ?? {};
 
     // ── Validaciones ─────────────────────────────────────────────────────────
     if (!columna_modelo) {
@@ -92,28 +101,27 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         return NextResponse.json({ ok: false, error: 'Importación ya procesada' }, { status: 409 });
     }
 
-    const mapeoActual  = importacion.mapeo_columnas as Record<string, any> | null;
-    const storagePath  = mapeoActual?._storage_path as string | undefined;
-    const bucket       = (mapeoActual?._bucket as string | undefined) || 'excel-precios';
+    const mapeoActual = importacion.mapeo_columnas as Record<string, any> | null;
+    const storagePath = mapeoActual?._storage_path as string | undefined;
+    const bucket      = (mapeoActual?._bucket as string | undefined) || 'excel-precios';
 
     if (!storagePath) {
         return NextResponse.json({ ok: false, error: 'No hay archivo asociado' }, { status: 422 });
     }
 
     // ── Guardar mapeo ─────────────────────────────────────────────────────────
-    // tipo_costo_default: memoriza todos los tipos de costo usados (separados por coma)
     const tiposCosto = [...new Set((precios as PrecioMapeo[]).map((p) => p.tipo_costo))].join(',');
-
     await supabaseAdmin
         .from('importaciones_excel')
         .update({
             mapeo_columnas: {
                 _storage_path: storagePath,
-                _bucket:       bucket,
+                _bucket: bucket,
                 columna_modelo,
                 columna_marca,
-                precios,                              // array completo para reutilizar
+                precios,
                 ...(columna_codigo && { columna_codigo }),
+                ...(columna_descripcion && { columna_descripcion }),
                 ...(columna_moneda && { columna_moneda }),
                 moneda_default,
             },
@@ -138,7 +146,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     }
 
     // Leer filas
-    type FilaExcel = { modelo: string; marca: string; codigo: string | null; moneda: string; preciosPorColumna: Record<string, number> };
+    type FilaExcel = { modelo: string; marca: string; codigo: string | null; descripcion: string | null; moneda: string; preciosPorColumna: Record<string, number> };
     const filas: FilaExcel[] = [];
     let headers: string[] = [];
 
@@ -153,6 +161,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         const marca  = byHeader[columna_marca]?.trim()  ?? '';
         if (!modelo && !marca) return;
 
+        const descripcion = columna_descripcion ? (byHeader[columna_descripcion]?.trim() || null) : null;
         const codigo = columna_codigo ? (byHeader[columna_codigo]?.trim() || null) : null;
         const moneda = columna_moneda ? (byHeader[columna_moneda]?.trim() || moneda_default) : moneda_default;
 
@@ -167,7 +176,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         // Solo procesar si tiene al menos un precio válido
         if (Object.keys(preciosPorColumna).length === 0) return;
 
-        filas.push({ modelo, marca, codigo, moneda, preciosPorColumna });
+        filas.push({ modelo, marca, codigo, descripcion, moneda, preciosPorColumna });
     });
 
     if (filas.length === 0) {
@@ -175,7 +184,6 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     }
 
     // ── Matching via RPC fn_match_articulo_proveedor ──────────────────────────
-    // Una sola llamada por fila (el match es igual para todos sus tipos de precio)
     type MatchResult = { articulo_id: string; puntaje_match: number; metodo_match: string } | null;
 
     const matchResults = await pMap<FilaExcel, MatchResult>(
@@ -194,13 +202,13 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     );
 
     // ── Construir registros (fila × tipo de precio) ───────────────────────────
-    let filasConMatch   = 0;
-    let filasSinPrecio  = 0;
+    let filasConMatch = 0;
+    let filasSinPrecio = 0;
     const costosAInsertar: any[] = [];
-    const filasContadas = new Set<number>(); // para no contar duplicados en con_match
+    const filasContadas = new Set<number>();
 
     filas.forEach((fila, i) => {
-        const match   = matchResults[i];
+        const match = matchResults[i];
         const puntaje = match?.puntaje_match ?? 0;
         const estadoMatch = puntaje >= SCORE_UMBRAL ? 'sugerido' : 'sin_match';
 
@@ -219,7 +227,8 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 articulo_sugerido_id:   match?.articulo_id ?? null,
                 modelo_excel:           fila.modelo,
                 marca_excel:            fila.marca,
-                codigo_universal_excel: fila.codigo,   // campo correcto del schema
+                codigo_universal_excel: fila.codigo,
+                descripcion_excel:      fila.descripcion,
                 tipo_costo:             p.tipo_costo,
                 valor,
                 moneda:                 fila.moneda,
@@ -237,6 +246,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         const { error: insErr } = await supabaseAdmin
             .from('costos_articulo')
             .insert(costosAInsertar.slice(i, i + LOTE));
+
         if (insErr) {
             return NextResponse.json(
                 { ok: false, error: `Error al insertar lote ${Math.floor(i / LOTE) + 1}: ${insErr.message}` },
@@ -249,19 +259,19 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     await supabaseAdmin
         .from('importaciones_excel')
         .update({
-            total_filas:    filas.length,
+            total_filas: filas.length,
             filas_con_match: filasConMatch,
-            estado:         'en_revision',
+            estado: 'en_revision',
         })
         .eq('id', id);
 
     return NextResponse.json({
-        ok:               true,
-        importacion_id:   id,
-        tipos_precio:     (precios as PrecioMapeo[]).length,
-        total_filas:      filas.length,
-        filas_con_match:  filasConMatch,
-        filas_sin_match:  filas.length - filasConMatch,
-        costos_insertados: costosAInsertar.length,  // filas × tipos de precio
+        ok: true,
+        importacion_id: id,
+        tipos_precio: (precios as PrecioMapeo[]).length,
+        total_filas: filas.length,
+        filas_con_match: filasConMatch,
+        filas_sin_match: filas.length - filasConMatch,
+        costos_insertados: costosAInsertar.length,
     });
 }
