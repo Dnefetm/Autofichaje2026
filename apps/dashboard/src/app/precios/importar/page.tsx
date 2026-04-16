@@ -440,6 +440,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
+    const [filtroVista, setFiltroVista] = useState<'todos' | 'con_match' | 'sin_match' | '100' | '90'>('todos');
   const didLoad = useRef(false);
 
   if (!didLoad.current) {
@@ -472,12 +473,20 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       });
       const d = await res.json();
       if (!d.ok && d.errores?.length > 0) {
-        setError(`${d.errores.length} error(es). Confirmados: ${d.confirmados}, Descartados: ${d.descartados}`);
+        const firstErr = d.errores?.[0]?.error || ''; setError(`${d.errores.length} error(es). Confirmados: ${d.confirmados}, Descartados: ${d.descartados}. Detalle: ${firstErr}`);
       } else { setGuardadoOk(true); }
     } catch (e: any) { setError(e.message); } finally { setGuardando(false); }
   }
 
-  if (guardadoOk) return (
+  const costosFiltrados = costos.filter((c) => {
+        if (filtroVista === 'con_match') return c.articulo_sugerido_id;
+        if (filtroVista === 'sin_match') return !c.articulo_sugerido_id;
+        if (filtroVista === '100') return c.puntaje_match === 100;
+        if (filtroVista === '90') return c.puntaje_match !== null && c.puntaje_match >= 90;
+        return true;
+    });
+
+    if (guardadoOk) return (
     <div className="text-center py-16">
       <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
       <h3 className="text-xl font-bold text-slate-800 mb-2">¡Importación completada!</h3>
@@ -508,20 +517,29 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
         <span className="text-xs text-slate-400">seleccionados</span>
         <button onClick={() => setSeleccionados(new Set(costos.filter((c) => c.articulo_sugerido_id).map((c) => c.id)))} className="text-xs text-indigo-600 hover:underline font-semibold">Todos con match</button>         <button onClick={() => setSeleccionados(new Set(costos.filter((c) => c.puntaje_match === 100).map((c) => c.id)))} className="text-xs text-emerald-600 hover:underline font-semibold">Solo 100%</button>         <button onClick={() => setSeleccionados(new Set(costos.filter((c) => c.puntaje_match !== null && c.puntaje_match >= 90).map((c) => c.id)))} className="text-xs text-yellow-600 hover:underline font-semibold">{'>'}=90%</button>
         <button onClick={() => setSeleccionados(new Set())} className="text-xs text-slate-400 hover:underline">Limpiar</button>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-slate-400">Filtrar vista:</span>
+                    {(['todos', 'con_match', 'sin_match', '100', '90'] as const).map((f) => (
+                        <button key={f} onClick={() => setFiltroVista(f)} className={cn('text-xs px-2 py-1 rounded-full border transition-colors', filtroVista === f ? 'bg-indigo-100 border-indigo-400 text-indigo-700 font-bold' : 'border-slate-200 text-slate-500 hover:border-indigo-300')}>
+                            {f === 'todos' ? 'Todos' : f === 'con_match' ? 'Con match' : f === 'sin_match' ? 'Sin match' : f === '100' ? '100%' : '≥90%'}
+                        </button>
+                    ))}
+                    <span className="text-xs text-slate-400 ml-2">({costosFiltrados.length} de {costos.length})</span>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-20 gap-3 text-slate-400">
           <Loader2 className="w-5 h-5 animate-spin" /> Cargando matches...
         </div>
-      ) : costos.length === 0 ? (
+      ) : costosFiltrados.length === 0 ? (
         <div className="text-center py-16">
           <Package className="w-12 h-12 text-slate-200 mx-auto mb-2" />
           <p className="text-slate-400 text-sm">No hay costos pendientes.</p>
         </div>
       ) : (
                 <div className="space-y-3">
-          {costos.map((c) => {
+          {costosFiltrados.map((c) => {
             const sel = seleccionados.has(c.id);
             const art = c.articulo_sugerido;
             return (
