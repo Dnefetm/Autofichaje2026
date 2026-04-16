@@ -42,7 +42,7 @@ interface Costo {
   moneda: string;
   puntaje_match: number | null;
   estado_match: string;
-  articulo_sugerido: { articulo_id: string; nombre: string; marca: string; modelo: string; codigo_barras?: string } | null;
+  articulo_sugerido: { articulo_id: string; nombre: string; marca: string; modelo: string; codigo_universal?: string } | null;
 }
 
 interface Stats { sin_match: number; sugerido: number; confirmado: number; descartado: number; }
@@ -590,7 +590,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
                         <td className="px-3 py-1.5 font-mono">{art?.modelo || <span className="text-slate-300">Sin match</span>}</td>
                         <td className="px-3 py-1.5">{art ? <span className="text-violet-600 font-bold">{art.marca}</span> : <span className="text-slate-300">—</span>}</td>
                         <td className="px-3 py-1.5 max-w-[250px] truncate" title={art?.nombre || ''}>{art?.nombre || <span className="text-slate-300">—</span>}</td>
-                        <td className="px-3 py-1.5 font-mono">{art?.codigo_barras || <span className="text-slate-300">—</span>}</td>
+                        <td className="px-3 py-1.5 font-mono">{art?.codigo_universal || <span className="text-slate-300">—</span>}</td>
                       </tr>
                     </>
                   );
