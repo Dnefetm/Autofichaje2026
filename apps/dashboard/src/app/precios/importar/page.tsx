@@ -520,86 +520,104 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
           <p className="text-slate-400 text-sm">No hay costos pendientes.</p>
         </div>
       ) : (
-        <div className="border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase w-10">✓</th>
-                  <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase">Fuente</th>
-                  <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase">Código / Modelo</th>
-                  <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase">Marca</th>
-                  <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase">Descripción</th>
-                  <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase">Cód. Universal</th>
-                  <th className="px-3 py-2 text-right font-bold text-slate-500 uppercase">Score</th>
-                  <th className="px-3 py-2 text-right font-bold text-slate-500 uppercase">Costo</th>
-                  <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase">Tipo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {costos.map((c) => {
-                  const sel = seleccionados.has(c.id);
-                  const art = c.articulo_sugerido;
-                  return (
-                    <>
-                      {/* Fila 1: Datos del Excel */}
-                      <tr key={`${c.id}-excel`}
-                        onClick={() => c.articulo_sugerido_id && toggleSelect(c.id)}
-                        className={cn(
-                          'border-t border-slate-200 transition-colors',
-                          c.articulo_sugerido_id ? 'cursor-pointer hover:bg-slate-50' : 'opacity-60',
-                          sel ? 'bg-indigo-50/60' : ''
-                        )}>
-                        <td rowSpan={2} className="px-3 py-2 align-middle">
-                          {c.articulo_sugerido_id && (
-                            <div className={cn('w-5 h-5 rounded border-2 flex items-center justify-center transition-all',
-                              sel ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300')}
-                            >{sel && <Check className="w-3 h-3 text-white" />}</div>
-                          )}
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">EXCEL</span>
-                        </td>
-                        <td className="px-3 py-1.5 font-mono font-bold">{c.modelo_excel || '—'}</td>
-                        <td className="px-3 py-1.5">{c.marca_excel ? <span className="text-violet-600 font-bold">{c.marca_excel}</span> : '—'}</td>
-                        <td className="px-3 py-1.5 max-w-[250px] truncate" title={c.descripcion_excel || ''}>{c.descripcion_excel || '—'}</td>
-                        <td className="px-3 py-1.5 font-mono">{c.codigo_universal_excel || '—'}</td>
-                        <td rowSpan={2} className="px-3 py-2 text-right align-middle">
-                          {c.puntaje_match != null ? (
-                            <span className={`inline-block px-2 py-1 rounded-lg font-bold border ${scoreBg(c.puntaje_match)} ${scoreColor(c.puntaje_match)}`}>
-                              {c.puntaje_match}%
-                            </span>
-                          ) : <span className="text-slate-300">—</span>}
-                        </td>
-                        <td rowSpan={2} className="px-3 py-2 text-right align-middle font-bold">
-                          {new Intl.NumberFormat('es-MX', { style: 'currency', currency: c.moneda || 'MXN' }).format(c.valor)}
-                        </td>
-                        <td rowSpan={2} className="px-3 py-2 align-middle">{c.tipo_costo}</td>
-                      </tr>
-                      {/* Fila 2: Datos del Catálogo */}
-                      <tr key={`${c.id}-cat`}
-                        onClick={() => c.articulo_sugerido_id && toggleSelect(c.id)}
-                        className={cn(
-                          'border-b border-slate-300 transition-colors',
-                          c.articulo_sugerido_id ? 'cursor-pointer hover:bg-slate-50' : 'opacity-60',
-                          sel ? 'bg-emerald-50/40' : 'bg-slate-50/50'
-                        )}>
-                        <td className="px-3 py-1.5">
-                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">CATÁLOGO</span>
-                        </td>
-                        <td className="px-3 py-1.5 font-mono">{art?.modelo || <span className="text-slate-300">Sin match</span>}</td>
-                        <td className="px-3 py-1.5">{art ? <span className="text-violet-600 font-bold">{art.marca}</span> : <span className="text-slate-300">—</span>}</td>
-                        <td className="px-3 py-1.5 max-w-[250px] truncate" title={art?.nombre || ''}>{art?.nombre || <span className="text-slate-300">—</span>}</td>
-                        <td className="px-3 py-1.5 font-mono">{art?.codigo_universal || <span className="text-slate-300">—</span>}</td>
-                      </tr>
-                    </>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                <div className="space-y-3">
+          {costos.map((c) => {
+            const sel = seleccionados.has(c.id);
+            const art = c.articulo_sugerido;
+            return (
+              <div
+                key={c.id}
+                onClick={() => c.articulo_sugerido_id && toggleSelect(c.id)}
+                className={cn(
+                  'border rounded-xl overflow-hidden transition-all',
+                  c.articulo_sugerido_id ? 'cursor-pointer hover:shadow-md' : 'opacity-60',
+                  sel ? 'border-indigo-400 ring-2 ring-indigo-200' : 'border-slate-200',
+                )}>
+                {/* Header: checkbox + score + cost + type */}
+                <div className={cn('flex items-center justify-between px-4 py-2 text-xs', sel ? 'bg-indigo-50' : 'bg-slate-50')}>
+                  <div className="flex items-center gap-3">
+                    {c.articulo_sugerido_id && (
+                      <div className={cn('w-5 h-5 rounded border-2 flex items-center justify-center transition-all',
+                        sel ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300')}>
+                        {sel && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                    )}
+                    {c.puntaje_match != null ? (
+                      <span className={`inline-block px-2.5 py-1 rounded-lg font-bold text-sm border ${scoreBg(c.puntaje_match)} ${scoreColor(c.puntaje_match)}`}>
+                        {c.puntaje_match}%
+                      </span>
+                    ) : <span className="text-slate-300 font-bold">Sin match</span>}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="font-bold text-slate-700">
+                      {new Intl.NumberFormat('es-MX', { style: 'currency', currency: c.moneda || 'MXN' }).format(c.valor)}
+                    </span>
+                    <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-medium">{c.tipo_costo}</span>
+                  </div>
+                </div>
+                {/* Comparación: Excel vs Catálogo */}
+                <div className="grid grid-cols-2 divide-x divide-slate-200">
+                  {/* Excel side */}
+                  <div className="p-3 space-y-2">
+                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 mb-1">DEL EXCEL</span>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase block">Modelo</span>
+                      <p className="font-mono font-bold text-sm truncate">{c.modelo_excel || '—'}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase block">Marca</span>
+                      <p className="text-violet-600 font-bold text-sm">{c.marca_excel || '—'}</p>
+                    </div>
+                    {c.descripcion_excel && (
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase block">Descripción</span>
+                        <p className="text-xs text-slate-600 line-clamp-2" title={c.descripcion_excel}>{c.descripcion_excel}</p>
+                      </div>
+                    )}
+                    {c.codigo_universal_excel && (
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase block">Cód. Universal</span>
+                        <p className="font-mono text-xs">{c.codigo_universal_excel}</p>
+                      </div>
+                    )}
+                  </div>
+                  {/* Catálogo side */}
+                  <div className={cn('p-3 space-y-2', art ? '' : 'flex items-center justify-center')}>
+                    {art ? (
+                      <>
+                        <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 mb-1">DEL CATÁLOGO</span>
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase block">Modelo</span>
+                          <p className={cn('font-mono font-bold text-sm truncate', art.modelo?.toLowerCase() !== c.modelo_excel?.toLowerCase() ? 'text-amber-600' : '')}>{art.modelo}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase block">Marca</span>
+                          <p className={cn('font-bold text-sm', art.marca?.toLowerCase() !== c.marca_excel?.toLowerCase() ? 'text-amber-600' : 'text-violet-600')}>{art.marca}</p>
+                        </div>
+                        {art.nombre && (
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase block">Nombre</span>
+                            <p className="text-xs text-slate-600 line-clamp-2" title={art.nombre}>{art.nombre}</p>
+                          </div>
+                        )}
+                        {art.codigo_universal && (
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase block">Cód. Universal</span>
+                            <p className="font-mono text-xs">{art.codigo_universal}</p>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-slate-300 text-sm italic">Sin coincidencia en catálogo</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
+            )}
+
 
       {error && <div className="flex items-center gap-2 text-rose-600 text-sm bg-rose-50 px-4 py-2 rounded-xl"><AlertCircle className="w-4 h-4" />{error}</div>}
 
