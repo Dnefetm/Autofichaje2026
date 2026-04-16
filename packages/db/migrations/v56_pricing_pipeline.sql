@@ -25,7 +25,7 @@ COMMENT ON COLUMN importaciones_excel.tipo_costo_default IS
 
 -- ─── 2. Vista v_costos_pendientes ───────────────────────────────────────────
 -- Usada por el dashboard de revisión de matches.
--- NOTA: estado_match en costos_articulo usa: sin_match | sugerido | confirmado | descartado
+-- NOTA: estado_match en costos_articulo usa: sin_match | sugerido | confirmado | rechazado
 -- La vista filtra solo los que aún no han sido resueltos por un humano.
 
 CREATE OR REPLACE VIEW v_costos_pendientes AS

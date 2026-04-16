@@ -11,7 +11,7 @@
  *   - confirmado_por = user_id (o 'operador' si no hay auth)
  *
  * Al descartar:
- *   - estado_match = 'descartado'
+ *   - estado_match = 'rechazado'
  *
  * Body:
  * {
@@ -31,7 +31,7 @@ export const dynamic = 'force-dynamic';
 interface Accion {
     costo_id: string;
     accion: 'confirmar' | 'descartar';
-    articulo_id_override?: string;
+    articulo_id_override?: string; // solo para 'confirmar' con corrección manual
 }
 
 export async function POST(
@@ -123,7 +123,7 @@ export async function POST(
         } else if (accion.accion === 'descartar') {
             const { error: updErr } = await supabaseAdmin
                 .from('costos_articulo')
-                .update({ estado_match: 'descartado' })
+                .update({ estado_match: 'rechazado' })
                 .eq('id', accion.costo_id)
                 .eq('importacion_id', id);
 

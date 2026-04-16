@@ -109,7 +109,7 @@ export async function GET(
         sin_match: 0,
         sugerido: 0,
         confirmado: 0,
-        descartado: 0,
+        rechazado: 0,
     };
     (conteo ?? []).forEach((c) => {
         const k = c.estado_match as keyof typeof stats;

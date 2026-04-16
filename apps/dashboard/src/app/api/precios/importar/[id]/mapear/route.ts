@@ -231,7 +231,22 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         });
     });
 
-    // ── Insertar en lotes ─────────────────────────────────────────────────────
+    // ── BUG 2 FIX: borrar costos previos antes de reinsertar ──────────────────
+    // Permite re-mapear desde Paso 3 sin generar duplicados.
+    // Se ejecuta SIEMPRE antes del INSERT para que sea idempotente.
+    const { error: deleteErr } = await supabaseAdmin
+        .from('costos_articulo')
+        .delete()
+        .eq('importacion_id', id);
+
+    if (deleteErr) {
+        return NextResponse.json(
+            { ok: false, error: `Error al limpiar costos previos: ${deleteErr.message}` },
+            { status: 500 }
+        );
+    }
+
+    // ── Insertar en lotes (limpios) ───────────────────────────────────────────
     const LOTE = 100;
     for (let i = 0; i < costosAInsertar.length; i += LOTE) {
         const { error: insErr } = await supabaseAdmin

@@ -45,7 +45,7 @@ interface Costo {
     articulo_sugerido: { articulo_id: string; nombre: string; marca: string; modelo: string } | null;
 }
 
-interface Stats { sin_match: number; sugerido: number; confirmado: number; descartado: number; }
+interface Stats { sin_match: number; sugerido: number; confirmado: number; rechazado: number; }
 interface PrecioMapeo { columna: string; tipo_costo: string; }
 
 const TIPOS_COSTO = [
@@ -444,7 +444,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
     onBack: () => void;
 }) {
     const [costos, setCostos]     = useState<Costo[]>([]);
-    const [stats, setStats]       = useState<Stats>({ sin_match: 0, sugerido: 0, confirmado: 0, descartado: 0 });
+    const [stats, setStats]       = useState<Stats>({ sin_match: 0, sugerido: 0, confirmado: 0, rechazado: 0 });
     const [loading, setLoading]   = useState(true);
     const [error, setError]       = useState<string | null>(null);
     const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
@@ -460,7 +460,12 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
                 if (!d.ok) throw new Error(d.error);
                 setCostos(d.costos || []);
                 setStats(d.stats || stats);
-                setSeleccionados(new Set<string>((d.costos as Costo[]).filter((c) => c.estado_match === 'sugerido').map((c) => c.id)));
+                // BUG 3 FIX: preseleccionar solo los matches con score 100 (exactos), no todos los sugeridos
+                setSeleccionados(new Set<string>(
+                    (d.costos as Costo[])
+                        .filter((c) => c.estado_match === 'sugerido' && c.puntaje_match === 100)
+                        .map((c) => c.id)
+                ));
             })
             .catch((e) => setError(e.message))
             .finally(() => setLoading(false));
@@ -506,7 +511,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
                     { label: 'Con Match',   value: stats.sugerido,   color: 'text-indigo-600',  bg: 'bg-indigo-50' },
                     { label: 'Sin Match',   value: stats.sin_match,  color: 'text-slate-500',   bg: 'bg-slate-50' },
                     { label: 'Confirmados', value: stats.confirmado, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Descartados', value: stats.descartado, color: 'text-rose-500',    bg: 'bg-rose-50' },
+                    { label: 'Rechazados',  value: stats.rechazado,  color: 'text-rose-500',    bg: 'bg-rose-50' },
                 ].map((s) => (
                     <div key={s.label} className={cn('rounded-xl p-4 border border-transparent', s.bg)}>
                         <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">{s.label}</p>
@@ -517,8 +522,21 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
 
             <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm text-slate-600"><span className="font-bold text-indigo-600">{seleccionados.size}</span> seleccionados</span>
-                <button onClick={() => setSeleccionados(new Set(costos.filter((c) => c.articulo_sugerido_id).map((c) => c.id)))}
-                    className="text-xs text-indigo-600 hover:underline font-semibold">Seleccionar con match</button>
+                {/* MEJORA UX: dos botones diferenciados por score */}
+                <button
+                    onClick={() => setSeleccionados(new Set(
+                        costos.filter((c) => c.articulo_sugerido_id && c.puntaje_match === 100).map((c) => c.id)
+                    ))}
+                    className="text-xs text-indigo-600 hover:underline font-semibold"
+                    title="Selecciona solo matches con score exacto (100%)">
+                    ✓ Solo 100%
+                </button>
+                <button
+                    onClick={() => setSeleccionados(new Set(costos.filter((c) => c.articulo_sugerido_id).map((c) => c.id)))}
+                    className="text-xs text-slate-500 hover:underline font-semibold"
+                    title="Selecciona todos los que tienen artículo sugerido (cualquier score)">
+                    Todos con match
+                </button>
                 <button onClick={() => setSeleccionados(new Set())} className="text-xs text-slate-400 hover:underline">Limpiar</button>
             </div>
 
