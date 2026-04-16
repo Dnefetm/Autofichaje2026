@@ -464,7 +464,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
     if (seleccionados.size === 0) { setError('Selecciona al menos un match'); return; }
     setGuardando(true); setError(null);
     try {
-      const acciones = costos.map((c) => ({ costo_id: c.id, accion: seleccionados.has(c.id) ? 'confirmar' : 'descartar' }));
+      const acciones = costos.filter((c) => c.articulo_sugerido_id).map((c) => ({ costo_id: c.id, accion: seleccionados.has(c.id) ? 'confirmar' : 'descartar' }));
       const res = await fetch(`/api/precios/importar/${importacionId}/confirmar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -506,7 +506,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       <div className="flex items-center gap-3">
         <span className="text-sm font-bold text-slate-600"> {seleccionados.size} </span>
         <span className="text-xs text-slate-400">seleccionados</span>
-        <button onClick={() => setSeleccionados(new Set(costos.filter((c) => c.articulo_sugerido_id).map((c) => c.id)))} className="text-xs text-indigo-600 hover:underline font-semibold">Seleccionar con match</button>
+        <button onClick={() => setSeleccionados(new Set(costos.filter((c) => c.articulo_sugerido_id).map((c) => c.id)))} className="text-xs text-indigo-600 hover:underline font-semibold">Todos con match</button>         <button onClick={() => setSeleccionados(new Set(costos.filter((c) => c.puntaje_match === 100).map((c) => c.id)))} className="text-xs text-emerald-600 hover:underline font-semibold">Solo 100%</button>         <button onClick={() => setSeleccionados(new Set(costos.filter((c) => c.puntaje_match !== null && c.puntaje_match >= 90).map((c) => c.id)))} className="text-xs text-yellow-600 hover:underline font-semibold">{'>'}=90%</button>
         <button onClick={() => setSeleccionados(new Set())} className="text-xs text-slate-400 hover:underline">Limpiar</button>
       </div>
 
@@ -623,7 +623,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
 
       <div className="flex gap-3">
         <button onClick={onBack} className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl text-sm font-semibold">
-          <ArrowLeft className="w-3.5 h-3.5" /> Volver
+          <ArrowLeft className="w-3.5 h-3.5" /> Remapear
         </button>
         <button onClick={handleConfirmar} disabled={guardando || seleccionados.size === 0}
           className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-sm text-sm">
