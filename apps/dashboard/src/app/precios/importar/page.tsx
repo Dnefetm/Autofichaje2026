@@ -17,6 +17,8 @@ import {
   AlertCircle, Loader2, Search, Package, Check, ArrowLeft,
   Plus, Trash2, X, Shuffle,
 } from 'lucide-react';
+import { TablaComparacion } from './TablaComparacion';
+import { Costo, Stats, FilaMapeada, EstadoMatch } from './types';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface PreviewData {
@@ -30,22 +32,7 @@ interface PreviewData {
   tipo_costo_previo: string | null;
 }
 
-interface Costo {
-  id: string;
-  articulo_sugerido_id: string | null;
-  modelo_excel: string | null;
-  marca_excel: string | null;
-  codigo_universal_excel: string | null;
-  descripcion_excel: string | null;
-  tipo_costo: string;
-  valor: number;
-  moneda: string;
-  puntaje_match: number | null;
-  estado_match: string;
-  articulo_sugerido: { articulo_id: string; nombre: string; marca: string; modelo: string; codigo_universal?: string } | null;
-}
 
-interface Stats { sin_match: number; sugerido: number; confirmado: number; rechazado: number; }
 interface PrecioMapeo { columna: string; tipo_costo: string; }
 
 const TIPOS_COSTO = [
@@ -524,21 +511,21 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
   onBack: () => void;
 }) {
   const [costos, setCostos] = useState<Costo[]>([]);
-  // FIX: usar 'rechazado' alineado con CHECK constraint de Supabase
   const [stats, setStats] = useState<Stats>({ sin_match: 0, sugerido: 0, confirmado: 0, rechazado: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Ticket 1: panel de errores colapsable
   const [erroresDetalle, setErroresDetalle] = useState<{ costo_id: string; error: string }[]>([]);
   const [erroresVisible, setErroresVisible] = useState(false);
-  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
-  // Ticket 2: estado de remaps (costo_id → articulo_id override)
-  // T6: almacenar el artículo completo para mostrar datos en la card
-  const [remaps, setRemaps] = useState<Record<string, ArticuloBusqueda>>({});
   const [remapCostoId, setRemapCostoId] = useState<string | null>(null);
+  const [remaps, setRemaps] = useState<Record<string, { articulo_id: string; nombre: string; marca: string; modelo: string }>>({});
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
-  const [filtroVista, setFiltroVista] = useState<'todos' | 'con_match' | 'sin_match' | '100' | '90'>('todos');
+  const [filtroVista, setFiltroVista] = useState<'todos' | 'con_match' | 'sin_match' | 'duda'>('todos');
+  
+  // Nuevo estado para la decisión del usuario (cost_id -> articulo_id | null)
+  // null = 'Sin asignar' (saltar fila)
+  const [selecciones, setSelecciones] = useState<Record<string, string | null>>({});
+
   const didLoad = useRef(false);
 
   if (!didLoad.current) {
@@ -547,22 +534,25 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       .then((r) => r.json())
       .then((d) => {
         if (!d.ok) throw new Error(d.error);
-        setCostos(d.costos || []);
+        const fetchedCostos = d.costos || [];
+        setCostos(fetchedCostos);
         setStats(d.stats || stats);
-        // BUG 3 FIX: preseleccionar solo matches con score exacto 100, no todos los sugeridos
-        setSeleccionados(new Set((d.costos as Costo[])
-          .filter((c) => c.estado_match === 'sugerido' && c.puntaje_match === 100)
-          .map((c) => c.id)));
+        
+        // Auto-hidratar selecciones iniciales: Solo auto-asignamos matches 100%
+        const initialSels: Record<string, string | null> = {};
+        fetchedCostos.forEach((c: Costo) => {
+          if (c.puntaje_match === 100 && c.articulo_sugerido_id) {
+            initialSels[c.id] = c.articulo_sugerido_id;
+          } else {
+            initialSels[c.id] = null;
+          }
+        });
+        setSelecciones(initialSels);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }
 
-  function toggleSelect(id: string) {
-    setSeleccionados((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
-  }
-
-  // T7: función para refrescar costos y stats desde backend
   async function refrescarCostos() {
     try {
       const res = await fetch(`/api/precios/importar/${importacionId}/costos`);
@@ -574,19 +564,56 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
     } catch { /* silencioso */ }
   }
 
+  function handleAutoAceptar() {
+    setSelecciones(prev => {
+      const next = { ...prev };
+      costos.forEach(c => {
+        if (c.candidatos_jsonb && c.candidatos_jsonb.length > 0) {
+          next[c.id] = c.candidatos_jsonb[0].articulo_id;
+        }
+      });
+      return next;
+    });
+  }
+
+  function handleExportarSinMatch() {
+    const csvContent = "data:text/csv;charset=utf-8," 
+        + "Modelo,Marca,Código,Costo,Moneda\n"
+        + costos
+            .filter(c => selecciones[c.id] === null)
+            .map(c => `${c.modelo_excel},${c.marca_excel},${c.codigo_universal_excel || ''},${c.valor},${c.moneda}`)
+            .join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "sin_match.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   async function handleConfirmar() {
-    const tieneSeleccion = seleccionados.size > 0 || Object.keys(remaps).length > 0;
-    if (!tieneSeleccion) { setError('Selecciona al menos un match o remapea un artículo'); return; }
+    const acciones = costos.map(c => {
+      const sid = selecciones[c.id];
+      if (sid) {
+         return { costo_id: c.id, accion: 'confirmar', articulo_id_override: sid };
+      }
+      return null;
+    }).filter(Boolean);
+
+    if (acciones.length === 0) {
+       setError('No hay filas con candidatos asignados para enviar. Marca "Sin asignar" o mapea los requeridos.'); 
+       return; 
+    }
+
+    // Alerta de dudas pendientes si el usuario está enviando, pero aún hay cosas sugeridas que dejó en null
+    const dudasPendientes = costos.some(c => c.puntaje_match && c.puntaje_match >= 70 && selecciones[c.id] === null);
+    if (dudasPendientes) {
+        if (!confirm('Aún tienes filas con sugerencias de buen score que están marcadas como "Sin asignar". ¿Estás seguro de enviarlas sin registrar?')) return;
+    }
+
     setGuardando(true); setError(null); setErroresDetalle([]); setErroresVisible(false);
     try {
-      // Ticket 1: incluir articulo_id_override para remapeados
-      const acciones = costos
-        .filter((c) => c.articulo_sugerido_id || remaps[c.id])
-        .map((c) => ({
-          costo_id: c.id,
-          accion: (seleccionados.has(c.id) || remaps[c.id]) ? 'confirmar' : 'descartar',
-          ...(remaps[c.id] ? { articulo_id_override: remaps[c.id].articulo_id } : {}),
-        }));
       const res = await fetch(`/api/precios/importar/${importacionId}/confirmar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -596,7 +623,6 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       if (!d.ok && d.errores?.length > 0) {
         setErroresDetalle(d.errores);
         setError(`${d.errores.length} error(es). Confirmados: ${d.confirmados}, Descartados: ${d.descartados}.`);
-        // T7: refrescar la lista para que stats y cards reflejen el estado real
         await refrescarCostos();
       } else if (d.confirmados > 0 && d.errores?.length === 0) {
         setGuardadoOk(true);
@@ -606,32 +632,50 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
     } catch (e: any) { setError(e.message); } finally { setGuardando(false); }
   }
 
-  const costosFiltrados = costos.filter((c) => {
-        if (filtroVista === 'con_match') return c.articulo_sugerido_id;
-        if (filtroVista === 'sin_match') return !c.articulo_sugerido_id;
-        if (filtroVista === '100') return c.puntaje_match === 100;
-        if (filtroVista === '90') return c.puntaje_match !== null && c.puntaje_match >= 90;
-        return true;
-    });
+  const numSeleccionados = Object.values(selecciones).filter(Boolean).length;
 
-    if (guardadoOk) return (
+  const filasMapeadas: FilaMapeada[] = costosFiltrados().map(c => {
+    let estado: EstadoMatch = 'sin_match';
+    if (c.puntaje_match === 100) estado = 'match';
+    else if (c.puntaje_match && c.puntaje_match >= 40) estado = 'duda'; // Usamos >= 40 para dudosas
+
+    return {
+      costo_id: c.id,
+      costo: c,
+      candidatos: c.candidatos_jsonb || [],
+      seleccionado: selecciones[c.id] || null,
+      estado
+    };
+  });
+
+  function costosFiltrados() {
+     return costos.filter(c => {
+        if (filtroVista === 'con_match') return c.puntaje_match === 100;
+        if (filtroVista === 'sin_match') return !c.puntaje_match;
+        if (filtroVista === 'duda') return c.puntaje_match && c.puntaje_match < 100 && c.puntaje_match >= 40;
+        return true;
+     });
+  }
+
+  if (guardadoOk) return (
     <div className="text-center py-16">
       <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
-      <h3 className="text-xl font-bold text-slate-800 mb-2">¡Importación completada!</h3>
-      <p className="text-slate-500 mb-6">Los costos confirmados están listos para el cálculo de precios.</p>
-      <button onClick={onFinish} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl">Nueva importación</button>
+      <h3 className="text-xl font-bold text-slate-800 mb-2">¡Importación completada en Lote!</h3>
+      <p className="text-slate-500 mb-6">Los costos confirmados se han guardado con éxito. Puedes revertir el reporte si es necesario.</p>
+      <div className="flex gap-4 justify-center">
+         <button onClick={onFinish} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl">Nueva importación</button>
+      </div>
     </div>
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-hidden">
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3">
         {[
           { label: 'Con Match', value: stats.sugerido, color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { label: 'Sin Match', value: stats.sin_match, color: 'text-slate-500', bg: 'bg-slate-50' },
           { label: 'Confirmados', value: stats.confirmado, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          // FIX: 'rechazado' alineado con CHECK constraint
           { label: 'Rechazados', value: stats.rechazado, color: 'text-rose-500', bg: 'bg-rose-50' },
         ].map((s) => (
           <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
@@ -642,162 +686,33 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="text-sm font-bold text-slate-600"> {seleccionados.size} </span>
-        <span className="text-xs text-slate-400">seleccionados</span>
-        <button onClick={() => setSeleccionados(new Set(costos.filter((c) => c.articulo_sugerido_id).map((c) => c.id)))} className="text-xs text-indigo-600 hover:underline font-semibold">Todos con match</button>         <button onClick={() => setSeleccionados(new Set(costos.filter((c) => c.puntaje_match === 100).map((c) => c.id)))} className="text-xs text-emerald-600 hover:underline font-semibold">Solo 100%</button>         <button onClick={() => setSeleccionados(new Set(costos.filter((c) => c.puntaje_match !== null && c.puntaje_match >= 90).map((c) => c.id)))} className="text-xs text-yellow-600 hover:underline font-semibold">{'>'}=90%</button>
-        <button onClick={() => setSeleccionados(new Set())} className="text-xs text-slate-400 hover:underline">Limpiar</button>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-slate-400">Filtrar vista:</span>
-                    {(['todos', 'con_match', 'sin_match', '100', '90'] as const).map((f) => (
-                        <button key={f} onClick={() => setFiltroVista(f)} className={cn('text-xs px-2 py-1 rounded-full border transition-colors', filtroVista === f ? 'bg-indigo-100 border-indigo-400 text-indigo-700 font-bold' : 'border-slate-200 text-slate-500 hover:border-indigo-300')}>
-                            {f === 'todos' ? 'Todos' : f === 'con_match' ? 'Con match' : f === 'sin_match' ? 'Sin match' : f === '100' ? '100%' : '≥90%'}
-                        </button>
-                    ))}
-                    <span className="text-xs text-slate-400 ml-2">({costosFiltrados.length} de {costos.length})</span>
+         <span className="text-sm font-bold text-slate-600"> {numSeleccionados} </span>
+         <span className="text-xs text-slate-400">asignados</span>
+         <button onClick={handleAutoAceptar} className="text-xs text-indigo-600 hover:underline font-semibold bg-indigo-50 px-2 py-1 rounded">Auto-aceptar sugerencias</button>
+         <button onClick={handleExportarSinMatch} className="text-xs text-yellow-600 hover:underline font-semibold bg-yellow-50 px-2 py-1 rounded">Exportar sin match (CSV)</button>
+         <button onClick={() => setSelecciones({})} className="text-xs text-slate-400 hover:underline">Limpiar Asignaciones</button>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+         <span className="text-xs text-slate-400">Filtrar vista:</span>
+         {(['todos', 'con_match', 'duda', 'sin_match'] as const).map((f) => (
+            <button key={f} onClick={() => setFiltroVista(f)} className={cn('text-xs px-2 py-1 rounded-full border transition-colors', filtroVista === f ? 'bg-indigo-100 border-indigo-400 text-indigo-700 font-bold' : 'border-slate-200 text-slate-500 hover:border-indigo-300')}>
+               {f === 'todos' ? 'Todos' : f === 'con_match' ? 'Solo Match (100%)' : f === 'duda' ? 'Revisar Sugeridos' : 'Sin Match'}
+            </button>
+         ))}
+         <span className="text-xs text-slate-400 ml-2">({filasMapeadas.length} cols)</span>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-20 gap-3 text-slate-400">
           <Loader2 className="w-5 h-5 animate-spin" /> Cargando matches...
         </div>
-      ) : costosFiltrados.length === 0 ? (
-        <div className="text-center py-16">
-          <Package className="w-12 h-12 text-slate-200 mx-auto mb-2" />
-          <p className="text-slate-400 text-sm">No hay costos pendientes.</p>
-        </div>
       ) : (
-                <div className="space-y-3">
-          {costosFiltrados.map((c) => {
-            const sel = seleccionados.has(c.id);
-            // T6: si hay remap, mostrar datos del artículo remapeado en lugar del sugerido
-            const remapInfo = remaps[c.id];
-            const art = remapInfo
-              ? { articulo_id: remapInfo.articulo_id, nombre: remapInfo.nombre, marca: remapInfo.marca, modelo: remapInfo.modelo, codigo_universal: remapInfo.codigo_universal ?? undefined }
-              : c.articulo_sugerido;
-            return (
-              <div
-                key={c.id}
-                onClick={() => (c.articulo_sugerido_id || remaps[c.id]) && toggleSelect(c.id)}
-                className={cn(
-                  'border rounded-xl overflow-hidden transition-all',
-                  (c.articulo_sugerido_id || remaps[c.id]) ? 'cursor-pointer hover:shadow-md' : 'opacity-60',
-                  sel ? 'border-indigo-400 ring-2 ring-indigo-200' : remaps[c.id] ? 'border-violet-400 ring-2 ring-violet-100' : 'border-slate-200',
-                )}>
-                {/* Header: checkbox + score + cost + type */}
-                <div className={cn('flex items-center justify-between px-4 py-2 text-xs', sel ? 'bg-indigo-50' : 'bg-slate-50')}>
-                  <div className="flex items-center gap-3">
-                    {(c.articulo_sugerido_id || remaps[c.id]) && (
-                      <div className={cn('w-5 h-5 rounded border-2 flex items-center justify-center transition-all',
-                        sel ? 'bg-indigo-600 border-indigo-600' : remaps[c.id] ? 'bg-violet-500 border-violet-500' : 'border-slate-300')}>
-                        {sel && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                    )}
-                    {remaps[c.id] && (
-                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700">REMAPEADO</span>
-                    )}
-                    {c.puntaje_match != null ? (
-                      <span className={`inline-block px-2.5 py-1 rounded-lg font-bold text-sm border ${scoreBg(c.puntaje_match)} ${scoreColor(c.puntaje_match)}`}>
-                        {c.puntaje_match}%
-                      </span>
-                    ) : <span className="text-slate-300 font-bold">Sin match</span>}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="font-bold text-slate-700">
-                      {new Intl.NumberFormat('es-MX', { style: 'currency', currency: c.moneda || 'MXN' }).format(c.valor)}
-                    </span>
-                    <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-medium">{c.tipo_costo}</span>
-                  </div>
-                </div>
-                {/* Comparación: Excel vs Catálogo */}
-                <div className="grid grid-cols-2 divide-x divide-slate-200">
-                  {/* Excel side */}
-                  <div className="p-3 space-y-2">
-                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 mb-1">DEL EXCEL</span>
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase block">Modelo</span>
-                      <p className="font-mono font-bold text-sm truncate">{c.modelo_excel || '—'}</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase block">Marca</span>
-                      <p className="text-violet-600 font-bold text-sm">{c.marca_excel || '—'}</p>
-                    </div>
-                    {c.descripcion_excel && (
-                      <div>
-                        <span className="text-[10px] text-slate-400 uppercase block">Descripción</span>
-                        <p className="text-xs text-slate-600 line-clamp-2" title={c.descripcion_excel}>{c.descripcion_excel}</p>
-                      </div>
-                    )}
-                    {c.codigo_universal_excel && (
-                      <div>
-                        <span className="text-[10px] text-slate-400 uppercase block">Cód. Universal</span>
-                        <p className="font-mono text-xs">{c.codigo_universal_excel}</p>
-                      </div>
-                    )}
-                  </div>
-                  {/* Catálogo side — T6: muestra artículo remapeado si existe, si no el sugerido */}
-                  <div className={cn('p-3 space-y-2', art ? '' : 'flex flex-col items-center justify-center gap-2')}>
-                    {art ? (
-                      <>
-                        <span className={cn('inline-block px-2 py-0.5 rounded text-[10px] font-bold mb-1',
-                          remapInfo ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700')}>
-                          {remapInfo ? 'REMAPEADO' : 'DEL CATÁLOGO'}
-                        </span>
-                        {/* Si hay remap, mostrar el sugerido original tachado */}
-                        {remapInfo && c.articulo_sugerido && (
-                          <p className="text-[10px] text-slate-400 line-through truncate">
-                            Original: {c.articulo_sugerido.marca} · {c.articulo_sugerido.modelo}
-                          </p>
-                        )}
-                        <div>
-                          <span className="text-[10px] text-slate-400 uppercase block">Modelo</span>
-                          <p className={cn('font-mono font-bold text-sm truncate', art.modelo?.toLowerCase() !== c.modelo_excel?.toLowerCase() ? 'text-amber-600' : '')}>{art.modelo}</p>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 uppercase block">Marca</span>
-                          <p className={cn('font-bold text-sm', art.marca?.toLowerCase() !== c.marca_excel?.toLowerCase() ? 'text-amber-600' : 'text-violet-600')}>{art.marca}</p>
-                        </div>
-                        {art.nombre && (
-                          <div>
-                            <span className="text-[10px] text-slate-400 uppercase block">Nombre</span>
-                            <p className="text-xs text-slate-600 line-clamp-2" title={art.nombre}>{art.nombre}</p>
-                          </div>
-                        )}
-                        {art.codigo_universal && (
-                          <div>
-                            <span className="text-[10px] text-slate-400 uppercase block">Cód. Universal</span>
-                            <p className="font-mono text-xs">{art.codigo_universal}</p>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-slate-300 text-sm italic">Sin coincidencia en catálogo</span>
-                    )}
-                    {/* Ticket 2: botón Remapear por card */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setRemapCostoId(c.id); }}
-                      className={cn('mt-2 flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg border transition-colors',
-                        remaps[c.id]
-                          ? 'border-violet-300 text-violet-600 hover:bg-violet-50'
-                          : 'border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600')}>
-                      <Shuffle className="w-3 h-3" />
-                      {remaps[c.id] ? 'Cambiar remap' : 'Remapear'}
-                    </button>
-                    {remaps[c.id] && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setRemaps((r) => { const n = { ...r }; delete n[c.id]; return n; }); setSeleccionados((prev) => { const next = new Set(prev); if (!c.articulo_sugerido_id) next.delete(c.id); return next; }); }}
-                        className="text-[10px] text-rose-400 hover:underline">
-                        Limpiar remap
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-            )}
-
+         <TablaComparacion 
+           filas={filasMapeadas} 
+           onSelectCandidato={(cid, artId) => setSelecciones(p => ({ ...p, [cid]: artId }))}
+           onRemapClick={cid => setRemapCostoId(cid)} 
+         />
+      )}
 
       {error && (
         <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
@@ -818,13 +733,36 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
           )}
         </div>
       )}
-      {/* Ticket 2: Modal de Remap */}
+      
       {remapCostoId && (
         <RemapModal
           costoId={remapCostoId}
           onSelect={(articulo) => {
+            // Actualizar remap pero sobre todo la selección
             setRemaps((r) => ({ ...r, [remapCostoId]: articulo }));
-            setSeleccionados((prev) => { const next = new Set(prev); next.add(remapCostoId); return next; });
+            setSelecciones((prev) => ({ ...prev, [remapCostoId]: articulo.articulo_id }));
+            
+            // Actualizar candidatos del registro original para embeber esta busqueda en el dropdown!
+            setCostos(prev => prev.map(c => {
+               if (c.id === remapCostoId) {
+                  const exists = (c.candidatos_jsonb || []).some(x => x.articulo_id === articulo.articulo_id);
+                  if(!exists) {
+                      return {
+                          ...c,
+                          candidatos_jsonb: [{
+                             articulo_id: articulo.articulo_id,
+                             nombre: articulo.nombre,
+                             marca: articulo.marca,
+                             modelo: articulo.modelo,
+                             codigo_universal: articulo.codigo_universal || '',
+                             puntaje_match: 100 // Manual remap implies exact match conceptually
+                          }, ...(c.candidatos_jsonb || [])]
+                      }
+                  }
+               }
+               return c;
+            }));
+            
             setRemapCostoId(null);
           }}
           onClose={() => setRemapCostoId(null)}
@@ -833,12 +771,12 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
 
       <div className="flex gap-3">
         <button onClick={onBack} className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl text-sm font-semibold">
-          <ArrowLeft className="w-3.5 h-3.5" /> Remapear
+          <ArrowLeft className="w-3.5 h-3.5" /> Volver
         </button>
-        <button onClick={handleConfirmar} disabled={guardando || seleccionados.size === 0}
+        <button onClick={handleConfirmar} disabled={guardando || numSeleccionados === 0}
           className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-sm text-sm">
           {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-          {guardando ? 'Confirmando...' : `Confirmar ${seleccionados.size} match${seleccionados.size !== 1 ? 'es' : ''}`}
+          {guardando ? 'Confirmando...' : `Confirmar Lote con ${numSeleccionados} asignados`}
         </button>
       </div>
     </div>

@@ -28,7 +28,7 @@ import ExcelJS from 'exceljs';
 
 export const dynamic = 'force-dynamic';
 
-const CONCURRENCY = 20;   // llamadas RPC paralelas
+const CONCURRENCY = 50;   // llamadas RPC paralelas (aumentado para evitar timeout en batches grandes)
 const SCORE_UMBRAL = 40;  // umbral mínimo para estado 'sugerido'
 
 interface PrecioMapeo {
@@ -184,7 +184,12 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     }
 
     // ── Matching via RPC fn_match_articulo_proveedor ──────────────────────────
-    type MatchResult = { articulo_id: string; puntaje_match: number; metodo_match: string } | null;
+    type MatchResult = { 
+        articulo_id: string; 
+        puntaje_match: number; 
+        metodo_match: string;
+        candidatos_jsonb: any[];
+    } | null;
 
     const matchResults = await pMap<FilaExcel, MatchResult>(
         filas,
@@ -196,7 +201,19 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
             });
             if (error || !data || data.length === 0) return null;
             const m = data[0] as any;
-            return { articulo_id: m.articulo_id, puntaje_match: Number(m.puntaje_match), metodo_match: m.metodo_match };
+            return { 
+                articulo_id: m.articulo_id, 
+                puntaje_match: Number(m.puntaje_match), 
+                metodo_match: m.metodo_match,
+                candidatos_jsonb: data.map((d: any) => ({
+                    articulo_id: d.articulo_id,
+                    nombre: d.nombre,
+                    marca: d.marca,
+                    modelo: d.modelo,
+                    codigo_universal: d.codigo_universal,
+                    puntaje_match: Number(d.puntaje_match)
+                }))
+            };
         },
         CONCURRENCY
     );
@@ -236,6 +253,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 puntaje_match:          puntaje > 0 ? puntaje : null,
                 estado_match:           estadoMatch,
                 vigente:                false,
+                candidatos_jsonb:       match?.candidatos_jsonb ?? [],
             });
         });
     });

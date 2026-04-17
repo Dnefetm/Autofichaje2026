@@ -56,7 +56,8 @@ export async function GET(
             puntaje_match,
             estado_match,
             confirmado_por,
-            creado_el
+            creado_el,
+            candidatos_jsonb
         `)
         .eq('importacion_id', id)
         .order('puntaje_match', { ascending: false, nullsFirst: false })
