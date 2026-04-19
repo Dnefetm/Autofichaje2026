@@ -18,18 +18,18 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-        const proveedor_id = searchParams.get('proveedor_id');
+        const proveedor = searchParams.get('proveedor');
         const marca = searchParams.get('marca');
         const modelo = searchParams.get('modelo');
         const limit = Number(searchParams.get('limit') || '50');
         const incluir_revertidos = searchParams.get('incluir_revertidos') === 'true';
 
-        if (!proveedor_id) {
-            return NextResponse.json({ ok: false, error: 'proveedor_id es requerido' }, { status: 400 });
+        if (!proveedor) {
+            return NextResponse.json({ ok: false, error: 'proveedor es requerido' }, { status: 400 });
         }
 
         let { data: filas, error: fetchErr } = await supabaseAdmin.rpc('fn_buscar_listas_raw', {
-            p_proveedor_id: proveedor_id,
+            p_proveedor: proveedor,
             p_marca: marca || null,
             p_modelo: modelo || null,
             p_limit: limit,

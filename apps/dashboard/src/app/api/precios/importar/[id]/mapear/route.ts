@@ -306,7 +306,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
         const rawsAInsertar = filas.map(f => ({
             importacion_id: id,
-            proveedor_id: importacion.proveedor, // el campo se llama proveedor pero guarda un UUID
+            proveedor: importacion.proveedor,
             fila_num: f.rowIndex,
             payload: f.payload,
             columnas_guardadas: columnasAGuardar

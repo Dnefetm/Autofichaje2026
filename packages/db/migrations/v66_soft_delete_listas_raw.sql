@@ -2,7 +2,7 @@ ALTER TABLE listas_precios_raw
   ADD COLUMN IF NOT EXISTS revertido_at timestamptz NULL;
 
 CREATE INDEX IF NOT EXISTS idx_lpr_vigentes
-  ON listas_precios_raw(proveedor_id)
+  ON listas_precios_raw(proveedor)
   WHERE revertido_at IS NULL;
 
 COMMENT ON COLUMN listas_precios_raw.revertido_at IS
