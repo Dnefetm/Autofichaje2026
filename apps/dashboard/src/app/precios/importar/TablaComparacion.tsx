@@ -37,48 +37,48 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
         const tieneHistorico = g.precios_anteriores && Object.keys(g.precios_anteriores).length > 0;
 
         return (
-          <div key={g.clave} className="flex bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden text-sm ring-1 ring-slate-100 hover:ring-indigo-100 transition-shadow">
+          <div key={g.clave} className="flex bg-white border border-slate-200 rounded-xl shadow-sm text-sm ring-1 ring-slate-100 hover:ring-indigo-100 transition-shadow">
             
             {/* ── Left Content Block (Lines 1-4) ── */}
             <div className="flex-1 flex flex-col min-w-0">
               
               {/* L1: Excel */}
-              <div className="flex items-center gap-4 px-4 py-2 bg-slate-50 border-b border-slate-100">
-                 <div className="w-14 text-[10px] uppercase text-slate-400 font-bold shrink-0 tracking-wider">L1 Excel</div>
-                 <div className="w-28 shrink-0 font-bold text-slate-800 truncate">{g.excel.modelo || '—'}</div>
-                 <div className="w-32 shrink-0 truncate text-violet-700 font-semibold">{g.excel.marca || '—'}</div>
-                 <div className="w-36 shrink-0 font-mono text-xs text-slate-500 truncate">{g.excel.codigo_universal || '—'}</div>
-                 <div className="flex-1 min-w-0 font-medium text-slate-600 pr-2">
-                   <span className="block truncate" title={g.excel.descripcion || ''}>{g.excel.descripcion?.trim() || '—'}</span>
+              <div className="grid grid-cols-[60px_100px_120px_140px_1fr] items-center gap-3 px-4 py-2 bg-slate-50 border-b border-slate-100">
+                 <div className="text-[10px] uppercase text-slate-400 font-bold truncate tracking-wider">L1 Excel</div>
+                 <div className="font-bold text-slate-800 truncate" title={g.excel.modelo || ''}>{g.excel.modelo || '—'}</div>
+                 <div className="truncate text-violet-700 font-semibold" title={g.excel.marca || ''}>{g.excel.marca || '—'}</div>
+                 <div className="font-mono text-xs text-slate-500 truncate" title={g.excel.codigo_universal || ''}>{g.excel.codigo_universal || '—'}</div>
+                 <div className="truncate min-w-0 font-medium text-slate-600 pr-2" title={g.excel.descripcion || ''}>
+                   {g.excel.descripcion?.trim() || '—'}
                  </div>
               </div>
 
               {/* L2: Catálogo */}
-              <div className="flex items-center gap-4 px-4 py-2 bg-indigo-50/30 border-b border-slate-200 shadow-[inset_0_1px_4px_rgba(0,0,0,0.01)]">
-                 <div className="w-14 text-[10px] uppercase text-indigo-400 font-bold shrink-0 tracking-wider">L2 Sugg.</div>
+              <div className="grid grid-cols-[60px_100px_120px_140px_1fr] items-center gap-3 px-4 py-2 bg-indigo-50/30 border-b border-slate-200 shadow-[inset_0_1px_4px_rgba(0,0,0,0.01)]">
+                 <div className="text-[10px] uppercase text-indigo-400 font-bold truncate tracking-wider">L2 Sugg.</div>
                  {g.catalogo_sugerido ? (
                    <>
-                     <div className="w-28 shrink-0 font-bold text-slate-800 truncate">{g.catalogo_sugerido.modelo}</div>
-                     <div className="w-32 shrink-0 text-slate-700 truncate">{g.catalogo_sugerido.marca}</div>
-                     <div className="w-36 shrink-0 font-mono text-xs text-slate-500 truncate">{g.catalogo_sugerido.codigo_universal || '—'}</div>
-                     <div className="flex-1 min-w-0 text-slate-600 flex justify-between items-center pr-2">
-                       <span className="block truncate flex-1 min-w-0 mr-4" title={g.catalogo_sugerido.nombre || ''}>{g.catalogo_sugerido.nombre?.trim() || '—'}</span>
-                       <div className="flex items-center gap-3 shrink-0 ml-auto break-keep whitespace-nowrap pt-0.5">
-                         <span className="text-[11px] text-slate-500 truncate max-w-[150px]" title={g.catalogo_sugerido.caja_madre?.trim() || '—'}>
+                     <div className="font-bold text-slate-800 truncate" title={g.catalogo_sugerido.modelo}>{g.catalogo_sugerido.modelo}</div>
+                     <div className="text-slate-700 truncate" title={g.catalogo_sugerido.marca}>{g.catalogo_sugerido.marca}</div>
+                     <div className="font-mono text-xs text-slate-500 truncate" title={g.catalogo_sugerido.codigo_universal || ''}>{g.catalogo_sugerido.codigo_universal || '—'}</div>
+                     <div className="min-w-0 text-slate-600 flex justify-between items-center pr-2">
+                       <span className="truncate flex-1 min-w-0 mr-2" title={g.catalogo_sugerido.nombre || ''}>{g.catalogo_sugerido.nombre?.trim() || '—'}</span>
+                       <div className="flex items-center gap-2 shrink-0 ml-auto break-keep whitespace-nowrap">
+                         <span className="text-[11px] text-slate-500 truncate max-w-[120px]" title={g.catalogo_sugerido.caja_madre?.trim() || '—'}>
                            📍 <span className={cn("font-bold", g.catalogo_sugerido.caja_madre?.trim() ? "text-slate-800" : "text-slate-400")}>{g.catalogo_sugerido.caja_madre?.trim() || '—'}</span>
                          </span>
                          {(() => {
                            const s = g.catalogo_sugerido.puntaje_match;
                            const color = s >= 90 ? 'bg-emerald-100/80 text-emerald-700' : s >= 60 ? 'bg-amber-100/80 text-amber-700' : 'bg-rose-100/80 text-rose-700';
                            return (
-                             <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded", color)}>{s}%</span>
+                             <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", color)}>{s}%</span>
                            );
                          })()}
                        </div>
                      </div>
                    </>
                  ) : (
-                   <div className="text-xs italic text-slate-400 w-full">— Sin sugerencia de catálogo identificada —</div>
+                   <div className="col-span-4 text-xs italic text-slate-400">— Sin sugerencia de catálogo identificada —</div>
                  )}
               </div>
 
