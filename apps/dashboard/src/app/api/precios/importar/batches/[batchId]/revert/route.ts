@@ -77,7 +77,11 @@ export async function DELETE(req: Request, { params }: { params: { batchId: stri
       .eq('id', params.batchId)
       .single();
     
-    if (batch?.importacion_excel_id) {
+    // Borrar el batch cascadea y borra de historial
+    const { error: delErr } = await supabaseAdmin.from('precio_import_batches').delete().eq('id', params.batchId);
+    if(delErr) {
+       console.error("No se pudo borrar el batch_id después de revertir", delErr);
+    } else if (batch?.importacion_excel_id) {
       const { error: rawErr } = await supabaseAdmin
         .from('listas_precios_raw')
         .update({ revertido_at: new Date().toISOString() })
@@ -86,12 +90,6 @@ export async function DELETE(req: Request, { params }: { params: { batchId: stri
       if (rawErr) {
         console.error('Error marcando listas_precios_raw como revertidas:', rawErr.message);
       }
-    }
-
-    // Borrar el batch cascadea y borra de historial
-    const { error: delErr } = await supabaseAdmin.from('precio_import_batches').delete().eq('id', params.batchId);
-    if(delErr) {
-       console.error("No se pudo borrar el batch_id después de revertir", delErr);
     }
     
     console.log(JSON.stringify({ event: 'batch_reverted', batchId: params.batchId, user: user.id, revertidos }));

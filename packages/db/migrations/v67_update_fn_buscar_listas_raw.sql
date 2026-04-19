@@ -1,3 +1,5 @@
+DROP FUNCTION IF EXISTS fn_buscar_listas_raw(uuid, text, text, int);
+
 CREATE OR REPLACE FUNCTION fn_buscar_listas_raw(
   p_proveedor_id uuid,
   p_marca text DEFAULT NULL,
