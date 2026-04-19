@@ -18,7 +18,7 @@ import {
   Plus, Trash2, X, Shuffle,
 } from 'lucide-react';
 import { TablaComparacion } from './TablaComparacion';
-import { Costo, Stats, FilaMapeada, EstadoMatch } from './types';
+import { Costo, Stats, FilaMapeada, EstadoMatch, clasificarEstado } from './types';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface PreviewData {
