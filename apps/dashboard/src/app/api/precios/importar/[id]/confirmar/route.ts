@@ -216,5 +216,6 @@ export async function POST(
         ok: resultados.errores.length === 0,
         ...resultados,
         importacion_id: id,
+        batch_id: batchId,
     });
 }

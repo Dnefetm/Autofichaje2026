@@ -5,7 +5,7 @@
  * Paso 1: Subir Excel + indicar proveedor
  * Paso 2: Mapear columnas:
  *   - Modelo (oblig) + Marca (oblig) → fuzzy matching via pg_trgm
- *   - Código Universal (opc) → match exacto score 100
+ *   - Código Universal (opc) + Marca + Modelo → match exacto score 100
  *   - Descripción (opc) → para comparación visual
  *   - Uno o MÚLTIPLES tipos de precio ({columna, tipo_costo})
  *   - Moneda por columna o default
@@ -521,6 +521,8 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [filtroVista, setFiltroVista] = useState<'todos' | 'con_match' | 'sin_match' | 'duda'>('todos');
+  const [batchIdConfirmado, setBatchIdConfirmado] = useState<string | null>(null);
+  const [revertiendo, setRevertiendo] = useState(false);
   
   // Nuevo estado para la decisión del usuario (cost_id -> articulo_id | null)
   // null = 'Sin asignar' (saltar fila)
@@ -538,14 +540,10 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
         setCostos(fetchedCostos);
         setStats(d.stats || stats);
         
-        // Auto-hidratar selecciones iniciales: Solo auto-asignamos matches 100%
+        // Ninguna fila se auto-asigna. Regla de oro: todo requiere validación humana.
         const initialSels: Record<string, string | null> = {};
         fetchedCostos.forEach((c: Costo) => {
-          if (c.puntaje_match === 100 && c.articulo_sugerido_id) {
-            initialSels[c.id] = c.articulo_sugerido_id;
-          } else {
-            initialSels[c.id] = null;
-          }
+           initialSels[c.id] = null;
         });
         setSelecciones(initialSels);
       })
@@ -562,18 +560,6 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
         setStats(d.stats || stats);
       }
     } catch { /* silencioso */ }
-  }
-
-  function handleAutoAceptar() {
-    setSelecciones(prev => {
-      const next = { ...prev };
-      costos.forEach(c => {
-        if (c.candidatos_jsonb && c.candidatos_jsonb.length > 0 && c.candidatos_jsonb[0].puntaje_match >= 95) {
-          next[c.id] = c.candidatos_jsonb[0].articulo_id;
-        }
-      });
-      return next;
-    });
   }
 
   function handleExportarNoAsignados() {
@@ -641,11 +627,36 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
         setError(`${d.errores.length} error(es). Confirmados: ${d.confirmados}, Descartados: ${d.descartados}.`);
         await refrescarCostos();
       } else if (d.confirmados > 0 && d.errores?.length === 0) {
+        if (d.batch_id) setBatchIdConfirmado(d.batch_id);
         setGuardadoOk(true);
       } else {
+        if (d.batch_id) setBatchIdConfirmado(d.batch_id);
         setGuardadoOk(true);
       }
     } catch (e: any) { setError(e.message); } finally { setGuardando(false); }
+  }
+
+  async function handleRevertirLote() {
+    if (!batchIdConfirmado) return;
+    if (!confirm('¿Estás seguro de que deseas revertir este lote de precios? Esta acción restaurará los valores antiguos y eliminará las inyecciones nuevas.')) return;
+    
+    setRevertiendo(true);
+    try {
+      const res = await fetch(`/api/precios/importar/batches/${batchIdConfirmado}/revert`, { method: 'DELETE' });
+      const d = await res.json();
+      if (!d.ok) {
+        alert('Error al revertir: ' + d.error);
+      } else {
+        alert(`¡Lote revertido con éxito! Se restauraron ${d.revertidos} registros de precios.`);
+        setBatchIdConfirmado(null);
+        // Volvemos a la vista anterior o hacemos onFinish
+        onFinish();
+      }
+    } catch (e: any) {
+      alert('Error en llamada a Revert: ' + e.message);
+    } finally {
+      setRevertiendo(false);
+    }
   }
 
   const numSeleccionados = Object.values(selecciones).filter(Boolean).length;
@@ -676,6 +687,11 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       <p className="text-slate-500 mb-6">Los costos confirmados se han guardado con éxito. Puedes revertir el reporte si es necesario.</p>
       <div className="flex gap-4 justify-center">
          <button onClick={onFinish} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl">Nueva importación</button>
+         {batchIdConfirmado && (
+           <button onClick={handleRevertirLote} disabled={revertiendo} className="px-6 py-2.5 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold rounded-xl transition-colors">
+             {revertiendo ? 'Revirtiendo...' : 'Revertir último lote'}
+           </button>
+         )}
       </div>
     </div>
   );
@@ -700,10 +716,14 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       <div className="flex items-center gap-3">
          <span className="text-sm font-bold text-slate-600"> {numSeleccionados} </span>
          <span className="text-xs text-slate-400">asignados</span>
-         <button onClick={handleAutoAceptar} className="text-xs text-indigo-600 hover:underline font-semibold bg-indigo-50 px-2 py-1 rounded">Auto-aceptar sugerencias</button>
+         <button onClick={() => {
+            // "Marcar todas como Sin asignar"
+            const nuevas = {...selecciones};
+            Object.keys(nuevas).forEach(k => nuevas[k] = null);
+            setSelecciones(nuevas);
+         }} className="text-xs text-slate-500 hover:underline font-semibold bg-slate-100 px-2 py-1 rounded">Marcar todas como Sin Asignar</button>
          <button onClick={handleExportarSinMatchSistema} className="text-xs text-rose-600 hover:underline font-semibold bg-rose-50 px-2 py-1 rounded">Exportar Sin Match en Sistema</button>
          <button onClick={handleExportarNoAsignados} className="text-xs text-yellow-600 hover:underline font-semibold bg-yellow-50 px-2 py-1 rounded">Exportar No Asignados</button>
-         <button onClick={() => setSelecciones({})} className="text-xs text-slate-400 hover:underline">Limpiar Asignaciones</button>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
          <span className="text-xs text-slate-400">Filtrar vista:</span>
