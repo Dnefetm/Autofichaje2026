@@ -568,7 +568,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
     setSelecciones(prev => {
       const next = { ...prev };
       costos.forEach(c => {
-        if (c.candidatos_jsonb && c.candidatos_jsonb.length > 0) {
+        if (c.candidatos_jsonb && c.candidatos_jsonb.length > 0 && c.candidatos_jsonb[0].puntaje_match >= 95) {
           next[c.id] = c.candidatos_jsonb[0].articulo_id;
         }
       });
@@ -576,7 +576,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
     });
   }
 
-  function handleExportarSinMatch() {
+  function handleExportarNoAsignados() {
     const csvContent = "data:text/csv;charset=utf-8," 
         + "Modelo,Marca,Código,Costo,Moneda\n"
         + costos
@@ -586,7 +586,23 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "sin_match.csv");
+    link.setAttribute("download", "filas_no_asignadas.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function handleExportarSinMatchSistema() {
+    const csvContent = "data:text/csv;charset=utf-8," 
+        + "Modelo,Marca,Código,Costo,Moneda\n"
+        + costos
+            .filter(c => clasificarEstado(c.puntaje_match) === 'sin_match')
+            .map(c => `${c.modelo_excel},${c.marca_excel},${c.codigo_universal_excel || ''},${c.valor},${c.moneda}`)
+            .join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "sin_match_sistema.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -607,9 +623,9 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
     }
 
     // Alerta de dudas pendientes si el usuario está enviando, pero aún hay cosas sugeridas que dejó en null
-    const dudasPendientes = costos.some(c => c.puntaje_match && c.puntaje_match >= 70 && selecciones[c.id] === null);
+    const dudasPendientes = costos.some(c => clasificarEstado(c.puntaje_match) === 'duda' && selecciones[c.id] === null);
     if (dudasPendientes) {
-        if (!confirm('Aún tienes filas con sugerencias de buen score que están marcadas como "Sin asignar". ¿Estás seguro de enviarlas sin registrar?')) return;
+        if (!confirm('Aún tienes filas ambiguas (Dudas) que marcaste como "Sin asignar". ¿Estás seguro de enviarlas sin registrar?')) return;
     }
 
     setGuardando(true); setError(null); setErroresDetalle([]); setErroresVisible(false);
@@ -635,16 +651,12 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
   const numSeleccionados = Object.values(selecciones).filter(Boolean).length;
 
   const filasMapeadas: FilaMapeada[] = costosFiltrados().map(c => {
-    let estado: EstadoMatch = 'sin_match';
-    if (c.puntaje_match === 100) estado = 'match';
-    else if (c.puntaje_match && c.puntaje_match >= 40) estado = 'duda'; // Usamos >= 40 para dudosas
-
     return {
       costo_id: c.id,
       costo: c,
       candidatos: c.candidatos_jsonb || [],
       seleccionado: selecciones[c.id] || null,
-      estado
+      estado: clasificarEstado(c.puntaje_match)
     };
   });
 
@@ -689,7 +701,8 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
          <span className="text-sm font-bold text-slate-600"> {numSeleccionados} </span>
          <span className="text-xs text-slate-400">asignados</span>
          <button onClick={handleAutoAceptar} className="text-xs text-indigo-600 hover:underline font-semibold bg-indigo-50 px-2 py-1 rounded">Auto-aceptar sugerencias</button>
-         <button onClick={handleExportarSinMatch} className="text-xs text-yellow-600 hover:underline font-semibold bg-yellow-50 px-2 py-1 rounded">Exportar sin match (CSV)</button>
+         <button onClick={handleExportarSinMatchSistema} className="text-xs text-rose-600 hover:underline font-semibold bg-rose-50 px-2 py-1 rounded">Exportar Sin Match en Sistema</button>
+         <button onClick={handleExportarNoAsignados} className="text-xs text-yellow-600 hover:underline font-semibold bg-yellow-50 px-2 py-1 rounded">Exportar No Asignados</button>
          <button onClick={() => setSelecciones({})} className="text-xs text-slate-400 hover:underline">Limpiar Asignaciones</button>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
@@ -755,7 +768,8 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
                              marca: articulo.marca,
                              modelo: articulo.modelo,
                              codigo_universal: articulo.codigo_universal || '',
-                             puntaje_match: 100 // Manual remap implies exact match conceptually
+                             puntaje_match: 100, // Conceptualmente equivalente para no romper contadores, pero
+                             metodo_match: 'manual' // <- Diferenciador explícito
                           }, ...(c.candidatos_jsonb || [])]
                       }
                   }

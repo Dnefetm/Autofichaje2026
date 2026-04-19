@@ -53,19 +53,32 @@ export function TablaComparacion({ filas, onSelectCandidato, onRemapClick }: Pro
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  {f.estado === 'match' ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> EXACTO
-                    </span>
-                  ) : f.estado === 'duda' ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                      <AlertCircle className="w-3.5 h-3.5" /> REVISAR
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700">
-                      <XCircle className="w-3.5 h-3.5" /> SIN MATCH
-                    </span>
-                  )}
+                  <div className="flex flex-col gap-1 items-start">
+                    {f.seleccionado && f.candidatos.find(c => c.articulo_id === f.seleccionado)?.metodo_match === 'manual' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-fuchsia-100 text-fuchsia-700">
+                        MANUAL
+                      </span>
+                    ) : f.estado === 'match' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> EXACTO
+                      </span>
+                    ) : f.estado === 'duda' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                        <AlertCircle className="w-3.5 h-3.5" /> REVISAR
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700">
+                        <XCircle className="w-3.5 h-3.5" /> SIN MATCH
+                      </span>
+                    )}
+
+                    {/* Badge adicional de motivo */}
+                    {f.candidatos.length > 0 && f.estado !== 'sin_match' && f.candidatos[0].metodo_match === 'codigo_exacto_incompleto' && (
+                       <span className="text-[9px] text-amber-600 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                         Código ID ✓ | Marca/Mod ?
+                       </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-1 w-full relative">
