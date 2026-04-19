@@ -49,7 +49,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
                  <div className="w-32 shrink-0 truncate text-violet-700 font-semibold">{g.excel.marca || '—'}</div>
                  <div className="w-36 shrink-0 font-mono text-xs text-slate-500 truncate">{g.excel.codigo_universal || '—'}</div>
                  <div className="flex-1 min-w-0 font-medium text-slate-600 pr-2">
-                   <span className="truncate line-clamp-1" title={g.excel.descripcion || ''}>{g.excel.descripcion?.trim() || '—'}</span>
+                   <span className="block truncate" title={g.excel.descripcion || ''}>{g.excel.descripcion?.trim() || '—'}</span>
                  </div>
               </div>
 
@@ -62,7 +62,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
                      <div className="w-32 shrink-0 text-slate-700 truncate">{g.catalogo_sugerido.marca}</div>
                      <div className="w-36 shrink-0 font-mono text-xs text-slate-500 truncate">{g.catalogo_sugerido.codigo_universal || '—'}</div>
                      <div className="flex-1 min-w-0 text-slate-600 flex justify-between items-center pr-2">
-                       <span className="truncate line-clamp-1 flex-1 min-w-0 mr-4" title={g.catalogo_sugerido.nombre || ''}>{g.catalogo_sugerido.nombre?.trim() || '—'}</span>
+                       <span className="block truncate flex-1 min-w-0 mr-4" title={g.catalogo_sugerido.nombre || ''}>{g.catalogo_sugerido.nombre?.trim() || '—'}</span>
                        <div className="flex items-center gap-3 shrink-0 ml-auto break-keep whitespace-nowrap pt-0.5">
                          <span className="text-[11px] text-slate-500 truncate max-w-[150px]" title={g.catalogo_sugerido.caja_madre?.trim() || '—'}>
                            📍 <span className={cn("font-bold", g.catalogo_sugerido.caja_madre?.trim() ? "text-slate-800" : "text-slate-400")}>{g.catalogo_sugerido.caja_madre?.trim() || '—'}</span>
