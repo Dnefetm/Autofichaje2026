@@ -18,7 +18,7 @@ import {
   Plus, Trash2, X, Shuffle,
 } from 'lucide-react';
 import { TablaComparacion } from './TablaComparacion';
-import { Costo, Stats, FilaMapeada, EstadoMatch, clasificarEstado } from './types';
+import { Costo, Stats, GrupoCostoFila, EstadoMatch, Candidato, clasificarEstado } from './types';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface PreviewData {
@@ -543,13 +543,13 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
   onFinish: () => void;
   onBack: () => void;
 }) {
-  const [costos, setCostos] = useState<Costo[]>([]);
+  const [grupos, setGrupos] = useState<GrupoCostoFila[]>([]);
   const [stats, setStats] = useState<Stats>({ sin_match: 0, sugerido: 0, confirmado: 0, rechazado: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [erroresDetalle, setErroresDetalle] = useState<{ costo_id: string; error: string }[]>([]);
   const [erroresVisible, setErroresVisible] = useState(false);
-  const [remapCostoId, setRemapCostoId] = useState<string | null>(null);
+  const [remapGrupoCostoId, setRemapGrupoCostoId] = useState<string | null>(null);
   const [remaps, setRemaps] = useState<Record<string, { articulo_id: string; nombre: string; marca: string; modelo: string }>>({});
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
@@ -557,7 +557,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
   const [batchIdConfirmado, setBatchIdConfirmado] = useState<string | null>(null);
   const [revertiendo, setRevertiendo] = useState(false);
   
-  // Nuevo estado para la decisión del usuario (cost_id -> articulo_id | null)
+  // Nuevo estado para la decisión del usuario (grupo.clave -> articulo_id | null)
   // null = 'Sin asignar' (saltar fila)
   const [selecciones, setSelecciones] = useState<Record<string, string | null>>({});
 
@@ -569,14 +569,14 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       .then((r) => r.json())
       .then((d) => {
         if (!d.ok) throw new Error(d.error);
-        const fetchedCostos = d.costos || [];
-        setCostos(fetchedCostos);
+        const fetchedGrupos = d.grupos || [];
+        setGrupos(fetchedGrupos);
         setStats(d.stats || stats);
         
         // Ninguna fila se auto-asigna. Regla de oro: todo requiere validación humana.
         const initialSels: Record<string, string | null> = {};
-        fetchedCostos.forEach((c: Costo) => {
-           initialSels[c.id] = null;
+        fetchedGrupos.forEach((g: any) => {
+           initialSels[g.clave] = null;
         });
         setSelecciones(initialSels);
       })
@@ -589,7 +589,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       const res = await fetch(`/api/precios/importar/${importacionId}/costos`);
       const d = await res.json();
       if (d.ok) {
-        setCostos(d.costos || []);
+        setGrupos(d.grupos || []);
         setStats(d.stats || stats);
       }
     } catch { /* silencioso */ }
@@ -597,10 +597,13 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
 
   function handleExportarNoAsignados() {
     const csvContent = "data:text/csv;charset=utf-8," 
-        + "Modelo,Marca,Código,Costo,Moneda\n"
-        + costos
-            .filter(c => selecciones[c.id] === null)
-            .map(c => `${c.modelo_excel},${c.marca_excel},${c.codigo_universal_excel || ''},${c.valor},${c.moneda}`)
+        + "Modelo,Marca,Código,Costo,Moneda,Tipo\n"
+        + grupos
+            .filter(g => selecciones[g.clave] === null)
+            .flatMap(g => {
+                const arr = Object.values(g.precios_nuevos) as Array<{ costo_id: string; valor: number; moneda: string; tipo_costo: string } | null>;
+                return arr.filter(Boolean).map(pn => `${g.excel.modelo},${g.excel.marca},${g.excel.codigo_universal || ''},${pn!.valor},${pn!.moneda},${pn!.tipo_costo}`);
+            })
             .join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -613,10 +616,13 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
 
   function handleExportarSinMatchSistema() {
     const csvContent = "data:text/csv;charset=utf-8," 
-        + "Modelo,Marca,Código,Costo,Moneda\n"
-        + costos
-            .filter(c => clasificarEstado(c.puntaje_match) === 'sin_match')
-            .map(c => `${c.modelo_excel},${c.marca_excel},${c.codigo_universal_excel || ''},${c.valor},${c.moneda}`)
+        + "Modelo,Marca,Código,Costo,Moneda,Tipo\n"
+        + grupos
+            .filter(g => clasificarEstado(g.catalogo_sugerido?.puntaje_match ?? null) === 'sin_match')
+            .flatMap(g => {
+                const arr = Object.values(g.precios_nuevos) as Array<{ costo_id: string; valor: number; moneda: string; tipo_costo: string } | null>;
+                return arr.filter(Boolean).map(pn => `${g.excel.modelo},${g.excel.marca},${g.excel.codigo_universal || ''},${pn!.valor},${pn!.moneda},${pn!.tipo_costo}`);
+            })
             .join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -628,21 +634,26 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
   }
 
   async function handleConfirmar() {
-    const acciones = costos.map(c => {
-      const sid = selecciones[c.id];
+    const acciones: any[] = [];
+    grupos.forEach(g => {
+      const sid = selecciones[g.clave];
       if (sid) {
-         return { costo_id: c.id, accion: 'confirmar', articulo_id_override: sid };
+         const arr = Object.values(g.precios_nuevos) as Array<{ costo_id: string; valor: number; moneda: string; tipo_costo: string } | null>;
+         arr.forEach(pn => {
+            if (pn) {
+                acciones.push({ costo_id: pn.costo_id, accion: 'confirmar', articulo_id_override: sid });
+            }
+         });
       }
-      return null;
-    }).filter(Boolean);
+    });
 
     if (acciones.length === 0) {
-       setError('No hay filas con candidatos asignados para enviar. Marca "Sin asignar" o mapea los requeridos.'); 
+       setError('No hay grupos con candidatos asignados para enviar. Marca "Sin asignar" o mapea los requeridos.'); 
        return; 
     }
 
-    // Alerta de dudas pendientes si el usuario está enviando, pero aún hay cosas sugeridas que dejó en null
-    const dudasPendientes = costos.some(c => clasificarEstado(c.puntaje_match) === 'duda' && selecciones[c.id] === null);
+    // Dudas pendientes
+    const dudasPendientes = grupos.some(g => clasificarEstado(g.catalogo_sugerido?.puntaje_match ?? null) === 'duda' && selecciones[g.clave] === null);
     if (dudasPendientes) {
         if (!confirm('Aún tienes filas ambiguas (Dudas) que marcaste como "Sin asignar". ¿Estás seguro de enviarlas sin registrar?')) return;
     }
@@ -682,7 +693,6 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
       } else {
         alert(`¡Lote revertido con éxito! Se restauraron ${d.revertidos} registros de precios.`);
         setBatchIdConfirmado(null);
-        // Volvemos a la vista anterior o hacemos onFinish
         onFinish();
       }
     } catch (e: any) {
@@ -694,21 +704,12 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
 
   const numSeleccionados = Object.values(selecciones).filter(Boolean).length;
 
-  const filasMapeadas: FilaMapeada[] = costosFiltrados().map(c => {
-    return {
-      costo_id: c.id,
-      costo: c,
-      candidatos: c.candidatos_jsonb || [],
-      seleccionado: selecciones[c.id] || null,
-      estado: clasificarEstado(c.puntaje_match)
-    };
-  });
-
-  function costosFiltrados() {
-     return costos.filter(c => {
-        if (filtroVista === 'con_match') return c.puntaje_match === 100;
-        if (filtroVista === 'sin_match') return !c.puntaje_match;
-        if (filtroVista === 'duda') return c.puntaje_match && c.puntaje_match < 100 && c.puntaje_match >= 40;
+  function gruposFiltrados() {
+     return grupos.filter(g => {
+        const pMatch = g.catalogo_sugerido?.puntaje_match;
+        if (filtroVista === 'con_match') return pMatch === 100;
+        if (filtroVista === 'sin_match') return !pMatch;
+        if (filtroVista === 'duda') return pMatch && pMatch < 100 && pMatch >= 40;
         return true;
      });
   }
@@ -765,7 +766,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
                {f === 'todos' ? 'Todos' : f === 'con_match' ? 'Solo Match (100%)' : f === 'duda' ? 'Revisar Sugeridos' : 'Sin Match'}
             </button>
          ))}
-         <span className="text-xs text-slate-400 ml-2">({filasMapeadas.length} cols)</span>
+         <span className="text-xs text-slate-400 ml-2">({gruposFiltrados().length} cols)</span>
       </div>
 
       {loading ? (
@@ -774,9 +775,10 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
         </div>
       ) : (
          <TablaComparacion 
-           filas={filasMapeadas} 
-           onSelectCandidato={(cid, artId) => setSelecciones(p => ({ ...p, [cid]: artId }))}
-           onRemapClick={cid => setRemapCostoId(cid)} 
+           grupos={gruposFiltrados()} 
+           selecciones={selecciones}
+           onSelectCandidato={(clave, artId) => setSelecciones(p => ({ ...p, [clave]: artId }))}
+           onRemapClick={clave => setRemapGrupoCostoId(clave)} 
          />
       )}
 
@@ -800,21 +802,21 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
         </div>
       )}
       
-      {remapCostoId && (
+      {remapGrupoCostoId && (
         <RemapModal
-          costoId={remapCostoId}
+          costoId={remapGrupoCostoId}
           onSelect={(articulo) => {
             // Actualizar remap pero sobre todo la selección
-            setRemaps((r) => ({ ...r, [remapCostoId]: articulo }));
-            setSelecciones((prev) => ({ ...prev, [remapCostoId]: articulo.articulo_id }));
+            setRemaps((r) => ({ ...r, [remapGrupoCostoId]: articulo }));
+            setSelecciones((prev) => ({ ...prev, [remapGrupoCostoId]: articulo.articulo_id }));
             
             // Actualizar candidatos del registro original para embeber esta busqueda en el dropdown!
-            setCostos(prev => prev.map(c => {
-               if (c.id === remapCostoId) {
-                  const exists = (c.candidatos_jsonb || []).some(x => x.articulo_id === articulo.articulo_id);
+            setGrupos(prev => prev.map(g => {
+               if (g.clave === remapGrupoCostoId) {
+                  const exists = (g.candidatos_jsonb || []).some((x: any) => x.articulo_id === articulo.articulo_id);
                   if(!exists) {
                       return {
-                          ...c,
+                          ...g,
                           candidatos_jsonb: [{
                              articulo_id: articulo.articulo_id,
                              nombre: articulo.nombre,
@@ -822,17 +824,18 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
                              modelo: articulo.modelo,
                              codigo_universal: articulo.codigo_universal || '',
                              puntaje_match: 100, // Conceptualmente equivalente para no romper contadores, pero
-                             metodo_match: 'manual' // <- Diferenciador explícito
-                          }, ...(c.candidatos_jsonb || [])]
+                             metodo_match: 'manual', // <- Diferenciador explícito
+                             caja_madre: null
+                          }, ...(g.candidatos_jsonb || [])]
                       }
                   }
                }
-               return c;
+               return g;
             }));
             
-            setRemapCostoId(null);
+            setRemapGrupoCostoId(null);
           }}
-          onClose={() => setRemapCostoId(null)}
+          onClose={() => setRemapGrupoCostoId(null)}
         />
       )}
 

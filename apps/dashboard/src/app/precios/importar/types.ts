@@ -27,13 +27,22 @@ export interface Costo {
   candidatos_jsonb?: Candidato[];
 }
 
-export type FilaMapeada = {
-  costo_id: string;
-  costo: Costo;
-  candidatos: Candidato[];
-  seleccionado: string | null;
-  estado: EstadoMatch;
-};
+export type TipoCosto = 'distribuidor' | 'subdistribuidor' | 'lista' | 'mayoreo' | 'otro' | string;
+
+export interface GrupoCostoFila {
+  clave: string;
+  excel: {
+    modelo: string;
+    marca: string;
+    codigo_universal: string | null;
+    nombre: string | null;
+  };
+  catalogo_sugerido: Candidato | null;
+  candidatos_jsonb: Candidato[];
+  precios_nuevos: Record<TipoCosto, { costo_id: string; valor: number; moneda: string; tipo_costo: string } | null>;
+  precios_anteriores: Record<TipoCosto, { valor: number; moneda: string } | null>;
+  estado_grupo: EstadoMatch;
+}
 
 /**
  * Utilitario centralizado para clasificar el estado visual de una coincidencia en base al puntaje numérico.

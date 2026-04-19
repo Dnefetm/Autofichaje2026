@@ -114,6 +114,69 @@ export async function GET(
             : c.candidatos_jsonb
     }));
 
+    // ── Grouping ──────────────────────────────────────────
+    const gruposMap = new Map<string, any>();
+    const candidatosTopSet = new Set<string>();
+
+    costosEnriquecidos.forEach((c) => {
+        const clave = `${c.modelo_excel || ''}||${c.marca_excel || ''}||${c.codigo_universal_excel || ''}`;
+        
+        if (!gruposMap.has(clave)) {
+            gruposMap.set(clave, {
+                clave,
+                excel: {
+                    modelo: c.modelo_excel || '',
+                    marca: c.marca_excel || '',
+                    codigo_universal: c.codigo_universal_excel || null,
+                    nombre: c.descripcion_excel || null,
+                },
+                catalogo_sugerido: (c.candidatos_jsonb && c.candidatos_jsonb.length > 0) ? c.candidatos_jsonb[0] : null,
+                candidatos_jsonb: c.candidatos_jsonb || [],
+                precios_nuevos: {},
+                precios_anteriores: {},
+                estado_grupo: c.estado_match,
+            });
+        }
+        
+        const grupo = gruposMap.get(clave);
+        grupo.precios_nuevos[c.tipo_costo] = {
+            costo_id: c.id,
+            valor: c.valor,
+            moneda: c.moneda,
+            tipo_costo: c.tipo_costo
+        };
+        
+        if (grupo.catalogo_sugerido?.articulo_id) {
+            candidatosTopSet.add(grupo.catalogo_sugerido.articulo_id);
+        }
+    });
+
+    // ── Fetch precios_anteriores for top candidates ──────────────────────────
+    const topCandidatesIds = Array.from(candidatosTopSet);
+    let preciosAnterioresRaw: any[] = [];
+    if (topCandidatesIds.length > 0) {
+        const { data: paData } = await supabaseAdmin
+            .from('costos_articulo')
+            .select('articulo_id, tipo_costo, valor, moneda')
+            .in('articulo_id', topCandidatesIds)
+            .eq('vigente', true);
+            
+        preciosAnterioresRaw = paData || [];
+    }
+    
+    const preciosAnterioresPorArticulo: Record<string, any> = preciosAnterioresRaw.reduce((acc: any, row: any) => {
+        if (!acc[row.articulo_id]) acc[row.articulo_id] = {};
+        acc[row.articulo_id][row.tipo_costo] = { valor: row.valor, moneda: row.moneda };
+        return acc;
+    }, {});
+
+    const grupos = Array.from(gruposMap.values()).map(g => {
+        if (g.catalogo_sugerido?.articulo_id) {
+            g.precios_anteriores = preciosAnterioresPorArticulo[g.catalogo_sugerido.articulo_id] || {};
+        }
+        return g;
+    });
+
     // ── Conteo general de estados ──────────────────────────────────────────
     const { data: conteo } = await supabaseAdmin
         .from('costos_articulo')
@@ -134,7 +197,7 @@ export async function GET(
     return NextResponse.json({
         ok: true,
         importacion,
-        costos: costosEnriquecidos,
+        grupos,
         total_pendientes: stats.sin_match + stats.sugerido,
         stats,
         pagination: { limit, offset },
