@@ -35,7 +35,7 @@ export interface GrupoCostoFila {
     modelo: string;
     marca: string;
     codigo_universal: string | null;
-    nombre: string | null;
+    descripcion: string | null;
   };
   catalogo_sugerido: Candidato | null;
   candidatos_jsonb: Candidato[];

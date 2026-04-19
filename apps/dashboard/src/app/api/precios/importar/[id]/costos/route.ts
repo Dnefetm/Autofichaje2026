@@ -109,6 +109,7 @@ export async function GET(
         candidatos_jsonb: Array.isArray(c.candidatos_jsonb)
             ? c.candidatos_jsonb.map((cand: any) => ({
                 ...cand,
+                nombre: articulosMap[cand.articulo_id]?.nombre ?? cand.nombre ?? null,
                 caja_madre: articulosMap[cand.articulo_id]?.caja_madre ?? null
               }))
             : c.candidatos_jsonb
@@ -128,7 +129,7 @@ export async function GET(
                     modelo: c.modelo_excel || '',
                     marca: c.marca_excel || '',
                     codigo_universal: c.codigo_universal_excel || null,
-                    nombre: c.descripcion_excel || null,
+                    descripcion: c.descripcion_excel || null,
                 },
                 catalogo_sugerido: (c.candidatos_jsonb && c.candidatos_jsonb.length > 0) ? c.candidatos_jsonb[0] : null,
                 candidatos_jsonb: c.candidatos_jsonb || [],
