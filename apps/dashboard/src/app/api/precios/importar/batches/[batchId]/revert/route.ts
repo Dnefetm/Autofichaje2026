@@ -71,6 +71,23 @@ export async function DELETE(req: Request, { params }: { params: { batchId: stri
         }
     }
     
+    const { data: batch } = await supabaseAdmin
+      .from('precio_import_batches')
+      .select('importacion_excel_id')
+      .eq('id', params.batchId)
+      .single();
+    
+    if (batch?.importacion_excel_id) {
+      const { error: rawErr } = await supabaseAdmin
+        .from('listas_precios_raw')
+        .update({ revertido_at: new Date().toISOString() })
+        .eq('importacion_id', batch.importacion_excel_id)
+        .is('revertido_at', null);
+      if (rawErr) {
+        console.error('Error marcando listas_precios_raw como revertidas:', rawErr.message);
+      }
+    }
+
     // Borrar el batch cascadea y borra de historial
     const { error: delErr } = await supabaseAdmin.from('precio_import_batches').delete().eq('id', params.batchId);
     if(delErr) {

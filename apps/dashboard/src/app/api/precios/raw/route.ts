@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
         const marca = searchParams.get('marca');
         const modelo = searchParams.get('modelo');
         const limit = Number(searchParams.get('limit') || '50');
+        const incluir_revertidos = searchParams.get('incluir_revertidos') === 'true';
 
         if (!proveedor_id) {
             return NextResponse.json({ ok: false, error: 'proveedor_id es requerido' }, { status: 400 });
@@ -31,7 +32,8 @@ export async function GET(req: NextRequest) {
             p_proveedor_id: proveedor_id,
             p_marca: marca || null,
             p_modelo: modelo || null,
-            p_limit: limit
+            p_limit: limit,
+            p_incluir_revertidos: incluir_revertidos
         });
 
         if (fetchErr) {
