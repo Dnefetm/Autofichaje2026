@@ -34,11 +34,41 @@ export function TablaComparacion({ filas, onSelectCandidato, onRemapClick }: Pro
             return (
               <tr key={f.costo_id} className={cn("hover:bg-slate-50 transition-colors", bgRow)}>
                 <td className="px-4 py-3">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-slate-800">{excelModelo}</span>
-                    <span className="text-xs text-violet-600 font-semibold">{excelMarca}</span>
-                    {f.costo.codigo_universal_excel && (
-                      <span className="text-[10px] text-slate-400 font-mono mt-0.5">{f.costo.codigo_universal_excel}</span>
+                  <div className="flex flex-col gap-1 w-max max-w-xl">
+                    {/* Línea 1: fila del Excel */}
+                    <div className="text-sm">
+                      <span className="font-bold text-slate-900">{excelModelo}</span>
+                      <span className="mx-1 text-slate-400">·</span>
+                      <span className="text-violet-700 font-semibold">{excelMarca}</span>
+                      {f.costo.codigo_universal_excel && (
+                        <>
+                          <span className="mx-1 text-slate-400">·</span>
+                          <span className="text-slate-500 text-xs font-mono">{f.costo.codigo_universal_excel}</span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Línea 2: candidato principal sugerido */}
+                    {f.candidatos && f.candidatos.length > 0 ? (
+                      <div className="text-xs pl-3 border-l-2 border-indigo-200">
+                        <span className="text-indigo-500 font-semibold">→ Sugerencia:</span>
+                        <span className="ml-1 font-semibold text-slate-800">{f.candidatos[0].modelo}</span>
+                        <span className="mx-1 text-slate-400">·</span>
+                        <span className="text-slate-600">{f.candidatos[0].marca}</span>
+                        <span className="mx-1 text-slate-400">·</span>
+                        <span className="text-slate-500">{f.candidatos[0].nombre}</span>
+                        <span className="mx-1 text-slate-400">·</span>
+                        <span className="text-slate-600">📍 Ubicación: </span>
+                        <span className={cn("font-semibold", f.candidatos[0].caja_madre?.trim() ? "text-slate-800" : "text-slate-400")}>
+                          {f.candidatos[0].caja_madre?.trim() || '—'}
+                        </span>
+                        <span className="mx-1 text-slate-400">·</span>
+                        <span className="text-emerald-600 font-bold">{f.candidatos[0].puntaje_match}%</span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-400 pl-3 border-l-2 border-slate-200 italic">
+                        → Sin sugerencia del catálogo
+                      </div>
                     )}
                   </div>
                 </td>
@@ -97,17 +127,6 @@ export function TablaComparacion({ filas, onSelectCandidato, onRemapClick }: Pro
                         );
                       })}
                     </select>
-                    {(() => {
-                      if (!f.seleccionado || f.seleccionado === 'none') return null;
-                      const cand = f.candidatos.find(c => c.articulo_id === f.seleccionado);
-                      if (!cand) return null;
-                      const loc = cand.caja_madre?.trim();
-                      return (
-                        <div className="text-xs text-slate-600 mt-0.5 ml-1">
-                          📍 Ubicación: <span className={cn("font-semibold", loc ? "text-slate-800" : "text-slate-400")}>{loc || '—'}</span>
-                        </div>
-                      );
-                    })()}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-center">
