@@ -71,11 +71,6 @@ export async function DELETE(req: Request, { params }: { params: { batchId: stri
         }
     }
     
-    const { data: batch } = await supabaseAdmin.from('precio_import_batches').select('importacion_excel_id').eq('id', params.batchId).single();
-    if (batch?.importacion_excel_id) {
-        await supabaseAdmin.from('listas_precios_raw').delete().eq('importacion_id', batch.importacion_excel_id);
-    }
-    
     // Borrar el batch cascadea y borra de historial
     const { error: delErr } = await supabaseAdmin.from('precio_import_batches').delete().eq('id', params.batchId);
     if(delErr) {
