@@ -164,6 +164,7 @@ function PasoMapear({ importacionId, onDone, onBack }: {
   const [columnaDescripcion, setColumnaDescripcion] = useState('');
   const [columnaMoneda, setColumnaMoneda] = useState('');
   const [monedaDefault, setMonedaDefault] = useState('MXN');
+  const [columnasAGuardar, setColumnasAGuardar] = useState<string[]>([]);
   const [precios, setPrecios] = useState<PrecioMapeo[]>([{ columna: '', tipo_costo: 'distribuidor' }]);
   const [loadingMapear, setLoadingMapear] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,6 +190,9 @@ function PasoMapear({ importacionId, onDone, onBack }: {
             setPrecios([{ columna: m.columna_precio, tipo_costo: m.tipo_costo }]);
           }
         }
+        
+        // Inicializar columnas a guardar con todos los headers por defecto
+        setColumnasAGuardar(d.headers || []);
       })
       .catch((e) => setErrorPreview(e.message))
       .finally(() => setLoadingPreview(false));
@@ -218,6 +222,7 @@ function PasoMapear({ importacionId, onDone, onBack }: {
           columna_descripcion: columnaDescripcion || undefined,
           columna_moneda: columnaMoneda || undefined,
           moneda_default: monedaDefault,
+          columnasAGuardar,
         }),
       });
       const d = await res.json();
@@ -312,6 +317,34 @@ function PasoMapear({ importacionId, onDone, onBack }: {
             <p className="text-[10px] text-slate-400 mt-1">Título o descripción larga del producto</p>
           </div>
         </div>
+      </div>
+
+      {/* RAW: Columnas originales a conservar */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+         <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-700">Columnas originales a conservar (Raw)</h3>
+            <div className="flex gap-2">
+               <button onClick={() => setColumnasAGuardar(headers)} className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded">Marcar todas</button>
+               <button onClick={() => setColumnasAGuardar([])} className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-1 rounded">Desmarcar todas</button>
+            </div>
+         </div>
+         <p className="text-xs text-slate-500 leading-relaxed mb-3">
+           Elige qué columnas deseas guardar como evidencia o base de datos. Se almacenarán permanentemente en el payload original, sin modificar, incluso si no son requeridas para la validación (identidad de la fila).
+         </p>
+         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+           {headers.map((h) => {
+             const isChecked = columnasAGuardar.includes(h);
+             return (
+               <label key={h} className={cn("flex items-center gap-2 p-2 text-xs border rounded-lg cursor-pointer transition-colors", isChecked ? "border-indigo-400 bg-indigo-50/30" : "border-slate-200 bg-slate-50 opacity-75")}>
+                 <input type="checkbox" checked={isChecked} onChange={(e) => {
+                   if(e.target.checked) setColumnasAGuardar(p => [...p, h]);
+                   else setColumnasAGuardar(p => p.filter(x => x !== h));
+                 }} className="rounded uppercase no-outline w-3 h-3 text-indigo-600"/>
+                 <span className="truncate font-medium">{h}</span>
+               </label>
+             );
+           })}
+         </div>
       </div>
 
       {/* Tipos de precio — múltiples */}

@@ -66,7 +66,8 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         columna_codigo,
         columna_descripcion,
         columna_moneda,
-        moneda_default = 'MXN'
+        moneda_default = 'MXN',
+        columnasAGuardar = []
     } = body ?? {};
 
     // ── Validaciones ─────────────────────────────────────────────────────────
@@ -146,7 +147,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     }
 
     // Leer filas
-    type FilaExcel = { modelo: string; marca: string; codigo: string | null; descripcion: string | null; moneda: string; preciosPorColumna: Record<string, number> };
+    type FilaExcel = { rowIndex: number; modelo: string; marca: string; codigo: string | null; descripcion: string | null; moneda: string; preciosPorColumna: Record<string, number>; payload: Record<string, any> };
     const filas: FilaExcel[] = [];
     let headers: string[] = [];
 
@@ -176,7 +177,17 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         // Solo procesar si tiene al menos un precio válido
         if (Object.keys(preciosPorColumna).length === 0) return;
 
-        filas.push({ modelo, marca, codigo, descripcion, moneda, preciosPorColumna });
+        // Consolidar columanas a guardar
+        const payload: Record<string, string> = {};
+        if (Array.isArray(columnasAGuardar) && columnasAGuardar.length > 0) {
+            columnasAGuardar.forEach(col => {
+                if (byHeader[col] !== undefined) {
+                    payload[col] = byHeader[col];
+                }
+            });
+        }
+
+        filas.push({ rowIndex, modelo, marca, codigo, descripcion, moneda, preciosPorColumna, payload });
     });
 
     if (filas.length === 0) {
@@ -285,6 +296,31 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 { ok: false, error: `Error al insertar lote ${Math.floor(i / LOTE) + 1}: ${insErr.message}` },
                 { status: 500 }
             );
+        }
+    }
+
+    // ── Insertar listas_precios_raw en lotes ──────────────────────────────────
+    if (Array.isArray(columnasAGuardar) && columnasAGuardar.length > 0 && filas.length > 0) {
+        // Primero limpiar previas por si estamos re-mapeando
+        await supabaseAdmin.from('listas_precios_raw').delete().eq('importacion_id', id);
+
+        const rawsAInsertar = filas.map(f => ({
+            importacion_id: id,
+            proveedor_id: importacion.proveedor, // el campo se llama proveedor pero guarda un UUID
+            fila_num: f.rowIndex,
+            payload: f.payload,
+            columnas_guardadas: columnasAGuardar
+        }));
+
+        for (let i = 0; i < rawsAInsertar.length; i += LOTE) {
+            const { error: insRawsErr } = await supabaseAdmin
+                .from('listas_precios_raw')
+                .insert(rawsAInsertar.slice(i, i + LOTE));
+
+            if (insRawsErr) {
+                console.error("Error insertando listas_precios_raw:", insRawsErr.message);
+                // No retornar error para no bloquear el flujo principal de precios, pero sí lo loggeamos
+            }
         }
     }
 
