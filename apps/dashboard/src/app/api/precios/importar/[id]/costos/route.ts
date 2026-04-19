@@ -79,18 +79,23 @@ export async function GET(
         );
     }
 
-    // ── Enriquecer con datos del artículo sugerido (incluyendo codigo_universal) ──
-    const articuloIds = [...new Set(
-        (costos ?? [])
-            .map((c) => c.articulo_sugerido_id)
-            .filter(Boolean)
-    )];
+    // ── Enriquecer con datos del artículo sugerido y candidatos (incluyendo caja_madre) ──
+    const articuloIdsSet = new Set<string>();
+    (costos ?? []).forEach(c => {
+        if (c.articulo_sugerido_id) articuloIdsSet.add(c.articulo_sugerido_id);
+        if (Array.isArray(c.candidatos_jsonb)) {
+            c.candidatos_jsonb.forEach((cand: any) => {
+                if (cand.articulo_id) articuloIdsSet.add(cand.articulo_id);
+            });
+        }
+    });
+    const articuloIds = Array.from(articuloIdsSet);
 
     let articulosMap: Record<string, any> = {};
     if (articuloIds.length > 0) {
         const { data: arts } = await supabaseAdmin
             .from('articulos')
-            .select('articulo_id, nombre, marca, modelo, codigo_universal')
+            .select('articulo_id, nombre, marca, modelo, codigo_universal, caja_madre')
             .in('articulo_id', articuloIds);
 
         articulosMap = Object.fromEntries((arts ?? []).map((a) => [a.articulo_id, a]));
@@ -101,6 +106,12 @@ export async function GET(
         articulo_sugerido: c.articulo_sugerido_id
             ? articulosMap[c.articulo_sugerido_id] ?? null
             : null,
+        candidatos_jsonb: Array.isArray(c.candidatos_jsonb)
+            ? c.candidatos_jsonb.map((cand: any) => ({
+                ...cand,
+                caja_madre: articulosMap[cand.articulo_id]?.caja_madre ?? null
+              }))
+            : c.candidatos_jsonb
     }));
 
     // ── Conteo general de estados ──────────────────────────────────────────

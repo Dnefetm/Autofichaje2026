@@ -8,6 +8,7 @@ export type Candidato = {
   codigo_universal?: string;
   puntaje_match: number;
   metodo_match?: string; // 'exacto_triple', 'codigo_exacto_incompleto', 'fuzzy_trgm', 'manual'
+  caja_madre: string | null;
 };
 
 export interface Costo {

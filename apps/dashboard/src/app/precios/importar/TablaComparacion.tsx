@@ -88,12 +88,26 @@ export function TablaComparacion({ filas, onSelectCandidato, onRemapClick }: Pro
                       onChange={(e) => onSelectCandidato(f.costo_id, e.target.value === 'none' ? null : e.target.value)}
                     >
                       <option value="none" className="italic text-slate-500 font-bold">-- Sin asignar (Saltar) --</option>
-                      {f.candidatos.map((c) => (
+                      {f.candidatos.map((c) => {
+                        const locOpt = c.caja_madre?.trim();
+                        return (
                         <option key={c.articulo_id} value={c.articulo_id}>
-                          {c.puntaje_match}% | {c.marca} {c.modelo} ({c.nombre})
+                          {c.puntaje_match}% | {c.marca} {c.modelo} ({c.nombre}) — 📍 {locOpt || '—'}
                         </option>
-                      ))}
+                        );
+                      })}
                     </select>
+                    {(() => {
+                      if (!f.seleccionado || f.seleccionado === 'none') return null;
+                      const cand = f.candidatos.find(c => c.articulo_id === f.seleccionado);
+                      if (!cand) return null;
+                      const loc = cand.caja_madre?.trim();
+                      return (
+                        <div className="text-xs text-slate-600 mt-0.5 ml-1">
+                          📍 Ubicación: <span className={cn("font-semibold", loc ? "text-slate-800" : "text-slate-400")}>{loc || '—'}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-center">
