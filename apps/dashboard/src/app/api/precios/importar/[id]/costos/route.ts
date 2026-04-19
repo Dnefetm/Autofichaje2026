@@ -159,6 +159,7 @@ export async function GET(
             .from('costos_articulo')
             .select('articulo_id, tipo_costo, valor, moneda')
             .in('articulo_id', topCandidatesIds)
+            .is('importacion_id', null)
             .eq('vigente', true);
             
         preciosAnterioresRaw = paData || [];
@@ -170,10 +171,25 @@ export async function GET(
         return acc;
     }, {});
 
+    function clasificarEstadoInternal(puntaje: number | null) {
+        if (puntaje === null) return 'sin_match';
+        if (puntaje === 100) return 'match';
+        if (puntaje >= 40 && puntaje < 100) return 'duda';
+        return 'sin_match';
+    }
+
     const grupos = Array.from(gruposMap.values()).map(g => {
         if (g.catalogo_sugerido?.articulo_id) {
             g.precios_anteriores = preciosAnterioresPorArticulo[g.catalogo_sugerido.articulo_id] || {};
         }
+        
+        // Fix del estado_grupo: tomar MAX(puntaje_match) de los candidatos
+        let maxScore: number | null = null;
+        if (g.candidatos_jsonb && g.candidatos_jsonb.length > 0) {
+           maxScore = Math.max(...g.candidatos_jsonb.map((c: any) => c.puntaje_match));
+        }
+        g.estado_grupo = clasificarEstadoInternal(maxScore);
+        
         return g;
     });
 

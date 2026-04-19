@@ -18,10 +18,12 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
   };
 
   const computeDelta = (nuevo: number, anterior: number) => {
-     if (!anterior) return '—';
+     if (!anterior) return <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100/50 px-1 py-0.5 rounded">NUEVO</span>;
      const d = ((nuevo - anterior) / anterior) * 100;
+     if (d === 0) return <span className="text-slate-400 font-medium">(Δ 0.0%)</span>;
      const sign = d > 0 ? '+' : '';
-     return `${sign}${d.toFixed(1)}%`;
+     const color = d > 0 ? "text-rose-500 font-semibold" : "text-emerald-600 font-semibold";
+     return <span className={color}>(Δ {sign}{d.toFixed(1)}%)</span>;
   };
 
   return (
@@ -57,11 +59,19 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
                      <div className="w-28 shrink-0 font-bold text-slate-800 truncate">{g.catalogo_sugerido.modelo}</div>
                      <div className="w-32 shrink-0 text-slate-700 truncate">{g.catalogo_sugerido.marca}</div>
                      <div className="w-36 shrink-0 font-mono text-xs text-slate-500 truncate">{g.catalogo_sugerido.codigo_universal || '—'}</div>
-                     <div className="flex-1 min-w-0 truncate text-slate-600 flex justify-between items-center pr-2">
-                       <span className="truncate">{g.catalogo_sugerido.nombre}</span>
-                       <div className="flex items-center gap-3 shrink-0 ml-4">
-                         <span className="text-xs text-slate-500">📍 <span className={cn("font-semibold", g.catalogo_sugerido.caja_madre?.trim() ? "text-slate-800" : "text-slate-400")}>{g.catalogo_sugerido.caja_madre?.trim() || '—'}</span></span>
-                         <span className="text-xs text-emerald-600 font-bold bg-emerald-100/50 px-1.5 py-0.5 rounded">{g.catalogo_sugerido.puntaje_match}%</span>
+                     <div className="flex-1 min-w-0 text-slate-600 flex justify-between items-center pr-2">
+                       <span className="truncate line-clamp-1 flex-1 min-w-0 mr-4" title={g.catalogo_sugerido.nombre}>{g.catalogo_sugerido.nombre}</span>
+                       <div className="flex items-center gap-3 shrink-0 ml-auto break-keep whitespace-nowrap pt-0.5">
+                         <span className="text-[11px] text-slate-500 truncate max-w-[150px]" title={g.catalogo_sugerido.caja_madre?.trim() || '—'}>
+                           📍 <span className={cn("font-bold", g.catalogo_sugerido.caja_madre?.trim() ? "text-slate-800" : "text-slate-400")}>{g.catalogo_sugerido.caja_madre?.trim() || '—'}</span>
+                         </span>
+                         {(() => {
+                           const s = g.catalogo_sugerido.puntaje_match;
+                           const color = s >= 90 ? 'bg-emerald-100/80 text-emerald-700' : s >= 60 ? 'bg-amber-100/80 text-amber-700' : 'bg-rose-100/80 text-rose-700';
+                           return (
+                             <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded", color)}>{s}%</span>
+                           );
+                         })()}
                        </div>
                      </div>
                    </>
@@ -71,21 +81,22 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
               </div>
 
               {/* L3: Precios Nuevos (Excel) */}
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50/20 border-b border-slate-100 relative">
+              <div className="flex items-stretch gap-2 px-4 bg-emerald-50/20 border-b border-slate-100 relative">
                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-400/80"></div>
-                 <div className="w-14 pl-2 text-[10px] uppercase text-emerald-600/80 font-bold shrink-0 tracking-wider">L3 Nuevos</div>
-                 <div className="flex-1 flex gap-2">
+                 <div className="w-14 pl-2 text-[10px] uppercase text-emerald-600/80 font-bold shrink-0 tracking-wider flex items-center">L3 Nuevos</div>
+                 <div className="flex-1 grid py-2.5" style={{ gridTemplateColumns: `repeat(${tiersGrupo.length}, minmax(120px, 1fr))` }}>
                     {tiersGrupo.map(t => {
                        const pn = g.precios_nuevos[t];
                        const pa = g.precios_anteriores?.[t];
+                       const tierLabel = t === 'distribuidor' ? 'DISTRIB' : t === 'subdistribuidor' ? 'SUBDISTRIB' : t === 'lista' ? 'LISTA' : t === 'mayoreo' ? 'MAYOREO' : 'OTRO';
                        return (
-                         <div key={t} className="flex-1 flex flex-col justify-center px-3 border-l border-slate-200/60 first:border-l-0 min-w-0">
-                            <span className="text-[9px] uppercase tracking-wider text-emerald-700/60 font-bold mb-0.5 truncate">{t}</span>
-                            <div className="flex items-baseline gap-1.5">
-                              <span className={cn("text-sm font-semibold truncate", pn ? "text-slate-900" : "text-slate-300")}>{formatPrice(pn?.valor, pn?.moneda)}</span>
-                              {pn && pa && (
-                                <span className={cn("text-[10px] font-medium shrink-0", ((pn.valor - pa.valor) > 0) ? "text-rose-500" : "text-emerald-600")}>
-                                  (Δ {computeDelta(pn.valor, pa.valor)})
+                         <div key={t} className="flex flex-col justify-center px-3 border-l border-slate-200/60 first:border-l-0 min-w-0">
+                            <span className="text-[10px] whitespace-nowrap tracking-wider text-emerald-700/60 font-bold mb-0.5">{tierLabel}</span>
+                            <div className="flex flex-wrap items-baseline gap-1.5">
+                              <span className={cn("text-sm font-semibold tabular-nums", pn ? "text-slate-900" : "text-slate-300")}>{formatPrice(pn?.valor, pn?.moneda)}</span>
+                              {pn && (
+                                <span className="text-[10px] shrink-0">
+                                  {computeDelta(pn.valor, pa?.valor || 0)}
                                 </span>
                               )}
                             </div>
@@ -97,14 +108,14 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
 
               {/* L4: Precios Previos (Catálogo) */}
               {tieneHistorico ? (
-                <div className="flex items-center gap-2 px-4 py-2 bg-slate-50/60">
-                   <div className="w-14 text-[10px] uppercase text-slate-400 font-bold shrink-0 tracking-wider">L4 Previos</div>
-                   <div className="flex-1 flex gap-2">
+                <div className="flex items-stretch gap-2 px-4 bg-slate-50/60">
+                   <div className="w-14 text-[10px] uppercase text-slate-400 font-bold shrink-0 tracking-wider flex items-center">L4 Previos</div>
+                   <div className="flex-1 grid py-2" style={{ gridTemplateColumns: `repeat(${tiersGrupo.length}, minmax(120px, 1fr))` }}>
                       {tiersGrupo.map(t => {
                          const pa = g.precios_anteriores?.[t];
                          return (
-                           <div key={t} className="flex-1 flex items-center px-3 border-l border-slate-200/60 first:border-l-0 min-w-0">
-                              <span className={cn("text-[11px] font-semibold truncate", pa ? "text-slate-600" : "text-slate-300 italic")}>
+                           <div key={t} className="flex flex-col justify-center px-3 border-l border-slate-200/60 first:border-l-0 min-w-0">
+                              <span className={cn("text-[11px] font-semibold tabular-nums", pa ? "text-slate-600" : "text-slate-300 italic")}>
                                 {formatPrice(pa?.valor, pa?.moneda)}
                               </span>
                            </div>
