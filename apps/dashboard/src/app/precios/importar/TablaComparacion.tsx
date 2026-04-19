@@ -43,7 +43,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
             <div className="flex-1 flex flex-col min-w-0">
               
               {/* L1: Excel */}
-              <div className="grid grid-cols-[60px_100px_120px_140px_1fr] items-center gap-3 px-4 py-2 bg-slate-50 border-b border-slate-100">
+              <div className="grid grid-cols-[70px_80px_100px_130px_minmax(0,1fr)] items-center gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100">
                  <div className="text-[10px] uppercase text-slate-400 font-bold truncate tracking-wider">L1 Excel</div>
                  <div className="font-bold text-slate-800 truncate" title={g.excel.modelo || ''}>{g.excel.modelo || '—'}</div>
                  <div className="truncate text-violet-700 font-semibold" title={g.excel.marca || ''}>{g.excel.marca || '—'}</div>
@@ -54,27 +54,15 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
               </div>
 
               {/* L2: Catálogo */}
-              <div className="grid grid-cols-[60px_100px_120px_140px_1fr] items-center gap-3 px-4 py-2 bg-indigo-50/30 border-b border-slate-200 shadow-[inset_0_1px_4px_rgba(0,0,0,0.01)]">
+              <div className="grid grid-cols-[70px_80px_100px_130px_minmax(0,1fr)] items-center gap-2 px-4 py-2 bg-indigo-50/30 border-b border-slate-200 shadow-[inset_0_1px_4px_rgba(0,0,0,0.01)]">
                  <div className="text-[10px] uppercase text-indigo-400 font-bold truncate tracking-wider">L2 Sugg.</div>
                  {g.catalogo_sugerido ? (
                    <>
                      <div className="font-bold text-slate-800 truncate" title={g.catalogo_sugerido.modelo}>{g.catalogo_sugerido.modelo}</div>
                      <div className="text-slate-700 truncate" title={g.catalogo_sugerido.marca}>{g.catalogo_sugerido.marca}</div>
                      <div className="font-mono text-xs text-slate-500 truncate" title={g.catalogo_sugerido.codigo_universal || ''}>{g.catalogo_sugerido.codigo_universal || '—'}</div>
-                     <div className="min-w-0 text-slate-600 flex justify-between items-center pr-2">
-                       <span className="truncate flex-1 min-w-0 mr-2" title={g.catalogo_sugerido.nombre || ''}>{g.catalogo_sugerido.nombre?.trim() || '—'}</span>
-                       <div className="flex items-center gap-2 shrink-0 ml-auto break-keep whitespace-nowrap">
-                         <span className="text-[11px] text-slate-500 truncate max-w-[120px]" title={g.catalogo_sugerido.caja_madre?.trim() || '—'}>
-                           📍 <span className={cn("font-bold", g.catalogo_sugerido.caja_madre?.trim() ? "text-slate-800" : "text-slate-400")}>{g.catalogo_sugerido.caja_madre?.trim() || '—'}</span>
-                         </span>
-                         {(() => {
-                           const s = g.catalogo_sugerido.puntaje_match;
-                           const color = s >= 90 ? 'bg-emerald-100/80 text-emerald-700' : s >= 60 ? 'bg-amber-100/80 text-amber-700' : 'bg-rose-100/80 text-rose-700';
-                           return (
-                             <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", color)}>{s}%</span>
-                           );
-                         })()}
-                       </div>
+                     <div className="truncate min-w-0 font-medium text-slate-600 pr-2" title={g.catalogo_sugerido.nombre || ''}>
+                       {g.catalogo_sugerido.nombre?.trim() || '—'}
                      </div>
                    </>
                  ) : (
@@ -134,10 +122,10 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
             </div>
 
             {/* ── Right Action Block ── */}
-            <div className="w-[360px] bg-slate-50/30 border-l border-slate-200 p-4 shrink-0 flex flex-col justify-center gap-3">
+            <div className="w-[300px] bg-slate-50/30 border-l border-slate-200 p-4 shrink-0 flex flex-col justify-center gap-3">
                
-               <div className="flex justify-between items-center">
-                  <div className="flex flex-col gap-1">
+               <div className="flex justify-between items-start">
+                  <div className="flex flex-col gap-1.5">
                      {seleccionadoId && g.candidatos_jsonb.find(c => c.articulo_id === seleccionadoId)?.metodo_match === 'manual' ? (
                         <span className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-fuchsia-100 text-fuchsia-700">MANUAL</span>
                      ) : g.estado_grupo === 'match' ? (
@@ -159,6 +147,21 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
                         <span className="text-[9px] w-fit text-amber-600 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
                            Código ID ✓ | Marca/Mod ?
                         </span>
+                     )}
+                     
+                     {g.catalogo_sugerido && (
+                       <div className="flex items-center gap-2 mt-0.5">
+                         {(() => {
+                           const s = g.catalogo_sugerido.puntaje_match;
+                           const color = s >= 90 ? 'bg-emerald-100/80 text-emerald-700' : s >= 60 ? 'bg-amber-100/80 text-amber-700' : 'bg-rose-100/80 text-rose-700';
+                           return (
+                             <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", color)}>{s}%</span>
+                           );
+                         })()}
+                         <span className="text-[11px] text-slate-500 truncate max-w-[120px]" title={g.catalogo_sugerido.caja_madre?.trim() || '—'}>
+                           📍 <span className={cn("font-bold", g.catalogo_sugerido.caja_madre?.trim() ? "text-slate-800" : "text-slate-400")}>{g.catalogo_sugerido.caja_madre?.trim() || '—'}</span>
+                         </span>
+                       </div>
                      )}
                   </div>
 
