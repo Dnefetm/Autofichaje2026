@@ -12,6 +12,7 @@
  * Paso 3: Revisar matches con score y confirmar/descartar
  */
 import { useState, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Upload, ChevronRight, FileSpreadsheet, CheckCircle,
   AlertCircle, Loader2, Search, Package, Check, ArrowLeft,
@@ -155,6 +156,7 @@ function PasoMapear({ importacionId, onDone, onBack }: {
   onDone: (stats: { total: number; con_match: number }) => void;
   onBack: () => void;
 }) {
+  const router = useRouter();
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(true);
   const [errorPreview, setErrorPreview] = useState<string | null>(null);
@@ -227,7 +229,7 @@ function PasoMapear({ importacionId, onDone, onBack }: {
       });
       const d = await res.json();
       if (!d.ok) throw new Error(d.error);
-      onDone({ total: d.total_filas, con_match: d.filas_con_match });
+      router.push(`/precios/importaciones/${importacionId}`);
     } catch (e: any) { setError(e.message); } finally { setLoadingMapear(false); }
   }
 
