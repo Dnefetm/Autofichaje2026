@@ -18,7 +18,7 @@ export default function Sidebar() {
         { name: 'Ventas',           icon: ShoppingCart,    href: '/ventas' },
         { name: 'Crear con IA',     icon: PlusCircle,      href: '/autoficha' },
         { name: 'Fichas Técnicas',  icon: FileText,        href: '/fichas' },
-        { name: 'Importar Precios', icon: Upload,           href: '/precios/importar' },
+        { name: 'Precios',          icon: Upload,          href: '/precios' },
         { name: 'Monitor Sync',     icon: Activity,        href: '/monitor' },
         { name: 'Operaciones',      icon: Database,        href: '/operations' },
         { name: 'Cuentas',          icon: Settings,        href: '/settings' },
