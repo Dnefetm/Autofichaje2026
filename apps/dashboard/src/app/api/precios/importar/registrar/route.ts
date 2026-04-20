@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     .insert({
       nombre_archivo: fileName,
       proveedor,
-      estado: 'subiendo' satisfies ImportacionEstado,
+      estado: 'pendiente_mapeo' satisfies ImportacionEstado,
       mapeo_columnas: { ...baseMapeo, _storage_path: storagePath, _bucket: bucket },
       tipo_costo_default: prev?.tipo_costo_default ?? null,
     })
