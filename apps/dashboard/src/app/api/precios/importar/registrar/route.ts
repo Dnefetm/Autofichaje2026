@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { ImportacionEstado } from '@/lib/types/importacion';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     .insert({
       nombre_archivo: fileName,
       proveedor,
-      estado: 'pendiente_mapeo',
+      estado: 'subiendo' satisfies ImportacionEstado,
       mapeo_columnas: { ...baseMapeo, _storage_path: storagePath, _bucket: bucket },
       tipo_costo_default: prev?.tipo_costo_default ?? null,
     })
