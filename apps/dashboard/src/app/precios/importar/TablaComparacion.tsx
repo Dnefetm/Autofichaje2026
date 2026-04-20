@@ -29,7 +29,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
   return (
     <div className="flex flex-col gap-6">
       {grupos.map((g) => {
-        const baseTiers = ['distribuidor', 'subdistribuidor', 'lista', 'mayoreo'];
+        const baseTiers = ['distribuidor', 'subdistribuidor', 'menudeo', 'mayoreo'];
         const hasOtro = g.precios_nuevos?.['otro'] || g.precios_anteriores?.['otro'];
         const tiersGrupo = hasOtro ? [...baseTiers, 'otro'] : baseTiers;
         const seleccionadoId = selecciones[g.clave];
@@ -78,7 +78,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
                     {tiersGrupo.map(t => {
                        const pn = g.precios_nuevos[t];
                        const pa = g.precios_anteriores?.[t];
-                       const tierLabel = t === 'distribuidor' ? 'DISTRIB' : t === 'subdistribuidor' ? 'SUBDISTRIB' : t === 'lista' ? 'LISTA' : t === 'mayoreo' ? 'MAYOREO' : 'OTRO';
+                       const tierLabel = t === 'distribuidor' ? 'DISTRIB' : t === 'subdistribuidor' ? 'SUBDISTRIB' : t === 'menudeo' ? 'MENUDEO' : t === 'mayoreo' ? 'MAYOREO' : 'OTRO';
                        return (
                          <div key={t} className="flex flex-col justify-center px-3 border-l border-slate-200/60 first:border-l-0 min-w-0">
                             <span className="text-[10px] whitespace-nowrap tracking-wider text-emerald-700/60 font-bold mb-0.5">{tierLabel}</span>
@@ -128,11 +128,11 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
                   <div className="flex flex-col gap-1.5">
                      {seleccionadoId && g.candidatos_jsonb.find(c => c.articulo_id === seleccionadoId)?.metodo_match === 'manual' ? (
                         <span className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-fuchsia-100 text-fuchsia-700">MANUAL</span>
-                     ) : g.estado_grupo === 'match' ? (
+                     ) : g.estado_grupo === 'match_exacto' ? (
                         <span className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
                           <CheckCircle2 className="w-3.5 h-3.5" /> EXACTO
                         </span>
-                     ) : g.estado_grupo === 'duda' ? (
+                     ) : g.estado_grupo === 'match_similitud' ? (
                         <span className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
                           <AlertCircle className="w-3.5 h-3.5" /> REVISAR
                         </span>

@@ -199,6 +199,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         articulo_id: string; 
         puntaje_match: number; 
         metodo_match: string;
+        nivel_match: string;
         candidatos_jsonb: any[];
     } | null;
 
@@ -216,13 +217,17 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 articulo_id: m.articulo_id, 
                 puntaje_match: Number(m.puntaje_match), 
                 metodo_match: m.metodo_match,
+                nivel_match: m.nivel_match,
                 candidatos_jsonb: data.map((d: any) => ({
                     articulo_id: d.articulo_id,
                     nombre: d.nombre,
                     marca: d.marca,
                     modelo: d.modelo,
                     codigo_universal: d.codigo_universal,
-                    puntaje_match: Number(d.puntaje_match)
+                    caja_madre: d.caja_madre,
+                    puntaje_match: Number(d.puntaje_match),
+                    metodo_match: d.metodo_match,
+                    nivel_match: d.nivel_match
                 }))
             };
         },
@@ -238,13 +243,16 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     filas.forEach((fila, i) => {
         const match = matchResults[i];
         const puntaje = match?.puntaje_match ?? 0;
-        const estadoMatch = puntaje >= SCORE_UMBRAL ? 'sugerido' : 'sin_match';
+        const baseLevel = match?.nivel_match ?? 'nuevo';
+        let estadoMatch = 'sin_match';
+        if (baseLevel === 'actualizado_fuerte' || baseLevel === 'match_exacto') estadoMatch = 'match_exacto';
+        else if (baseLevel === 'cambio_codigo_sugerido' || baseLevel === 'ambiguo' || baseLevel === 'match_similitud') estadoMatch = 'match_similitud';
 
         (precios as PrecioMapeo[]).forEach((p) => {
             const valor = fila.preciosPorColumna[p.columna];
             if (!valor) { filasSinPrecio++; return; }
 
-            if (estadoMatch === 'sugerido' && !filasContadas.has(i)) {
+            if ((estadoMatch === 'match_exacto' || estadoMatch === 'match_similitud') && !filasContadas.has(i)) {
                 filasConMatch++;
                 filasContadas.add(i);
             }
@@ -257,6 +265,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 marca_excel:            fila.marca,
                 codigo_universal_excel: fila.codigo,
                 descripcion_excel:      fila.descripcion,
+                nombre_excel:           fila.descripcion, // Sincronizado para nueva columna
                 tipo_costo:             p.tipo_costo,
                 valor,
                 moneda:                 fila.moneda,
@@ -265,6 +274,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 estado_match:           estadoMatch,
                 vigente:                false,
                 candidatos_jsonb:       match?.candidatos_jsonb ?? [],
+                incluye_iva:            p.incluye_iva ?? false,
             });
         });
     });

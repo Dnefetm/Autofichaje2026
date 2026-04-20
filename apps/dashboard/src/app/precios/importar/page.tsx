@@ -33,12 +33,12 @@ interface PreviewData {
 }
 
 
-interface PrecioMapeo { columna: string; tipo_costo: string; }
+interface PrecioMapeo { columna: string; tipo_costo: string; incluye_iva?: boolean; }
 
 const TIPOS_COSTO = [
   { value: 'distribuidor', label: 'Distribuidor' },
   { value: 'subdistribuidor', label: 'Subdistribuidor' },
-  { value: 'lista', label: 'Precio de Lista' },
+  { value: 'menudeo', label: 'Precio de Menudeo' },
   { value: 'mayoreo', label: 'Mayoreo' },
   { value: 'otro', label: 'Otro' },
 ];
@@ -187,7 +187,7 @@ function PasoMapear({ importacionId, onDone, onBack }: {
           if (Array.isArray(m.precios) && m.precios.length > 0) {
             setPrecios(m.precios);
           } else if (m.columna_precio && m.tipo_costo) {
-            setPrecios([{ columna: m.columna_precio, tipo_costo: m.tipo_costo }]);
+            setPrecios([{ columna: m.columna_precio, tipo_costo: m.tipo_costo, incluye_iva: false }]);
           }
         }
         
@@ -198,9 +198,9 @@ function PasoMapear({ importacionId, onDone, onBack }: {
       .finally(() => setLoadingPreview(false));
   }
 
-  function addPrecio() { setPrecios((p) => [...p, { columna: '', tipo_costo: 'lista' }]); }
+  function addPrecio() { setPrecios((p) => [...p, { columna: '', tipo_costo: 'menudeo', incluye_iva: false }]); }
   function removePrecio(i: number) { setPrecios((p) => p.filter((_, j) => j !== i)); }
-  function updatePrecio(i: number, field: keyof PrecioMapeo, val: string) {
+  function updatePrecio(i: number, field: keyof PrecioMapeo, val: any) {
     setPrecios((p) => p.map((item, j) => j === i ? { ...item, [field]: val } : item));
   }
 
@@ -356,14 +356,20 @@ function PasoMapear({ importacionId, onDone, onBack }: {
           </button>
         </div>
         {precios.map((p, i) => (
-          <div key={i} className="flex items-start gap-3">
-            <div className="flex-1"><Sel id={`sel-precio-col-${i}`} value={p.columna} onChange={(v) => updatePrecio(i, 'columna', v)} /></div>
-            <div className="flex-1">
+          <div key={i} className="flex items-start gap-3 flex-wrap">
+            <div className="flex-[2] min-w-32"><Sel id={`sel-precio-col-${i}`} value={p.columna} onChange={(v) => updatePrecio(i, 'columna', v)} /></div>
+            <div className="flex-[2] min-w-32">
               <select id={`sel-precio-tipo-${i}`} value={p.tipo_costo}
                 onChange={(e) => updatePrecio(i, 'tipo_costo', e.target.value)}
                 className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-white">
                 {TIPOS_COSTO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
+            </div>
+            <div className="flex-1 min-w-24 flex items-center pt-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-600">
+                <input type="checkbox" checked={p.incluye_iva || false} onChange={(e) => updatePrecio(i, 'incluye_iva', e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4" />
+                ¿Con IVA?
+              </label>
             </div>
             {precios.length > 1 && (
               <button onClick={() => removePrecio(i)} className="mt-1 p-2 text-slate-300 hover:text-rose-500 transition-colors"><Trash2 className="w-4 h-4" /></button>

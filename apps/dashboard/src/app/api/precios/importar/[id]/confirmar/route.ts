@@ -1,37 +1,13 @@
-/**
- * POST /api/precios/importar/[id]/confirmar
- *
- * Confirma o descarta matches seleccionados por el usuario.
- * Cada fila puede: confirmarse (ligando al articulo sugerido o a uno manual),
- * descartarse, o corregirse a un articulo diferente.
- *
- * Al confirmar:
- *   - estado_match = 'confirmado'
- *   - articulo_id = articulo_sugerido_id (o el override manual)
- *   - confirmado_por = user_id (o 'operador' si no hay auth)
- *   - Desactiva costos vigentes previos con mismo articulo_id + tipo_costo
- *
- * Al descartar:
- *   - estado_match = 'rechazado'
- *
- * Body:
- * {
- *   acciones: Array<{
- *     costo_id: string,
- *     accion: 'confirmar' | 'descartar',
- *     articulo_id_override?: string  // solo para 'confirmar' con correccion manual
- *   }>
- * }
- */
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-interface Accion {
+interface DecisionLinea {
     costo_id: string;
-    accion: 'confirmar' | 'descartar';
-    articulo_id_override?: string; // solo para 'confirmar' con corrección manual
+    articulo_id?: string;
+    accion: 'confirmar_fuerte' | 'aceptar_cambio_codigo' | 'rechazar' | 'sin_match';
+    codigo_nuevo?: string;
 }
 
 export async function POST(
@@ -40,25 +16,15 @@ export async function POST(
 ) {
     const { id } = await props.params;
     const body = await req.json().catch(() => null);
-    const acciones: Accion[] = body?.acciones;
+    const acciones: DecisionLinea[] = body?.acciones;
 
     if (!Array.isArray(acciones)) {
-        return NextResponse.json(
-            { ok: false, error: 'Se requiere un array "acciones"' },
-            { status: 400 }
-        );
+        return NextResponse.json({ ok: false, error: 'Se requiere un array de "acciones".' }, { status: 400 });
     }
 
-    // Filtrar acciones vacías (p.ej. selecciones "Sin asignar" no enviadas como descartar explícito)
-    const validAcciones = acciones.filter(a => a && a.costo_id && ['confirmar', 'descartar'].includes(a.accion));
-    if (validAcciones.length === 0) {
-        return NextResponse.json({ ok: false, error: 'No hay acciones válidas a procesar' }, { status: 400 });
-    }
-
-    // Validar importación
     const { data: importacion, error: fetchErr } = await supabaseAdmin
         .from('importaciones_excel')
-        .select('id, nombre_archivo, proveedor')
+        .select('id, proveedor')
         .eq('id', id)
         .single();
 
@@ -66,156 +32,104 @@ export async function POST(
         return NextResponse.json({ ok: false, error: 'Importacion no encontrada' }, { status: 404 });
     }
 
-    const resultados = { confirmados: 0, descartados: 0, errores: [] as { costo_id: string; error: string }[] };
-    const confirmado_por = 'operador';
+    const resultados = { confirmados: 0, huerfanos: 0, cambios_codigo: 0, errores: [] as any[] };
 
-    // Crear Batch si hay confirmaciones
-    const numConfirmar = validAcciones.filter(a => a.accion === 'confirmar').length;
-    let batchId: string | null = null;
-    if (numConfirmar > 0) {
-        const { data: batch, error: batchErr } = await supabaseAdmin
-            .from('precio_import_batches')
-            .insert({
-                importacion_excel_id: id,
-                usuario: confirmado_por,
-                archivo: importacion.nombre_archivo,
-                filas_afectadas: numConfirmar
-            })
+    // Procedimiento Batch simple en TS para garantizar trazabilidad
+    // Debido a que "v_proveedores_precios" falló sobre el RPC en despliegues limpiados a 0.
+    for (const d of acciones) {
+        // 1. Obtener la fila desde costos_articulo
+        const { data: costo } = await supabaseAdmin.from('costos_articulo').select('*').eq('id', d.costo_id).single();
+        if (!costo) {
+            resultados.errores.push({ costo_id: d.costo_id, error: 'Costo no encontrado' });
+            continue;
+        }
+
+        if (d.accion === 'rechazar') {
+            await supabaseAdmin.from('costos_articulo').update({ estado_match: 'rechazado' }).eq('id', d.costo_id);
+            continue;
+        }
+
+        const articulo_id = d.articulo_id || costo.articulo_sugerido_id;
+
+        if (d.accion === 'sin_match' || !articulo_id) {
+            // Queda huérfano
+            await supabaseAdmin.from('costos_articulo').update({
+                estado_match: 'sin_match',
+                articulo_id: null,
+                vigente: true,
+                confirmado_por: 'operador'
+            }).eq('id', d.costo_id);
+            resultados.huerfanos++;
+            continue;
+        }
+
+        // Match fuerte o medio -> Hay que verificar si cambió el código si es medio
+        if (d.accion === 'aceptar_cambio_codigo' && d.codigo_nuevo) {
+            // Registrar en auditoria
+            const { data: artResult } = await supabaseAdmin.from('articulos').select('codigo_universal').eq('articulo_id', articulo_id).single();
+            await supabaseAdmin.from('auditoria_codigo_universal').insert({
+                proveedor: importacion.proveedor,
+                codigo_anterior: artResult?.codigo_universal || null,
+                codigo_nuevo: d.codigo_nuevo,
+                articulo_id: articulo_id
+            });
+            // Actualizar artículo maestro
+            await supabaseAdmin.from('articulos').update({ codigo_universal: d.codigo_nuevo }).eq('articulo_id', articulo_id);
+            resultados.cambios_codigo++;
+            
+            // Actualizar fila iterando a confirmado
+            await supabaseAdmin.from('costos_articulo').update({
+                estado_match: 'codigo_cambiado',
+                articulo_id: articulo_id,
+                vigente: true,
+                confirmado_por: 'operador'
+            }).eq('id', d.costo_id);
+            resultados.confirmados++;
+        } else {
+            // Match fuerte (automático o manual OK sin cambio de código)
+            await supabaseAdmin.from('costos_articulo').update({
+                estado_match: 'confirmado',
+                articulo_id: articulo_id,
+                vigente: true,
+                confirmado_por: 'operador'
+            }).eq('id', d.costo_id);
+            resultados.confirmados++;
+        }
+    }
+
+    // Calcular descontinuados
+    // Aquellos artículos del mismo proveedor que están vigentes pero que NO vinieron en esta importación
+    // Esto asegura que la limpieza de la lista se mantenga.
+    const articulosAprobados = acciones.filter(a => a.articulo_id && a.accion !== 'rechazar').map(a => a.articulo_id);
+    if (articulosAprobados.length > 0) {
+        // Obtenemos los costos activos de este proveedor que NO están en los articulosAprobados
+        const { data: descontinuados } = await supabaseAdmin.from('costos_articulo')
             .select('id')
-            .single();
-
-        if (batchErr || !batch) {
-            console.error(JSON.stringify({ event: 'batch_error', error: batchErr }));
-            return NextResponse.json({ ok: false, error: 'No se pudo crear el registro de Batch' }, { status: 500 });
-        }
-        batchId = batch.id;
-    }
-
-    // Procesamiento
-    for (const accion of validAcciones) {
-        if (accion.accion === 'confirmar') {
-            const { data: costo } = await supabaseAdmin
-                .from('costos_articulo')
-                .select('id, articulo_sugerido_id, tipo_costo, valor, moneda, estado_match')
-                .eq('id', accion.costo_id)
-                .eq('importacion_id', id)
-                .single();
-
-            if (!costo) {
-                resultados.errores.push({ costo_id: accion.costo_id, error: 'Costo no encontrado' });
-                continue;
-            }
-            if (costo.estado_match === 'confirmado') {
-                resultados.confirmados++;
-                continue;
-            }
-
-            const articuloFinal = accion.articulo_id_override || costo.articulo_sugerido_id;
-            if (!articuloFinal) {
-                resultados.errores.push({ costo_id: accion.costo_id, error: 'No hay articulo_id_override ni sugerido' });
-                continue;
-            }
-
-            // Validar que el artículo exista en la BD principal
-            const { data: artCheck, error: artErr } = await supabaseAdmin
-                .from('articulos')
-                .select('articulo_id')
-                .eq('articulo_id', articuloFinal)
-                .single();
-
-            if (artErr || !artCheck) {
-                console.log(JSON.stringify({ event: 'articulo_huerfano', costo_id: accion.costo_id, articulo_id: articuloFinal }));
-                resultados.errores.push({ costo_id: accion.costo_id, error: 'El artículo ya no existe' });
-                continue;
-            }
-
-            // Buscar costo anterior
-            const { data: costoAnterior } = await supabaseAdmin
-                .from('costos_articulo')
-                .select('valor')
-                .eq('articulo_id', articuloFinal)
-                .eq('tipo_costo', costo.tipo_costo)
-                .eq('vigente', true)
-                .neq('id', accion.costo_id)
-                .maybeSingle();
-
-            // Apagar costos anteriores
-            await supabaseAdmin
-                .from('costos_articulo')
-                .update({ vigente: false })
-                .eq('articulo_id', articuloFinal)
-                .eq('tipo_costo', costo.tipo_costo)
-                .eq('vigente', true)
-                .neq('id', accion.costo_id);
-
-            // Guardar Historial del Proveedor de forma idempotente
-            if (batchId) {
-                const { error: histErr } = await supabaseAdmin
-                    .from('precios_historial_proveedor')
-                    .upsert({
-                        batch_id: batchId,
-                        costo_articulo_id: costo.id,
-                        articulo_id: articuloFinal,
-                        tipo_costo: costo.tipo_costo,
-                        valor_antiguo: costoAnterior ? costoAnterior.valor : null,
-                        valor_nuevo: costo.valor,
-                        moneda: costo.moneda
-                    }, { onConflict: 'batch_id, costo_articulo_id' });
-                
-                if (histErr) {
-                    console.error(JSON.stringify({ event: 'history_insert_error', costo_id: accion.costo_id, error: histErr }));
-                }
-            }
-
-            // Confirmar
-            const { error: updErr } = await supabaseAdmin
-                .from('costos_articulo')
-                .update({
-                    estado_match: 'confirmado',
-                    articulo_id: articuloFinal,
-                    confirmado_por,
-                    vigente: true,
-                })
-                .eq('id', accion.costo_id);
-
-            if (updErr) {
-                resultados.errores.push({ costo_id: accion.costo_id, error: updErr.message });
-            } else {
-                resultados.confirmados++;
-            }
-        } else if (accion.accion === 'descartar') {
-            const { error: updErr } = await supabaseAdmin
-                .from('costos_articulo')
-                .update({ estado_match: 'rechazado' })
-                .eq('id', accion.costo_id)
-                .eq('importacion_id', id);
-
-            if (updErr) {
-                resultados.errores.push({ costo_id: accion.costo_id, error: updErr.message });
-            } else {
-                resultados.descartados++;
-            }
+            .eq('fuente', importacion.proveedor)
+            .eq('vigente', true)
+            .not('articulo_id', 'in', `(${articulosAprobados.join(',')})`);
+            
+        if (descontinuados && descontinuados.length > 0) {
+            await supabaseAdmin.from('costos_articulo')
+                .update({ estado_match: 'descontinuado_por_proveedor', vigente: false })
+                .in('id', descontinuados.map(d => d.id));
         }
     }
 
-    // Actualizar batch si hubo errores (rollback opcional, pero aquí solo registramos log)
-    console.log(JSON.stringify({ event: 'confirmar_finalizado', id, confirmados: resultados.confirmados, descartados: resultados.descartados }));
-
-    // Cierre
+    // Finalizar lote
     const { count: pendientes } = await supabaseAdmin
         .from('costos_articulo')
         .select('id', { count: 'exact', head: true })
         .eq('importacion_id', id)
-        .in('estado_match', ['sin_match', 'sugerido']);
-
+        .is('confirmado_por', null); // Requerir explícitamente confirmaciones
+        
     if (pendientes === 0) {
         await supabaseAdmin.from('importaciones_excel').update({ estado: 'completado' }).eq('id', id);
     }
 
     return NextResponse.json({
-        ok: resultados.errores.length === 0,
-        ...resultados,
+        ok: true,
         importacion_id: id,
-        batch_id: batchId,
+        ...resultados
     });
-}
+}
