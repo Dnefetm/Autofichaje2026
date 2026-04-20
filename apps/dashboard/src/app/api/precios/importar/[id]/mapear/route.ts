@@ -269,7 +269,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 tipo_costo:             p.tipo_costo,
                 valor,
                 moneda:                 fila.moneda,
-                fuente:                 importacion.proveedor || 'excel',
+                fuente:                 'excel',
                 puntaje_match:          puntaje > 0 ? puntaje : null,
                 estado_match:           estadoMatch,
                 vigente:                false,
