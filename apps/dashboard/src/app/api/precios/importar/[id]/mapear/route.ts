@@ -199,6 +199,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         articulo_id: string; 
         puntaje_match: number; 
         metodo_match: string;
+        nivel_match: string;
         candidatos_jsonb: any[];
     } | null;
 
@@ -216,13 +217,17 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 articulo_id: m.articulo_id, 
                 puntaje_match: Number(m.puntaje_match), 
                 metodo_match: m.metodo_match,
+                nivel_match: m.nivel_match,
                 candidatos_jsonb: data.map((d: any) => ({
                     articulo_id: d.articulo_id,
                     nombre: d.nombre,
                     marca: d.marca,
                     modelo: d.modelo,
                     codigo_universal: d.codigo_universal,
-                    puntaje_match: Number(d.puntaje_match)
+                    caja_madre: d.caja_madre,
+                    puntaje_match: Number(d.puntaje_match),
+                    metodo_match: d.metodo_match,
+                    nivel_match: d.nivel_match
                 }))
             };
         },
@@ -238,13 +243,13 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     filas.forEach((fila, i) => {
         const match = matchResults[i];
         const puntaje = match?.puntaje_match ?? 0;
-        const estadoMatch = puntaje >= SCORE_UMBRAL ? 'sugerido' : 'sin_match';
+        const estadoMatch = match?.nivel_match ?? 'nuevo';
 
         (precios as PrecioMapeo[]).forEach((p) => {
             const valor = fila.preciosPorColumna[p.columna];
             if (!valor) { filasSinPrecio++; return; }
 
-            if (estadoMatch === 'sugerido' && !filasContadas.has(i)) {
+            if ((estadoMatch === 'actualizado_fuerte' || estadoMatch === 'cambio_codigo_sugerido' || estadoMatch === 'ambiguo') && !filasContadas.has(i)) {
                 filasConMatch++;
                 filasContadas.add(i);
             }
@@ -260,7 +265,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 tipo_costo:             p.tipo_costo,
                 valor,
                 moneda:                 fila.moneda,
-                fuente:                 'excel',
+                fuente:                 importacion.proveedor || 'excel',
                 puntaje_match:          puntaje > 0 ? puntaje : null,
                 estado_match:           estadoMatch,
                 vigente:                false,
