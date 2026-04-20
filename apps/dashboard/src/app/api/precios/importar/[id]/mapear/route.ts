@@ -243,13 +243,16 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     filas.forEach((fila, i) => {
         const match = matchResults[i];
         const puntaje = match?.puntaje_match ?? 0;
-        const estadoMatch = match?.nivel_match ?? 'nuevo';
+        const baseLevel = match?.nivel_match ?? 'nuevo';
+        let estadoMatch = 'sin_match';
+        if (baseLevel === 'actualizado_fuerte' || baseLevel === 'match_exacto') estadoMatch = 'match_exacto';
+        else if (baseLevel === 'cambio_codigo_sugerido' || baseLevel === 'ambiguo' || baseLevel === 'match_similitud') estadoMatch = 'match_similitud';
 
         (precios as PrecioMapeo[]).forEach((p) => {
             const valor = fila.preciosPorColumna[p.columna];
             if (!valor) { filasSinPrecio++; return; }
 
-            if ((estadoMatch === 'actualizado_fuerte' || estadoMatch === 'cambio_codigo_sugerido' || estadoMatch === 'ambiguo') && !filasContadas.has(i)) {
+            if ((estadoMatch === 'match_exacto' || estadoMatch === 'match_similitud') && !filasContadas.has(i)) {
                 filasConMatch++;
                 filasContadas.add(i);
             }

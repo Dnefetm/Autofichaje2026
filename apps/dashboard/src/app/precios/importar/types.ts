@@ -1,4 +1,4 @@
-export type EstadoMatch = 'match' | 'duda' | 'sin_match';
+export type EstadoMatch = 'match_exacto' | 'match_similitud' | 'sin_match' | 'confirmado' | 'descartado' | 'rechazado' | 'pendiente' | 'actualizado' | 'codigo_cambiado' | 'sugerido' | 'nuevo';
 
 export type Candidato = {
   articulo_id: string;
@@ -44,13 +44,12 @@ export interface GrupoCostoFila {
   estado_grupo: EstadoMatch;
 }
 
-/**
- * Utilitario centralizado para clasificar el estado visual de una coincidencia en base al puntaje numérico.
- */
-export function clasificarEstado(puntaje: number | null): EstadoMatch {
+export function clasificarEstado(puntaje: number | null, nivel_match?: string): EstadoMatch {
+  if (nivel_match === 'actualizado_fuerte' || nivel_match === 'match_exacto') return 'match_exacto';
+  if (nivel_match === 'cambio_codigo_sugerido' || nivel_match === 'match_similitud' || nivel_match === 'ambiguo') return 'match_similitud';
   if (puntaje === null) return 'sin_match';
-  if (puntaje === 100) return 'match';
-  if (puntaje >= 70 && puntaje < 100) return 'duda';
+  if (puntaje === 100) return 'match_exacto';
+  if (puntaje >= 70 && puntaje < 100) return 'match_similitud';
   return 'sin_match';
 }
 

@@ -121,7 +121,7 @@ export async function POST(
         .from('costos_articulo')
         .select('id', { count: 'exact', head: true })
         .eq('importacion_id', id)
-        .in('estado_match', ['sin_match', 'sugerido', 'nuevo', 'ambiguo']); // Requerir explícitamente confirmaciones
+        .is('confirmado_por', null); // Requerir explícitamente confirmaciones
         
     if (pendientes === 0) {
         await supabaseAdmin.from('importaciones_excel').update({ estado: 'completado' }).eq('id', id);
