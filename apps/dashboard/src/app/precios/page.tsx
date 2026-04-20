@@ -1,9 +1,9 @@
-import { createServerClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
 import { Package, Calendar, Clock, ArrowRight, Upload } from 'lucide-react';
 
 export default async function PreciosPage() {
-    const supa = createServerClient();
+    const supa = supabaseAdmin;
     
     // El usuario ya desplegó la vista v_proveedores_precios
     const { data, error } = await supa.from('v_proveedores_precios').select('*');

@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
 import { ArrowLeft, Clock, History, FileDown, Search } from 'lucide-react';
 
@@ -6,7 +6,7 @@ export default async function DetalleProveedorPage(props: { params: Promise<{ pr
     const params = await props.params;
     const searchParams = await props.searchParams;
     const proveedorDecoded = decodeURIComponent(params.proveedor);
-    const supa = createServerClient();
+    const supa = supabaseAdmin;
 
     // Query con búsqueda simple server-side si viene el parámetro 'q'
     let query = supa.from('v_lista_precios_proveedor').select('*').eq('proveedor', proveedorDecoded);
