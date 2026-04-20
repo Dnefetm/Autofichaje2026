@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
-import { ArrowLeft, Clock, History, FileDown, Search } from 'lucide-react';
+import { ArrowLeft, Clock, History, FileDown, Search, AlertTriangle } from 'lucide-react';
 
 export default async function DetalleProveedorPage(props: { params: Promise<{ proveedor: string }>, searchParams: Promise<any> }) {
     const params = await props.params;
@@ -9,7 +9,7 @@ export default async function DetalleProveedorPage(props: { params: Promise<{ pr
     const supa = supabaseAdmin;
 
     // Query con búsqueda simple server-side si viene el parámetro 'q'
-    let query = supa.from('v_lista_precios_proveedor').select('*').eq('proveedor', proveedorDecoded);
+    let query = supa.from('v_lista_precios_proveedor').select('*').eq('proveedor', proveedorDecoded).order('ultima_actualizacion', { ascending: false });
     if (searchParams.q) {
         query = query.or(`nombre.ilike.%${searchParams.q}%,codigo_universal.ilike.%${searchParams.q}%,marca.ilike.%${searchParams.q}%,modelo.ilike.%${searchParams.q}%`);
     }
@@ -93,19 +93,23 @@ export default async function DetalleProveedorPage(props: { params: Promise<{ pr
                                 <th className="px-4 py-3 border-b border-slate-200 text-right">Costo Dist.</th>
                                 <th className="px-4 py-3 border-b border-slate-200 text-right">Costo Sub.</th>
                                 <th className="px-4 py-3 border-b border-slate-200 text-right">Mayoreo</th>
-                                <th className="px-4 py-3 border-b border-slate-200 text-right">Lista</th>
+                                <th className="px-4 py-3 border-b border-slate-200 text-right">Menudeo</th>
+                                <th className="px-4 py-3 border-b border-slate-200 text-center">IVA</th>
                                 <th className="px-4 py-3 border-b border-slate-200">Últ. Actualización</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {listado.map(row => (
-                                <tr key={row.articulo_id} className="hover:bg-slate-50 transition-colors group">
-                                    <td className="px-4 py-2 font-mono text-xs text-slate-600 sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100">
+                                <tr key={row.articulo_id || row.id || Math.random()} className={`hover:bg-slate-50 transition-colors group ${row.huerfano ? 'bg-amber-50' : ''}`}>
+                                    <td className={`px-4 py-2 font-mono text-xs text-slate-600 sticky left-0 z-10 ${row.huerfano ? 'bg-amber-50' : 'bg-white'} group-hover:bg-slate-50 border-r border-slate-100`}>
                                         {row.codigo_universal || '—'}
                                     </td>
                                     <td className="px-4 py-2 whitespace-nowrap">
-                                        <div className="font-semibold text-slate-900">{row.marca}</div>
-                                        <div className="text-slate-500 text-xs">{row.modelo}</div>
+                                        <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                                            {row.huerfano && <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" title="Sin match en catálogo maestro — resolver antes de operar" />}
+                                            {row.marca}
+                                        </div>
+                                        <div className="text-slate-500 text-xs ml-[22px]">{row.modelo}</div>
                                     </td>
                                     <td className="px-4 py-2">
                                         <div className="text-slate-800 line-clamp-2 leading-tight mb-1" title={row.nombre}>{row.nombre}</div>
@@ -125,10 +129,19 @@ export default async function DetalleProveedorPage(props: { params: Promise<{ pr
                                         {row.precio_mayoreo ? fmtMx.format(row.precio_mayoreo) : '—'}
                                     </td>
                                     <td className="px-4 py-2 text-right text-slate-600">
-                                        {row.precio_lista ? fmtMx.format(row.precio_lista) : '—'}
+                                        {row.precio_menudeo ? fmtMx.format(row.precio_menudeo) : '—'}
+                                    </td>
+                                    <td className="px-4 py-2 text-center">
+                                        {row.todos_precios_con_iva ? (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800">Con IVA</span>
+                                        ) : row.algun_precio_con_iva ? (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800" title="Algunos precios con IVA y otros sin IVA">Mixto</span>
+                                        ) : (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">Sin IVA</span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-2 text-xs text-slate-500">
-                                        {new Date(row.ultima_actualizacion).toLocaleString('es-MX', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        {row.ultima_actualizacion ? new Date(row.ultima_actualizacion).toLocaleString('es-MX', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                                     </td>
                                 </tr>
                             ))}

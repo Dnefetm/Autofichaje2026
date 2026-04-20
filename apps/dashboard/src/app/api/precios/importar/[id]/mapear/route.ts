@@ -262,6 +262,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 marca_excel:            fila.marca,
                 codigo_universal_excel: fila.codigo,
                 descripcion_excel:      fila.descripcion,
+                nombre_excel:           fila.descripcion, // Sincronizado para nueva columna
                 tipo_costo:             p.tipo_costo,
                 valor,
                 moneda:                 fila.moneda,
@@ -270,6 +271,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 estado_match:           estadoMatch,
                 vigente:                false,
                 candidatos_jsonb:       match?.candidatos_jsonb ?? [],
+                incluye_iva:            p.incluye_iva ?? false,
             });
         });
     });

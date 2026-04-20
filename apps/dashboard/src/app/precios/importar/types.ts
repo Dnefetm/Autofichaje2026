@@ -27,7 +27,7 @@ export interface Costo {
   candidatos_jsonb?: Candidato[];
 }
 
-export type TipoCosto = 'distribuidor' | 'subdistribuidor' | 'lista' | 'mayoreo' | 'otro' | string;
+export type TipoCosto = 'distribuidor' | 'subdistribuidor' | 'menudeo' | 'mayoreo' | 'otro' | string;
 
 export interface GrupoCostoFila {
   clave: string;
