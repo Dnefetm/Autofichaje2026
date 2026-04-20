@@ -2,7 +2,7 @@
  * PATCH /api/precios/importar/[id]/mapear
  *
  * 1. Valida el body.
- * 2. Guarda el mapeo de columnas en importaciones_excel y setea estado = 'en_cola'.
+ * 2. Guarda el mapeo de columnas en importaciones_excel y setea estado = 'mapeando'.
  * 3. Llama a la Edge Function procesar-importacion de forma fire-and-forget.
  * 4. Responde 202 Inmediatamente a la UI.
  */
@@ -53,7 +53,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
     const tiposCosto = [...new Set(precios.map((p: any) => p.tipo_costo))].join(',');
 
-    // Actualizar registro a en_cola
+    // Actualizar registro a mapeando
     const { error: updateErr } = await supabaseAdmin
         .from('importaciones_excel')
         .update({
@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 moneda_default,
             },
             tipo_costo_default: tiposCosto,
-            estado: 'en_cola',
+            estado: 'mapeando',
             ultima_actividad: new Date().toISOString(),
             error_mensaje: null,
             filas_procesadas: 0,
@@ -93,6 +93,6 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     return NextResponse.json({
         ok: true,
         importacion_id: id,
-        estado: 'en_cola'
+        estado: 'mapeando'
     }, { status: 202 });
 }

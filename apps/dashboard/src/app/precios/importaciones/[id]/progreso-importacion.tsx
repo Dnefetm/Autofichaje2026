@@ -37,7 +37,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
       toast.success('Retomando proceso...');
-      setS((prev: any) => ({ ...prev, estado: 'en_cola' }));
+      setS((prev: any) => ({ ...prev, estado: 'procesando' }));
       router.refresh();
     } catch (err: any) {
       toast.error(err.message || 'Error al reintentar');
@@ -46,7 +46,8 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
 
   const getStatusInfo = () => {
     switch (s.estado) {
-      case 'en_cola': return { title: 'En cola', color: 'text-blue-500', bg: 'bg-blue-50' };
+      case 'pendiente_mapeo': return { title: 'Pendiente', color: 'text-blue-500', bg: 'bg-blue-50' };
+      case 'mapeando': return { title: 'Mapeando', color: 'text-blue-500', bg: 'bg-blue-50' };
       case 'procesando': return { title: 'Procesando el archivo...', color: 'text-indigo-500', bg: 'bg-indigo-50 animate-pulse' };
       case 'en_revision': return { title: 'Requiere revisión manual', color: 'text-amber-500', bg: 'bg-amber-50' };
       case 'error': return { title: 'Proceso fallido', color: 'text-rose-500', bg: 'bg-rose-50' };
@@ -69,7 +70,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
            s.estado === 'en_revision' ? <AlertTriangle className={cn("w-8 h-8", info.color)} /> :
            s.estado === 'error' ? <XCircle className={cn("w-8 h-8", info.color)} /> :
            s.estado === 'completado' ? <CheckCircle2 className={cn("w-8 h-8", info.color)} /> :
-           <RefreshCcw className={cn("w-8 h-8", info.color, ['en_cola', 'pendiente'].includes(s.estado) && "animate-spin")} />}
+           <RefreshCcw className={cn("w-8 h-8", info.color, ['pendiente_mapeo', 'mapeando'].includes(s.estado) && "animate-spin")} />}
         </div>
         <h2 className="text-xl font-bold text-slate-800">{info.title}</h2>
       </div>

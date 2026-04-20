@@ -30,7 +30,7 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const actives = rows.some((r) => ['en_cola', 'procesando', 'pendiente'].includes(r.estado));
+    const actives = rows.some((r) => ['pendiente_mapeo', 'mapeando', 'procesando'].includes(r.estado));
     if (!actives) return;
 
     const interval = setInterval(async () => {
@@ -123,7 +123,7 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div 
                         className={cn("h-full transition-all duration-500 ease-out", 
-                          ['en_cola', 'procesando'].includes(row.estado) ? "bg-indigo-500" :
+                          ['mapeando', 'procesando'].includes(row.estado) ? "bg-indigo-500" :
                           row.estado === 'error' ? "bg-rose-500" : "bg-emerald-500"
                         )} 
                         style={{ width: `${Math.max(row.pct_progreso, 0)}%` }} 
@@ -146,7 +146,7 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
                         <RefreshCcw className="w-4 h-4" />
                       </button>
                     )}
-                    {['en_cola', 'procesando', 'pendiente'].includes(row.estado) && (
+                    {['pendiente_mapeo', 'mapeando', 'procesando'].includes(row.estado) && (
                       <button onClick={() => handleAction(row.id, 'cancelar')} className="hover:text-slate-700 p-1.5 transition-colors title='Cancelar'">
                         <XCircle className="w-4 h-4" />
                       </button>
@@ -167,12 +167,13 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
 
 function BadgeEstado({ estado }: { estado: string }) {
   switch (estado) {
-    case 'en_cola': return <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> En Cola</span>;
+    case 'pendiente_mapeo': return <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Pendiente</span>;
+    case 'mapeando': return <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Mapeando</span>;
     case 'procesando': return <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div> Procesando</span>;
     case 'en_revision': return <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><AlertTriangle className="w-3 h-3 text-amber-500" /> Requiere Revisión</span>;
     case 'completado': return <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Completado</span>;
     case 'error': return <span className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><XCircle className="w-3 h-3 text-rose-500" /> Fallido</span>;
     case 'cancelado': return <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-500 font-semibold px-2.5 py-1 text-[11px] rounded-full line-through"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Cancelado</span>;
-    default: return <span className="inline-flex items-center gap-1.5 bg-slate-50 text-slate-600 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Pendiente</span>;
+    default: return <span className="inline-flex items-center gap-1.5 bg-slate-50 text-slate-600 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Desconocido</span>;
   }
 }
