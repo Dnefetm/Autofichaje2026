@@ -16,8 +16,9 @@ import { useRouter } from 'next/navigation';
 import {
   Upload, ChevronRight, FileSpreadsheet, CheckCircle,
   AlertCircle, Loader2, Search, Package, Check, ArrowLeft,
-  Plus, Trash2, X, Shuffle,
+  Plus, Trash2, X, Shuffle, MoreHorizontal, MousePointerClick, CheckSquare, Zap, Target
 } from 'lucide-react';
+import { supabaseBrowser } from '@/lib/supabase-browser';
 import { TablaComparacion } from './TablaComparacion';
 import { Costo, Stats, GrupoCostoFila, EstadoMatch, Candidato, clasificarEstado } from './types';
 
@@ -103,14 +104,37 @@ function PasoSubir({ onDone }: { onDone: (d: { id: string; proveedor: string; no
     if (!proveedor.trim()) { setError('Escribe el proveedor'); return; }
     setLoading(true); setError(null);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('proveedor', proveedor.trim());
-      const res = await fetch('/api/precios/importar', { method: 'POST', body: fd });
-      const d = await res.json();
-      if (!d.ok) throw new Error(d.error);
-      onDone({ id: d.importacion_id, proveedor: d.proveedor, nombre: d.nombre_archivo });
-    } catch (e: any) { setError(e.message); } finally { setLoading(false); }
+      // 1) Pedir signed URL
+      const r1 = await fetch('/api/precios/importar/signed-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proveedor: proveedor.trim(), fileName: file.name }),
+      });
+      const j1 = r1.ok ? await r1.json() : { ok: false, error: await r1.text() };
+      if (!j1.ok) throw new Error(j1.error);
+
+      // 2) Upload directo a Storage (cliente → Supabase)
+      const supabase = supabaseBrowser();
+      const { error: upErr } = await supabase.storage
+        .from(j1.bucket)
+        .uploadToSignedUrl(j1.path, j1.token, file);
+      if (upErr) throw new Error(upErr.message);
+
+      // 3) Registrar en BD
+      const r3 = await fetch('/api/precios/importar/registrar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proveedor: proveedor.trim(), fileName: file.name, storagePath: j1.path, bucket: j1.bucket }),
+      });
+      const j3 = r3.ok ? await r3.json() : { ok: false, error: await r3.text() };
+      if (!j3.ok) throw new Error(j3.error);
+
+      onDone({ id: j3.importacion_id, proveedor: proveedor.trim(), nombre: file.name });
+    } catch (e: any) { 
+      setError(e.message || 'Error al procesar la importación'); 
+    } finally { 
+      setLoading(false); 
+    }
   }
 
   return (
