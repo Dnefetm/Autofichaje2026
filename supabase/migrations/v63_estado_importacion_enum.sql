@@ -11,8 +11,17 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- 2) Migrar la columna de TEXT+CHECK a ENUM
+
+-- 2a) Sanitizar datos incompatibles viejos (como subiendo, en_cola, etc.)
+UPDATE importaciones_excel 
+  SET estado = 'pendiente_mapeo' 
+  WHERE estado NOT IN ('pendiente_mapeo','mapeando','procesando','completado','error','cancelado');
+
 ALTER TABLE importaciones_excel
   DROP CONSTRAINT IF EXISTS importaciones_excel_estado_check;
+
+ALTER TABLE importaciones_excel
+  ALTER COLUMN estado DROP DEFAULT;
 
 ALTER TABLE importaciones_excel
   ALTER COLUMN estado TYPE estado_importacion_excel
