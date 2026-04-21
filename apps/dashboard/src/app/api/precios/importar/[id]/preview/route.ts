@@ -39,6 +39,15 @@ export async function GET(
     return NextResponse.json({ ok: false, error: 'Importacion no encontrada' }, { status: 404 });
   }
 
+  // Fix C: si la importacion ya no esta activa, corto-circuitar con un error
+  // que el frontend (PasoMapear catch) reconoce para redirigir a /precios/importar.
+  if (importacion.estado === 'completado' || importacion.estado === 'cancelado') {
+    return NextResponse.json(
+      { ok: false, error: 'Esta importación ya no está activa', estado: importacion.estado },
+      { status: 409 }
+    );
+  }
+
   const mapeoActual = importacion.mapeo_columnas as Record<string, any> | null;
   const storagePath = mapeoActual?._storage_path as string | undefined;
   const bucket = (mapeoActual?._bucket as string | undefined) || 'excel-precios';
@@ -94,7 +103,6 @@ export async function GET(
       .order('creado_el', { ascending: false })
       .limit(1)
       .maybeSingle();
-
     if (ultima) {
       mapeoPrevio = sanitizeMapeo(ultima.mapeo_columnas as Record<string, any> | null);
       if (!tipoCostoPrevio) tipoCostoPrevio = ultima.tipo_costo_default ?? null;
