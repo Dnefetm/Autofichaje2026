@@ -80,16 +80,6 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         return NextResponse.json({ ok: false, error: updateErr.message }, { status: 500 });
     }
 
-    // Fire and forget
-    fetch(`${process.env.SUPABASE_URL}/functions/v1/procesar-importacion`, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ importacion_id: id }),
-    }).catch(() => {});
-
     return NextResponse.json({
         ok: true,
         importacion_id: id,

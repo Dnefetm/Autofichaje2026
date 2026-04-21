@@ -5,31 +5,40 @@ import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { RefreshCcw, ActivitySquare, AlertTriangle, XCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { RefreshCcw, ActivitySquare, AlertTriangle, XCircle, ArrowRight, CheckCircle2, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabaseBrowser } from '@/lib/supabase-browser';
 
 export function ProgresoImportacion({ id, initial }: { id: string, initial: any }) {
   const router = useRouter();
   const [s, setS] = useState(initial);
+  const [eventos, setEventos] = useState<any[]>([]);
+  const supabase = supabaseBrowser();
 
   useEffect(() => {
-    // Si ya está en un estado final de polling, salir
-    if (['en_revision', 'completado', 'error', 'cancelado'].includes(s.estado)) return;
+    // Carga inicial de eventos
+    supabase.from('importacion_eventos').select('*').eq('importacion_id', id).order('creado_el', { ascending: false }).limit(20)
+      .then(({ data }) => setEventos(data || []));
 
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/precios/importaciones/${id}/status`);
-        const data = await res.json();
-        if (data.ok && data.data) {
-          setS(data.data);
-        }
-      } catch (err) {
-        console.error('Error fetching status', err);
-      }
-    }, 2000);
+    // Suscripción Realtime a la tabla principal
+    const chImp = supabase.channel('importaciones_update')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'importaciones_excel', filter: `id=eq.${id}` }, (payload) => {
+         setS((prev: any) => ({ ...prev, ...payload.new }));
+      })
+      .subscribe();
 
-    return () => clearInterval(interval);
-  }, [s.estado, id]);
+    // Suscripción Realtime a eventos log
+    const chEvt = supabase.channel('eventos_insert')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'importacion_eventos', filter: `importacion_id=eq.${id}` }, (payload) => {
+         setEventos((prev) => [payload.new, ...prev].slice(0, 50));
+      })
+      .subscribe();
+
+    return () => {
+       supabase.removeChannel(chImp);
+       supabase.removeChannel(chEvt);
+    };
+  }, [id, supabase]);
 
   const handleReintentar = async () => {
     try {
@@ -47,92 +56,130 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
   const getStatusInfo = () => {
     switch (s.estado) {
       case 'pendiente_mapeo': return { title: 'Pendiente', color: 'text-blue-500', bg: 'bg-blue-50' };
-      case 'mapeando': return { title: 'Mapeando', color: 'text-blue-500', bg: 'bg-blue-50' };
+      case 'mapeando': return { title: 'Digeriendo Excel', color: 'text-blue-500', bg: 'bg-blue-50' };
       case 'procesando': return { title: 'Procesando el archivo...', color: 'text-indigo-500', bg: 'bg-indigo-50 animate-pulse' };
       case 'en_revision': return { title: 'Requiere revisión manual', color: 'text-amber-500', bg: 'bg-amber-50' };
       case 'error': return { title: 'Proceso fallido', color: 'text-rose-500', bg: 'bg-rose-50' };
       case 'cancelado': return { title: 'Importación cancelada', color: 'text-slate-500', bg: 'bg-slate-50' };
-      case 'completado': return { title: 'Completado', color: 'text-emerald-500', bg: 'bg-emerald-50' };
+      case 'completado': return { title: 'Lista Vigente Registrada', color: 'text-emerald-500', bg: 'bg-emerald-50' };
       default: return { title: 'Preparando...', color: 'text-slate-500', bg: 'bg-slate-50' };
     }
   };
 
   const info = getStatusInfo();
-  const pct = Math.max(0, s.pct_progreso || 0);
+  const pct = s.total_filas > 0 ? Math.min(100, Math.max(0, (s.filas_procesadas / s.total_filas) * 100)) : 0;
 
   return (
-    <div className="bg-white border text-center border-slate-200 rounded-2xl shadow-sm p-8 space-y-8">
+    <div className="bg-white border flex flex-col md:flex-row text-left border-slate-200 rounded-2xl shadow-sm overflow-hidden">
       
-      {/* Title & Status indicator */}
-      <div className="flex flex-col items-center gap-3">
-        <div className={cn("inline-flex items-center justify-center p-3 rounded-2xl", info.bg)}>
-          {s.estado === 'procesando' ? <ActivitySquare className={cn("w-8 h-8", info.color)} /> : 
-           s.estado === 'en_revision' ? <AlertTriangle className={cn("w-8 h-8", info.color)} /> :
-           s.estado === 'error' ? <XCircle className={cn("w-8 h-8", info.color)} /> :
-           s.estado === 'completado' ? <CheckCircle2 className={cn("w-8 h-8", info.color)} /> :
-           <RefreshCcw className={cn("w-8 h-8", info.color, ['pendiente_mapeo', 'mapeando'].includes(s.estado) && "animate-spin")} />}
+      {/* Panel izquierdo: Estado */}
+      <div className="flex-1 p-8 space-y-8 flex flex-col items-center justify-center border-r border-slate-100">
+        <div className="flex flex-col items-center gap-3">
+          <div className={cn("inline-flex items-center justify-center p-3 rounded-2xl", info.bg)}>
+            {s.estado === 'procesando' || s.estado === 'mapeando' ? <ActivitySquare className={cn("w-8 h-8", info.color)} /> : 
+             s.estado === 'en_revision' ? <AlertTriangle className={cn("w-8 h-8", info.color)} /> :
+             s.estado === 'error' ? <XCircle className={cn("w-8 h-8", info.color)} /> :
+             s.estado === 'completado' ? <CheckCircle2 className={cn("w-8 h-8", info.color)} /> :
+             <RefreshCcw className={cn("w-8 h-8", info.color, ['pendiente_mapeo'].includes(s.estado) && "animate-spin")} />}
+          </div>
+          <h2 className="text-xl font-bold text-slate-800">{info.title}</h2>
         </div>
-        <h2 className="text-xl font-bold text-slate-800">{info.title}</h2>
-      </div>
 
-      {/* Progress Bar Container */}
-      <div className="max-w-xl mx-auto space-y-2">
-        <div className="flex justify-between text-sm font-semibold text-slate-600 mb-1">
-          <span>{s.filas_procesadas?.toLocaleString()} / {s.total_filas?.toLocaleString()} filas</span>
-          <span>{pct.toFixed(0)}%</span>
+        <div className="w-full max-w-sm space-y-2">
+          <div className="flex justify-between text-sm font-semibold text-slate-600 mb-1">
+            <span>{s.filas_procesadas?.toLocaleString()} / {s.total_filas?.toLocaleString()} filas</span>
+            <span>{pct.toFixed(0)}%</span>
+          </div>
+          
+          <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+             <div 
+               className={cn("h-full transition-all duration-1000 ease-out", 
+                 s.estado === 'error' ? "bg-rose-500" :
+                 s.estado === 'completado' ? "bg-emerald-500" :
+                 "bg-indigo-600"
+               )}
+               style={{ width: \`\${pct}%\` }}
+             />
+          </div>
+          
+          <p className="text-xs text-slate-400 font-medium text-center">
+            Último latido: {s.heartbeat_at ? formatDistanceToNow(new Date(s.heartbeat_at), { addSuffix: true, locale: es }) : 'N/A'}
+          </p>
         </div>
-        
-        <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-           <div 
-             className={cn("h-full transition-all duration-1000 ease-out", 
-               s.estado === 'error' ? "bg-rose-500" :
-               s.estado === 'completado' ? "bg-emerald-500" :
-               "bg-indigo-600"
-             )}
-             style={{ width: `${pct}%` }}
-           />
-        </div>
-        
-        <p className="text-xs text-slate-400 font-medium">
-          Último heartbeat o actividad: {s.ultima_actividad ? formatDistanceToNow(new Date(s.ultima_actividad), { addSuffix: true, locale: es }) : 'N/A'}
-        </p>
-      </div>
 
-      {/* Actions / States */}
-      <div className="flex justify-center pt-2">
-        {s.estado === 'en_revision' && (
-          <button 
-            onClick={() => router.push(`/precios/importar?id=${id}&step=3`)}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow shadow-emerald-600/20"
-          >
-            Continuar a revisar matches
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        )}
+        <div className="flex justify-center pt-2">
+           {s.estado === 'completado' && (
+             <button 
+               onClick={() => router.push(\`/precios/importar?id=\${id}&step=3\`)}
+               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow shadow-emerald-600/20"
+             >
+               Finalizar
+               <ArrowRight className="w-4 h-4" />
+             </button>
+           )}
 
-        {s.estado === 'error' && (
-          <div className="flex flex-col items-center gap-4">
-             <div className="bg-rose-50 text-rose-700 px-6 py-4 rounded-xl text-sm font-medium border border-rose-100 max-w-lg overflow-hidden break-words">
-                <span className="font-bold block mb-1">Error reportado:</span>
-                {s.error_mensaje || 'Error desconocido del motor.'}
+           {s.estado === 'error' && (
+             <div className="flex flex-col items-center gap-4">
+                <div className="bg-rose-50 text-rose-700 px-6 py-4 rounded-xl text-sm font-medium border border-rose-100 max-w-sm overflow-hidden break-words">
+                   <span className="font-bold block mb-1">Error crítico:</span>
+                   {s.error_mensaje || 'Fallo desconocido en el worker.'}
+                </div>
+                <button 
+                  onClick={handleReintentar}
+                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold transition-all"
+                >
+                  <RefreshCcw className="w-4 h-4" /> Reintentar
+                </button>
              </div>
+           )}
+           
+           {s.estado === 'cancelado' && (
              <button 
                onClick={handleReintentar}
-               className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold transition-all"
+               className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2.5 rounded-xl font-bold transition-all"
              >
                <RefreshCcw className="w-4 h-4" /> Reintentar
              </button>
-          </div>
-        )}
+           )}
+        </div>
+      </div>
 
-        {s.estado === 'cancelado' && (
-           <button 
-             onClick={handleReintentar}
-             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2.5 rounded-xl font-bold transition-all"
-           >
-             <RefreshCcw className="w-4 h-4" /> Reintentar
-           </button>
-        )}
+      {/* Panel derecho: Logs en tiempo real */}
+      <div className="w-full md:w-96 bg-slate-900 flex flex-col max-h-[500px]">
+         <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between bg-black/20">
+            <div className="flex items-center gap-2">
+               <Terminal className="w-4 h-4 text-emerald-400" />
+               <span className="text-xs font-mono font-bold text-slate-300">import_worker.log</span>
+            </div>
+            <div className="flex items-center gap-2">
+               <span className="relative flex h-2 w-2">
+                 <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", s.estado === 'mapeando' ? 'bg-emerald-400' : 'hidden')}></span>
+                 <span className={cn("relative inline-flex rounded-full h-2 w-2", s.estado === 'mapeando' ? 'bg-emerald-500' : 'bg-slate-600')}></span>
+               </span>
+               <span className="text-[10px] text-slate-500 font-bold uppercase">{s.estado === 'mapeando' ? 'LIVE' : 'OFFLINE'}</span>
+            </div>
+         </div>
+         <div className="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-[11px] leading-relaxed">
+            {eventos.length === 0 ? (
+               <p className="text-slate-600 italic">Esperando inicialización de worker...</p>
+            ) : (
+               eventos.map((ev, i) => (
+                  <div key={ev.id} className={cn(
+                     "border-l-2 pl-3 py-1",
+                     ev.estado_paso.includes('ERROR') ? 'border-rose-500 text-rose-400' :
+                     ev.estado_paso === 'COMPLETADO' ? 'border-emerald-500 text-emerald-400' :
+                     ev.estado_paso === 'INICIO' ? 'border-indigo-500 text-indigo-400' :
+                     'border-slate-700 text-slate-400'
+                  )}>
+                     <div className="flex justify-between items-start">
+                        <span className="font-bold mix-blend-plus-lighter">{ev.estado_paso}</span>
+                        <span className="text-[9px] text-slate-600 shrink-0">{new Date(ev.creado_el).toLocaleTimeString()}</span>
+                     </div>
+                     <p className="mt-0.5">{ev.mensaje}</p>
+                  </div>
+               ))
+            )}
+         </div>
       </div>
       
     </div>
