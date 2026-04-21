@@ -99,7 +99,7 @@ function PasoSubir({ onDone }: { onDone: (d: { id: string; proveedor: string; no
       try {
         const r = await fetch(`/api/precios/importar/activa?proveedor=${encodeURIComponent(p)}`);
         const j = await r.json();
-        setActiva(j?.ok && j?.data ? j.data : null);
+        setActiva(j?.ok && j?.activa ? j.activa : null);
       } finally { setCheckingActiva(false); }
     }, 400);
     return () => clearTimeout(t);
