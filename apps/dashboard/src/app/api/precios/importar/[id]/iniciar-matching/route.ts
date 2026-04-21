@@ -38,5 +38,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         return NextResponse.json({ ok: false, error: updateErr.message }, { status: 500 });
     }
 
+    // Bypass pg_net: Disparar la Edge Function de manera explícita (Push-First)
+    // Se ejecuta de manera asíncrona para no bloquear el Next.js Response.
+    supabaseAdmin.functions.invoke('procesar-importacion', {
+        body: { importacion_id: id }
+    }).catch(err => console.error("Aviso: Error en invocación asíncrona a procesar-importacion:", err));
+
     return NextResponse.json({ ok: true, estado: 'mapeando' }, { status: 202 });
 }

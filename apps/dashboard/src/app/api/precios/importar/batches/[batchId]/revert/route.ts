@@ -7,9 +7,10 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function DELETE(req: Request, { params }: { params: { batchId: string } }) {
+export async function DELETE(req: Request, props: { params: Promise<{ batchId: string }> }) {
   try {
-    const headerList = headers();
+    const { batchId } = await props.params;
+    const headerList = await headers();
     const token = headerList.get('authorization')?.split('Bearer ')[1];
 
     if (!token) {
@@ -28,7 +29,7 @@ export async function DELETE(req: Request, { params }: { params: { batchId: stri
     const { data: movimientos, error: movErr } = await supabaseAdmin
         .from('precios_historial_proveedor')
         .select('*')
-        .eq('batch_id', params.batchId);
+        .eq('batch_id', batchId);
         
     if (movErr) {
         return NextResponse.json({ ok: false, error: movErr.message }, { status: 500 });
@@ -36,7 +37,7 @@ export async function DELETE(req: Request, { params }: { params: { batchId: stri
     
     if (!movimientos || movimientos.length === 0) {
         // Nada que revertir, borramos el batch de todos modos si estuviera huérfano
-        await supabaseAdmin.from('precio_import_batches').delete().eq('id', params.batchId);
+        await supabaseAdmin.from('precio_import_batches').delete().eq('id', batchId);
         return NextResponse.json({ ok: true, message: 'Batch eliminado, no tenía histótico' });
     }
     
@@ -74,11 +75,11 @@ export async function DELETE(req: Request, { params }: { params: { batchId: stri
     const { data: batch } = await supabaseAdmin
       .from('precio_import_batches')
       .select('importacion_excel_id')
-      .eq('id', params.batchId)
+      .eq('id', batchId)
       .single();
     
     // Borrar el batch cascadea y borra de historial
-    const { error: delErr } = await supabaseAdmin.from('precio_import_batches').delete().eq('id', params.batchId);
+    const { error: delErr } = await supabaseAdmin.from('precio_import_batches').delete().eq('id', batchId);
     if(delErr) {
        console.error("No se pudo borrar el batch_id después de revertir", delErr);
     } else if (batch?.importacion_excel_id) {
@@ -92,7 +93,7 @@ export async function DELETE(req: Request, { params }: { params: { batchId: stri
       }
     }
     
-    console.log(JSON.stringify({ event: 'batch_reverted', batchId: params.batchId, user: user.id, revertidos }));
+    console.log(JSON.stringify({ event: 'batch_reverted', batchId: batchId, user: user.id, revertidos }));
     
     return NextResponse.json({ ok: true, revertidos, errores });
   } catch (error: any) {

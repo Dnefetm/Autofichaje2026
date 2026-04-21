@@ -106,7 +106,7 @@ export default async function DetalleProveedorPage(props: { params: Promise<{ pr
                                     </td>
                                     <td className="px-4 py-2 whitespace-nowrap">
                                         <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                                            {row.huerfano && <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" title="Sin match en catálogo maestro — resolver antes de operar" />}
+                                            {row.huerfano && <span title="Sin match en catálogo maestro — resolver antes de operar"><AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" /></span>}
                                             {row.marca}
                                         </div>
                                         <div className="text-slate-500 text-xs ml-[22px]">{row.modelo}</div>

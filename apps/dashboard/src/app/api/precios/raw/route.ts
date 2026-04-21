@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
     try {
-        const headerList = headers();
+        const headerList = await headers();
         const token = headerList.get('authorization')?.split('Bearer ')[1];
         if (!token) {
             return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 });

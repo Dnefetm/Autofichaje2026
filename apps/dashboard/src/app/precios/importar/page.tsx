@@ -784,7 +784,7 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
     }
 
     // Dudas pendientes
-    const dudasPendientes = grupos.some(g => clasificarEstado(g.catalogo_sugerido?.puntaje_match ?? null) === 'duda' && selecciones[g.clave] === null);
+    const dudasPendientes = grupos.some(g => clasificarEstado(g.catalogo_sugerido?.puntaje_match ?? null) === 'match_similitud' && selecciones[g.clave] === null);
     if (dudasPendientes) {
         if (!confirm('Aún tienes filas ambiguas (Dudas) que marcaste como "Sin asignar". ¿Estás seguro de enviarlas sin registrar?')) return;
     }
