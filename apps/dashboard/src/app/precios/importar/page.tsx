@@ -166,6 +166,7 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
         <label htmlFor="proveedor-input" className="block text-xs font-bold text-slate-600 mb-1">Proveedor <span className="text-rose-500">*</span></label>
         <input id="proveedor-input" type="text" value={proveedor}
           onChange={(e) => { setProveedor(e.target.value); setError(null); }}
+                          readOnly={!!proveedorInicial}
           placeholder="Ej: Samsung, LG, Urrea..."
           className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
       </div>
