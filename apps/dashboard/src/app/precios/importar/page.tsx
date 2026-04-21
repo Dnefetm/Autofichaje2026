@@ -16,7 +16,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Upload, ChevronRight, FileSpreadsheet, CheckCircle,
   AlertCircle, Loader2, Search, Package, Check, ArrowLeft,
-  Plus, Trash2, X, Shuffle, MoreHorizontal, MousePointerClick, CheckSquare, Zap, Target
+  Plus, Trash2, X, Shuffle, MoreHorizontal, MousePointerClick, CheckSquare, Zap, Target,
+  CheckCircle2, Save
 } from 'lucide-react';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { TablaComparacion } from './TablaComparacion';
@@ -239,6 +240,8 @@ function PasoMapear({ importacionId, onDone, onBack }: {
   const [columnasAGuardar, setColumnasAGuardar] = useState<string[]>([]);
   const [precios, setPrecios] = useState<PrecioMapeo[]>([{ columna: '', tipo_costo: 'distribuidor' }]);
   const [loadingMapear, setLoadingMapear] = useState(false);
+  const [isMapeoGuardado, setIsMapeoGuardado] = useState(false);
+  const [loadingMatching, setLoadingMatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const didFetch = useRef(false);
 
@@ -264,10 +267,14 @@ function PasoMapear({ importacionId, onDone, onBack }: {
           } else if (m.columna_precio && m.tipo_costo) {
             setPrecios([{ columna: m.columna_precio, tipo_costo: m.tipo_costo, incluye_iva: false }]);
           }
+          if (Array.isArray(m.columnas_a_guardar) && m.columnas_a_guardar.length > 0) {
+            setColumnasAGuardar(m.columnas_a_guardar);
+          } else {
+            setColumnasAGuardar(d.headers || []);
+          }
+        } else {
+          setColumnasAGuardar(d.headers || []);
         }
-        
-        // Inicializar columnas a guardar con todos los headers por defecto
-        setColumnasAGuardar(d.headers || []);
       })
       .catch((e) => {
          if (e.message?.includes('Esta importación ya no está activa') || e.message?.includes('no encontrada') || e.message?.includes('no existe')) {
@@ -303,13 +310,23 @@ function PasoMapear({ importacionId, onDone, onBack }: {
           columna_descripcion: columnaDescripcion || undefined,
           columna_moneda: columnaMoneda || undefined,
           moneda_default: monedaDefault,
-          columnasAGuardar,
+          columnas_a_guardar: columnasAGuardar,
         }),
       });
       const d = await res.json();
       if (!d.ok) throw new Error(d.error);
-      router.push(`/precios/importaciones/${importacionId}`);
+      setIsMapeoGuardado(true);
     } catch (e: any) { setError(e.message); } finally { setLoadingMapear(false); }
+  }
+
+  async function handleIniciarMatching() {
+    setLoadingMatching(true); setError(null);
+    try {
+      const res = await fetch(`/api/precios/importar/${importacionId}/iniciar-matching`, { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok || !d.ok) throw new Error(d.error ?? 'Error iniciando matching');
+      router.push(`/precios/importaciones/${importacionId}`);
+    } catch (e: any) { setError(e.message); setLoadingMatching(false); }
   }
 
   if (loadingPreview) return (
@@ -323,6 +340,29 @@ function PasoMapear({ importacionId, onDone, onBack }: {
       <button onClick={onBack} className="text-indigo-600 hover:underline">Volver</button>
     </div>
   );
+
+  if (isMapeoGuardado) {
+    return (
+      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-8 text-center space-y-6">
+        <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />
+        <div>
+          <h3 className="font-bold text-xl text-slate-800">Configuración guardada</h3>
+          <p className="text-slate-600 mt-2">
+            Hemos guardado exitosamente tus mapeos de columnas y configuración de precios.<br/>
+            ¿Deseas iniciar el procesamiento de la lista y buscar coincidencias contra el catálogo?
+          </p>
+        </div>
+        {error && <div className="text-rose-600 text-sm font-semibold">{error}</div>}
+        <div className="flex gap-4 justify-center">
+          <button onClick={() => setIsMapeoGuardado(false)} disabled={loadingMatching} className="px-6 py-3 border border-slate-300 text-slate-600 font-bold rounded-xl hover:bg-white transition-colors">Modificar mapeo</button>
+          <button onClick={handleIniciarMatching} disabled={loadingMatching} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2">
+            {loadingMatching ? <Loader2 className="w-5 h-5 animate-spin"/> : <Search className="w-5 h-5"/>}
+            {loadingMatching ? 'Iniciando...' : 'Iniciar Matching Automático'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const headers = preview.headers;
 
@@ -524,8 +564,8 @@ function PasoMapear({ importacionId, onDone, onBack }: {
         </button>
         <button onClick={handleMapear} disabled={loadingMapear || !columnaModelo || !columnaMarca || precios.every((p) => !p.columna)}
           className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-sm text-sm">
-          {loadingMapear ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-          {loadingMapear ? 'Ejecutando matching...' : 'Ejecutar Matching'}
+          {loadingMapear ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {loadingMapear ? 'Guardando...' : 'Guardar Configuración'}
           {!loadingMapear && <ChevronRight className="w-4 h-4" />}
         </button>
       </div>

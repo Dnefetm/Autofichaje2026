@@ -23,6 +23,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         columna_descripcion,
         columna_moneda,
         moneda_default = 'MXN',
+        columnas_a_guardar = [],
     } = body ?? {};
 
     // ── Validaciones
@@ -67,9 +68,10 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 ...(columna_descripcion && { columna_descripcion }),
                 ...(columna_moneda && { columna_moneda }),
                 moneda_default,
+                columnas_a_guardar,
             },
             tipo_costo_default: tiposCosto,
-            estado: 'mapeando',
+            estado: 'pendiente_mapeo',
             ultima_actividad: new Date().toISOString(),
             error_mensaje: null,
             filas_procesadas: 0,
@@ -83,6 +85,6 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     return NextResponse.json({
         ok: true,
         importacion_id: id,
-        estado: 'mapeando'
-    }, { status: 202 });
+        estado: 'pendiente_mapeo'
+    }, { status: 200 });
 }
