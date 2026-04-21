@@ -14,7 +14,7 @@ return NextResponse.json({ ok: false, error: 'proveedor o id requerido' }, { sta
 }
 let q = supabaseAdmin
 .from('importaciones_excel')
-.update({ estado: 'cancelado', actualizado_el: new Date().toISOString() })
+.update({ estado: 'cancelado',  })
 .in('estado', ACTIVOS as unknown as string[])
 .select('id, proveedor, estado');
 if (id) q = q.eq('id', id);
