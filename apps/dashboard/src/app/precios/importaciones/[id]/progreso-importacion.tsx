@@ -98,7 +98,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
                  s.estado === 'completado' ? "bg-emerald-500" :
                  "bg-indigo-600"
                )}
-               style={{ width: \`\${pct}%\` }}
+               style={{ width: `${pct}%` }}
              />
           </div>
           
@@ -110,7 +110,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
         <div className="flex justify-center pt-2">
            {s.estado === 'completado' && (
              <button 
-               onClick={() => router.push(\`/precios/importar?id=\${id}&step=3\`)}
+               onClick={() => router.push(`/precios/importar?id=${id}&step=3`)}
                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow shadow-emerald-600/20"
              >
                Finalizar
