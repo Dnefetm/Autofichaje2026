@@ -11,8 +11,8 @@
  *   - Moneda por columna o default
  * Paso 3: Revisar matches con score y confirmar/descartar
  */
-import { useState, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useCallback, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Upload, ChevronRight, FileSpreadsheet, CheckCircle,
   AlertCircle, Loader2, Search, Package, Check, ArrowLeft,
@@ -21,6 +21,7 @@ import {
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { TablaComparacion } from './TablaComparacion';
 import { Costo, Stats, GrupoCostoFila, EstadoMatch, Candidato, clasificarEstado } from './types';
+import { BannerImportacionActiva } from './BannerImportacionActiva';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface PreviewData {
@@ -80,12 +81,29 @@ function StepIndicator({ step, current }: { step: number; current: number }) {
 
 // ── Paso 1 ──────────────────────────────────────────────────────────────────
 function PasoSubir({ onDone }: { onDone: (d: { id: string; proveedor: string; nombre: string }) => void }) {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [proveedor, setProveedor] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [activa, setActiva] = useState<null | { id: string; estado: string; nombre_archivo: string | null; creado_el: string }>(null);
+  const [checkingActiva, setCheckingActiva] = useState(false);
+
+  useEffect(() => {
+    const p = proveedor.trim();
+    if (!p) { setActiva(null); return; }
+    setCheckingActiva(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/precios/importar/activa?proveedor=${encodeURIComponent(p)}`);
+        const j = await r.json();
+        setActiva(j?.ok && j?.data ? j.data : null);
+      } finally { setCheckingActiva(false); }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [proveedor]);
 
   function handleFile(f: File) {
     const ext = f.name.split('.').pop()?.toLowerCase();
@@ -126,6 +144,13 @@ function PasoSubir({ onDone }: { onDone: (d: { id: string; proveedor: string; no
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ proveedor: proveedor.trim(), fileName: file.name, storagePath: j1.path, bucket: j1.bucket }),
       });
+      if (r3.status === 409) {
+         const j3 = await r3.json().catch(() => null);
+         if (j3?.importacion_activa) setActiva(j3.importacion_activa);
+         setError('Ya existe una importación activa para este proveedor.');
+         setLoading(false);
+         return;
+      }
       const j3 = r3.ok ? await r3.json() : { ok: false, error: await r3.text() };
       if (!j3.ok) throw new Error(j3.error);
 
@@ -165,10 +190,28 @@ function PasoSubir({ onDone }: { onDone: (d: { id: string; proveedor: string; no
         </div>
       </div>
       {error && <div className="flex items-center gap-2 text-rose-600 text-sm bg-rose-50 px-4 py-2 rounded-xl"><AlertCircle className="w-4 h-4" />{error}</div>}
-      <button onClick={submit} disabled={loading} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-sm">
+      
+      {activa && (
+        <BannerImportacionActiva
+          activa={activa}
+          onContinuar={(id) => router.push(`/precios/importar?id=${id}`)}
+          onCancelar={async () => {
+             const r = await fetch('/api/precios/importar/cancelar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: activa.id }),
+             });
+             const j = await r.json();
+             if (!r.ok || !j?.ok) throw new Error(j?.error ?? 'No se pudo cancelar');
+             setActiva(null);
+          }}
+        />
+      )}
+
+      <button onClick={submit} disabled={loading || !!activa || checkingActiva} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-sm">
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-        {loading ? 'Subiendo...' : 'Subir y continuar'}
-        {!loading && <ChevronRight className="w-4 h-4" />}
+        {loading ? 'Subiendo...' : activa ? 'Hay una importación en curso' : 'Subir y continuar'}
+        {!loading && !activa && <ChevronRight className="w-4 h-4" />}
       </button>
     </div>
   );
@@ -886,9 +929,12 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
 }
 
 // ── Página principal ──────────────────────────────────────────────────────────
-export default function ImportarPreciosPage() {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [importacionId, setImportacionId] = useState<string | null>(null);
+function ImportarPreciosPageInner() {
+  const sp = useSearchParams();
+  const idParam = sp.get('id');
+
+  const [step, setStep] = useState<1 | 2 | 3>(idParam ? 2 : 1);
+  const [importacionId, setImportacionId] = useState<string | null>(idParam || null);
   const [matchStats, setMatchStats] = useState<{ total: number; con_match: number } | null>(null);
 
   const PASOS = ['Subir Excel', 'Mapear Columnas', 'Revisar Matches'];
@@ -917,7 +963,13 @@ export default function ImportarPreciosPage() {
 
       {step === 1 && <PasoSubir onDone={({ id }) => { setImportacionId(id); setStep(2); }} />}
       {step === 2 && importacionId && (
-        <PasoMapear importacionId={importacionId} onBack={() => setStep(1)}
+        <PasoMapear importacionId={importacionId} onBack={() => {
+           // Si vuelve al paso 1, limpiamos el id param para que se vea la subida desde 0
+           const url = new URL(window.location.href);
+           url.searchParams.delete('id');
+           window.history.replaceState({}, '', url.toString());
+           setStep(1); 
+        }}
           onDone={(s) => { setMatchStats(s); setStep(3); }} />
       )}
       {step === 3 && importacionId && matchStats && (
@@ -925,5 +977,13 @@ export default function ImportarPreciosPage() {
           onBack={() => setStep(2)} onFinish={reset} />
       )}
     </div>
+  );
+}
+
+export default function ImportarPreciosPage() {
+  return (
+    <Suspense fallback={<div className="p-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-indigo-600" /></div>}>
+      <ImportarPreciosPageInner />
+    </Suspense>
   );
 }
