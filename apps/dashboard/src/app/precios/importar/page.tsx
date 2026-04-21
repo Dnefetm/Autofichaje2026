@@ -956,9 +956,10 @@ function ImportarPreciosPageInner() {
     if (idParam && idParam !== importacionId) {
       setImportacionId(idParam);
       setStep(2);
-    } else if (!idParam && importacionId && step === 1) {
-      setImportacionId(null);
-    }
+          } else if (!idParam && importacionId) {
+        setImportacionId(null);
+        setStep(1);
+      }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idParam]);
 
