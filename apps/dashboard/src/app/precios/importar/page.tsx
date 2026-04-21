@@ -80,16 +80,14 @@ function StepIndicator({ step, current }: { step: number; current: number }) {
 }
 
 // ── Paso 1 ──────────────────────────────────────────────────────────────────
-function PasoSubir({ onDone }: { onDone: (d: { id: string; proveedor: string; nombre: string }) => void }) {
-  const router = useRouter();
+function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; onDone: (d: { id: string; proveedor: string; nombre: string }) => void }) {  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
-  const [proveedor, setProveedor] = useState('');
+  const [proveedor, setProveedor] = useState(proveedorInicial ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [activa, setActiva] = useState<null | { id: string; estado: string; nombre_archivo: string | null; creado_el: string }>(null);
-  const [checkingActiva, setCheckingActiva] = useState(false);
+  const [activa, setActiva] = useState<null | { id: string; estado: string; nombre_archivo: string | null; creado_el: string }>(null);  const [checkingActiva, setCheckingActiva] = useState(false);
 
   useEffect(() => {
     const p = proveedor.trim();
@@ -946,6 +944,7 @@ function ImportarPreciosPageInner() {
   const router = useRouter();
   const sp = useSearchParams();
   const idParam = sp.get('id');
+    const proveedorParam = sp.get('proveedor');
 
   const [step, setStep] = useState<1 | 2 | 3>(idParam ? 2 : 1);
   const [importacionId, setImportacionId] = useState<string | null>(idParam || null);
@@ -987,8 +986,7 @@ function ImportarPreciosPageInner() {
         ))}
       </div>
 
-      {step === 1 && <PasoSubir onDone={({ id }) => { setImportacionId(id); setStep(2); }} />}
-      {step === 2 && importacionId && (
+        {step === 1 && <PasoSubir proveedorInicial={proveedorParam ?? undefined} onDone={({ id }) => { setImportacionId(id); setStep(2); }} />}      {step === 2 && importacionId && (
         <PasoMapear importacionId={importacionId} onBack={() => {
            // Si vuelve al paso 1, limpiamos el id param para que se vea la subida desde 0
            const url = new URL(window.location.href);
