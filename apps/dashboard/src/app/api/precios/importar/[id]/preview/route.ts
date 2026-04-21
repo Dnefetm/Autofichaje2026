@@ -111,5 +111,6 @@ export async function GET(
     total_rows: totalRows,
     mapeo_previo: mapeoPrevio,
     tipo_costo_previo: tipoCostoPrevio,
+    estado: importacion.estado,
   });
 }

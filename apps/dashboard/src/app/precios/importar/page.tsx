@@ -204,6 +204,10 @@ function PasoSubir({ onDone }: { onDone: (d: { id: string; proveedor: string; no
              const j = await r.json();
              if (!r.ok || !j?.ok) throw new Error(j?.error ?? 'No se pudo cancelar');
              setActiva(null);
+             const sp = new URLSearchParams(window.location.search);
+             if (sp.has('id')) {
+                router.replace('/precios/importar');
+             }
           }}
         />
       )}
@@ -245,6 +249,9 @@ function PasoMapear({ importacionId, onDone, onBack }: {
       .then((r) => r.json())
       .then((d) => {
         if (!d.ok) throw new Error(d.error);
+        if (d.estado === 'completado' || d.estado === 'cancelado') {
+           throw new Error('Esta importación ya no está activa');
+        }
         setPreview(d);
         const m = d.mapeo_previo;
         if (m) {
@@ -263,7 +270,13 @@ function PasoMapear({ importacionId, onDone, onBack }: {
         // Inicializar columnas a guardar con todos los headers por defecto
         setColumnasAGuardar(d.headers || []);
       })
-      .catch((e) => setErrorPreview(e.message))
+      .catch((e) => {
+         if (e.message?.includes('Esta importación ya no está activa') || e.message?.includes('no encontrada') || e.message?.includes('no existe')) {
+             router.replace('/precios/importar');
+         } else {
+             setErrorPreview(e.message);
+         }
+      })
       .finally(() => setLoadingPreview(false));
   }
 
@@ -930,12 +943,24 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
 
 // ── Página principal ──────────────────────────────────────────────────────────
 function ImportarPreciosPageInner() {
+  const router = useRouter();
   const sp = useSearchParams();
   const idParam = sp.get('id');
 
   const [step, setStep] = useState<1 | 2 | 3>(idParam ? 2 : 1);
   const [importacionId, setImportacionId] = useState<string | null>(idParam || null);
   const [matchStats, setMatchStats] = useState<{ total: number; con_match: number } | null>(null);
+
+  // Sincronizar cuando cambia el query param (click en banner sin recargar)
+  useEffect(() => {
+    if (idParam && idParam !== importacionId) {
+      setImportacionId(idParam);
+      setStep(2);
+    } else if (!idParam && importacionId && step === 1) {
+      setImportacionId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idParam]);
 
   const PASOS = ['Subir Excel', 'Mapear Columnas', 'Revisar Matches'];
 
