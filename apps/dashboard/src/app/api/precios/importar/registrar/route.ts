@@ -1,18 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { ImportacionEstado } from '@/lib/types/importacion';
+
 export const dynamic = 'force-dynamic';
+
+const ACTIVOS = ['pendiente_mapeo', 'mapeando', 'procesando'] as const;
 
 export async function POST(req: NextRequest) {
   const { proveedor, fileName, storagePath, bucket = 'excel-precios' } = await req.json();
+
   if (!proveedor || !fileName || !storagePath) {
     return NextResponse.json({ ok: false, error: 'proveedor, fileName y storagePath requeridos' }, { status: 400 });
+  }
+
+  // Lock: rechazar si ya hay una importacion activa para el proveedor
+  const { data: activa } = await supabaseAdmin
+    .from('importaciones_excel')
+    .select('id, estado, nombre_archivo, creado_el')
+    .eq('proveedor', proveedor)
+    .in('estado', ACTIVOS as unknown as string[])
+    .order('creado_el', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (activa) {
+    // Limpiar archivo recien subido para no dejar basura en Storage
+    await supabaseAdmin.storage.from(bucket).remove([storagePath]);
+    return NextResponse.json(
+      { ok: false, error: 'Ya existe una importacion activa para este proveedor', importacion_activa: activa },
+      { status: 409 }
+    );
   }
 
   // Verificar que el archivo existe en Storage (anti-fantasma)
   const { data: head, error: headErr } = await supabaseAdmin.storage
     .from(bucket)
     .list(storagePath.split('/').slice(0, -1).join('/'), { search: storagePath.split('/').pop() });
+
   if (headErr || !head?.length) {
     return NextResponse.json({ ok: false, error: 'Archivo no encontrado en Storage' }, { status: 404 });
   }
@@ -41,9 +65,14 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error || !imp) {
-    // Limpieza: borrar el archivo recién subido si el insert falló
+    // Limpieza: borrar el archivo recien subido si el insert fallo
     await supabaseAdmin.storage.from(bucket).remove([storagePath]);
-    return NextResponse.json({ ok: false, error: error?.message ?? 'No se pudo registrar' }, { status: 500 });
+    // 23505 = unique_violation (indice parcial de importacion activa)
+    const isDup = (error as { code?: string } | null)?.code === '23505';
+    return NextResponse.json(
+      { ok: false, error: error?.message ?? 'No se pudo registrar' },
+      { status: isDup ? 409 : 500 }
+    );
   }
 
   return NextResponse.json({
