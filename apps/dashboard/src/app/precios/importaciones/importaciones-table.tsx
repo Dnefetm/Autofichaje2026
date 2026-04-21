@@ -113,6 +113,11 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
                 </td>
                 <td className="px-6 py-4">
                   <BadgeEstado estado={row.estado} />
+                  {row.estado === 'error' && row.error_mensaje && (
+                    <div className="mt-1.5 text-xs text-rose-600 font-medium bg-rose-50 p-1.5 rounded">
+                      {row.error_mensaje}
+                    </div>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   <div className="space-y-1.5">

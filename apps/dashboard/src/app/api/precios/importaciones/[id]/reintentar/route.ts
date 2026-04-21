@@ -9,11 +9,8 @@ export async function POST(_: Request, ctx: { params: Promise<{ id: string }> })
     
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   
-  fetch(`${process.env.SUPABASE_URL}/functions/v1/procesar-importacion`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ importacion_id: id }),
-  }).catch(() => {});
-  
+  const runRes = await supabaseAdmin.functions.invoke('procesar-importacion', {
+    body: { importacion_id: id }
+  });
   return NextResponse.json({ ok: true });
 }
