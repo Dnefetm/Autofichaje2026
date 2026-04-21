@@ -3,8 +3,16 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const { data, error } = await supabaseAdmin.rpc('fn_cancelar_importacion', { p_id: id });
+  
+  const { error } = await supabaseAdmin
+    .from('importaciones_excel')
+    .update({ 
+        estado: 'cancelado',
+        error_mensaje: 'Cancelado manualmente por el usuario',
+        ultima_actividad: new Date().toISOString()
+    })
+    .eq('id', id);
   
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  return NextResponse.json({ ok: true });
 }

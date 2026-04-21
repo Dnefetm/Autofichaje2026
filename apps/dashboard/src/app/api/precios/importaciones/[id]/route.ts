@@ -5,14 +5,21 @@ export const dynamic = 'force-dynamic';
 
 export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const { data, error } = await supabaseAdmin.rpc('fn_eliminar_importacion', { p_id: id });
   
+  // Buscar config de storage antes de borrar
+  const { data: imp } = await supabaseAdmin
+    .from('importaciones_excel')
+    .select('mapeo_columnas')
+    .eq('id', id)
+    .single();
+
+  const { error } = await supabaseAdmin.from('importaciones_excel').delete().eq('id', id);
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  if (!data?.ok) return NextResponse.json({ ok: false, error: data?.error ?? 'No encontrada' }, { status: 404 });
   
-  if (data.storage_path) {
-    await supabaseAdmin.storage.from(data.storage_bucket ?? 'excel-precios').remove([data.storage_path]);
+  const m = imp?.mapeo_columnas as any;
+  if (m?._storage_path) {
+    await supabaseAdmin.storage.from(m._bucket ?? 'excel-precios').remove([m._storage_path]).catch(console.error);
   }
   
-  return NextResponse.json(data);
+  return NextResponse.json({ ok: true });
 }
