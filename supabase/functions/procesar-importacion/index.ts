@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import ExcelJS from 'npm:exceljs@4.4.0';
+import * as XLSX from 'npm:xlsx@0.18.5';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -17,29 +17,39 @@ async function logEvento(importacionId: string, estadoPaso: string, mensaje: str
 }
 
 async function procesarImportacion(importacionId: string) {
-  await logEvento(importacionId, 'INICIO', 'Iniciando descarga y procesamiento de Excel.');
+  await logEvento(importacionId, 'INICIO', 'Iniciando descarga y procesamiento de Excel plano.');
 
   const { data: imp } = await sb.from('importaciones_excel').select('*').eq('id', importacionId).single();
   if (!imp) throw new Error('Importacion no encontrada');
 
-  const m = imp.mapeo_columnas;
-  const path = m._storage_path;
+  const m = imp.mapeo_columnas || {};
+  const path = m._storage_path || imp.archivo_path; // Fallback to schema if _storage_path missing
   const bucket = m._bucket ?? 'excel-precios';
   const proveedor = imp.proveedor;
+
+  if (!path) {
+      throw new Error('No se encontró el path del archivo en la configuración');
+  }
 
   const { data: file } = await sb.storage.from(bucket).download(path);
   if (!file) {
      throw new Error('No se pudo descargar Excel asociado a la importación');
   }
 
-  await logEvento(importacionId, 'DESCARGADO', 'Excel descargado exitosamente. Iniciando parseo.');
+  await logEvento(importacionId, 'DESCARGADO', 'Excel local descargado. Iniciando parseo ultra-ligero (SheetJS).');
 
   const buf = new Uint8Array(await file.arrayBuffer());
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buf);
-  const sheet = wb.worksheets[0];
+  const wb = XLSX.read(buf, { type: 'buffer', cellFormula: false, cellHTML: false, cellStyle: false });
+  const sheetName = wb.SheetNames[0];
+  const sheet = wb.Sheets[sheetName];
+  
+  if (!sheet) throw new Error('No se encontro hoja 1 en el Excel');
 
-  const headers: string[] = [];
+  const allRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  
+  if (allRows.length === 0) throw new Error('El excel parece estar vacio');
+
+  const headers: string[] = allRows[0]?.map(String) ?? [];
   let chunk: any[] = [];
   let totalProcesadas = 0;
 
@@ -58,28 +68,25 @@ async function procesarImportacion(importacionId: string) {
     chunk = [];
   }
 
-  // Obtenemos las columnas a guardar (Raw mode) que se configuran en el wizard
-  const rawCols = m.columnas_a_guardar ?? m.columnasAGuardar ?? [];
+  // Obtenemos las columnas a guardar (Raw mode) que se configuraron la ULTIMA VEZ para el proveedor
+  // O bien las que vienen en este chunk crudo. (Dado que el user no formatea esto si desacoplamos, usamos TODO el headers provisionalmente)
+  let rawCols = m.columnas_a_guardar ?? m.columnasAGuardar ?? [];
+  
+  let usaTodas = false;
+  if (!rawCols || rawCols.length === 0) {
+      usaTodas = true;
+  }
   const colGuardarSet = new Set(Array.isArray(rawCols) ? rawCols : []);
   
-  sheet.eachRow((row, i) => {
-    const vals = (row.values as any[]).slice(1).map((v: any) => v?.result ?? v?.text ?? v ?? '');
-    
-    if (i === 1) { 
-       headers.push(...vals.map(String)); 
-       return; 
-    }
-    
-    // Validar si pasa algun criterio basico
-    const byHeader: Record<string, string> = {};
-    headers.forEach((h, idx) => byHeader[h] = String(vals[idx] ?? '').trim());
+  for (let i = 1; i < allRows.length; i++) {
+    const vals = allRows[i].map((v: any) => String(v ?? '').trim());
     
     // Payload as jsonb
     const payload: Record<string, string> = {};
     const colsUsadas: string[] = [];
     headers.forEach((h, idx) => {
-       if (colGuardarSet.has(h)) {
-          payload[h] = byHeader[h];
+       if (usaTodas || colGuardarSet.has(h)) {
+          payload[h] = vals[idx];
           colsUsadas.push(h);
        }
     });
@@ -92,22 +99,26 @@ async function procesarImportacion(importacionId: string) {
        columnas_guardadas: colsUsadas
     });
     totalProcesadas++;
-  });
+    
+    if (chunk.length >= CHUNK_SIZE) {
+        await flushChunk();
+    }
+  }
 
   // Ultimo chunk
   await flushChunk();
 
-  await logEvento(importacionId, 'STAGING_COMPLETO', `Llenadas ${totalProcesadas} filas en staging. Consolidando.`);
+  await logEvento(importacionId, 'STAGING_COMPLETO', `Se volcaron ${totalProcesadas} filas planas en cuarentena. Calculando diferencias DB.`);
 
-  // Consolidar atómicamente
-  const { error: rpcErr } = await sb.rpc('fn_consolidar_importacion', {
+  // Consolidar atómicamente la preparación del Diff  -> AQUI ESTÁ LA MAGIA DEL DESACOPLE
+  const { error: rpcErr } = await sb.rpc('fn_preparar_importacion_revision', {
      p_importacion_id: importacionId,
      p_proveedor: proveedor
   });
 
-  if (rpcErr) throw new Error(`Fallo consolidación RPC: ${rpcErr.message}`);
+  if (rpcErr) throw new Error(`Fallo calculo de Diff RPC: ${rpcErr.message}`);
 
-  await logEvento(importacionId, 'COMPLETADO', 'Lista de Precios Vigente establecida. Fin del proceso backend.');
+  await logEvento(importacionId, 'COMPLETADO', 'Diff calculado. Listo para revisión manual.');
 }
 
 serve(async (req: Request) => {
