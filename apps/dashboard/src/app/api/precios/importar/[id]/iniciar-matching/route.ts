@@ -42,6 +42,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     if (runRes.error) {
         console.error("Error from Edge Function:", runRes.error);
+        return NextResponse.json({ ok: false, error: "Edge Function Invoke Failed: " + (runRes.error.message || runRes.error) }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, estado: 'mapeando' }, { status: 202 });
