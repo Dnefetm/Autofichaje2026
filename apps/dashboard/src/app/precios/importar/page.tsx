@@ -254,6 +254,10 @@ function PasoMapear({ importacionId, onDone, onBack }: {
         if (d.estado === 'completado' || d.estado === 'cancelado') {
            throw new Error('Esta importación ya no está activa');
         }
+        if (['mapeando', 'procesando', 'en_revision', 'error'].includes(d.estado)) {
+           router.replace(`/precios/importaciones/${importacionId}`);
+           return;
+        }
         setPreview(d);
         const m = d.mapeo_previo;
         if (m) {

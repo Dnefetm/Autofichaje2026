@@ -59,7 +59,7 @@ async function procesarImportacion(importacionId: string) {
   }
 
   // Obtenemos las columnas a guardar (Raw mode) que se configuran en el wizard
-  const colGuardarSet = new Set(m.columnasAGuardar ?? []);
+  const colGuardarSet = new Set(m.columnas_a_guardar ?? m.columnasAGuardar ?? []);
   
   sheet.eachRow((row, i) => {
     const vals = (row.values as any[]).slice(1).map((v: any) => v?.result ?? v?.text ?? v ?? '');
