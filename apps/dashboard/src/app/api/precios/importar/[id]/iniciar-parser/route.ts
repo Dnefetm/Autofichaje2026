@@ -98,6 +98,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
             if (error) throw new Error(`Fallo final staging: ${error.message}`);
         }
 
+        // SET TOTAL FILAS!
+        await supabaseAdmin.from('importaciones_excel').update({
+             total_filas: totalProcesadas,
+             filas_procesadas: totalProcesadas
+        }).eq('id', id);
+
         const { error: rpcErr } = await supabaseAdmin.rpc('fn_preparar_importacion_revision', {
             p_importacion_id: id,
             p_proveedor: proveedor

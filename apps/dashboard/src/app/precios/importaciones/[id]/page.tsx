@@ -10,7 +10,7 @@ export default async function DetalleImportacionPage(props: { params: Promise<{ 
   const { id } = await props.params;
 
   const { data: imp, error } = await supabaseAdmin
-    .from('v_importaciones_panel')
+    .from('importaciones_excel')
     .select('*')
     .eq('id', id)
     .single();
