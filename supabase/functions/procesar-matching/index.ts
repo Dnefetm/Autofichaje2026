@@ -6,6 +6,7 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const sb = createClient(SUPABASE_URL, SERVICE_KEY);
 
 const CHUNK_SIZE = 500;
+const MAX_EXECUTION_TIME_MS = 45000; // 45 segundos de wall-clock máximo
 
 async function pickNext(): Promise<string | null> {
   const { data, error } = await sb.from('matching_jobs')
@@ -19,104 +20,89 @@ async function pickNext(): Promise<string | null> {
   return data.id;
 }
 
+async function emitEvent(importacion_id: string, estado_paso: string, mensaje: string) {
+  await sb.from('importacion_eventos').insert({
+    importacion_id,
+    estado_paso,
+    mensaje
+  });
+}
+
 async function procesarMatching(jobId: string) {
+  const startTime = performance.now();
+  
   const { data: job, error: jobErr } = await sb.from('matching_jobs').select('*').eq('id', jobId).single();
   if (!job) throw new Error('Job no encontrado');
 
   const { data: imp } = await sb.from('importaciones_excel').select('*').eq('id', job.importacion_id).single();
   if (!imp) throw new Error('Importación no encontrada');
   
-  const m = imp.mapeo_columnas;
-
-  // Actualizamos métricas totales
   await sb.from('matching_jobs').update({ total: imp.total_filas }).eq('id', jobId);
 
-  let procesadas = 0;
-  let offset = 0;
+  let procesadas = job.progreso || 0;
+  let offset = procesadas;
   let hasMore = true;
 
+  await emitEvent(job.importacion_id, 'MATCHING_INICIADO', `Iniciando motor de matching desde fila ${offset}...`);
+
   while(hasMore) {
-     const { data: rawRows, error: rawErr } = await sb.from('listas_precios_raw')
-       .select('*')
-       .eq('importacion_id', job.importacion_id)
-       .range(offset, offset + CHUNK_SIZE - 1);
-       
-     if (rawErr) throw new Error(`Fallo extrayendo raw rows: ${rawErr.message}`);
-     if (!rawRows || rawRows.length === 0) {
-        hasMore = false;
-        break;
+     // 1. Defensa contra timeout: Si superamos el límite de tiempo, pausamos y nos re-encolamos
+     if (performance.now() - startTime > MAX_EXECUTION_TIME_MS) {
+        await sb.from('matching_jobs').update({ 
+            estado: 'pendiente', 
+            progreso: offset 
+        }).eq('id', jobId);
+        
+        await emitEvent(job.importacion_id, 'MATCHING_PAUSADO', `Pausando para evadir timeout. Progreso guardado: ${offset}/${imp.total_filas}`);
+        
+        // Auto re-invocación asíncrona (fire and forget)
+        sb.functions.invoke('procesar-matching').catch(console.error);
+        
+        return false; // Indica que no ha terminado, pero salió para no morir.
      }
 
-     const matchesArray = await Promise.all(rawRows.map(f => {
-         const pLoad = f.payload;
-         const modelo = pLoad[m.columna_modelo] ?? null;
-         const marca = pLoad[m.columna_marca] ?? null;
-         const codigo = m.columna_codigo ? pLoad[m.columna_codigo] : null;
-         return sb.rpc('fn_match_articulo_proveedor', { p_modelo: modelo, p_marca: marca, p_codigo: codigo })
-           .then(r => r.data ?? []);
-     }));
-
-     // Guardar resultados en matching_resultados (o por ahora dejarlos listos)
-     // Nota: Como la logica final pide guardar en matching_resultados, haré un dummy de ejemplo
-     // Asumire que se insertaran a costos_articulo como hiciste originalmente, pero sin activar.
-     
-     // Para ser conservador, copiaré tu código original de insercion a costos_articulo (estado_match: sin_match/etc)
-     const inserts: any[] = [];
-     rawRows.forEach((f, idx) => {
-         const candArray = matchesArray[idx];
-         const mt = candArray[0] ?? null;
-         const nivel = mt?.nivel_match ?? 'nuevo';
-         let estadoMatch = 'sin_match';
-         
-         if (nivel === 'actualizado_fuerte' || nivel === 'match_exacto') estadoMatch = 'match_exacto';
-         else if (['cambio_codigo_sugerido', 'ambiguo', 'match_similitud'].includes(nivel)) estadoMatch = 'match_similitud';
-
-         const pLoad = f.payload;
-         const modelo = pLoad[m.columna_modelo] ?? '';
-         const marca = pLoad[m.columna_marca] ?? '';
-         const codigo = m.columna_codigo ? pLoad[m.columna_codigo] : '';
-         const desc = m.columna_descripcion ? pLoad[m.columna_descripcion] : '';
-         const moneda = m.columna_moneda ? (pLoad[m.columna_moneda] || m.moneda_default || 'MXN') : (m.moneda_default || 'MXN');
-
-         for (const p of m.precios) {
-            const rawV = (pLoad[p.columna] ?? '').replace(/[^0-9.]/g, '');
-            const n = parseFloat(rawV);
-            if (isNaN(n) || n <= 0) continue;
-            
-            inserts.push({
-               importacion_id: job.importacion_id,
-               articulo_id: null,
-               articulo_sugerido_id: mt?.articulo_id ?? null,
-               modelo_excel: modelo, 
-               marca_excel: marca,
-               codigo_universal_excel: codigo, 
-               descripcion_excel: desc, 
-               nombre_excel: desc,
-               tipo_costo: p.tipo_costo, 
-               valor: n, 
-               moneda: moneda,
-               fuente: 'excel',
-               puntaje_match: mt?.puntaje_match ?? null,
-               estado_match: estadoMatch, 
-               vigente: false,
-               candidatos_jsonb: candArray.length > 0 ? candArray : [],
-               incluye_iva: p.incluye_iva ?? false,
-            });
-         }
+     // 2. Invocar el RPC Set-Based con LATERAL JOIN
+     const { data: rowsProcessed, error: rpcErr } = await sb.rpc('fn_match_precios_chunk', {
+         p_importacion_id: job.importacion_id,
+         p_offset: offset,
+         p_limit: CHUNK_SIZE
      });
 
-     if (inserts.length > 0) {
-        const { error } = await sb.from('costos_articulo').insert(inserts);
-        if (error) throw new Error(`Fallo en bloque ${offset}: ${error.message}`);
+     if (rpcErr) {
+        throw new Error(`Fallo en RPC bloque ${offset}: ${rpcErr.message}`);
      }
 
-     procesadas += rawRows.length;
-     offset += rawRows.length;
+     // 3. Emitir evento para el Polling del Frontend
+     await emitEvent(job.importacion_id, 'MATCHING_PROGRESO', `Evaluando bloque. Progreso total: ${offset + CHUNK_SIZE} filas...`);
 
-     await sb.from('matching_jobs').update({ progreso: procesadas }).eq('id', jobId);
+     // 4. Si el RPC se ejecutó bien, continuamos sumando offset. 
+     // El offset se maneja por paginación del origen (listas_precios_raw)
+     offset += CHUNK_SIZE;
+     procesadas += (rowsProcessed || 0); // rowsProcessed son los costos insertados, no avance crudo
+     
+     await sb.from('matching_jobs').update({ progreso: offset }).eq('id', jobId);
+     
+     if (offset >= imp.total_filas) {
+        hasMore = false;
+     }
   }
 
-  await sb.from('matching_jobs').update({ estado: 'completado', finalizado_el: new Date().toISOString() }).eq('id', jobId);
+  // Cierre exitoso de toda la importación
+  await sb.from('matching_jobs').update({ 
+      estado: 'completado', 
+      progreso: offset,
+      finalizado_el: new Date().toISOString() 
+  }).eq('id', jobId);
+
+  await emitEvent(job.importacion_id, 'MATCHING_COMPLETO', `Matching completado. Filas evaluadas con éxito.`);
+  
+  // Liberar el estado de importación general para el UI
+  await sb.from('importaciones_excel').update({ 
+      estado: 'matching_completo',
+      ultima_actividad: new Date().toISOString()
+  }).eq('id', job.importacion_id);
+
+  return true; // Terminó completo
 }
 
 serve(async (req: Request) => {
@@ -128,7 +114,9 @@ serve(async (req: Request) => {
       if (!id) break;
       
       try { 
-        await procesarMatching(id); 
+        const finished = await procesarMatching(id); 
+        // Si no terminó (se pausó por timeout), salimos del loop para no quemar el tiempo del handler
+        if (!finished) break;
       }
       catch (e: any) {
         await sb.from('matching_jobs').update({
@@ -136,6 +124,13 @@ serve(async (req: Request) => {
           error: String(e?.message ?? e),
           finalizado_el: new Date().toISOString()
         }).eq('id', id);
+
+        // Intentar emitir el error para el frontend
+        const { data: job } = await sb.from('matching_jobs').select('importacion_id').eq('id', id).single();
+        if (job) {
+            await emitEvent(job.importacion_id, 'ERROR_MATCHING', String(e?.message ?? e));
+            await sb.from('importaciones_excel').update({ estado: 'error', error_mensaje: String(e?.message ?? e) }).eq('id', job.importacion_id);
+        }
       }
     }
     return new Response(JSON.stringify({ ok: true }), { headers: {'Content-Type': 'application/json'} });

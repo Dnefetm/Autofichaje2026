@@ -114,7 +114,11 @@ BEGIN
             r.payload->>(v_mapeo->>'columna_descripcion'),
             r.payload->>(v_mapeo->>'columna_descripcion'),
             v_precio->>'tipo_costo',
-            CAST(NULLIF(regexp_replace(r.payload->>(v_precio->>'columna'), '[^0-9.]', '', 'g'), '') AS numeric),
+            CASE 
+                WHEN r.payload->>(v_precio->>'columna') ~ '[0-9]' 
+                THEN CAST(NULLIF(regexp_replace(r.payload->>(v_precio->>'columna'), '[^0-9.-]', '', 'g'), '') AS numeric)
+                ELSE NULL
+            END,
             COALESCE(r.payload->>(v_mapeo->>'columna_moneda'), v_mapeo->>'moneda_default', 'MXN'),
             'excel',
             COALESCE(hist.estado_match, 'sin_match'),

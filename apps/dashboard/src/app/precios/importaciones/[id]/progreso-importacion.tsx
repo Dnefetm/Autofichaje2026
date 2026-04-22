@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 
 export function ProgresoImportacion({ id, initial }: { id: string, initial: any }) {
+  const [isConsolidating, setIsConsolidating] = useState(false);
   const router = useRouter();
   const [s, setS] = useState(initial);
   const [eventos, setEventos] = useState<any[]>([]);
@@ -17,7 +18,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
 
   useEffect(() => {
     // Carga inicial de eventos
-    supabase.from('importacion_eventos').select('*').eq('importacion_id', id).order('creado_el', { ascending: false }).limit(20)
+    supabase.from('importacion_eventos').select('*').eq('importacion_id', id).order('created_at', { ascending: false }).limit(20)
       .then(({ data }) => setEventos(data || []));
 
     // Suscripción Realtime a la tabla principal
@@ -125,7 +126,9 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
                    </div>
                 </div>
                 <button 
+                  disabled={isConsolidating}
                   onClick={async () => {
+                     setIsConsolidating(true);
                      try {
                         const res = await fetch(`/api/precios/importaciones/${id}/consolidar-revision`, { method: 'POST' });
                         if (!res.ok) throw new Error((await res.json()).error);
@@ -133,12 +136,14 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
                         setS((p: any) => ({ ...p, estado: 'completado' }));
                      } catch(e: any) {
                         toast.error(e.message || 'Error al consolidar');
+                     } finally {
+                        setIsConsolidating(false);
                      }
                   }}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold transition-all shadow shadow-indigo-600/20"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold transition-all shadow shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Confirmar Efectividad de Cambios
-                  <ArrowRight className="w-4 h-4" />
+                  {isConsolidating ? 'Consolidando precios...' : 'Confirmar Efectividad de Cambios'}
+                  {!isConsolidating && <ArrowRight className="w-4 h-4" />}
                 </button>
              </div>
            )}

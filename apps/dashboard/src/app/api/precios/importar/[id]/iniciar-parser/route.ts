@@ -9,6 +9,15 @@ import { supabaseAdmin } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
+
+async function logEvento(sb: any, importacionId: string, estadoPaso: string, mensaje: string) {
+  await sb.from('importacion_eventos').insert({
+    importacion_id: importacionId,
+    estado_paso: estadoPaso,
+    mensaje
+  });
+}
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
     const { id } = await props.params;
@@ -44,8 +53,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
         if (!path) throw new Error('No se encontró el path del archivo en la configuración');
 
+        await logEvento(supabaseAdmin, id, 'INICIO', 'Iniciando descarga y procesamiento de Excel plano en Next.js Serverless.');
+
         const { data: file } = await supabaseAdmin.storage.from(bucket).download(path);
         if (!file) throw new Error('No se pudo descargar Excel asociado a la importación');
+
+        await logEvento(supabaseAdmin, id, 'DESCARGADO', 'Excel local descargado. Iniciando parseo ligero en memoria.');
+
 
         const buf = new Uint8Array(await file.arrayBuffer());
         const wb = XLSX.read(buf, { type: 'buffer', dense: true, cellFormula: false, cellHTML: false, cellStyle: false, cellText: false });
@@ -61,6 +75,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         const headers: string[] = allRows[0]?.map(String) ?? [];
         let chunk: any[] = [];
         let totalProcesadas = 0;
+
+        // Limpieza Idempotente para prevenir duplicados si reintenta
+        await supabaseAdmin.from('listas_precios_raw_staging').delete().eq('importacion_id', id);
 
         const rawCols = m.columnas_a_guardar ?? m.columnasAGuardar ?? [];
         const usaTodas = !rawCols || rawCols.length === 0;
@@ -101,8 +118,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         // SET TOTAL FILAS!
         await supabaseAdmin.from('importaciones_excel').update({
              total_filas: totalProcesadas,
-             filas_procesadas: totalProcesadas
+             filas_procesadas: totalProcesadas,
+             heartbeat_at: new Date().toISOString()
         }).eq('id', id);
+
+        await logEvento(supabaseAdmin, id, 'STAGING_COMPLETO', `Se volcaron ${totalProcesadas} filas planas en cuarentena. Calculando diferencias DB.`);
 
         const { error: rpcErr } = await supabaseAdmin.rpc('fn_preparar_importacion_revision', {
             p_importacion_id: id,
@@ -110,6 +130,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         });
 
         if (rpcErr) throw new Error(`Fallo calculo de Diff RPC: ${rpcErr.message}`);
+
+        await logEvento(supabaseAdmin, id, 'COMPLETADO', 'Diff calculado. Listo para revisión manual.');
 
     } catch (e: any) {
         console.error("Error Parseando:", e);
