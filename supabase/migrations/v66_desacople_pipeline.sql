@@ -23,14 +23,14 @@ BEGIN
   FROM importaciones_excel WHERE id = p_importacion_id;
   
   -- Si el Excel de ahorita se subió crudo (sin mapeo), robamos el mapeo exitoso anterior de este proveedor
-  IF v_mapeo IS NULL OR v_mapeo->>'modelo' IS NULL THEN
+  IF v_mapeo IS NULL OR v_mapeo->>'columna_modelo' IS NULL THEN
     SELECT mapeo_columnas INTO v_mapeo
     FROM importaciones_excel 
     WHERE proveedor = p_proveedor AND estado = 'completado' 
     ORDER BY creado_el DESC LIMIT 1;
   END IF;
 
-  v_col_modelo := v_mapeo->>'modelo';
+  v_col_modelo := v_mapeo->>'columna_modelo';
   
   -- Buscar cuál es el archivo/lista "vigente" actual para comparar
   SELECT importacion_id INTO v_importacion_vieja
@@ -87,6 +87,7 @@ BEGIN
         'total', v_totales,
         'usa_clave', v_col_modelo
       ),
+      mapeo_columnas = v_mapeo,
       ultima_actividad = now(),
       heartbeat_at = now()
   WHERE id = p_importacion_id;

@@ -154,9 +154,10 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
       if (!j3.ok) throw new Error(j3.error);
 
       // 4) Iniciar digestión de la lista nueva automáticamente (Edge Function plana)
-      const r4 = await fetch(`/api/precios/importar/${j3.importacion_id}/iniciar-matching`, { method: 'POST' });
+      const r4 = await fetch(`/api/precios/importar/${j3.importacion_id}/iniciar-parser`, { method: 'POST' });
       if (!r4.ok) {
-         // Silently ignore or handle softly, watchdog could pick it up or we just let it fail naturally
+         const j4 = await r4.json().catch(() => ({}));
+         throw new Error(j4.error || 'Ocurrió un error al despachar al servidor de procesamiento.');
       }
 
       // 5) Redirigir a Panel de Revisión

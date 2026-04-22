@@ -41,9 +41,9 @@ export async function GET(
 
   // Fix C: si la importacion ya no esta activa, corto-circuitar con un error
   // que el frontend (PasoMapear catch) reconoce para redirigir a /precios/importar.
-  if (importacion.estado === 'completado' || importacion.estado === 'cancelado') {
+  if (importacion.estado === 'cancelado') {
     return NextResponse.json(
-      { ok: false, error: 'Esta importación ya no está activa', estado: importacion.estado },
+      { ok: false, error: 'Esta importación ha sido cancelada', estado: importacion.estado },
       { status: 409 }
     );
   }

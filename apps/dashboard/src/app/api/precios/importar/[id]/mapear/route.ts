@@ -11,7 +11,15 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+    return procesarMapear(req, props);
+}
+
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+    return procesarMapear(req, props);
+}
+
+async function procesarMapear(req: NextRequest, props: { params: Promise<{ id: string }> }) {
     const { id } = await props.params;
     const body = await req.json().catch(() => null);
     
@@ -48,13 +56,10 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     const storagePath = mapeoActual?._storage_path as string | undefined;
     const bucket      = mapeoActual?._bucket as string | undefined ?? 'excel-precios';
 
-    if (!storagePath) {
-        return NextResponse.json({ ok: false, error: 'No hay archivo asociado (storage_path no encontrado)' }, { status: 422 });
-    }
-
     const tiposCosto = [...new Set(precios.map((p: any) => p.tipo_costo))].join(',');
 
-    // Actualizar registro a mapeando
+    // Actualizar registro: guardamos el mapping. 
+    // NO tocamos el "estado" para no corromper el pipeline desacoplado ('completado' debe seguir siendo 'completado').
     const { error: updateErr } = await supabaseAdmin
         .from('importaciones_excel')
         .update({
@@ -71,10 +76,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
                 columnas_a_guardar,
             },
             tipo_costo_default: tiposCosto,
-            estado: 'pendiente_mapeo',
-            ultima_actividad: new Date().toISOString(),
-            error_mensaje: null,
-            filas_procesadas: 0,
+            ultima_actividad: new Date().toISOString()
         })
         .eq('id', id);
 
@@ -85,6 +87,6 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     return NextResponse.json({
         ok: true,
         importacion_id: id,
-        estado: 'pendiente_mapeo'
+        estado: importacion.estado
     }, { status: 200 });
 }

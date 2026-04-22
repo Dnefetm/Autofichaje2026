@@ -12,14 +12,17 @@ const id = (body?.id ?? '').toString().trim();
 if (!proveedor && !id) {
 return NextResponse.json({ ok: false, error: 'proveedor o id requerido' }, { status: 400 });
 }
-let q = supabaseAdmin
-.from('importaciones_excel')
-.update({ estado: 'cancelado',  })
-.in('estado', ACTIVOS as unknown as string[])
-.select('id, proveedor, estado');
-if (id) q = q.eq('id', id);
-else q = q.eq('proveedor', proveedor);
-const { data, error } = await q;
+
+let q = supabaseAdmin.from('importaciones_excel').update({ estado: 'cancelado' });
+
+if (id) {
+  q = q.eq('id', id);
+} else {
+  q = q.eq('proveedor', proveedor);
+}
+
+const { data, error } = await q.in('estado', ACTIVOS as unknown as string[]).select('id, proveedor, estado');
+
 if (error) {
 return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 }
