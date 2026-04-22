@@ -13,7 +13,7 @@ if (!proveedor && !id) {
 return NextResponse.json({ ok: false, error: 'proveedor o id requerido' }, { status: 400 });
 }
 
-let q = supabaseAdmin.from('importaciones_excel').update({ estado: 'cancelado' });
+let q = supabaseAdmin.from('importaciones_excel').delete();
 
 if (id) {
   q = q.eq('id', id);

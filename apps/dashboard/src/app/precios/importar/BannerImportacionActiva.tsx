@@ -19,6 +19,9 @@ export function BannerImportacionActiva({ activa, onContinuar, onCancelar }: Pro
     try {
       setLoadingCancelar(true);
       await onCancelar();
+    } catch (err: any) {
+      // Use sonner toast to show the exact error (imported dynamically or assume toast exists in scope, or just alert)
+      alert('Error cancelando: ' + (err?.message || err));
     } finally {
       setLoadingCancelar(false);
     }

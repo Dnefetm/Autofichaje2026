@@ -39,7 +39,9 @@ async function procesarImportacion(importacionId: string) {
   await logEvento(importacionId, 'DESCARGADO', 'Excel local descargado. Iniciando parseo ultra-ligero (SheetJS).');
 
   const buf = new Uint8Array(await file.arrayBuffer());
-  const wb = XLSX.read(buf, { type: 'buffer', cellFormula: false, cellHTML: false, cellStyle: false });
+  
+  // Usamos 'dense: true' para reducir el consumo de memoria a la mitad
+  const wb = XLSX.read(buf, { type: 'buffer', dense: true, cellFormula: false, cellHTML: false, cellStyle: false, cellText: false });
   const sheetName = wb.SheetNames[0];
   const sheet = wb.Sheets[sheetName];
   
