@@ -153,7 +153,15 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
       const j3 = r3.ok ? await r3.json() : { ok: false, error: await r3.text() };
       if (!j3.ok) throw new Error(j3.error);
 
-      onDone({ id: j3.importacion_id, proveedor: proveedor.trim(), nombre: file.name });
+      // 4) Iniciar digestión de la lista nueva automáticamente (Edge Function plana)
+      const r4 = await fetch(`/api/precios/importar/${j3.importacion_id}/iniciar-matching`, { method: 'POST' });
+      if (!r4.ok) {
+         // Silently ignore or handle softly, watchdog could pick it up or we just let it fail naturally
+      }
+
+      // 5) Redirigir a Panel de Revisión
+      router.push(`/precios/importaciones/${j3.importacion_id}`);
+
     } catch (e: any) { 
       setError(e.message || 'Error al procesar la importación'); 
     } finally { 
@@ -222,7 +230,7 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
 }
 
 // ── Paso 2 ──────────────────────────────────────────────────────────────────
-function PasoMapear({ importacionId, onDone, onBack }: {
+export function PasoMapear({ importacionId, onDone, onBack }: {
   importacionId: string;
   onDone: (stats: { total: number; con_match: number }) => void;
   onBack: () => void;
@@ -668,9 +676,9 @@ function RemapModal({ costoId, onSelect, onClose }: {
 }
 
 // ── Paso 3 ──────────────────────────────────────────────────────────────────
-function PasoRevisar({ importacionId, onFinish, onBack }: {
+export function PasoRevisar({ importacionId, onFinish, onBack }: {
   importacionId: string;
-  statsInit: { total: number; con_match: number };
+  statsInit?: { total: number; con_match: number };
   onFinish: () => void;
   onBack: () => void;
 }) {
@@ -988,63 +996,16 @@ function PasoRevisar({ importacionId, onFinish, onBack }: {
 function ImportarPreciosPageInner() {
   const router = useRouter();
   const sp = useSearchParams();
-  const idParam = sp.get('id');
-    const proveedorParam = sp.get('proveedor');
-
-  const [step, setStep] = useState<1 | 2 | 3>(idParam ? 2 : 1);
-  const [importacionId, setImportacionId] = useState<string | null>(idParam || null);
-  const [matchStats, setMatchStats] = useState<{ total: number; con_match: number } | null>(null);
-
-  // Sincronizar cuando cambia el query param (click en banner sin recargar)
-  useEffect(() => {
-    if (idParam && idParam !== importacionId) {
-      setImportacionId(idParam);
-      setStep(2);
-          } else if (!idParam && importacionId) {
-        setImportacionId(null);
-        setStep(1);
-      }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idParam]);
-
-  const PASOS = ['Subir Excel', 'Mapear Columnas', 'Revisar Matches'];
-
-  function reset() { setStep(1); setImportacionId(null); setMatchStats(null); }
+  const proveedorParam = sp.get('proveedor');
 
   return (
     <div className="max-w-4xl mx-auto py-10 px-4">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Importar Precios del Proveedor</h1>
-        <p className="text-sm text-slate-500 mt-1">Sube un Excel, mapea las columnas y valida los matches con tu catálogo.</p>
+        <h1 className="text-2xl font-bold text-slate-800">Actualizar Lista de Precios del Proveedor</h1>
+        <p className="text-sm text-slate-500 mt-1">Sube el nuevo Excel del proveedor. El sistema calculará las diferencias automáticamente respecto al mes pasado.</p>
       </div>
 
-      {/* Stepper */}
-      <div className="flex items-center gap-2 mb-8">
-        {PASOS.map((nombre, i) => (
-          <div key={nombre} className="flex items-center gap-2">
-            <StepIndicator step={i + 1} current={step} />
-            <span className={cn('text-sm font-semibold hidden sm:inline', step === i + 1 ? 'text-indigo-600' : step > i + 1 ? 'text-emerald-600' : 'text-slate-400')}>{nombre}</span>
-            {i < PASOS.length - 1 && (
-              <div className="w-8 h-0.5 rounded-full mx-1" style={{ backgroundColor: step > i + 1 ? '#818cf8' : '#e2e8f0' }} />
-            )}
-          </div>
-        ))}
-      </div>
-
-        {step === 1 && <PasoSubir proveedorInicial={proveedorParam ?? undefined} onDone={({ id }) => { setImportacionId(id); setStep(2); }} />}      {step === 2 && importacionId && (
-        <PasoMapear importacionId={importacionId} onBack={() => {
-           // Si vuelve al paso 1, limpiamos el id param para que se vea la subida desde 0
-           const url = new URL(window.location.href);
-           url.searchParams.delete('id');
-           window.history.replaceState({}, '', url.toString());
-           setStep(1); 
-        }}
-          onDone={(s) => { setMatchStats(s); setStep(3); }} />
-      )}
-      {step === 3 && importacionId && matchStats && (
-        <PasoRevisar importacionId={importacionId} statsInit={matchStats}
-          onBack={() => setStep(2)} onFinish={reset} />
-      )}
+      <PasoSubir proveedorInicial={proveedorParam ?? undefined} onDone={() => {}} />
     </div>
   );
 }

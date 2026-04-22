@@ -142,9 +142,14 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2 text-slate-400">
                     {row.estado === 'en_revision' && (
-                      <button onClick={() => router.push(`/precios/importar?id=${row.id}&step=3`)} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors">
-                        Revisar <ArrowRight className="w-3.5 h-3.5" />
+                      <button onClick={() => router.push(`/precios/importaciones/${row.id}`)} className="bg-amber-50 text-amber-600 hover:bg-amber-100 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors">
+                        Revisar Cambios <ArrowRight className="w-3.5 h-3.5" />
                       </button>
+                    )}
+                    {row.estado === 'completado' && (
+                       <button onClick={() => router.push(`/precios/matching?importacion_id=${row.id}`)} className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors">
+                         Correr Matching <ArrowRight className="w-3.5 h-3.5" />
+                       </button>
                     )}
                     {row.estado === 'error' && (
                       <button onClick={() => handleAction(row.id, 'reintentar')} className="hover:text-amber-600 p-1.5 transition-colors title='Reintentar'">

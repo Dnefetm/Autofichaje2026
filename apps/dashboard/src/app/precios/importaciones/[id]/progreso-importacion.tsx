@@ -107,13 +107,48 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
           </p>
         </div>
 
-        <div className="flex justify-center pt-2">
+        <div className="flex justify-center pt-2 w-full">
+           {s.estado === 'en_revision' && s.resumen_diff && (
+             <div className="flex flex-col items-center gap-4 w-full">
+                <div className="w-full bg-amber-50/50 border border-amber-200 p-4 rounded-xl flex flex-col sm:flex-row justify-around gap-4 shadow-sm">
+                   <div className="text-center">
+                     <span className="block text-2xl font-black text-emerald-600">{s.resumen_diff.nuevos ?? 0}</span>
+                     <span className="text-xs uppercase font-bold text-slate-500">Nuevos</span>
+                   </div>
+                   <div className="text-center">
+                     <span className="block text-2xl font-black text-indigo-600">{s.resumen_diff.modificados ?? 0}</span>
+                     <span className="text-xs uppercase font-bold text-slate-500">Modificados</span>
+                   </div>
+                   <div className="text-center">
+                     <span className="block text-2xl font-black text-rose-600">{s.resumen_diff.eliminados ?? 0}</span>
+                     <span className="text-xs uppercase font-bold text-slate-500">Descontinuados</span>
+                   </div>
+                </div>
+                <button 
+                  onClick={async () => {
+                     try {
+                        const res = await fetch(`/api/precios/importaciones/${id}/consolidar-revision`, { method: 'POST' });
+                        if (!res.ok) throw new Error((await res.json()).error);
+                        toast.success('Lista oficializada correctamente.');
+                        setS((p: any) => ({ ...p, estado: 'completado' }));
+                     } catch(e: any) {
+                        toast.error(e.message || 'Error al consolidar');
+                     }
+                  }}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold transition-all shadow shadow-indigo-600/20"
+                >
+                  Confirmar Efectividad de Cambios
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+             </div>
+           )}
+
            {s.estado === 'completado' && (
              <button 
-               onClick={() => router.push(`/precios/importar?id=${id}&step=3`)}
+               onClick={() => router.push(`/precios/matching?importacion_id=${id}`)}
                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow shadow-emerald-600/20"
              >
-               Finalizar
+               Ir al Motor de Matching Independiente
                <ArrowRight className="w-4 h-4" />
              </button>
            )}
