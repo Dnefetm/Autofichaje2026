@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     const { data: imp, error: fetchErr } = await supabaseAdmin
         .from('importaciones_excel')
-        .select('estado')
+        .select('estado, mapeo_columnas, archivo_path, proveedor')
         .eq('id', id)
         .single();
 
