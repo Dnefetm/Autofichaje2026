@@ -53,6 +53,19 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
       toast.error(err.message || 'Error al reintentar');
     }
   };
+  
+  const handleIniciarMatching = async () => {
+    try {
+      const res = await fetch(`/api/precios/importar/${id}/iniciar-matching`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || 'No se pudo iniciar el motor de matching');
+      toast.success('Motor de matching iniciado');
+      setS((prev: any) => ({ ...prev, estado: 'mapeando' }));
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || 'Error al iniciar matching');
+    }
+  };
 
   const getStatusInfo = () => {
     switch (s.estado) {
@@ -150,7 +163,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
 
            {s.estado === 'completado' && (
              <button 
-               onClick={() => router.push(`/precios/matching?importacion_id=${id}`)}
+               onClick={() => handleIniciarMatching()}
                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow shadow-emerald-600/20"
              >
                Ir al Motor de Matching Independiente
