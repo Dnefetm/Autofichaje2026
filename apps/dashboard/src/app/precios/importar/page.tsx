@@ -251,6 +251,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
   const [loadingMapear, setLoadingMapear] = useState(false);
   const [isMapeoGuardado, setIsMapeoGuardado] = useState(false);
   const [loadingMatching, setLoadingMatching] = useState(false);
+  const [matchingProgreso, setMatchingProgreso] = useState<{progreso: number, total: number, estado_job: string | null, error: string | null} | null>(null);
   const [error, setError] = useState<string | null>(null);
   const didFetch = useRef(false);
 
@@ -263,9 +264,15 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
         if (d.estado === 'cancelado') {
            throw new Error('Esta importación ya no está activa');
         }
-        if (['mapeando', 'procesando', 'en_revision', 'error'].includes(d.estado)) {
+        if (['procesando', 'en_revision', 'error'].includes(d.estado)) {
            router.replace(`/precios/importaciones/${importacionId}`);
            return;
+        }
+        
+        if (d.estado === 'mapeando') {
+           setIsMapeoGuardado(true);
+           setLoadingMatching(true);
+           startPolling();
         }
         setPreview(d);
         const m = d.mapeo_previo;
@@ -332,13 +339,41 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
     } catch (e: any) { setError(e.message); } finally { setLoadingMapear(false); }
   }
 
+  function startPolling() {
+      const interval = setInterval(async () => {
+        try {
+          const pRes = await fetch(`/api/precios/importar/${importacionId}/progreso-matching`);
+          const pData = await pRes.json();
+          if (pData.ok) {
+            setMatchingProgreso({
+              progreso: pData.progreso,
+              total: pData.total,
+              estado_job: pData.estado_job,
+              error: pData.error
+            });
+            if (pData.estado_importacion === 'matching_completo' || pData.estado_job === 'completado') {
+              clearInterval(interval);
+              onDone({ total: pData.total, con_match: pData.progreso });
+            } else if (pData.estado_importacion === 'error' || pData.estado_job === 'error') {
+              clearInterval(interval);
+              setError(pData.error || 'Error durante el matching');
+              setLoadingMatching(false);
+            }
+          }
+        } catch (err) {
+          console.error("Polling error", err);
+        }
+      }, 3000);
+  }
+
   async function handleIniciarMatching() {
     setLoadingMatching(true); setError(null);
     try {
       const res = await fetch(`/api/precios/importar/${importacionId}/iniciar-matching`, { method: 'POST' });
       const d = await res.json();
       if (!res.ok || !d.ok) throw new Error(d.error ?? 'Error iniciando matching');
-      router.push(`/precios/importaciones/${importacionId}`);
+      
+      startPolling();
     } catch (e: any) { setError(e.message); setLoadingMatching(false); }
   }
 
@@ -355,6 +390,35 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
   );
 
   if (isMapeoGuardado) {
+    if (loadingMatching) {
+      return (
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-6 shadow-sm">
+          <div className="relative w-16 h-16 mx-auto">
+             <div className="absolute inset-0 rounded-full border-4 border-indigo-100"></div>
+             <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+             <Search className="w-6 h-6 text-indigo-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          </div>
+          <div>
+            <h3 className="font-bold text-xl text-slate-800">Motor de matching trabajando</h3>
+            <p className="text-slate-500 mt-2 text-sm">Buscando coincidencias en background. Puedes cerrar esta ventana y volver luego si lo deseas.</p>
+          </div>
+          {matchingProgreso && matchingProgreso.total > 0 && (
+            <div className="max-w-md mx-auto mt-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+               <div className="flex justify-between text-xs font-bold text-slate-600 mb-2">
+                 <span>{matchingProgreso.progreso} de {matchingProgreso.total} filas</span>
+                 <span className="text-indigo-600">{Math.round((matchingProgreso.progreso / matchingProgreso.total) * 100)}%</span>
+               </div>
+               <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                 <div className="h-full bg-indigo-500 transition-all duration-500 ease-out" style={{ width: `${(matchingProgreso.progreso / matchingProgreso.total) * 100}%` }}></div>
+               </div>
+               {matchingProgreso.estado_job === 'pendiente' && <p className="text-xs text-amber-600 mt-3 flex items-center justify-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Esperando turno en cola...</p>}
+            </div>
+          )}
+          {error && <div className="text-rose-600 text-sm font-semibold bg-rose-50 p-3 rounded-lg"><AlertCircle className="w-4 h-4 inline-block mr-1 mb-0.5"/> {error}</div>}
+        </div>
+      );
+    }
+
     return (
       <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-8 text-center space-y-6">
         <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />

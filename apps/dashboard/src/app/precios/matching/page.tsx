@@ -13,6 +13,7 @@ function MatchingPageInner() {
   const [step, setStep] = useState<1 | 2>(1);
   const [importacionId, setImportacionId] = useState<string | null>(idParam || null);
   const [matchStats, setMatchStats] = useState<{ total: number; con_match: number } | null>(null);
+  const [loadingInitial, setLoadingInitial] = useState(false);
 
   useEffect(() => {
     if (idParam && idParam !== importacionId) {
@@ -20,6 +21,21 @@ function MatchingPageInner() {
       setStep(1);
     }
   }, [idParam]);
+
+  useEffect(() => {
+    if (!importacionId) return;
+    setLoadingInitial(true);
+    fetch(`/api/precios/importar/${importacionId}/progreso-matching`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok && (d.estado_importacion === 'matching_completo' || d.estado_importacion === 'en_revision')) {
+          setMatchStats({ total: d.total || 0, con_match: d.progreso || 0 });
+          setStep(2);
+        }
+      })
+      .catch(e => console.error("Error cargando estado inicial", e))
+      .finally(() => setLoadingInitial(false));
+  }, [importacionId]);
 
   if (!importacionId) {
     return (
@@ -39,17 +55,23 @@ function MatchingPageInner() {
         <p className="text-sm text-slate-500 mt-1">Configura las columnas y asocia la lista cruda del proveedor contra tu catálogo interno.</p>
       </div>
 
-      {step === 1 && (
-        <PasoMapear importacionId={importacionId} onBack={() => {
-           router.push('/precios/importaciones'); 
-        }}
-        onDone={(s) => { setMatchStats(s); setStep(2); }} />
-      )}
-      
-      {step === 2 && matchStats && (
-        <PasoRevisar importacionId={importacionId} statsInit={matchStats}
-          onBack={() => setStep(1)} 
-          onFinish={() => router.push('/precios/importaciones')} />
+      {loadingInitial ? (
+        <div className="flex justify-center p-10"><Loader2 className="w-8 h-8 animate-spin text-indigo-500"/></div>
+      ) : (
+        <>
+          {step === 1 && (
+            <PasoMapear importacionId={importacionId} onBack={() => {
+               router.push('/precios/importaciones'); 
+            }}
+            onDone={(s) => { setMatchStats(s); setStep(2); }} />
+          )}
+          
+          {step === 2 && matchStats && (
+            <PasoRevisar importacionId={importacionId} statsInit={matchStats}
+              onBack={() => setStep(1)} 
+              onFinish={() => router.push('/precios/importaciones')} />
+          )}
+        </>
       )}
     </div>
   );

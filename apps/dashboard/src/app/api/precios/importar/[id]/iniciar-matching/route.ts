@@ -51,7 +51,17 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         return NextResponse.json({ ok: true, mensaje: 'El trabajo ya estaba en progreso' }, { status: 200 });
     }
 
-    // 3. Crear un job de matching asociado a la importación
+    // 3. Crear un job de matching asociado a la importación y cambiar estado a mapeando
+    const { error: updateImpErr } = await supabaseAdmin
+        .from('importaciones_excel')
+        .update({ estado: 'mapeando' })
+        .eq('id', id);
+
+    if (updateImpErr) {
+        console.error("Error al actualizar estado a mapeando:", updateImpErr);
+        return NextResponse.json({ ok: false, error: 'No se pudo actualizar estado de importación' }, { status: 500 });
+    }
+
     const { error: insertJobErr } = await supabaseAdmin
         .from('matching_jobs')
         .insert({
