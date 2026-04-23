@@ -150,7 +150,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
              </div>
            )}
 
-           {s.estado === 'completado' && (
+           {['completado', 'mapeando', 'error'].includes(s.estado) && (
              <button 
                onClick={() => router.push(`/precios/matching?importacion_id=${id}`)}
                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow shadow-emerald-600/20"
