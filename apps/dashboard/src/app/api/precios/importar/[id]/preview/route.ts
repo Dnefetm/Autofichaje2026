@@ -49,9 +49,9 @@ export async function GET(
 
   const mapeoActual = importacion.mapeo_columnas as Record<string, any> | null;
 
-  // NUEVO: Consultar las 10 primeras filas directo de staging! (mucho más eficiente que ExcelJS)
+  // Consultar las 10 primeras filas directo de la tabla de listas (ya que staging se limpia tras consolidar)
   const { data: rawRows, error: rawErr } = await supabaseAdmin
-    .from('listas_precios_raw_staging')
+    .from('listas_precios_raw')
     .select('payload, fila_num')
     .eq('importacion_id', id)
     .order('fila_num', { ascending: true })
