@@ -37,7 +37,21 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         return NextResponse.json({ ok: false, error: 'Lista de proveedor no encontrada o no ha sido consolidada estructuralmente' }, { status: 404 });
     }
 
-    // 2. Crear un job de matching asociado a la importación
+    // 2. Revisar si ya existe un trabajo en curso para evitar duplicados
+    const { data: existingJob } = await supabaseAdmin
+        .from('matching_jobs')
+        .select('id, estado')
+        .eq('importacion_id', id)
+        .in('estado', ['pendiente', 'corriendo'])
+        .single();
+
+    if (existingJob) {
+        // Ya hay un job activo, solo le damos un "empujón" por si acaso
+        await supabaseAdmin.functions.invoke('procesar-matching', { body: {} });
+        return NextResponse.json({ ok: true, mensaje: 'El trabajo ya estaba en progreso' }, { status: 200 });
+    }
+
+    // 3. Crear un job de matching asociado a la importación
     const { error: insertJobErr } = await supabaseAdmin
         .from('matching_jobs')
         .insert({
@@ -51,15 +65,15 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         return NextResponse.json({ ok: false, error: 'No se pudo crear trabajo de matching: ' + insertJobErr.message }, { status: 500 });
     }
 
-    // 3. Invocar la Edge Function para que despierte el Worker de Matching
+    // 4. Invocar la Edge Function para que despierte el Worker de Matching
+    // Nota: El simple hecho de hacer INSERT con estado='pendiente' dispara el trigger pg_net
+    // Hacemos este invoke explícito solo como backup rápido para no depender exclusivamente del trigger en dev
     const runRes = await supabaseAdmin.functions.invoke('procesar-matching', {
-        body: { } // Es un pull-based worker que usa pickNext(), no necesita body
+        body: { } 
     });
 
     if (runRes.error) {
-        console.error("Error from Matching Edge Function:", runRes.error);
-        // Aun si falla el invoke sincrónico, el job quedó en la db, quizás un cron lo despierte
-        // Pero marcamos soft error en logs.
+        console.error("Backup trigger edge function errored (pg_net trigger will still fire):", runRes.error);
     }
 
     return NextResponse.json({ ok: true, mensaje: 'Trabajo de matching encolado e iniciado' }, { status: 202 });

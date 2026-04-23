@@ -9,15 +9,11 @@ const CHUNK_SIZE = 500;
 const MAX_EXECUTION_TIME_MS = 45000; // 45 segundos de wall-clock máximo
 
 async function pickNext(): Promise<string | null> {
-  const { data, error } = await sb.from('matching_jobs')
-    .update({ estado: 'corriendo', iniciado_el: new Date().toISOString() })
-    .eq('estado', 'pendiente')
-    .select('id')
-    .limit(1)
-    .single();
+  // Utilizamos la RPC con FOR UPDATE SKIP LOCKED
+  const { data, error } = await sb.rpc('fn_pop_matching_job');
     
   if (error || !data) return null;
-  return data.id;
+  return data; // fn_pop_matching_job devuelve directamente el uuid
 }
 
 async function emitEvent(importacion_id: string, estado_paso: string, mensaje: string) {
@@ -48,6 +44,8 @@ async function procesarMatching(jobId: string) {
   while(hasMore) {
      // 1. Defensa contra timeout: Si superamos el límite de tiempo, pausamos y nos re-encolamos
      if (performance.now() - startTime > MAX_EXECUTION_TIME_MS) {
+        // Al actualizar a 'pendiente', el trigger de base de datos (trg_matching_jobs_pendiente)
+        // se disparará automáticamente e invocará esta misma Edge Function usando pg_net.
         await sb.from('matching_jobs').update({ 
             estado: 'pendiente', 
             progreso: offset 
@@ -55,9 +53,7 @@ async function procesarMatching(jobId: string) {
         
         await emitEvent(job.importacion_id, 'MATCHING_PAUSADO', `Pausando para evadir timeout. Progreso guardado: ${offset}/${imp.total_filas}`);
         
-        // Auto re-invocación asíncrona (fire and forget)
-        sb.functions.invoke('procesar-matching').catch(console.error);
-        
+        // Ya no necesitamos sb.functions.invoke() aquí, el trigger se encarga!
         return false; // Indica que no ha terminado, pero salió para no morir.
      }
 

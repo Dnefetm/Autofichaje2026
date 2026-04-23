@@ -9,11 +9,10 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import ExcelJS from 'exceljs';
 
 export const dynamic = 'force-dynamic';
-
-const PREVIEW_ROWS = 10;
+export const runtime = 'nodejs';
+export const maxDuration = 30;
 
 function sanitizeMapeo(raw: Record<string, any> | null | undefined): Record<string, any> | null {
   if (!raw) return null;
@@ -31,7 +30,7 @@ export async function GET(
 
   const { data: importacion, error: fetchErr } = await supabaseAdmin
     .from('importaciones_excel')
-    .select('id, nombre_archivo, proveedor, mapeo_columnas, tipo_costo_default, estado')
+    .select('id, nombre_archivo, proveedor, mapeo_columnas, tipo_costo_default, estado, total_filas')
     .eq('id', id)
     .single();
 
@@ -49,44 +48,34 @@ export async function GET(
   }
 
   const mapeoActual = importacion.mapeo_columnas as Record<string, any> | null;
-  const storagePath = mapeoActual?._storage_path as string | undefined;
-  const bucket = (mapeoActual?._bucket as string | undefined) || 'excel-precios';
 
-  if (!storagePath) {
-    return NextResponse.json({ ok: false, error: 'No hay archivo asociado a esta importacion' }, { status: 422 });
+  // NUEVO: Consultar las 10 primeras filas directo de staging! (mucho más eficiente que ExcelJS)
+  const { data: rawRows, error: rawErr } = await supabaseAdmin
+    .from('listas_precios_raw_staging')
+    .select('payload, fila_num')
+    .eq('importacion_id', id)
+    .order('fila_num', { ascending: true })
+    .limit(10);
+
+  if (rawErr) {
+     return NextResponse.json({ ok: false, error: 'Error leyendo preview de base de datos' }, { status: 500 });
   }
 
-  const { data: fileData, error: downloadErr } = await supabaseAdmin.storage.from(bucket).download(storagePath);
-  if (downloadErr || !fileData) {
-    return NextResponse.json({ ok: false, error: `No se pudo leer el archivo: ${downloadErr?.message}` }, { status: 500 });
+  // Si no hay headers guardados explícitamente en mapeo_columnas, inferirlos de la fila 1
+  let headers: string[] = [];
+  const dataRows: string[][] = [];
+  
+  if (rawRows && rawRows.length > 0) {
+      headers = Object.keys(rawRows[0].payload as Record<string, any>);
+      
+      for (const r of rawRows) {
+          const dict = r.payload as Record<string, string>;
+          const rowArr = headers.map(h => dict[h] ?? '');
+          dataRows.push(rowArr);
+      }
   }
 
-  const arrayBuffer = await fileData.arrayBuffer();
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(arrayBuffer);
-  const sheet = workbook.worksheets[0];
-  if (!sheet) {
-    return NextResponse.json({ ok: false, error: 'El archivo Excel no contiene hojas de calculo' }, { status: 422 });
-  }
-
-  const allRows: any[][] = [];
-  sheet.eachRow((row) => {
-    const values = (row.values as any[]).slice(1);
-    allRows.push(values.map((v) => {
-      if (v === null || v === undefined) return '';
-      if (typeof v === 'object' && 'result' in v) return String(v.result);
-      if (typeof v === 'object' && 'text' in v) return String(v.text);
-      return String(v);
-    }));
-  });
-
-  if (allRows.length === 0) {
-    return NextResponse.json({ ok: false, error: 'El archivo Excel esta vacio' }, { status: 422 });
-  }
-
-  const headers = allRows[0] ?? [];
-  const dataRows = allRows.slice(1, PREVIEW_ROWS + 1);
-  const totalRows = Math.max(0, allRows.length - 1);
+  const totalRows = importacion.total_filas || 0;
 
   // Resolver mapeo previo: (1) mapeo propio de esta importacion; (2) fallback a
   // la ultima importacion 'completado' del mismo proveedor.

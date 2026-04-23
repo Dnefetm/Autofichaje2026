@@ -260,7 +260,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
       .then((r) => r.json())
       .then((d) => {
         if (!d.ok) throw new Error(d.error);
-        if (d.estado === 'completado' || d.estado === 'cancelado') {
+        if (d.estado === 'cancelado') {
            throw new Error('Esta importación ya no está activa');
         }
         if (['mapeando', 'procesando', 'en_revision', 'error'].includes(d.estado)) {
