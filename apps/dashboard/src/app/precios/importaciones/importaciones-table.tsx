@@ -151,6 +151,11 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
                          Correr Matching <ArrowRight className="w-3.5 h-3.5" />
                        </button>
                     )}
+                    {row.estado === 'matching_completo' && (
+                       <button onClick={() => router.push(`/precios/matching?importacion_id=${row.id}`)} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors">
+                         Continuar Revisión <ArrowRight className="w-3.5 h-3.5" />
+                       </button>
+                    )}
                     {row.estado === 'error' && (
                       <button onClick={() => handleAction(row.id, 'reintentar')} className="hover:text-amber-600 p-1.5 transition-colors title='Reintentar'">
                         <RefreshCcw className="w-4 h-4" />
@@ -180,6 +185,7 @@ function BadgeEstado({ estado }: { estado: string }) {
     case 'pendiente_mapeo': return <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Pendiente</span>;
     case 'mapeando': return <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Mapeando</span>;
     case 'procesando': return <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div> Procesando</span>;
+    case 'matching_completo': return <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><AlertTriangle className="w-3 h-3 text-emerald-500" /> Revisión Matching</span>;
     case 'en_revision': return <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><AlertTriangle className="w-3 h-3 text-amber-500" /> Requiere Revisión</span>;
     case 'completado': return <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Completado</span>;
     case 'error': return <span className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><XCircle className="w-3 h-3 text-rose-500" /> Fallido</span>;
