@@ -156,6 +156,11 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
                          Continuar Revisión <ArrowRight className="w-3.5 h-3.5" />
                        </button>
                     )}
+                    {['pendiente_mapeo', 'mapeando'].includes(row.estado) && (
+                       <button onClick={() => router.push(`/precios/matching?importacion_id=${row.id}`)} className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors">
+                         Mapear Columnas <ArrowRight className="w-3.5 h-3.5" />
+                       </button>
+                    )}
                     {row.estado === 'error' && (
                       <button onClick={() => handleAction(row.id, 'reintentar')} className="hover:text-amber-600 p-1.5 transition-colors title='Reintentar'">
                         <RefreshCcw className="w-4 h-4" />

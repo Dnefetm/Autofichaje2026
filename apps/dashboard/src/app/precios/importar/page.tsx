@@ -153,15 +153,15 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
       const j3 = r3.ok ? await r3.json() : { ok: false, error: await r3.text() };
       if (!j3.ok) throw new Error(j3.error);
 
-      // 4) Iniciar digestión de la lista nueva automáticamente (Edge Function plana)
+      // 4) Iniciar digestión de la lista nueva automáticamente
       const r4 = await fetch(`/api/precios/importar/${j3.importacion_id}/iniciar-parser`, { method: 'POST' });
       if (!r4.ok) {
          const j4 = await r4.json().catch(() => ({}));
          throw new Error(j4.error || 'Ocurrió un error al despachar al servidor de procesamiento.');
       }
 
-      // 5) Redirigir a Panel de Revisión
-      router.push(`/precios/importaciones/${j3.importacion_id}`);
+      // 5) Redirigir al Asistente de Matching (Paso 2: Mapear Columnas)
+      router.push(`/precios/matching?importacion_id=${j3.importacion_id}`);
 
     } catch (e: any) { 
       setError(e.message || 'Error al procesar la importación'); 

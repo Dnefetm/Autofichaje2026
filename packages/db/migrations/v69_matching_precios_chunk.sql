@@ -122,7 +122,7 @@ BEGIN
         pe.val_modelo, pe.val_marca, pe.val_codigo, pe.val_desc, pe.val_desc,
         pe.tipo_costo, pe.valor, pe.val_moneda, 'excel', pe.puntaje_match, pe.calc_estado_match, false, pe.incluye_iva
     FROM precios_expandidos pe
-    WHERE pe.valor > 0
+    WHERE pe.valor >= 0
       -- Check de idempotencia heurística (evitar duplicar la misma fila exacta para esta importación)
       AND NOT EXISTS (
           SELECT 1 FROM costos_articulo ca 

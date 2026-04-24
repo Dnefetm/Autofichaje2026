@@ -1,0 +1,1 @@
+SELECT current_setting('app.settings.edge_url', true), current_setting('app.settings.service_role_key', true);

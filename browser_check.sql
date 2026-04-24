@@ -1,0 +1,1 @@
+SELECT count(*) as raw_count FROM listas_precios_raw WHERE importacion_id = '56a261b9-1ebb-4944-8ff2-956f82276ab9'; SELECT count(*) as staging_count FROM listas_precios_raw_staging WHERE importacion_id = '56a261b9-1ebb-4944-8ff2-956f82276ab9';

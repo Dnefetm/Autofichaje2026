@@ -1,0 +1,1 @@
+fetch('https://autofichaje2026-dashboard-1img.vercel.app/api/precios/importar/56a261b9-1ebb-4944-8ff2-956f82276ab9/preview').then(r=>r.json()).then(console.log).catch(console.error);
