@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { PasoMapear, PasoRevisar } from '../importar/page';
+import { PasoMapear } from '../importar/page';
+import { PanelDecisiones } from './panel-decisiones';
 
 function MatchingPageInner() {
   const router = useRouter();
@@ -67,9 +68,7 @@ function MatchingPageInner() {
           )}
           
           {step === 2 && matchStats && (
-            <PasoRevisar importacionId={importacionId} statsInit={matchStats}
-              onBack={() => setStep(1)} 
-              onFinish={() => router.push('/precios/importaciones')} />
+            <PanelDecisiones importacionId={importacionId} onBack={() => setStep(1)} />
           )}
         </>
       )}
