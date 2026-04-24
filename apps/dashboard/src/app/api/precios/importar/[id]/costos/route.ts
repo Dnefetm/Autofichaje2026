@@ -72,8 +72,7 @@ export async function GET(
              query = query.eq('estado_match', estadoFiltro);
         }
     } else {
-        // REMOVE THE FILTER ENTIRELY FOR 'todos' TO ENSURE WE DON'T MISS ANY UNKNOWN STATES!
-        // query = query.in('estado_match', ['sin_match', 'match_exacto', 'match_similitud', 'sugerido']);
+        query = query.in('estado_match', ['sin_match', 'match_exacto', 'match_similitud', 'sugerido']);
     }
 
     const { data: costos, error: costosErr } = await query;
