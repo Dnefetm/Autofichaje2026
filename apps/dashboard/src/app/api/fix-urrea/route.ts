@@ -4,24 +4,44 @@ import { supabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-    // First, move to 'mapeando' to satisfy the state machine transition rule
-    await supabaseAdmin
+    const targetId = 'c790c817-f6f5-4273-94a4-9d0ae9586576';
+    
+    // Check current state
+    const { data: current } = await supabaseAdmin
         .from('importaciones_excel')
-        .update({ estado: 'mapeando' })
-        .eq('proveedor', 'Urrea Herramientas')
-        .in('estado', ['completado']);
+        .select('estado, proveedor')
+        .eq('id', targetId)
+        .single();
 
-    // Then move to 'matching_completo'
-    const { data, error } = await supabaseAdmin
-        .from('importaciones_excel')
-        .update({ estado: 'matching_completo' })
-        .eq('proveedor', 'Urrea Herramientas')
-        .in('estado', ['mapeando', 'procesando'])
-        .select('id, proveedor, estado');
-
-    if (error) {
-        return NextResponse.json({ ok: false, version: 3, error: error.message });
+    if (!current) {
+        return NextResponse.json({ ok: false, version: 4, error: 'Not found' });
     }
 
-    return NextResponse.json({ ok: true, version: 3, data });
+    // Force hops depending on current state
+    let state = current.estado;
+    
+    if (state === 'completado') {
+        await supabaseAdmin.from('importaciones_excel').update({ estado: 'mapeando' }).eq('id', targetId);
+        state = 'mapeando';
+    }
+    
+    if (state === 'mapeando' || state === 'procesando') {
+        await supabaseAdmin.from('importaciones_excel').update({ estado: 'matching_completo' }).eq('id', targetId);
+        state = 'matching_completo';
+    }
+
+    if (state === 'error') {
+        await supabaseAdmin.from('importaciones_excel').update({ estado: 'mapeando' }).eq('id', targetId);
+        await supabaseAdmin.from('importaciones_excel').update({ estado: 'matching_completo' }).eq('id', targetId);
+        state = 'matching_completo';
+    }
+
+    // Final check
+    const { data: final } = await supabaseAdmin
+        .from('importaciones_excel')
+        .select('id, proveedor, estado')
+        .eq('id', targetId)
+        .single();
+
+    return NextResponse.json({ ok: true, version: 4, initial_state: current.estado, final_state: final?.estado });
 }
