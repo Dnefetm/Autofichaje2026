@@ -837,6 +837,8 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
     document.body.removeChild(link);
   }
 
+  const [pendientesRestantes, setPendientesRestantes] = useState(0);
+
   async function handleConfirmar() {
     const acciones: any[] = [];
     grupos.forEach(g => {
@@ -874,11 +876,9 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
         setErroresDetalle(d.errores);
         setError(`${d.errores.length} error(es). Confirmados: ${d.confirmados}, Descartados: ${d.descartados}.`);
         await refrescarCostos();
-      } else if (d.confirmados > 0 && d.errores?.length === 0) {
-        if (d.batch_id) setBatchIdConfirmado(d.batch_id);
-        setGuardadoOk(true);
       } else {
         if (d.batch_id) setBatchIdConfirmado(d.batch_id);
+        setPendientesRestantes(d.pendientes_restantes || 0);
         setGuardadoOk(true);
       }
     } catch (e: any) { setError(e.message); } finally { setGuardando(false); }
@@ -897,7 +897,8 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
       } else {
         alert(`¡Lote revertido con éxito! Se restauraron ${d.revertidos} registros de precios.`);
         setBatchIdConfirmado(null);
-        onFinish();
+        setGuardadoOk(false);
+        await refrescarCostos();
       }
     } catch (e: any) {
       alert('Error en llamada a Revert: ' + e.message);
@@ -924,7 +925,21 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
       <h3 className="text-xl font-bold text-slate-800 mb-2">¡Importación completada en Lote!</h3>
       <p className="text-slate-500 mb-6">Los costos confirmados se han guardado con éxito. Puedes revertir el reporte si es necesario.</p>
       <div className="flex gap-4 justify-center">
-         <button onClick={onFinish} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl">Nueva importación</button>
+         {pendientesRestantes > 0 ? (
+           <button onClick={() => {
+              setGuardadoOk(false);
+              setBatchIdConfirmado(null);
+              setSelecciones({});
+              refrescarCostos();
+           }} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl">
+             Continuar vinculando ({pendientesRestantes} restantes)
+           </button>
+         ) : (
+           <button onClick={onFinish} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl">
+             Finalizar Importación Total
+           </button>
+         )}
+         <button onClick={onFinish} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">Volver a Importaciones</button>
          {batchIdConfirmado && (
            <button onClick={handleRevertirLote} disabled={revertiendo} className="px-6 py-2.5 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold rounded-xl transition-colors">
              {revertiendo ? 'Revirtiendo...' : 'Revertir último lote'}

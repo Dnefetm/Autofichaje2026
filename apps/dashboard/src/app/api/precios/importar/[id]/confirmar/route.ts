@@ -130,6 +130,7 @@ export async function POST(
     return NextResponse.json({
         ok: true,
         importacion_id: id,
+        pendientes_restantes: pendientes || 0,
         ...resultados
     });
 }
