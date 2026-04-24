@@ -8,6 +8,7 @@ export async function GET() {
         .from('importaciones_excel')
         .update({ estado: 'matching_completo' })
         .eq('proveedor', 'Urrea Herramientas')
+        .neq('estado', 'cancelado')
         .select('id, proveedor, estado');
 
     if (error) {
