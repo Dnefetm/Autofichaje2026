@@ -26,18 +26,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         return NextResponse.json({ ok: false, error: `Estado actual invalido para iniciar motor: ${imp.estado}. Tienes que consolidar la lista primero.` }, { status: 400 });
     }
 
-    // 1. Obtener la lista de precios oficial consolidada para este proveedor
-    const { data: lista, error: listaErr } = await supabaseAdmin
-        .from('listas_precios_proveedor')
-        .select('id')
-        .eq('importacion_id', id)
-        .single();
-
-    if (listaErr || !lista) {
-        return NextResponse.json({ ok: false, error: 'Lista de proveedor no encontrada o no ha sido consolidada estructuralmente' }, { status: 404 });
-    }
-
-    // 2. Revisar si ya existe un trabajo en curso para evitar duplicados
+    // 1. Revisar si ya existe un trabajo en curso para evitar duplicados
     const { data: existingJob } = await supabaseAdmin
         .from('matching_jobs')
         .select('id, estado')
@@ -67,7 +56,6 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         .from('matching_jobs')
         .insert({
             importacion_id: id,
-            lista_precios_id: lista.id,
             estado: 'pendiente'
         });
 
