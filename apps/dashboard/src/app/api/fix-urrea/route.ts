@@ -8,12 +8,12 @@ export async function GET() {
         .from('importaciones_excel')
         .update({ estado: 'matching_completo' })
         .eq('proveedor', 'Urrea Herramientas')
-        .neq('estado', 'cancelado')
+        .in('estado', ['mapeando', 'completado', 'procesando'])
         .select('id, proveedor, estado');
 
     if (error) {
-        return NextResponse.json({ ok: false, error: error.message });
+        return NextResponse.json({ ok: false, version: 2, error: error.message });
     }
 
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, version: 2, data });
 }
