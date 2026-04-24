@@ -65,9 +65,14 @@ export async function GET(
         .range(offset, offset + limit - 1);
 
     if (estadoFiltro !== 'todos') {
-        query = query.eq('estado_match', estadoFiltro);
+        // Map old frontend filters to new DB values
+        if (estadoFiltro === 'sugerido') {
+             query = query.in('estado_match', ['match_exacto', 'match_similitud']);
+        } else {
+             query = query.eq('estado_match', estadoFiltro);
+        }
     } else {
-        query = query.in('estado_match', ['sin_match', 'sugerido']);
+        query = query.in('estado_match', ['sin_match', 'match_exacto', 'match_similitud', 'sugerido']);
     }
 
     const { data: costos, error: costosErr } = await query;
@@ -101,19 +106,32 @@ export async function GET(
         articulosMap = Object.fromEntries((arts ?? []).map((a) => [a.articulo_id, a]));
     }
 
-    const costosEnriquecidos = (costos ?? []).map((c) => ({
-        ...c,
-        articulo_sugerido: c.articulo_sugerido_id
-            ? articulosMap[c.articulo_sugerido_id] ?? null
-            : null,
-        candidatos_jsonb: Array.isArray(c.candidatos_jsonb)
-            ? c.candidatos_jsonb.map((cand: any) => ({
+    const costosEnriquecidos = (costos ?? []).map((c) => {
+        let candidatos = Array.isArray(c.candidatos_jsonb) ? c.candidatos_jsonb : [];
+        if (candidatos.length === 0 && c.articulo_sugerido_id) {
+           // Sintetizar candidato a partir de articulo_sugerido_id
+           candidatos = [{
+              articulo_id: c.articulo_sugerido_id,
+              puntaje_match: c.puntaje_match || 100,
+              metodo_match: 'sistema'
+           }];
+        }
+
+        return {
+            ...c,
+            articulo_sugerido: c.articulo_sugerido_id
+                ? articulosMap[c.articulo_sugerido_id] ?? null
+                : null,
+            candidatos_jsonb: candidatos.map((cand: any) => ({
                 ...cand,
                 nombre: articulosMap[cand.articulo_id]?.nombre ?? cand.nombre ?? null,
+                marca: articulosMap[cand.articulo_id]?.marca ?? null,
+                modelo: articulosMap[cand.articulo_id]?.modelo ?? null,
+                codigo_universal: articulosMap[cand.articulo_id]?.codigo_universal ?? null,
                 caja_madre: articulosMap[cand.articulo_id]?.caja_madre ?? null
-              }))
-            : c.candidatos_jsonb
-    }));
+            }))
+        };
+    });
 
     // ── Grouping ──────────────────────────────────────────
     const gruposMap = new Map<string, any>();
@@ -207,8 +225,11 @@ export async function GET(
         rechazado: 0,
     };
     (conteo ?? []).forEach((c) => {
-        const k = c.estado_match as keyof typeof stats;
-        if (k in stats) stats[k]++;
+        const s = c.estado_match;
+        if (s === 'sin_match') stats.sin_match++;
+        else if (s === 'match_exacto' || s === 'match_similitud' || s === 'sugerido') stats.sugerido++;
+        else if (s === 'confirmado') stats.confirmado++;
+        else if (s === 'rechazado') stats.rechazado++;
     });
 
     return NextResponse.json({
