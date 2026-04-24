@@ -52,10 +52,22 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         }
     }
 
+    // 2. Obtener el ID de la lista de precios creada
+    const { data: lista, error: listaErr } = await supabaseAdmin
+        .from('listas_precios_proveedor')
+        .select('id')
+        .eq('importacion_id', id)
+        .single();
+
+    if (listaErr || !lista) {
+        return NextResponse.json({ ok: false, error: 'No se encontró la lista de precios consolidada para esta importación.' }, { status: 400 });
+    }
+
     const { error: insertJobErr } = await supabaseAdmin
         .from('matching_jobs')
         .insert({
             importacion_id: id,
+            lista_precios_id: lista.id,
             estado: 'pendiente'
         });
 
