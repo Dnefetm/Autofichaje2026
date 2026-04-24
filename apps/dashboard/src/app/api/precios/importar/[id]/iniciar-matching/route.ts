@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         return NextResponse.json({ ok: false, error: 'Importación no encontrada' }, { status: 404 });
     }
 
-    if (imp.estado !== 'completado') {
+    if (imp.estado !== 'completado' && imp.estado !== 'mapeando') {
         return NextResponse.json({ ok: false, error: `Estado actual invalido para iniciar motor: ${imp.estado}. Tienes que consolidar la lista primero.` }, { status: 400 });
     }
 
@@ -51,15 +51,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         return NextResponse.json({ ok: true, mensaje: 'El trabajo ya estaba en progreso' }, { status: 200 });
     }
 
-    // 3. Crear un job de matching asociado a la importación y cambiar estado a mapeando
-    const { error: updateImpErr } = await supabaseAdmin
-        .from('importaciones_excel')
-        .update({ estado: 'mapeando' })
-        .eq('id', id);
+    if (imp.estado === 'completado') {
+        const { error: updateImpErr } = await supabaseAdmin
+            .from('importaciones_excel')
+            .update({ estado: 'mapeando' })
+            .eq('id', id);
 
-    if (updateImpErr) {
-        console.error("Error al actualizar estado a mapeando:", updateImpErr);
-        return NextResponse.json({ ok: false, error: 'No se pudo actualizar estado de importación' }, { status: 500 });
+        if (updateImpErr) {
+            console.error("Error al actualizar estado a mapeando:", updateImpErr);
+            return NextResponse.json({ ok: false, error: 'No se pudo actualizar estado de importación' }, { status: 500 });
+        }
     }
 
     const { error: insertJobErr } = await supabaseAdmin
