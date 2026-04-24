@@ -257,7 +257,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
 
   if (!didFetch.current) {
     didFetch.current = true;
-    fetch(`/api/precios/importar/${importacionId}/preview?_t=${Date.now()}`)
+    fetch(`/api/precios/importar/${importacionId}/preview`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => {
         if (!d.ok) throw new Error(d.error);
