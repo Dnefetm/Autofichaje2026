@@ -2,5 +2,11 @@
     "buildCommand": "npm run build --workspace=@gestor/dashboard",
     "outputDirectory": ".next",
     "framework": "nextjs",
-    "installCommand": "npm install"
+    "installCommand": "npm install",
+    "crons": [
+        {
+            "path": "/api/cron/dispatch-matching",
+            "schedule": "* * * * *"
+        }
+    ]
 }
