@@ -35,9 +35,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         .single();
 
     if (existingJob) {
-        // Ya hay un job activo, solo le damos un "empujón" por si acaso
-        await supabaseAdmin.functions.invoke('procesar-matching', { body: {} });
-        return NextResponse.json({ ok: true, mensaje: 'El trabajo ya estaba en progreso' }, { status: 200 });
+        // Ya hay un job activo o pendiente, si no terminó intentamos empujarlo por si falló la promesa asincrona
+        if (existingJob.estado === 'pendiente' || existingJob.estado === 'corriendo') {
+            supabaseAdmin.rpc('fn_match_precios_v2', { p_importacion_id: id }).then(({error}) => {
+                if(error) console.error("Error en reinicio manual de fn_match_precios_v2:", error);
+            });
+        }
+        return NextResponse.json({ ok: true, mensaje: 'El trabajo ya estaba en progreso, se ha reenviado la instrucción' }, { status: 200 });
     }
 
     if (imp.estado === 'completado') {
@@ -76,16 +80,15 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         return NextResponse.json({ ok: false, error: 'No se pudo crear trabajo de matching: ' + insertJobErr.message }, { status: 500 });
     }
 
-    // 4. Invocar la Edge Function para que despierte el Worker de Matching
-    // Nota: El simple hecho de hacer INSERT con estado='pendiente' dispara el trigger pg_net
-    // Hacemos este invoke explícito solo como backup rápido para no depender exclusivamente del trigger en dev
-    const runRes = await supabaseAdmin.functions.invoke('procesar-matching', {
-        body: { } 
+    // 4. Disparar el proceso de forma asíncrona (Fire and Forget) para no bloquear Vercel
+    // Esto asegura que el frontend reciba el 202 inmediatamente y comience el polling.
+    supabaseAdmin.rpc('fn_match_precios_v2', { p_importacion_id: id }).then(({error}) => {
+        if (error) {
+            console.error("Fallo de background en fn_match_precios_v2:", error);
+            // Marcar error en el job
+            supabaseAdmin.from('matching_jobs').update({ estado: 'error', finalizado_el: new Date().toISOString() }).eq('importacion_id', id);
+        }
     });
-
-    if (runRes.error) {
-        console.error("Backup trigger edge function errored (pg_net trigger will still fire):", runRes.error);
-    }
 
     return NextResponse.json({ ok: true, mensaje: 'Trabajo de matching encolado e iniciado' }, { status: 202 });
 }

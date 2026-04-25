@@ -192,8 +192,8 @@ export async function GET(
 
     function clasificarEstadoInternal(puntaje: number | null) {
         if (puntaje === null) return 'sin_match';
-        if (puntaje === 100) return 'match';
-        if (puntaje >= 40 && puntaje < 100) return 'duda';
+        if (puntaje === 100) return 'match_exacto';
+        if (puntaje >= 40 && puntaje < 100) return 'match_similitud';
         return 'sin_match';
     }
 
@@ -212,25 +212,25 @@ export async function GET(
         return g;
     });
 
-    // ── Conteo general de estados ──────────────────────────────────────────
-    const { data: conteo } = await supabaseAdmin
-        .from('costos_articulo')
-        .select('estado_match')
-        .eq('importacion_id', id);
+    // ── Conteo general de estados (Optimizando para evitar el límite de 1000 filas de Supabase) ──
+    const [
+        { count: sinMatchCount },
+        { count: sugeridoCount },
+        { count: confirmadoCount },
+        { count: rechazadoCount }
+    ] = await Promise.all([
+        supabaseAdmin.from('matching_decisiones').select('*', { count: 'exact', head: true }).eq('importacion_id', id).is('cand_articulo_id', null),
+        supabaseAdmin.from('matching_decisiones').select('*', { count: 'exact', head: true }).eq('importacion_id', id).not('cand_articulo_id', 'is', null).eq('confirmado', false),
+        supabaseAdmin.from('matching_decisiones').select('*', { count: 'exact', head: true }).eq('importacion_id', id).eq('confirmado', true),
+        Promise.resolve({ count: 0 }) // Rechazado no usado a nivel grupo
+    ]);
 
     const stats = {
-        sin_match: 0,
-        sugerido: 0,
-        confirmado: 0,
-        rechazado: 0,
+        sin_match: sinMatchCount || 0,
+        sugerido: sugeridoCount || 0,
+        confirmado: confirmadoCount || 0,
+        rechazado: rechazadoCount || 0,
     };
-    (conteo ?? []).forEach((c) => {
-        const s = c.estado_match;
-        if (s === 'sin_match') stats.sin_match++;
-        else if (s === 'match_exacto' || s === 'match_similitud' || s === 'sugerido') stats.sugerido++;
-        else if (s === 'confirmado') stats.confirmado++;
-        else if (s === 'rechazado') stats.rechazado++;
-    });
 
     return NextResponse.json({
         ok: true,
