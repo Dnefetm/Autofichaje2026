@@ -765,38 +765,44 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
   // null = 'Sin asignar' (saltar fila)
   const [selecciones, setSelecciones] = useState<Record<string, string | null>>({});
 
+  const [offset, setOffset] = useState(0);
+  const limit = 200;
+  const [totalPendientes, setTotalPendientes] = useState(0);
+
   const didLoad = useRef(false);
 
-  if (!didLoad.current) {
-    didLoad.current = true;
-    fetch(`/api/precios/importar/${importacionId}/costos`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.ok) throw new Error(d.error);
-        const fetchedGrupos = d.grupos || [];
-        setGrupos(fetchedGrupos);
-        setStats(d.stats || stats);
-        
-        // Ninguna fila se auto-asigna. Regla de oro: todo requiere validación humana.
-        const initialSels: Record<string, string | null> = {};
-        fetchedGrupos.forEach((g: any) => {
-           initialSels[g.clave] = null;
-        });
-        setSelecciones(initialSels);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+  useEffect(() => {
+    if (!didLoad.current) {
+        didLoad.current = true;
+        cargarDatos(0, filtroVista);
+    }
+  }, []);
+
+  async function cargarDatos(newOffset: number, newFiltro: string) {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/precios/importar/${importacionId}/costos?offset=${newOffset}&limit=${limit}&estado=${newFiltro}`);
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error);
+      const fetchedGrupos = d.grupos || [];
+      setGrupos(fetchedGrupos);
+      if (d.stats) setStats(d.stats);
+      if (d.total_pendientes !== undefined) setTotalPendientes(d.total_pendientes);
+      
+      const initialSels: Record<string, string | null> = {};
+      fetchedGrupos.forEach((g: any) => {
+         initialSels[g.clave] = null;
+      });
+      setSelecciones(initialSels);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function refrescarCostos() {
-    try {
-      const res = await fetch(`/api/precios/importar/${importacionId}/costos`);
-      const d = await res.json();
-      if (d.ok) {
-        setGrupos(d.grupos || []);
-        setStats(d.stats || stats);
-      }
-    } catch { /* silencioso */ }
+    await cargarDatos(offset, filtroVista);
   }
 
   function handleExportarNoAsignados() {
@@ -910,13 +916,7 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
   const numSeleccionados = Object.values(selecciones).filter(Boolean).length;
 
   function gruposFiltrados() {
-     return grupos.filter(g => {
-        const pMatch = g.catalogo_sugerido?.puntaje_match;
-        if (filtroVista === 'con_match') return pMatch === 100;
-        if (filtroVista === 'sin_match') return !pMatch;
-        if (filtroVista === 'duda') return pMatch && pMatch < 100 && pMatch >= 40;
-        return true;
-     });
+     return grupos;
   }
 
   if (guardadoOk) return (
@@ -980,12 +980,12 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
       </div>
       <div className="flex items-center gap-2 flex-wrap">
          <span className="text-xs text-slate-400">Filtrar vista:</span>
-         {(['todos', 'con_match', 'duda', 'sin_match'] as const).map((f) => (
-            <button key={f} onClick={() => setFiltroVista(f)} className={cn('text-xs px-2 py-1 rounded-full border transition-colors', filtroVista === f ? 'bg-indigo-100 border-indigo-400 text-indigo-700 font-bold' : 'border-slate-200 text-slate-500 hover:border-indigo-300')}>
-               {f === 'todos' ? 'Todos' : f === 'con_match' ? 'Solo Match (100%)' : f === 'duda' ? 'Revisar Sugeridos' : 'Sin Match'}
+         {(['todos', 'match_exacto', 'match_similitud', 'sin_match'] as const).map((f) => (
+            <button key={f} onClick={() => { setFiltroVista(f); setOffset(0); cargarDatos(0, f); }} className={cn('text-xs px-2 py-1 rounded-full border transition-colors', filtroVista === f ? 'bg-indigo-100 border-indigo-400 text-indigo-700 font-bold' : 'border-slate-200 text-slate-500 hover:border-indigo-300')}>
+               {f === 'todos' ? 'Todos' : f === 'match_exacto' ? 'Solo Match (100%)' : f === 'match_similitud' ? 'Revisar Sugeridos' : 'Sin Match'}
             </button>
          ))}
-         <span className="text-xs text-slate-400 ml-2">({gruposFiltrados().length} cols)</span>
+         <span className="text-xs text-slate-400 ml-2">({totalPendientes} resultados)</span>
       </div>
 
       {loading ? (
@@ -1056,6 +1056,29 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
           }}
           onClose={() => setRemapGrupoCostoId(null)}
         />
+      )}
+
+      {/* Paginación */}
+      {totalPendientes > limit && (
+        <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+          <span className="text-xs text-slate-500 font-medium">Mostrando {offset + 1} - {Math.min(offset + limit, totalPendientes)} de {totalPendientes}</span>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => { const nx = Math.max(0, offset - limit); setOffset(nx); cargarDatos(nx, filtroVista); }} 
+              disabled={offset === 0 || loading} 
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded text-xs font-bold text-slate-600 disabled:opacity-50 hover:bg-slate-100"
+            >
+              Anterior
+            </button>
+            <button 
+              onClick={() => { const nx = offset + limit; setOffset(nx); cargarDatos(nx, filtroVista); }} 
+              disabled={offset + limit >= totalPendientes || loading} 
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded text-xs font-bold text-slate-600 disabled:opacity-50 hover:bg-slate-100"
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
       )}
 
       <div className="flex gap-3">

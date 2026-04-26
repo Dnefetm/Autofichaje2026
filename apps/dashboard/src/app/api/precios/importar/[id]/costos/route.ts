@@ -212,24 +212,13 @@ export async function GET(
         return g;
     });
 
-    // ── Conteo general de estados (Optimizando para evitar el límite de 1000 filas de Supabase) ──
-    const [
-        { count: sinMatchCount },
-        { count: sugeridoCount },
-        { count: confirmadoCount },
-        { count: rechazadoCount }
-    ] = await Promise.all([
-        supabaseAdmin.from('matching_decisiones').select('*', { count: 'exact', head: true }).eq('importacion_id', id).is('cand_articulo_id', null),
-        supabaseAdmin.from('matching_decisiones').select('*', { count: 'exact', head: true }).eq('importacion_id', id).not('cand_articulo_id', 'is', null).eq('confirmado', false),
-        supabaseAdmin.from('matching_decisiones').select('*', { count: 'exact', head: true }).eq('importacion_id', id).eq('confirmado', true),
-        Promise.resolve({ count: 0 }) // Rechazado no usado a nivel grupo
-    ]);
-
-    const stats = {
-        sin_match: sinMatchCount || 0,
-        sugerido: sugeridoCount || 0,
-        confirmado: confirmadoCount || 0,
-        rechazado: rechazadoCount || 0,
+    // ── Conteo general de estados (Optimizando con RPC) ──
+    const { data: rpcStats } = await supabaseAdmin.rpc('fn_resumen_matching', { p_importacion_id: id });
+    const stats = rpcStats || {
+        sin_match: 0,
+        sugerido: 0,
+        confirmado: 0,
+        rechazado: 0,
     };
 
     return NextResponse.json({
