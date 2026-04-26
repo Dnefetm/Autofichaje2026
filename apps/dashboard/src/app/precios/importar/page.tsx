@@ -757,7 +757,7 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
   const [remaps, setRemaps] = useState<Record<string, { articulo_id: string; nombre: string; marca: string; modelo: string }>>({});
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
-  const [filtroVista, setFiltroVista] = useState<'todos' | 'con_match' | 'sin_match' | 'duda'>('todos');
+  const [filtroVista, setFiltroVista] = useState<'todos' | 'match_exacto' | 'sin_match' | 'match_similitud'>('todos');
   const [batchIdConfirmado, setBatchIdConfirmado] = useState<string | null>(null);
   const [revertiendo, setRevertiendo] = useState(false);
   
