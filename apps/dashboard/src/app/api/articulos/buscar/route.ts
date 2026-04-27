@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await supabaseAdmin
         .from('articulos')
-        .select('articulo_id, modelo, marca, codigo_universal, descripcion, nombre')
+        .select('articulo_id, modelo, marca, codigo_universal, descripcion, nombre, caja_madre')
         .or(
             [
                 `modelo.ilike.${ilikePattern}`,
@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
             codigo_universal: row.codigo_universal,
             descripcion: row.descripcion,
             nombre: row.nombre,
+            caja_madre: row.caja_madre,
         })),
     });
 }

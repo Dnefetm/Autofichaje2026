@@ -657,6 +657,7 @@ interface ArticuloBusqueda {
   modelo: string;
   marca: string;
   codigo_universal: string | null;
+  caja_madre: string | null;
 }
 
 function RemapModal({ costoId, onSelect, onClose }: {
@@ -725,6 +726,7 @@ function RemapModal({ costoId, onSelect, onClose }: {
                 <p className="text-xs text-slate-400 font-mono">
                   <span className="text-violet-600 font-bold">{art.marca}</span> · {art.modelo}
                   {art.codigo_universal && <span className="ml-2 text-amber-600">{art.codigo_universal}</span>}
+                  {art.caja_madre && <span className="ml-2 px-1 bg-slate-100 rounded text-slate-600 border border-slate-200">📍 {art.caja_madre}</span>}
                 </p>
               </div>
               <button
@@ -789,11 +791,15 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
       if (d.stats) setStats(d.stats);
       if (d.total_pendientes !== undefined) setTotalPendientes(d.total_pendientes);
       
-      const initialSels: Record<string, string | null> = {};
-      fetchedGrupos.forEach((g: any) => {
-         initialSels[g.clave] = null;
+      setSelecciones(prev => {
+        const next = { ...prev };
+        fetchedGrupos.forEach((g: any) => {
+           if (next[g.clave] === undefined) {
+               next[g.clave] = null;
+           }
+        });
+        return next;
       });
-      setSelecciones(initialSels);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -844,6 +850,22 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
   }
 
   const [pendientesRestantes, setPendientesRestantes] = useState(0);
+
+  async function handleDesvincular(clave: string) {
+    if(!confirm("¿Seguro que deseas desvincular este artículo? Regresará a estado pendiente.")) return;
+    try {
+      const res = await fetch(`/api/precios/importar/${importacionId}/desvincular`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clave })
+      });
+      const d = await res.json();
+      if(!d.ok) throw new Error(d.error);
+      await refrescarCostos();
+    } catch(e: any) {
+      setError(e.message);
+    }
+  }
 
   async function handleConfirmar() {
     const acciones: any[] = [];
@@ -998,6 +1020,7 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
            selecciones={selecciones}
            onSelectCandidato={(clave, artId) => setSelecciones(p => ({ ...p, [clave]: artId }))}
            onRemapClick={clave => setRemapGrupoCostoId(clave)} 
+           onDesvincularClick={handleDesvincular}
          />
       )}
 
@@ -1044,7 +1067,7 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
                              codigo_universal: articulo.codigo_universal || '',
                              puntaje_match: 100, // Conceptualmente equivalente para no romper contadores, pero
                              metodo_match: 'manual', // <- Diferenciador explícito
-                             caja_madre: null
+                             caja_madre: articulo.caja_madre || null
                           }, ...(g.candidatos_jsonb || [])]
                       }
                   }

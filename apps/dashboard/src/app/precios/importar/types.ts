@@ -42,6 +42,7 @@ export interface GrupoCostoFila {
   precios_nuevos: Record<TipoCosto, { costo_id: string; valor: number; moneda: string; tipo_costo: string } | null>;
   precios_anteriores: Record<TipoCosto, { valor: number; moneda: string } | null>;
   estado_grupo: EstadoMatch;
+  articulo_id_final?: string | null;
 }
 
 export function clasificarEstado(puntaje: number | null, nivel_match?: string): EstadoMatch {

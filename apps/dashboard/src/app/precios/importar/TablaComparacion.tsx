@@ -8,9 +8,10 @@ interface Props {
   selecciones: Record<string, string | null>;
   onSelectCandidato: (clave: string, articuloId: string | null) => void;
   onRemapClick: (clave: string) => void;
+  onDesvincularClick: (clave: string) => void;
 }
 
-export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRemapClick }: Props) {
+export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRemapClick, onDesvincularClick }: Props) {
   
   const formatPrice = (v: number | undefined, currency: string | undefined) => {
      if (v === undefined || v === null) return '—';
@@ -175,6 +176,14 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
                </div>
 
                <div className="flex flex-col gap-1 w-full relative mt-1">
+                 {g.articulo_id_final ? (
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-2 w-full">
+                       <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5"/> VINCULADO</span>
+                       <button onClick={() => onDesvincularClick(g.clave)} className="text-[10px] bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold px-2 py-1 rounded transition-colors">
+                          Desvincular
+                       </button>
+                    </div>
+                 ) : (
                  <select
                    className={cn(
                      "w-full text-[11px] font-bold outline-none bg-white border rounded-lg px-2 py-2.5 transition-colors cursor-pointer",
@@ -193,6 +202,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
                      );
                    })}
                  </select>
+                 )}
                </div>
             </div>
 

@@ -154,10 +154,15 @@ export async function GET(
                 precios_nuevos: {},
                 precios_anteriores: {},
                 estado_grupo: c.estado_match,
+                articulo_id_final: c.articulo_id || null,
             });
         }
         
         const grupo = gruposMap.get(clave);
+        // If one of them has the final ID, ensure the group has it.
+        if (c.articulo_id && !grupo.articulo_id_final) {
+             grupo.articulo_id_final = c.articulo_id;
+        }
         grupo.precios_nuevos[c.tipo_costo] = {
             costo_id: c.id,
             valor: c.valor,
