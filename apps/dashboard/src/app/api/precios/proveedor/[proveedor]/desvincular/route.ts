@@ -37,8 +37,7 @@ export async function POST(
         .update({
             articulo_id: null,
             estado_match: 'sugerido',
-            confirmado_por: null,
-            confirmado_en: null
+            confirmado_por: null
         })
         .in('importacion_id', importacionIds)
         .eq('articulo_id', articulo_id);
