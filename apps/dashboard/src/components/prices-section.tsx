@@ -42,6 +42,7 @@ function PricingRuleModal({
 }) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     
     // Parametros de la regla
     const [margin, setMargin] = useState(20);
@@ -67,6 +68,7 @@ function PricingRuleModal({
 
     async function handleSave() {
         setSaving(true);
+        setError(null);
         try {
             const res = await fetch('/api/pricing-rules', {
                 method: 'POST',
@@ -81,9 +83,14 @@ function PricingRuleModal({
                     ml_fixed_fee: fijo
                 })
             });
-            if (res.ok) {
+            const data = await res.json();
+            if (res.ok && data.ok) {
                 onClose();
+            } else {
+                setError(data.error || 'Error al guardar la regla');
             }
+        } catch (e: any) {
+            setError(e.message || 'Error de red al guardar la regla');
         } finally {
             setSaving(false);
         }
@@ -103,6 +110,12 @@ function PricingRuleModal({
                     <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>
                 ) : (
                     <div className="p-6 space-y-4">
+                        {error && (
+                            <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm font-semibold flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4" />
+                                {error}
+                            </div>
+                        )}
                         <div>
                             <label className="block text-xs font-bold text-slate-500 mb-1">Margen de Ganancia Neto (%)</label>
                             <input type="number" value={margin} onChange={e => setMargin(Number(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />

@@ -1,0 +1,4 @@
+ALTER TABLE pricing_rules ADD COLUMN IF NOT EXISTS ml_commission_percentage NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE pricing_rules ADD COLUMN IF NOT EXISTS tax_percentage NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE pricing_rules ADD COLUMN IF NOT EXISTS ml_fixed_fee NUMERIC(10,2) DEFAULT 0;
+

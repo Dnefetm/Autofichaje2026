@@ -12,45 +12,57 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
         const [modelo, marca, codigo_universal] = clave.split('||');
 
-        // 1. Revert matching_decisiones
-        let mdQuery = supabaseAdmin
+        // JS-based perfect matching to avoid PostgREST empty string '.or()' bugs
+        const { data: mdData, error: mdFetchErr } = await supabaseAdmin
             .from('matching_decisiones')
-            .update({
-                confirmado: false,
-                articulo_id_final: null,
-                confirmado_por: null,
-                confirmado_en: null
-            })
+            .select('id, modelo_excel, codigo_universal_excel')
             .eq('importacion_id', importacionId)
             .eq('marca_excel', marca);
 
-        if (modelo) mdQuery = mdQuery.eq('modelo_excel', modelo);
-        else mdQuery = mdQuery.is('modelo_excel', null);
+        if (mdFetchErr) throw new Error(`Fetch MD error: ${mdFetchErr.message}`);
 
-        if (codigo_universal) mdQuery = mdQuery.eq('codigo_universal_excel', codigo_universal);
-        else mdQuery = mdQuery.is('codigo_universal_excel', null);
+        const mdRow = mdData?.find(r => 
+            (modelo ? r.modelo_excel === modelo : (!r.modelo_excel)) &&
+            (codigo_universal ? r.codigo_universal_excel === codigo_universal : (!r.codigo_universal_excel))
+        );
 
-        const { error: errorMd } = await mdQuery;
-        if (errorMd) throw new Error(`Error en matching_decisiones: ${errorMd.message}`);
+        if (mdRow) {
+            const { error: mdErr } = await supabaseAdmin
+                .from('matching_decisiones')
+                .update({
+                    confirmado: false,
+                    articulo_id_final: null,
+                    confirmado_por: null,
+                    confirmado_en: null
+                })
+                .eq('id', mdRow.id);
+            if (mdErr) throw new Error(`Update MD error: ${mdErr.message}`);
+        }
 
         // 2. Revert costos_articulo
-        let caQuery = supabaseAdmin
+        const { data: caData, error: caFetchErr } = await supabaseAdmin
             .from('costos_articulo')
-            .update({
-                articulo_id: null,
-                estado_match: 'sugerido' // Or sin_match based on if there's a sugerido
-            })
+            .select('id, modelo_excel, codigo_universal_excel')
             .eq('importacion_id', importacionId)
             .eq('marca_excel', marca);
 
-        if (modelo) caQuery = caQuery.eq('modelo_excel', modelo);
-        else caQuery = caQuery.is('modelo_excel', null);
+        if (caFetchErr) throw new Error(`Fetch CA error: ${caFetchErr.message}`);
 
-        if (codigo_universal) caQuery = caQuery.eq('codigo_universal_excel', codigo_universal);
-        else caQuery = caQuery.is('codigo_universal_excel', null);
+        const caRow = caData?.find(r => 
+            (modelo ? r.modelo_excel === modelo : (!r.modelo_excel)) &&
+            (codigo_universal ? r.codigo_universal_excel === codigo_universal : (!r.codigo_universal_excel))
+        );
 
-        const { error: errorCa } = await caQuery;
-        if (errorCa) throw new Error(`Error en costos_articulo: ${errorCa.message}`);
+        if (caRow) {
+            const { error: caErr } = await supabaseAdmin
+                .from('costos_articulo')
+                .update({
+                    articulo_id: null,
+                    estado_match: 'sugerido'
+                })
+                .eq('id', caRow.id);
+            if (caErr) throw new Error(`Update CA error: ${caErr.message}`);
+        }
 
         return NextResponse.json({ ok: true });
     } catch (e: any) {

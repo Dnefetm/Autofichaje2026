@@ -938,7 +938,29 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
   const numSeleccionados = Object.values(selecciones).filter(Boolean).length;
 
   function gruposFiltrados() {
-     return grupos;
+    if (Object.keys(remaps).length === 0) return grupos;
+    return grupos.map(g => {
+        const remappedArticulo = remaps[g.clave];
+        if (remappedArticulo) {
+            const exists = (g.candidatos_jsonb || []).some((x: any) => x.articulo_id === remappedArticulo.articulo_id);
+            if (!exists) {
+                return {
+                    ...g,
+                    candidatos_jsonb: [{
+                        articulo_id: remappedArticulo.articulo_id,
+                        nombre: remappedArticulo.nombre,
+                        marca: remappedArticulo.marca,
+                        modelo: remappedArticulo.modelo,
+                        codigo_universal: remappedArticulo.codigo_universal || '',
+                        puntaje_match: 100,
+                        metodo_match: 'manual',
+                        caja_madre: remappedArticulo.caja_madre || null
+                    }, ...(g.candidatos_jsonb || [])]
+                };
+            }
+        }
+        return g;
+    });
   }
 
   if (guardadoOk) return (

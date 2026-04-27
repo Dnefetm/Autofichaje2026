@@ -33,13 +33,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, error: 'Missing required fields' }, { status: 400 });
     }
 
-    // 1. Delete old rules for this marketplace to keep it 1:1
-    await supabaseAdmin.from('pricing_rules').delete().eq('marketplace_id', marketplace_id);
-
-    // 2. Insert new rule
     const { data, error } = await supabaseAdmin
         .from('pricing_rules')
-        .insert({
+        .upsert({
             marketplace_id,
             name: name || 'Regla Dinámica',
             rule_type: rule_type || 'margin_percentage',
@@ -48,7 +44,7 @@ export async function POST(req: NextRequest) {
             tax_percentage,
             ml_fixed_fee,
             is_active: true
-        })
+        }, { onConflict: 'marketplace_id' })
         .select()
         .single();
 
