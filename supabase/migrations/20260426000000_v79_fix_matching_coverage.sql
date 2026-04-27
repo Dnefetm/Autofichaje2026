@@ -64,12 +64,15 @@ BEGIN
         articulo_id_final, proveedor, codigo_universal_excel, marca_excel, modelo_excel, nombre_excel
     )
     SELECT DISTINCT ON (e.codigo_excel, e.marca_excel, e.modelo_excel)
-        p_importacion_id, 1, 100, true, true,
+        p_importacion_id, 1, 100, true, false,
         a.articulo_id, a.marca, a.modelo, a.codigo_universal, a.nombre,
-        a.articulo_id, v_proveedor, e.codigo_excel, e.marca_excel, e.modelo_excel, e.nombre_excel
+        NULL, v_proveedor, e.codigo_excel, e.marca_excel, e.modelo_excel, e.nombre_excel
     FROM tmp_excel e
-    INNER JOIN articulos a ON lower(unaccent(trim(a.codigo_universal))) = lower(unaccent(trim(e.codigo_excel)))
-    WHERE e.codigo_excel != '' AND a.activo = true
+    INNER JOIN articulos a 
+        ON lower(unaccent(trim(a.codigo_universal))) = lower(unaccent(trim(e.codigo_excel)))
+        AND lower(unaccent(trim(a.marca))) = lower(unaccent(trim(e.marca_excel)))
+        AND lower(unaccent(trim(a.modelo))) = lower(unaccent(trim(e.modelo_excel)))
+    WHERE e.codigo_excel != '' AND e.marca_excel != '' AND e.modelo_excel != '' AND a.activo = true
     ON CONFLICT (importacion_id, codigo_universal_excel, marca_excel, modelo_excel) DO NOTHING;
 
     -- =================================================================================
@@ -229,7 +232,7 @@ SECURITY DEFINER
 AS $$
   SELECT json_build_object(
     'sin_match', COALESCE(SUM(CASE WHEN nivel = 4 THEN 1 ELSE 0 END), 0),
-    'sugerido', COALESCE(SUM(CASE WHEN nivel IN (2, 3) AND confirmado = false THEN 1 ELSE 0 END), 0),
+    'sugerido', COALESCE(SUM(CASE WHEN nivel IN (1, 2, 3) AND confirmado = false THEN 1 ELSE 0 END), 0),
     'confirmado', COALESCE(SUM(CASE WHEN confirmado = true THEN 1 ELSE 0 END), 0),
     'rechazado', 0,
     'total', COUNT(*)
@@ -237,17 +240,5 @@ AS $$
   FROM matching_decisiones
   WHERE importacion_id = p_importacion_id;
 $$;
-
--- Reprocesar la importación afectada para arreglarla ahora mismo
-DO $$
-DECLARE
-    v_id uuid := 'fb8a73c8-f1fd-4bd9-9cc5-b8654e4f9d9b'::uuid;
-BEGIN
-    IF EXISTS (SELECT 1 FROM importaciones_excel WHERE id = v_id) THEN
-        DELETE FROM matching_decisiones WHERE importacion_id = v_id;
-        DELETE FROM costos_articulo WHERE importacion_id = v_id;
-        PERFORM fn_match_precios_v2(v_id);
-    END IF;
-END $$;
 
 COMMIT;
