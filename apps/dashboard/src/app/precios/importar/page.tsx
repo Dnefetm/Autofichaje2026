@@ -726,7 +726,7 @@ function RemapModal({ costoId, onSelect, onClose }: {
                 <p className="text-xs text-slate-400 font-mono">
                   <span className="text-violet-600 font-bold">{art.marca}</span> · {art.modelo}
                   {art.codigo_universal && <span className="ml-2 text-amber-600">{art.codigo_universal}</span>}
-                  {art.caja_madre && <span className="ml-2 px-1 bg-slate-100 rounded text-slate-600 border border-slate-200">📍 {art.caja_madre}</span>}
+                  <span className="ml-2 px-1 bg-slate-100 rounded text-slate-600 border border-slate-200">📍 {art.caja_madre || '—'}</span>
                 </p>
               </div>
               <button
