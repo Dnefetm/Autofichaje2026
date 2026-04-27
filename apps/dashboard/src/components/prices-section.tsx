@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Store, DollarSign, Save, Loader2, PlusCircle, CheckCircle } from 'lucide-react';
+import { Store, DollarSign, Save, Loader2, PlusCircle, CheckCircle, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
@@ -27,6 +27,120 @@ export interface PricesSectionProps {
     modeloDefault: string | null;
 }
 
+// ── PricingRuleModal ─────────────────────────────────────────────────────────
+
+function PricingRuleModal({
+    open,
+    onClose,
+    marketplace_id,
+    account_name
+}: {
+    open: boolean;
+    onClose: () => void;
+    marketplace_id: string;
+    account_name: string;
+}) {
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    
+    // Parametros de la regla
+    const [margin, setMargin] = useState(20);
+    const [comision, setComision] = useState(15);
+    const [iva, setIva] = useState(16);
+    const [fijo, setFijo] = useState(25);
+
+    useEffect(() => {
+        if (!open) return;
+        setLoading(true);
+        fetch(`/api/pricing-rules?marketplace_id=${marketplace_id}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok && data.rule) {
+                    setMargin(data.rule.value);
+                    setComision(data.rule.ml_commission_percentage);
+                    setIva(data.rule.tax_percentage);
+                    setFijo(data.rule.ml_fixed_fee);
+                }
+            })
+            .finally(() => setLoading(false));
+    }, [open, marketplace_id]);
+
+    async function handleSave() {
+        setSaving(true);
+        try {
+            const res = await fetch('/api/pricing-rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    marketplace_id,
+                    name: `Regla ${account_name}`,
+                    rule_type: 'margin_percentage',
+                    value: margin,
+                    ml_commission_percentage: comision,
+                    tax_percentage: iva,
+                    ml_fixed_fee: fijo
+                })
+            });
+            if (res.ok) {
+                onClose();
+            }
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    if (!open) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="font-bold text-slate-800">Fórmula de Precio: {account_name}</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">×</button>
+                </div>
+                
+                {loading ? (
+                    <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>
+                ) : (
+                    <div className="p-6 space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Margen de Ganancia Neto (%)</label>
+                            <input type="number" value={margin} onChange={e => setMargin(Number(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
+                            <p className="text-[10px] text-slate-400 mt-1">Porcentaje de ganancia libre después de todos los descuentos.</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Comisión MeLi (%)</label>
+                                <input type="number" value={comision} onChange={e => setComision(Number(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Impuesto (IVA %)</label>
+                                <input type="number" value={iva} onChange={e => setIva(Number(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Cargo Fijo MeLi ($)</label>
+                            <input type="number" value={fijo} onChange={e => setFijo(Number(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
+                        </div>
+                    </div>
+                )}
+                
+                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded-lg">Cancelar</button>
+                    <button 
+                        onClick={handleSave} 
+                        disabled={saving || loading}
+                        className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg flex items-center gap-2"
+                    >
+                        {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                        Aplicar y Recalcular
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ── PriceRow ─────────────────────────────────────────────────────────────────
 
 function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps) {
@@ -37,6 +151,13 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [err, setErr] = useState<string | null>(null);
+    const [modalOpen, setModalOpen] = useState(false);
+
+    // Sync input when DB calculation updates
+    useEffect(() => {
+        if (price.sale_price) setSalePrice(price.sale_price.toString());
+        if (price.base_price) setBasePrice(price.base_price.toString());
+    }, [price.sale_price, price.base_price]);
 
     const accountName =
         price.marketplace_configs?.account_name || price.account_name || price.marketplace_id;
@@ -98,39 +219,35 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
                 {/* Precio venta */}
                 <div>
                     <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1">
-                        Precio Venta <span className="text-rose-400">*</span>
+                        Precio Venta (Calculado o Manual)
                     </label>
                     <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
                         <input
-                            id={`sale-price-${price.marketplace_id}`}
                             type="number"
-                            min="0"
                             step="0.01"
                             value={salePrice}
-                            onChange={e => { setSalePrice(e.target.value); setErr(null); }}
+                            onChange={(e) => setSalePrice(e.target.value)}
                             placeholder="0.00"
-                            className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                            className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
                         />
                     </div>
                 </div>
 
-                {/* Precio base */}
+                {/* Precio Base */}
                 <div>
                     <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1">
-                        Precio Base / Lista
+                        Precio Lista (Opcional)
                     </label>
                     <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
                         <input
-                            id={`base-price-${price.marketplace_id}`}
                             type="number"
-                            min="0"
                             step="0.01"
                             value={basePrice}
-                            onChange={e => setBasePrice(e.target.value)}
-                            placeholder="Opcional"
-                            className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                            onChange={(e) => setBasePrice(e.target.value)}
+                            placeholder="0.00"
+                            className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                     </div>
                 </div>
@@ -141,31 +258,28 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
                         SKU Tienda
                     </label>
                     <input
-                        id={`sku-tienda-${price.marketplace_id}`}
                         type="text"
                         value={skuTienda}
-                        onChange={e => setSkuTienda(e.target.value)}
-                        placeholder={modeloDefault || 'Modelo del artículo'}
-                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-mono"
+                        onChange={(e) => setSkuTienda(e.target.value)}
+                        placeholder={modeloDefault || 'SKU'}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
                     />
                 </div>
             </div>
 
             {/* Error / Footer */}
             <div className="flex items-center justify-between mt-3">
-                <div>
-                    {err && <p className="text-xs text-rose-500 font-medium">{err}</p>}
-                    {!isNew && !err && (
-                        <p className="text-xs text-slate-400">
-                            Actual: <span className="font-bold text-slate-600">
-                                {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(price.sale_price)}
-                            </span>
-                            {price.base_price
-                                ? <> · Lista: {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(price.base_price)}</>
-                                : ''}
-                        </p>
-                    )}
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setModalOpen(true)}
+                        className="text-xs font-semibold text-indigo-600 flex items-center gap-1 hover:text-indigo-800 transition-colors"
+                    >
+                        <Settings className="w-3.5 h-3.5" />
+                        Configurar Fórmula
+                    </button>
+                    {err && <span className="text-xs text-rose-500 font-medium ml-2">{err}</span>}
                 </div>
+                
                 <button
                     id={`save-price-${price.marketplace_id}`}
                     onClick={handleSave}
@@ -188,6 +302,16 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
                     {saved ? 'Guardado' : isNew ? 'Agregar' : 'Guardar'}
                 </button>
             </div>
+
+            <PricingRuleModal 
+                open={modalOpen} 
+                onClose={() => {
+                    setModalOpen(false);
+                    onSaved(); // reload prices when modal closes in case recalculation updated them
+                }}
+                marketplace_id={price.marketplace_id}
+                account_name={accountName}
+            />
         </div>
     );
 }
