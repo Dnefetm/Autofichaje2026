@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
 import { ArrowLeft, Clock, History, FileDown, Search, AlertTriangle } from 'lucide-react';
+import { DesvincularBtn } from './DesvincularBtn';
 
 export default async function DetalleProveedorPage(props: { params: Promise<{ proveedor: string }>, searchParams: Promise<any> }) {
     const params = await props.params;
@@ -96,6 +97,7 @@ export default async function DetalleProveedorPage(props: { params: Promise<{ pr
                                 <th className="px-4 py-3 border-b border-slate-200 text-right">Menudeo</th>
                                 <th className="px-4 py-3 border-b border-slate-200 text-center">IVA</th>
                                 <th className="px-4 py-3 border-b border-slate-200">Últ. Actualización</th>
+                                <th className="px-4 py-3 border-b border-slate-200"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -142,6 +144,11 @@ export default async function DetalleProveedorPage(props: { params: Promise<{ pr
                                     </td>
                                     <td className="px-4 py-2 text-xs text-slate-500">
                                         {row.ultima_actualizacion ? new Date(row.ultima_actualizacion).toLocaleString('es-MX', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                                    </td>
+                                    <td className="px-4 py-2 text-right">
+                                        {row.articulo_id && !row.huerfano && (
+                                            <DesvincularBtn proveedor={proveedorDecoded} articuloId={row.articulo_id} />
+                                        )}
                                     </td>
                                 </tr>
                             ))}
