@@ -762,6 +762,8 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
   const [filtroVista, setFiltroVista] = useState<'todos' | 'match_exacto' | 'sin_match' | 'match_similitud'>('todos');
   const [batchIdConfirmado, setBatchIdConfirmado] = useState<string | null>(null);
   const [revertiendo, setRevertiendo] = useState(false);
+  const [q, setQ] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   
   // Nuevo estado para la decisión del usuario (grupo.clave -> articulo_id | null)
   // null = 'Sin asignar' (saltar fila)
@@ -776,14 +778,14 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
   useEffect(() => {
     if (!didLoad.current) {
         didLoad.current = true;
-        cargarDatos(0, filtroVista);
+        cargarDatos(0, filtroVista, '');
     }
   }, []);
 
-  async function cargarDatos(newOffset: number, newFiltro: string) {
+  async function cargarDatos(newOffset: number, newFiltro: string, searchQuery: string = '') {
     setLoading(true);
     try {
-      const res = await fetch(`/api/precios/importar/${importacionId}/costos?offset=${newOffset}&limit=${limit}&estado=${newFiltro}`);
+      const res = await fetch(`/api/precios/importar/${importacionId}/costos?offset=${newOffset}&limit=${limit}&estado=${newFiltro}&q=${encodeURIComponent(searchQuery)}`);
       const d = await res.json();
       if (!d.ok) throw new Error(d.error);
       const fetchedGrupos = d.grupos || [];
@@ -1025,11 +1027,21 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
       <div className="flex items-center gap-2 flex-wrap">
          <span className="text-xs text-slate-400">Filtrar vista:</span>
          {(['todos', 'match_exacto', 'match_similitud', 'sin_match'] as const).map((f) => (
-            <button key={f} onClick={() => { setFiltroVista(f); setOffset(0); cargarDatos(0, f); }} className={cn('text-xs px-2 py-1 rounded-full border transition-colors', filtroVista === f ? 'bg-indigo-100 border-indigo-400 text-indigo-700 font-bold' : 'border-slate-200 text-slate-500 hover:border-indigo-300')}>
+            <button key={f} onClick={() => { setFiltroVista(f); setOffset(0); cargarDatos(0, f, q); }} className={cn('text-xs px-2 py-1 rounded-full border transition-colors', filtroVista === f ? 'bg-indigo-100 border-indigo-400 text-indigo-700 font-bold' : 'border-slate-200 text-slate-500 hover:border-indigo-300')}>
                {f === 'todos' ? 'Todos' : f === 'match_exacto' ? 'Solo Match (100%)' : f === 'match_similitud' ? 'Revisar Sugeridos' : 'Sin Match'}
             </button>
          ))}
          <span className="text-xs text-slate-400 ml-2">({totalPendientes} resultados)</span>
+         <form onSubmit={(e) => { e.preventDefault(); setOffset(0); cargarDatos(0, filtroVista, q); }} className="ml-auto relative">
+            <Search className="w-4 h-4 absolute left-3 top-2 text-slate-400" />
+            <input 
+                type="text" 
+                placeholder="Buscar modelo o marca..." 
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                className="pl-8 pr-4 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+         </form>
       </div>
 
       {loading ? (

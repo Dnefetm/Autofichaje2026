@@ -64,6 +64,8 @@ export async function GET(
         .order('creado_el', { ascending: false })
         .range(offset, offset + limit - 1);
 
+    const q = searchParams.get('q') || '';
+
     if (estadoFiltro !== 'todos') {
         // Map old frontend filters to new DB values
         if (estadoFiltro === 'sugerido') {
@@ -73,6 +75,11 @@ export async function GET(
         }
     } else {
         query = query.in('estado_match', ['sin_match', 'match_exacto', 'match_similitud', 'sugerido']);
+    }
+
+    if (q) {
+        const ilikeQ = `%${q}%`;
+        query = query.or(`modelo_excel.ilike.${ilikeQ},marca_excel.ilike.${ilikeQ},codigo_universal_excel.ilike.${ilikeQ},descripcion_excel.ilike.${ilikeQ}`);
     }
 
     const { data: costos, error: costosErr } = await query;
