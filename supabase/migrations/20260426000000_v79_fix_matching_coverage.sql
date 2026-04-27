@@ -56,7 +56,7 @@ BEGIN
     WHERE importacion_id = p_importacion_id;
 
     -- =================================================================================
-    -- OLA 1: EXACTO POR UPC (NIVEL 1)
+    -- OLA 1: EXACTO POR UPC + MARCA + MODELO (NIVEL 1)
     -- =================================================================================
     INSERT INTO matching_decisiones (
         importacion_id, nivel, pct, preseleccionado, confirmado,
@@ -76,7 +76,7 @@ BEGIN
     ON CONFLICT (importacion_id, codigo_universal_excel, marca_excel, modelo_excel) DO NOTHING;
 
     -- =================================================================================
-    -- OLA 2: EXACTO POR MARCA Y MODELO (NIVEL 2)
+    -- OLA 2: EXACTO POR UPC SOLAMENTE (NIVEL 2) - Sugerencia Fuerte
     -- =================================================================================
     INSERT INTO matching_decisiones (
         importacion_id, nivel, pct, preseleccionado, confirmado,
@@ -84,18 +84,43 @@ BEGIN
         articulo_id_final, proveedor, codigo_universal_excel, marca_excel, modelo_excel, nombre_excel
     )
     SELECT DISTINCT ON (e.codigo_excel, e.marca_excel, e.modelo_excel)
-        p_importacion_id, 2, 80, false, false,
+        p_importacion_id, 2, 95, true, false,
+        a.articulo_id, a.marca, a.modelo, a.codigo_universal, a.nombre,
+        NULL, v_proveedor, e.codigo_excel, e.marca_excel, e.modelo_excel, e.nombre_excel
+    FROM tmp_excel e
+    INNER JOIN articulos a ON lower(unaccent(trim(a.codigo_universal))) = lower(unaccent(trim(e.codigo_excel)))
+    LEFT JOIN matching_decisiones md ON md.importacion_id = p_importacion_id 
+        AND md.codigo_universal_excel = e.codigo_excel 
+        AND md.marca_excel = e.marca_excel 
+        AND md.modelo_excel = e.modelo_excel
+    WHERE e.codigo_excel != '' AND a.activo = true AND md.cand_articulo_id IS NULL
+    ON CONFLICT (importacion_id, codigo_universal_excel, marca_excel, modelo_excel) DO NOTHING;
+
+    -- =================================================================================
+    -- OLA 3: EXACTO POR MARCA Y MODELO (NIVEL 3)
+    -- =================================================================================
+    INSERT INTO matching_decisiones (
+        importacion_id, nivel, pct, preseleccionado, confirmado,
+        cand_articulo_id, cand_marca, cand_modelo, cand_codigo, cand_nombre,
+        articulo_id_final, proveedor, codigo_universal_excel, marca_excel, modelo_excel, nombre_excel
+    )
+    SELECT DISTINCT ON (e.codigo_excel, e.marca_excel, e.modelo_excel)
+        p_importacion_id, 3, 80, false, false,
         a.articulo_id, a.marca, a.modelo, a.codigo_universal, a.nombre,
         NULL, v_proveedor, e.codigo_excel, e.marca_excel, e.modelo_excel, e.nombre_excel
     FROM tmp_excel e
     INNER JOIN articulos a 
         ON lower(unaccent(trim(a.marca))) = lower(unaccent(trim(e.marca_excel)))
         AND lower(unaccent(trim(a.modelo))) = lower(unaccent(trim(e.modelo_excel)))
-    WHERE e.marca_excel != '' AND e.modelo_excel != '' AND a.activo = true
+    LEFT JOIN matching_decisiones md ON md.importacion_id = p_importacion_id 
+        AND md.codigo_universal_excel = e.codigo_excel 
+        AND md.marca_excel = e.marca_excel 
+        AND md.modelo_excel = e.modelo_excel
+    WHERE e.marca_excel != '' AND e.modelo_excel != '' AND a.activo = true AND md.cand_articulo_id IS NULL
     ON CONFLICT (importacion_id, codigo_universal_excel, marca_excel, modelo_excel) DO NOTHING;
 
     -- =================================================================================
-    -- OLA 3: FUZZY MATCH (NIVEL 3) - Sólo el residuo!
+    -- OLA 4: FUZZY MATCH (NIVEL 4) - Sólo el residuo!
     -- =================================================================================
     INSERT INTO matching_decisiones (
         importacion_id, nivel, pct, preseleccionado, confirmado,
@@ -103,7 +128,7 @@ BEGIN
         articulo_id_final, proveedor, codigo_universal_excel, marca_excel, modelo_excel, nombre_excel
     )
     SELECT DISTINCT ON (e.codigo_excel, e.marca_excel, e.modelo_excel)
-        p_importacion_id, 3, fuzzy.pct, false, false,
+        p_importacion_id, 4, fuzzy.pct, false, false,
         fuzzy.articulo_id, fuzzy.marca, fuzzy.modelo, fuzzy.codigo_universal, fuzzy.nombre,
         NULL, v_proveedor, e.codigo_excel, e.marca_excel, e.modelo_excel, e.nombre_excel
     FROM tmp_excel e
@@ -136,7 +161,7 @@ BEGIN
     ON CONFLICT (importacion_id, codigo_universal_excel, marca_excel, modelo_excel) DO NOTHING;
 
     -- =================================================================================
-    -- OLA 4: SIN MATCH (NIVEL 4) - El resto absoluto
+    -- OLA 5: SIN MATCH (NIVEL 5) - El resto absoluto
     -- =================================================================================
     INSERT INTO matching_decisiones (
         importacion_id, nivel, pct, preseleccionado, confirmado,
@@ -144,7 +169,7 @@ BEGIN
         articulo_id_final, proveedor, codigo_universal_excel, marca_excel, modelo_excel, nombre_excel
     )
     SELECT DISTINCT ON (e.codigo_excel, e.marca_excel, e.modelo_excel)
-        p_importacion_id, 4, 0, false, false,
+        p_importacion_id, 5, 0, false, false,
         NULL, NULL, NULL, NULL, NULL,
         NULL, v_proveedor, e.codigo_excel, e.marca_excel, e.modelo_excel, e.nombre_excel
     FROM tmp_excel e
@@ -181,7 +206,7 @@ BEGIN
         COALESCE(md.pct, 0), 
         CASE 
            WHEN md.nivel = 1 THEN 'match_exacto'
-           WHEN md.nivel IN (2, 3) THEN 'match_similitud'
+           WHEN md.nivel IN (2, 3, 4) THEN 'match_similitud'
            ELSE 'sin_match'
         END, 
         false, pe.incluye_iva
@@ -231,8 +256,8 @@ LANGUAGE sql
 SECURITY DEFINER
 AS $$
   SELECT json_build_object(
-    'sin_match', COALESCE(SUM(CASE WHEN nivel = 4 THEN 1 ELSE 0 END), 0),
-    'sugerido', COALESCE(SUM(CASE WHEN nivel IN (1, 2, 3) AND confirmado = false THEN 1 ELSE 0 END), 0),
+    'sin_match', COALESCE(SUM(CASE WHEN nivel = 5 THEN 1 ELSE 0 END), 0),
+    'sugerido', COALESCE(SUM(CASE WHEN nivel IN (1, 2, 3, 4) AND confirmado = false THEN 1 ELSE 0 END), 0),
     'confirmado', COALESCE(SUM(CASE WHEN confirmado = true THEN 1 ELSE 0 END), 0),
     'rechazado', 0,
     'total', COUNT(*)
