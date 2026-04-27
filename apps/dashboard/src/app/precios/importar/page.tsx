@@ -1032,15 +1032,20 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
             </button>
          ))}
          <span className="text-xs text-slate-400 ml-2">({totalPendientes} resultados)</span>
-         <form onSubmit={(e) => { e.preventDefault(); setOffset(0); cargarDatos(0, filtroVista, q); }} className="ml-auto relative">
-            <Search className="w-4 h-4 absolute left-3 top-2 text-slate-400" />
-            <input 
-                type="text" 
-                placeholder="Buscar modelo o marca..." 
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                className="pl-8 pr-4 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            />
+         <form onSubmit={(e) => { e.preventDefault(); setOffset(0); cargarDatos(0, filtroVista, q); }} className="ml-auto flex items-center gap-2">
+            <div className="relative w-64">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input 
+                    type="text" 
+                    placeholder="Buscar modelo o marca..." 
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    className="pl-9 pr-4 py-2 w-full text-sm border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+            </div>
+            <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors">
+                Buscar
+            </button>
          </form>
       </div>
 
