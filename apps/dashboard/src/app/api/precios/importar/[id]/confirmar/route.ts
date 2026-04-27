@@ -49,7 +49,8 @@ export async function POST(
             continue;
         }
 
-        const articulo_id = d.articulo_id || costo.articulo_sugerido_id;
+        // Support both articulo_id (from typed interface) and articulo_id_override (from frontend payload)
+        const articulo_id = d.articulo_id || (d as any).articulo_id_override || costo.articulo_sugerido_id;
 
         if (d.accion === 'sin_match' || !articulo_id) {
             // Queda huérfano
