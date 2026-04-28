@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { DollarSign, ShieldCheck, AlertCircle, Clock, Save, X, Edit2, Loader2, ArrowRight } from 'lucide-react';
+import { DollarSign, ShieldCheck, AlertCircle, Clock, Save, X, Edit2, Loader2, ArrowRight, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PricingAuditCardProps {
@@ -27,6 +27,7 @@ export default function PricingAuditCard({
     const [editType, setEditType] = useState<string>('fixed_price');
     const [editValue, setEditValue] = useState<string>('');
     const [saving, setSaving] = useState(false);
+    const [recalculating, setRecalculating] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
 
     useEffect(() => {
@@ -100,6 +101,24 @@ export default function PricingAuditCard({
         }
     };
 
+    const handleForceRecalculate = async () => {
+        setRecalculating(true);
+        try {
+            const res = await fetch(`/api/catalog/external/${publicacionId}/pricing`, { method: 'PUT' });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error);
+            }
+            await loadData();
+            onOverrideUpdated();
+        } catch (err) {
+            console.error(err);
+            alert('Error forzando recálculo');
+        } finally {
+            setRecalculating(false);
+        }
+    };
+
     const fmt = (n: number | null | undefined) => 
         n != null ? `$${Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—';
         
@@ -125,11 +144,21 @@ export default function PricingAuditCard({
                     <div className="text-slate-400"><DollarSign className="w-4 h-4" /></div>
                     <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Auditoría de Precio</h2>
                 </div>
-                {pricingStatus && (
-                    <span className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border', ui.color)}>
-                        {ui.icon} {ui.text}
-                    </span>
-                )}
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={handleForceRecalculate} 
+                        disabled={recalculating || loading}
+                        className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                    >
+                        <RefreshCw className={cn("w-3 h-3", recalculating && "animate-spin")} />
+                        Recalcular Ahora
+                    </button>
+                    {pricingStatus && (
+                        <span className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border', ui.color)}>
+                            {ui.icon} {ui.text}
+                        </span>
+                    )}
+                </div>
             </div>
             
             <div className="p-5 flex-1 flex flex-col">

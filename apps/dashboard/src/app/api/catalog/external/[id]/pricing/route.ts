@@ -57,3 +57,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         return NextResponse.json({ error: error.message || 'Error updating override' }, { status: 500 });
     }
 }
+
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    
+    try {
+        // Ejecutar el cálculo de forma síncrona para feedback instantáneo en UI
+        const { error } = await supabase.rpc('fn_recalcular_precio_publicacion', {
+            p_publicacion_id: id
+        });
+        
+        if (error) throw error;
+        
+        return NextResponse.json({ success: true });
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message || 'Error forzando recálculo' }, { status: 500 });
+    }
+}
