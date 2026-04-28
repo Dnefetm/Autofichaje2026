@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -29,11 +29,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         
         if (!override_type || value == null) {
             // Delete override
-            const { error } = await supabase.from('publication_pricing_overrides').delete().eq('publicacion_id', id);
+            const { error } = await supabaseAdmin.from('publication_pricing_overrides').delete().eq('publicacion_id', id);
             if (error) throw error;
         } else {
             // Upsert override
-            const { error } = await supabase.from('publication_pricing_overrides').upsert({
+            const { error } = await supabaseAdmin.from('publication_pricing_overrides').upsert({
                 publicacion_id: id,
                 override_type,
                 value,
@@ -44,7 +44,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         }
         
         // Encolar recálculo asíncrono
-        const { error: jobErr } = await supabase.from('jobs').insert({
+        const { error: jobErr } = await supabaseAdmin.from('jobs').insert({
             type: 'recalc_pricing_bundle',
             payload: { publicacion_id: id },
             status: 'pending'
@@ -63,7 +63,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     
     try {
         // Ejecutar el cálculo de forma síncrona para feedback instantáneo en UI
-        const { error } = await supabase.rpc('fn_recalcular_precio_publicacion', {
+        const { error } = await supabaseAdmin.rpc('fn_recalcular_precio_publicacion', {
             p_publicacion_id: id
         });
         
