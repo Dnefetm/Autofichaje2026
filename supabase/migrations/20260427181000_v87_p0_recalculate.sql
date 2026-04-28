@@ -4,11 +4,11 @@ DECLARE
     r RECORD;
 BEGIN
     FOR r IN (
-        SELECT DISTINCT sku_articulo 
+        SELECT DISTINCT articulo_id 
         FROM mapeo_publicacion_articulo 
         WHERE cantidad_requerida > 1
     ) LOOP
-        PERFORM fn_recalcular_precio_marketplace(r.sku_articulo);
+        PERFORM fn_recalcular_precio_marketplace(r.articulo_id);
     END LOOP;
 END;
 $$;

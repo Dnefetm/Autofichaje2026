@@ -1,24 +1,3 @@
-import { NextResponse } from 'next/server';
-import { Client } from 'pg';
-import fs from 'fs';
-import path from 'path';
-
-export async function GET() {
-  const uri = process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
-  
-  if (!uri) {
-    return NextResponse.json({ error: "No DB connection string found in Vercel env vars." }, { status: 500 });
-  }
-
-  const client = new Client({ connectionString: uri });
-
-  try {
-    await client.connect();
-    
-    // The SQL to fix the 4 functions
-    const sql = \`
-BEGIN;
-
 -- 1. Función de recálculo (CORREGIDA la columna sku_articulo -> articulo_id)
 CREATE OR REPLACE FUNCTION public.fn_recalcular_precio_publicacion(p_publicacion_id UUID)
 RETURNS VOID LANGUAGE plpgsql AS $$
@@ -132,16 +111,3 @@ CREATE TRIGGER trigger_recalcular_precios_mapeo
     ON mapeo_publicacion_articulo
     FOR EACH ROW
     EXECUTE FUNCTION trg_mapeo_publicacion_recalcular_async();
-
-COMMIT;
-`;
-
-    await client.query(sql);
-    await client.end();
-    
-    return NextResponse.json({ ok: true, message: "Funciones parcheadas exitosamente!" });
-  } catch (err: any) {
-    await client.end().catch(()=>null);
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
