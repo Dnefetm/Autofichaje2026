@@ -43,8 +43,24 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { topic, resource, user_id } = body;
 
-        if (!topic || !resource) {
-            return NextResponse.json({ status: 'ignored', reason: 'missing_topic_or_resource' });
+        // Early filtering to prevent CPU exhaustion on Vercel Hobby plan
+        // High-volume topics that are currently unused are discarded immediately before DB queries.
+        const IGNORED_TOPICS = ['price_suggestion', 'shipments', 'messages', 'created_orders'];
+        if (IGNORED_TOPICS.includes(topic)) {
+            return NextResponse.json({ status: 'ignored', reason: 'early_filtered_topic' });
+        }
+
+        // Deduplication using PostgreSQL UNIQUE constraint
+        const notificationId = body._id || `${topic}_${resource}_${Date.now()}`;
+        const { error: dedupeError } = await supabaseAdmin.from('meli_webhook_events').insert({
+            notification_id: notificationId,
+            topic,
+            resource
+        });
+
+        // '23505' is PostgreSQL unique violation error code
+        if (dedupeError && dedupeError.code === '23505') {
+            return NextResponse.json({ status: 'ignored', reason: 'deduplicated' });
         }
 
         logger.info({ topic, resource }, 'Webhook MeLi recibido');
