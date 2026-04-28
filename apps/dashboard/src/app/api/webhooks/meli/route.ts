@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { dispatchWorker } from '@/lib/dispatch-worker';
 import { logger } from '@/lib/logger';
 
 /**
@@ -205,10 +204,8 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // 5. dispatch_immediate viene de BD — el usuario decide si quiere activación inmediata
-        if (dispatchImmed && jobInserted) {
-            await dispatchWorker();
-        }
+        // 5. dispatch_immediate viene de BD (ya no hace self-fanout por CPU)
+        // El cron procesa los jobs de manera más eficiente en batches.
 
         logger.info({
             topic, resourceId,

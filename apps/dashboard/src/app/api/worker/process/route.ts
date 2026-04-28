@@ -10,7 +10,7 @@ import logger from '@/lib/logger';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Vercel Hobby permite hasta 60s
 
-const BATCH_SIZE = 3; // Conservador para evitar rate limits de MeLi
+const BATCH_SIZE = 25; // Aumentado para procesar más jobs por cron y ahorrar CPU
 
 /**
  * Worker Cron Endpoint — Reemplaza el polling de Render.
@@ -38,6 +38,30 @@ export async function GET(req: NextRequest) {
     };
 
     try {
+        // Mover refresh de tokens ANTES del early exit para evitar que expiren
+        // si cron-job.org se desincroniza de los múltiplos exactos de 5.
+        try {
+            await MeliTokenManager.refreshExpiringTokens();
+            results.tokensRefreshed = true;
+        } catch (tokenErr: any) {
+            results.errors.push(`Token refresh failed: ${tokenErr.message}`);
+        }
+
+        // C. Early-exit si no hay jobs para ahorrar CPU
+        const now = new Date();
+        const currentMinute = now.getMinutes();
+        const currentHour = now.getUTCHours();
+
+        const { count } = await supabaseAdmin
+            .from('jobs')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'pending');
+
+        // Solo saltar si no hay jobs Y no es hora de reconciliación/catálogo
+        if (count === 0 && currentHour % 6 !== 0 && currentHour % 8 !== 0) {
+            return NextResponse.json({ ...results, skipped: true, reason: 'no_jobs' });
+        }
+
         // 2. TTL Cleanup — Borrar jobs viejos (>7 días) con status terminal
         const { count: cleanedCount } = await supabaseAdmin
             .from('jobs')
@@ -57,13 +81,7 @@ export async function GET(req: NextRequest) {
         }
 
 
-        // 3. Refresh proactivo de tokens próximos a expirar (< 10 min)
-        try {
-            await MeliTokenManager.refreshExpiringTokens();
-            results.tokensRefreshed = true;
-        } catch (tokenErr: any) {
-            results.errors.push(`Token refresh failed: ${tokenErr.message}`);
-        }
+        // El token refresh ya se ejecutó arriba.
 
         // 4. Claim y procesar batch de jobs
         const { data: jobs, error: claimError } = await supabaseAdmin.rpc('claim_jobs', {
@@ -81,7 +99,16 @@ export async function GET(req: NextRequest) {
 
         // Procesar jobs SECUENCIALMENTE con delay entre cada uno
         const meliAdapter = new MeliAdapter();
+        const startTimeMs = Date.now();
+        
         for (const job of jobs) {
+            // PROTECCIÓN CONTRA TIMEOUT DE VERCEL (60s)
+            // Si nos acercamos a los 50 segundos, cortamos el batch limpiamente
+            if (Date.now() - startTimeMs > 50000) {
+                results.errors.push('Vercel timeout approaching, aborting batch early to prevent zombie jobs');
+                break;
+            }
+
             try {
                 await processOneJob(job, meliAdapter);
                 results.jobResults.push({ id: job.id, type: job.type, status: 'ok' });
@@ -94,9 +121,7 @@ export async function GET(req: NextRequest) {
         results.jobsProcessed = jobs.length;
 
         // 5. Reconciliación periódica (~cada 6h) — B2: reducida de 30min para aliviar carga
-        const now = new Date();
-        const currentMinute = now.getMinutes();
-        const currentHour = now.getUTCHours();
+        // Variables now, currentMinute, currentHour ya fueron declaradas arriba
         if (currentHour % 6 === 0 && currentMinute < 2) {
             try {
                 await runReconciliation();
