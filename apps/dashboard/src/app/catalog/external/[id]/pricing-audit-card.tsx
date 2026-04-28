@@ -271,9 +271,9 @@ export default function PricingAuditCard({
                     
                     {isEditing ? (
                         <div className="space-y-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col gap-2">
                                 <select 
-                                    className="text-xs border border-slate-200 rounded px-2 py-1.5 outline-none focus:border-indigo-400 bg-white"
+                                    className="w-full text-xs border border-slate-200 rounded px-2 py-2 outline-none focus:border-indigo-400 bg-white"
                                     value={editType}
                                     onChange={e => { setEditType(e.target.value); setEditValue(''); }}
                                 >
@@ -284,7 +284,7 @@ export default function PricingAuditCard({
                                 
                                 {editType === 'force_rule' ? (
                                     <select
-                                        className="w-full max-w-[200px] text-xs border border-slate-200 rounded px-2 py-1.5 outline-none focus:border-indigo-400 bg-white"
+                                        className="w-full text-xs border border-slate-200 rounded px-2 py-2 outline-none focus:border-indigo-400 bg-white"
                                         value={editValue}
                                         onChange={e => setEditValue(e.target.value)}
                                     >
@@ -296,7 +296,7 @@ export default function PricingAuditCard({
                                 ) : (
                                     <input 
                                         type="number" 
-                                        className="w-24 text-xs border border-slate-200 rounded px-2 py-1.5 outline-none focus:border-indigo-400"
+                                        className="w-full text-xs border border-slate-200 rounded px-2 py-2 outline-none focus:border-indigo-400"
                                         placeholder="Valor"
                                         value={editValue}
                                         onChange={e => setEditValue(e.target.value)}
