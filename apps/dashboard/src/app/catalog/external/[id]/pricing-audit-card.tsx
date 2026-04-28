@@ -29,6 +29,11 @@ export default function PricingAuditCard({
     const [saving, setSaving] = useState(false);
     const [recalculating, setRecalculating] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    
+    // New states for apply functionality
+    const [applying, setApplying] = useState(false);
+    const [confirmingDelta, setConfirmingDelta] = useState<null | { delta: number; price: number }>(null);
+    const [editablePrice, setEditablePrice] = useState<string>('');
 
     useEffect(() => {
         loadData();
@@ -119,6 +124,31 @@ export default function PricingAuditCard({
         }
     };
 
+    const handleApply = async (force = false) => {
+        setApplying(true);
+        try {
+            const finalPrice = editablePrice ? parseFloat(editablePrice) : (salePriceCalculated || 0);
+            const res = await fetch(`/api/catalog/external/${publicacionId}/pricing/apply`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confirmed_price: finalPrice, reason: 'aprobado_manualmente', force })
+            });
+            const data = await res.json();
+            if (data.requires_confirmation) {
+                setConfirmingDelta({ delta: data.delta_percent, price: finalPrice });
+            } else if (data.success) {
+                onOverrideUpdated();
+            } else if (data.error) {
+                alert('Error: ' + data.error);
+            }
+        } catch (err: any) {
+            console.error(err);
+            alert('Error: ' + (err.message || 'Desconocido'));
+        } finally {
+            setApplying(false);
+        }
+    };
+
     const fmt = (n: number | null | undefined) => 
         n != null ? `$${Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—';
         
@@ -170,6 +200,38 @@ export default function PricingAuditCard({
                             Actualizado: {lastCalcAt ? formatDate(lastCalcAt) : 'Nunca'}
                         </p>
                     </div>
+                </div>
+
+                {/* Apply section */}
+                <div className="mb-4 border-t border-slate-100 pt-3">
+                    <label className="text-xs text-slate-500 font-semibold mb-1 block">Editar antes de aplicar</label>
+                    <div className="flex gap-2 items-center">
+                        <input
+                            type="number"
+                            placeholder={String(salePriceCalculated ?? '')}
+                            value={editablePrice}
+                            onChange={(e) => setEditablePrice(e.target.value)}
+                            className="border border-slate-200 rounded px-2 py-1.5 w-32 text-sm outline-none focus:border-indigo-400"
+                        />
+                        <button
+                            disabled={applying || (pricingStatus !== 'valid' && pricingStatus !== 'estimated_params' && pricingStatus !== 'override')}
+                            onClick={() => handleApply(false)}
+                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded flex items-center gap-1.5 text-xs font-bold transition-colors disabled:opacity-50"
+                        >
+                            {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                            Aplicar a precio actual
+                        </button>
+                    </div>
+                    {pricingStatus === 'estimated_params' && (
+                        <p className="text-amber-600 text-[10px] mt-1.5">
+                            ⚠️ Comisión y retenciones son estimadas. El precio se ajustará automáticamente cuando Meli reporte valores reales.
+                        </p>
+                    )}
+                    {pricingStatus === 'missing_cost' && (
+                        <p className="text-rose-600 text-[10px] mt-1.5">
+                            ❌ Sin costo menudeo vigente para este artículo. Carga el costo antes de aplicar.
+                        </p>
+                    )}
                 </div>
 
                 {/* Overrides */}
@@ -267,6 +329,35 @@ export default function PricingAuditCard({
                     )}
                 </div>
             </div>
+
+            {/* Modal de confirmación para variaciones grandes */}
+            {confirmingDelta && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-5 max-w-sm shadow-xl">
+                        <h3 className="font-bold text-slate-900 mb-2">Variación grande detectada</h3>
+                        <p className="text-sm text-slate-600 mb-4">
+                            El nuevo precio cambia un <span className="font-bold">{confirmingDelta.delta.toFixed(1)}%</span> respecto al actual. ¿Confirmas este cambio?
+                        </p>
+                        <div className="flex justify-end gap-2">
+                            <button 
+                                onClick={() => setConfirmingDelta(null)}
+                                className="px-4 py-2 border border-slate-200 rounded text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                onClick={() => { 
+                                    setConfirmingDelta(null); 
+                                    handleApply(true); 
+                                }}
+                                className="bg-rose-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-rose-700"
+                            >
+                                Sí, aplicar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
