@@ -22,6 +22,7 @@ export default function PricingAuditCard({
     const [loading, setLoading] = useState(true);
     const [override, setOverride] = useState<any>(null);
     const [history, setHistory] = useState<any[]>([]);
+    const [allRules, setAllRules] = useState<any[]>([]);
     
     const [isEditing, setIsEditing] = useState(false);
     const [editType, setEditType] = useState<string>('fixed_price');
@@ -46,10 +47,15 @@ export default function PricingAuditCard({
             const data = await res.json();
             setOverride(data.override);
             setHistory(data.history || []);
+            setAllRules(data.allRules || []);
             
             if (data.override) {
                 setEditType(data.override.override_type);
-                setEditValue(String(data.override.value));
+                if (data.override.override_type === 'force_rule') {
+                    setEditValue(data.override.force_rule_id || '');
+                } else {
+                    setEditValue(String(data.override.value || ''));
+                }
             }
         } catch (err) {
             console.error(err);
@@ -62,8 +68,17 @@ export default function PricingAuditCard({
         setSaving(true);
         setErrorMsg('');
         try {
-            const val = parseFloat(editValue);
-            if (isNaN(val) || val <= 0) throw new Error("Valor numérico inválido");
+            let val: number | null = null;
+            let force_rule_id: string | null = null;
+
+            if (editType === 'force_rule') {
+                if (!editValue) throw new Error("Debes seleccionar una regla");
+                force_rule_id = editValue;
+                val = 0; // Value is ignored but required for not deleting
+            } else {
+                val = parseFloat(editValue);
+                if (isNaN(val) || val <= 0) throw new Error("Valor numérico inválido");
+            }
             
             const res = await fetch(`/api/catalog/external/${publicacionId}/pricing`, {
                 method: 'POST',
@@ -71,6 +86,7 @@ export default function PricingAuditCard({
                 body: JSON.stringify({
                     override_type: editType,
                     value: val,
+                    force_rule_id
                 })
             });
             const data = await res.json();
@@ -259,18 +275,33 @@ export default function PricingAuditCard({
                                 <select 
                                     className="text-xs border border-slate-200 rounded px-2 py-1.5 outline-none focus:border-indigo-400 bg-white"
                                     value={editType}
-                                    onChange={e => setEditType(e.target.value)}
+                                    onChange={e => { setEditType(e.target.value); setEditValue(''); }}
                                 >
                                     <option value="fixed_price">Precio Fijo Exacto</option>
                                     <option value="custom_margin">Margen Personalizado (%)</option>
+                                    <option value="force_rule">Forzar Regla Específica</option>
                                 </select>
-                                <input 
-                                    type="number" 
-                                    className="w-24 text-xs border border-slate-200 rounded px-2 py-1.5 outline-none focus:border-indigo-400"
-                                    placeholder="Valor"
-                                    value={editValue}
-                                    onChange={e => setEditValue(e.target.value)}
-                                />
+                                
+                                {editType === 'force_rule' ? (
+                                    <select
+                                        className="w-full max-w-[200px] text-xs border border-slate-200 rounded px-2 py-1.5 outline-none focus:border-indigo-400 bg-white"
+                                        value={editValue}
+                                        onChange={e => setEditValue(e.target.value)}
+                                    >
+                                        <option value="">Selecciona regla...</option>
+                                        {allRules.map(r => (
+                                            <option key={r.id} value={r.id}>#{r.priority} {r.name}</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <input 
+                                        type="number" 
+                                        className="w-24 text-xs border border-slate-200 rounded px-2 py-1.5 outline-none focus:border-indigo-400"
+                                        placeholder="Valor"
+                                        value={editValue}
+                                        onChange={e => setEditValue(e.target.value)}
+                                    />
+                                )}
                             </div>
                             {errorMsg && <p className="text-[10px] text-rose-500">{errorMsg}</p>}
                             <div className="flex items-center gap-2 pt-1">
@@ -288,13 +319,19 @@ export default function PricingAuditCard({
                             </div>
                         </div>
                     ) : override ? (
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded border border-purple-200 font-semibold">
-                                {override.override_type === 'fixed_price' ? 'Precio Fijo' : 'Margen Custom'}
-                            </span>
-                            <span className="text-sm font-bold text-slate-800">
-                                {override.override_type === 'fixed_price' ? fmt(override.value) : `${override.value}%`}
-                            </span>
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded p-2">
+                            <div className="flex items-center gap-2">
+                                <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded uppercase">
+                                    {override.override_type === 'fixed_price' ? 'Precio Fijo' 
+                                     : override.override_type === 'force_rule' ? 'Regla Forzada' 
+                                     : 'Margen'}
+                                </span>
+                                <span className="text-xs font-semibold text-slate-700">
+                                    {override.override_type === 'fixed_price' ? fmt(override.value) 
+                                     : override.override_type === 'force_rule' ? (allRules.find(r => r.id === override.force_rule_id)?.name || 'Desconocida') 
+                                     : `${override.value}%`}
+                                </span>
+                            </div>
                         </div>
                     ) : (
                         <p className="text-[11px] text-slate-500 italic">No hay excepciones manuales para esta publicación. Usa la fórmula global.</p>

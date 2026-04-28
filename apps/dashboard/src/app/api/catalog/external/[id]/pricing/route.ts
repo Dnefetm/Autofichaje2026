@@ -17,7 +17,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         .order('created_at', { ascending: false })
         .limit(10);
 
-    return NextResponse.json({ override: override || null, history: history || [] });
+    const { data: allRules } = await supabase
+        .from('pricing_rule_v3')
+        .select('id, name, priority')
+        .eq('is_active', true)
+        .order('priority', { ascending: true });
+
+    return NextResponse.json({ override: override || null, history: history || [], allRules: allRules || [] });
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -25,9 +31,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     
     try {
         const body = await req.json();
-        const { override_type, value, valido_hasta } = body;
+        const { override_type, value, force_rule_id, valido_hasta } = body;
         
-        if (!override_type || value == null) {
+        if (!override_type || (override_type !== 'force_rule' && value == null) || (override_type === 'force_rule' && !force_rule_id)) {
             // Delete override
             const { error } = await supabaseAdmin.from('publication_pricing_overrides').delete().eq('publicacion_id', id);
             if (error) throw error;
@@ -36,7 +42,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             const { error } = await supabaseAdmin.from('publication_pricing_overrides').upsert({
                 publicacion_id: id,
                 override_type,
-                value,
+                value: value || 0,
+                force_rule_id: force_rule_id || null,
                 valido_hasta: valido_hasta || null,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'publicacion_id' });
