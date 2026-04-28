@@ -111,9 +111,9 @@ export default function PricingAuditCard({
             }
             await loadData();
             onOverrideUpdated();
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert('Error forzando recálculo');
+            alert('Error: ' + (err.message || 'Desconocido'));
         } finally {
             setRecalculating(false);
         }
