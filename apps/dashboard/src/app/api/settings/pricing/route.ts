@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET() {
-    const { data: rules } = await supabase.from('pricing_rules').select('*').eq('is_active', true);
-    const { data: commissions } = await supabase.from('meli_category_commissions').select('*').eq('is_current', true);
+    const { data: rules } = await supabaseAdmin
+        .from('pricing_rule_v3')
+        .select('*')
+        .order('priority', { ascending: true });
+        
+    const { data: commissions } = await supabaseAdmin
+        .from('meli_category_commissions')
+        .select('*')
+        .eq('is_current', true)
+        .order('category_id', { ascending: true });
+        
     return NextResponse.json({ rules: rules || [], commissions: commissions || [] });
 }
 
@@ -12,32 +21,26 @@ export async function POST(req: Request) {
         const body = await req.json();
         const { type, data } = body;
 
-        if (type === 'global_rule') {
-            const { id, margin, marketplace_id } = data;
-            // Actualizamos la regla global
-            if (id) {
-                await supabase.from('pricing_rules').update({ value: margin, updated_at: new Date().toISOString() }).eq('id', id);
-            } else {
-                await supabase.from('pricing_rules').insert({
-                    marketplace_id,
-                    rule_type: 'margin_percentage',
-                    value: margin,
-                    is_active: true
-                });
-            }
+        if (type === 'upsert_rule_v3') {
+            const { error } = await supabaseAdmin.from('pricing_rule_v3').upsert(data, { onConflict: 'id' });
+            if (error) throw error;
+        } else if (type === 'delete_rule_v3') {
+            const { error } = await supabaseAdmin.from('pricing_rule_v3').delete().eq('id', data.id);
+            if (error) throw error;
         } else if (type === 'category_commission') {
+            // ... Meli category code ... 
             const { marketplace_id, category_id, commission_percentage, fixed_fee_threshold } = data;
-            
-            // Insertar o actualizar
-            await supabase.from('meli_category_commissions').upsert({
+            const { error } = await supabaseAdmin.from('meli_category_commissions').upsert({
                 marketplace_id,
                 category_id,
                 commission_percentage,
                 fixed_fee_threshold,
                 is_current: true
             }, { onConflict: 'marketplace_id, category_id, is_current' });
+            if (error) throw error;
         } else if (type === 'delete_category') {
-            await supabase.from('meli_category_commissions').delete().eq('id', data.id);
+            const { error } = await supabaseAdmin.from('meli_category_commissions').delete().eq('id', data.id);
+            if (error) throw error;
         }
         
         return NextResponse.json({ success: true });

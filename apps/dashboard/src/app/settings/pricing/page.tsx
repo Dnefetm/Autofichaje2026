@@ -2,19 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { DollarSign, Percent, Save, Loader2, Trash2, Plus, AlertCircle, RefreshCw } from 'lucide-react';
+import { DollarSign, Save, Loader2, Trash2, Plus, AlertCircle, Edit2, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function PricingSettingsPage() {
     const [rules, setRules] = useState<any[]>([]);
-    const [commissions, setCommissions] = useState<any[]>([]);
     const [marketplaces, setMarketplaces] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     
-    // Formulario de nueva comisión
-    const [newCat, setNewCat] = useState('');
-    const [newPct, setNewPct] = useState('');
-    const [newFee, setNewFee] = useState('299.00');
+    const [isEditingRule, setIsEditingRule] = useState<any>(null);
+    const [isCreatingRule, setIsCreatingRule] = useState(false);
 
     useEffect(() => { loadData(); }, []);
 
@@ -27,60 +25,38 @@ export default function PricingSettingsPage() {
             const res = await fetch('/api/settings/pricing');
             const data = await res.json();
             setRules(data.rules || []);
-            setCommissions(data.commissions || []);
         } finally {
             setLoading(false);
         }
     }
 
-    async function saveGlobalMargin(marketplace_id: string, margin: number, existingRuleId?: string) {
+    async function saveRule(ruleData: any) {
         setSaving(true);
         try {
             await fetch('/api/settings/pricing', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'global_rule',
-                    data: { id: existingRuleId, margin, marketplace_id }
+                    type: 'upsert_rule_v3',
+                    data: ruleData
                 })
             });
+            setIsEditingRule(null);
+            setIsCreatingRule(false);
             await loadData();
         } finally {
             setSaving(false);
         }
     }
 
-    async function addCommission(marketplace_id: string) {
-        if (!newCat || !newPct) return;
+    async function deleteRule(id: string) {
+        if(!confirm("¿Seguro que deseas eliminar esta regla?")) return;
         setSaving(true);
         try {
             await fetch('/api/settings/pricing', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'category_commission',
-                    data: { 
-                        marketplace_id, 
-                        category_id: newCat.trim(), 
-                        commission_percentage: parseFloat(newPct),
-                        fixed_fee_threshold: parseFloat(newFee)
-                    }
-                })
-            });
-            setNewCat(''); setNewPct('');
-            await loadData();
-        } finally {
-            setSaving(false);
-        }
-    }
-
-    async function deleteCommission(id: string) {
-        setSaving(true);
-        try {
-            await fetch('/api/settings/pricing', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'delete_category', data: { id } })
+                body: JSON.stringify({ type: 'delete_rule_v3', data: { id } })
             });
             await loadData();
         } finally {
@@ -90,122 +66,158 @@ export default function PricingSettingsPage() {
 
     if (loading) return <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>;
 
-    const mkp = marketplaces[0]; // Simplificación para 1 tienda (Mercado Libre principal)
-    if (!mkp) return <div className="p-10 text-center">No hay tienda MeLi vinculada.</div>;
+    const RuleForm = ({ initialData, onCancel }: { initialData?: any, onCancel: () => void }) => {
+        const [formData, setFormData] = useState(initialData || {
+            name: '', priority: 100, is_active: true, cost_basis: 'menudeo', 
+            margen_objetivo: 20, redondeo: '99', envio_fijo: 0,
+            marca: '', category_id: '', articulo_id: ''
+        });
 
-    const rule = rules.find(r => r.marketplace_id === mkp.id);
-    const mMargin = rule ? rule.value : 20;
-
-    return (
-        <div className="max-w-4xl mx-auto space-y-8 p-6 animate-in fade-in slide-in-from-bottom-4">
-            <div>
-                <h2 className="text-2xl font-bold tracking-tight text-slate-900">Estrategia Global de Precios</h2>
-                <p className="text-slate-500 text-sm mt-1">Configura el motor matemático base para las publicaciones de la tienda <strong>{mkp.account_name}</strong>.</p>
-            </div>
-
-            {/* Margen Global */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
-                        <Percent className="w-6 h-6" />
+        return (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 mt-4 space-y-4 shadow-sm animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-slate-800">{initialData ? 'Editar Regla' : 'Nueva Regla V3'}</h4>
+                    <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4"/></button>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Nombre Descriptivo</label>
+                        <input className="w-full border rounded px-3 py-1.5 text-sm" value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} placeholder="Ej: Regla Global Base" />
                     </div>
-                    <div className="flex-1">
-                        <h3 className="font-bold text-slate-900 text-lg">Margen Global Deseado</h3>
-                        <p className="text-sm text-slate-500 mb-4">
-                            Este es el % de ganancia neta que el sistema intentará asegurar en cada producto por defecto. 
-                            Si un producto no tiene margen custom (override), usará este.
-                        </p>
-                        
-                        <div className="flex items-center gap-3">
-                            <input 
-                                type="number" 
-                                id="global_margin"
-                                defaultValue={mMargin} 
-                                className="w-24 border-2 border-indigo-200 rounded-lg px-3 py-2 font-bold focus:border-indigo-500 outline-none"
-                            />
-                            <span className="font-bold text-slate-500">%</span>
-                            <button 
-                                onClick={() => {
-                                    const val = (document.getElementById('global_margin') as HTMLInputElement).value;
-                                    saveGlobalMargin(mkp.id, parseFloat(val), rule?.id);
-                                }}
-                                disabled={saving}
-                                className="ml-4 px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
-                            >
-                                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                Guardar Margen Global
-                            </button>
-                        </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Prioridad (1=Alta)</label>
+                        <input type="number" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.priority} onChange={e=>setFormData({...formData, priority: parseInt(e.target.value)})} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Margen Objetivo (%)</label>
+                        <input type="number" step="0.1" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.margen_objetivo} onChange={e=>setFormData({...formData, margen_objetivo: parseFloat(e.target.value)})} />
                     </div>
                 </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Filtro Marca (Opcional)</label>
+                        <input className="w-full border rounded px-3 py-1.5 text-sm" value={formData.marca || ''} onChange={e=>setFormData({...formData, marca: e.target.value || null})} placeholder="Todas" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Filtro Categoría (Opcional)</label>
+                        <input className="w-full border rounded px-3 py-1.5 text-sm" value={formData.category_id || ''} onChange={e=>setFormData({...formData, category_id: e.target.value || null})} placeholder="Todas" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Costo Base</label>
+                        <select className="w-full border rounded px-3 py-1.5 text-sm" value={formData.cost_basis} onChange={e=>setFormData({...formData, cost_basis: e.target.value})}>
+                            <option value="menudeo">Menudeo</option>
+                            <option value="mayoreo">Mayoreo</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Redondeo</label>
+                        <select className="w-full border rounded px-3 py-1.5 text-sm" value={formData.redondeo} onChange={e=>setFormData({...formData, redondeo: e.target.value})}>
+                            <option value="none">Sin redondeo</option>
+                            <option value="99">A .99</option>
+                            <option value="00">A .00</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                    <button onClick={onCancel} className="px-4 py-1.5 rounded text-sm font-semibold text-slate-600 hover:bg-slate-200">Cancelar</button>
+                    <button onClick={() => saveRule(formData)} disabled={saving || !formData.name} className="px-4 py-1.5 rounded text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1">
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} Guardar Regla
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="max-w-5xl mx-auto space-y-8 p-6 animate-in fade-in slide-in-from-bottom-4">
+            <div>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">Motor de Precios V3 - Panel de Reglas</h2>
+                <p className="text-slate-500 text-sm mt-1">
+                    Las reglas operan en cascada. El sistema evaluará cada publicación contra estas reglas en orden de prioridad (1 = Máxima prioridad) y aplicará la primera que coincida exactamente con todos sus filtros.
+                </p>
             </div>
 
-            {/* Comisiones por Categoría */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
                     <div>
-                        <h3 className="font-bold text-slate-900">Comisiones por Categoría MeLi</h3>
-                        <p className="text-xs text-slate-500">Mapea el cobro real de Mercado Libre según la categoría del producto (ej: MLB1234)</p>
+                        <h3 className="font-bold text-slate-900">Reglas en Cascada</h3>
+                        <p className="text-xs text-slate-500">Listado de reglas de cálculo activas.</p>
                     </div>
+                    <button 
+                        onClick={() => setIsCreatingRule(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded shadow-sm transition-colors"
+                    >
+                        <Plus className="w-4 h-4" /> Nueva Regla
+                    </button>
                 </div>
                 
-                <div className="p-6 space-y-4">
-                    <div className="flex flex-wrap items-end gap-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Categoría ID</label>
-                            <input value={newCat} onChange={e=>setNewCat(e.target.value)} placeholder="Ej: MLM1234" className="w-32 border border-slate-300 rounded px-3 py-1.5 text-sm outline-none" />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Comisión (%)</label>
-                            <input type="number" value={newPct} onChange={e=>setNewPct(e.target.value)} placeholder="Ej: 15.5" className="w-28 border border-slate-300 rounded px-3 py-1.5 text-sm outline-none" />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Costo Fijo si &lt; $N</label>
-                            <input type="number" value={newFee} onChange={e=>setNewFee(e.target.value)} placeholder="299.00" className="w-28 border border-slate-300 rounded px-3 py-1.5 text-sm outline-none" />
-                        </div>
-                        <button onClick={() => addCommission(mkp.id)} disabled={saving} className="px-4 py-1.5 bg-slate-800 text-white text-sm font-bold rounded hover:bg-slate-900 transition-colors flex items-center gap-1 h-9">
-                            <Plus className="w-4 h-4" /> Añadir
-                        </button>
-                    </div>
+                <div className="p-6">
+                    {isCreatingRule && <RuleForm onCancel={() => setIsCreatingRule(false)} />}
 
-                    {commissions.length === 0 ? (
-                        <div className="text-center py-6 text-slate-400 italic text-sm">
-                            No hay comisiones específicas registradas. El motor asume 15% por defecto.
-                        </div>
-                    ) : (
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
-                                <tr>
-                                    <th className="px-4 py-2 rounded-l-lg">Categoría</th>
-                                    <th className="px-4 py-2">Comisión MeLi</th>
-                                    <th className="px-4 py-2">Cobro Fijo Menores</th>
-                                    <th className="px-4 py-2 text-right rounded-r-lg">Acción</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {commissions.map(c => (
-                                    <tr key={c.id} className="hover:bg-slate-50">
-                                        <td className="px-4 py-3 font-mono font-bold text-indigo-700">{c.category_id}</td>
-                                        <td className="px-4 py-3 font-semibold text-slate-700">{c.commission_percentage}%</td>
-                                        <td className="px-4 py-3 text-slate-500">Si precio &lt; ${c.fixed_fee_threshold}</td>
-                                        <td className="px-4 py-3 text-right">
-                                            <button onClick={() => deleteCommission(c.id)} className="text-rose-500 hover:bg-rose-50 p-1.5 rounded transition-colors" title="Eliminar">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
+                    <div className="mt-4 flex flex-col gap-3">
+                        {rules.map((rule) => (
+                            <div key={rule.id} className="border border-slate-200 rounded-lg p-4 hover:border-indigo-300 transition-colors bg-white shadow-sm flex flex-col md:flex-row md:items-center gap-4">
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px] font-bold border border-slate-200">
+                                            #{rule.priority}
+                                        </span>
+                                        <h4 className="font-bold text-slate-800">{rule.name}</h4>
+                                        {!rule.is_active && <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded">INACTIVA</span>}
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 text-[11px] text-slate-500 mt-2">
+                                        {rule.marca && <span className="bg-indigo-50 text-indigo-700 px-1.5 rounded">Marca: {rule.marca}</span>}
+                                        {rule.category_id && <span className="bg-indigo-50 text-indigo-700 px-1.5 rounded">Categoría: {rule.category_id}</span>}
+                                        {!rule.marca && !rule.category_id && <span className="text-slate-400 italic">Global (Aplica a todo)</span>}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-6 md:border-l md:border-slate-100 md:pl-6">
+                                    <div className="text-center">
+                                        <p className="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Margen</p>
+                                        <p className="font-bold text-slate-800 text-lg">{rule.margen_objetivo}%</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Costo</p>
+                                        <p className="font-semibold text-slate-600 text-sm capitalize">{rule.cost_basis}</p>
+                                    </div>
+                                    <div className="flex gap-1 ml-2">
+                                        <button onClick={() => setIsEditingRule(rule.id)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors">
+                                            <Edit2 className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={() => deleteRule(rule.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors">
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                                {isEditingRule === rule.id && (
+                                    <div className="w-full mt-4 border-t pt-4">
+                                        <RuleForm initialData={rule} onCancel={() => setIsEditingRule(null)} />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        {rules.length === 0 && !isCreatingRule && (
+                            <div className="text-center py-8 text-slate-400 italic text-sm border-2 border-dashed border-slate-200 rounded-lg">
+                                No hay reglas de precio configuradas. Las publicaciones arrojarán "no_rule".
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
             
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
-                <p className="text-sm text-amber-800">
-                    <strong>Nota:</strong> Modificar el Margen Global o las comisiones de categoría no recalcula inmediatamente todo el catálogo (por seguridad de cuota API). Los nuevos valores se usarán progresivamente conforme las publicaciones tengan actualizaciones de costo o stock, o si fuerzas un recálculo desde el dashboard de Fichas.
-                </p>
+            <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex gap-3">
+                <AlertCircle className="w-5 h-5 text-sky-600 shrink-0" />
+                <div className="text-sm text-sky-800 space-y-1">
+                    <p><strong>Arquitectura de V3:</strong></p>
+                    <ul className="list-disc pl-4 text-[12px]">
+                        <li>Las reglas se evalúan de menor a mayor prioridad (La prioridad 1 se evalúa primero).</li>
+                        <li>Las comisiones y retenciones ya NO se configuran por regla. El sistema lee el valor real reportado por Mercado Libre para la categoría.</li>
+                        <li>Si necesitas crear excepciones manuales por producto, utiliza el panel de "Auditoría de Precio" en la ficha del producto.</li>
+                    </ul>
+                </div>
             </div>
         </div>
     );
