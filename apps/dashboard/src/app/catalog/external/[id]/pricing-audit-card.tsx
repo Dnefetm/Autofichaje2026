@@ -199,6 +199,11 @@ export default function PricingAuditCard({
                         <p className="text-[10px] text-slate-400 mt-1">
                             Actualizado: {lastCalcAt ? formatDate(lastCalcAt) : 'Nunca'}
                         </p>
+                        {history[0]?.details?.rule_name && (
+                            <p className="text-[10px] text-indigo-600 mt-1 font-semibold bg-indigo-50 inline-block px-1.5 py-0.5 rounded">
+                                Regla aplicada: {history[0].details.rule_name}
+                            </p>
+                        )}
                     </div>
                 </div>
 
