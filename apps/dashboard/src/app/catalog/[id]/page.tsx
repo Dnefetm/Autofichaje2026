@@ -11,7 +11,6 @@ import {
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { PublishPanel } from '@/components/publish-panel';
-import { PricesSection } from '@/components/prices-section';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
@@ -215,8 +214,24 @@ export default function ArticuloDetailPage() {
                 </div>
             </div>
 
-            {/* ── Sección de Precios MeLi ─────────────────────────────────── */}
-            <PricesSection articulo_id={product.articulo_id || id} modeloDefault={product.modelo || null} />
+            {/* ── Aviso Transición a Motor V2 ─────────────────────────────────── */}
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6">
+                <div className="flex gap-3">
+                    <AlertCircle className="w-6 h-6 text-indigo-500 shrink-0" />
+                    <div>
+                        <h3 className="font-bold text-indigo-900 text-lg">La gestión de precios ha migrado (Motor V2)</h3>
+                        <p className="text-indigo-800 text-sm mt-1">
+                            Para evitar errores matemáticos en los bundles y permitir márgenes dinámicos por categoría, los precios ya no se administran aquí a nivel de SKU base.
+                        </p>
+                        <p className="text-indigo-800 text-sm mt-2 font-semibold">
+                            ¿Dónde configuro mis precios ahora?
+                        </p>
+                        <p className="text-indigo-800 text-sm mt-1">
+                            Abre cualquiera de las publicaciones de Mercado Libre vinculadas (abajo) para ver la nueva <strong>Tarjeta de Auditoría Matemática</strong>, donde podrás ver el desglose exacto de comisiones y fijar precios manuales.
+                        </p>
+                    </div>
+                </div>
+            </div>
 
             {/* ── Panel de Publicación ─────────────────────────────────────── */}
             <PublishPanel

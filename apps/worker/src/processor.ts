@@ -61,6 +61,9 @@ async function processJob(job: any) {
             case 'sync_stock_mapped':
                 await handleSyncStockMapped(job);
                 break;
+            case 'recalc_pricing_bundle':
+                await handleRecalcPricingBundle(job);
+                break;
             case 'pause_listing':
                 await meliAdapter.pauseListing(job.payload.marketplace_id, job.payload.external_item_id);
                 break;
@@ -243,6 +246,45 @@ async function handleSyncPrice(job: any) {
     const errors = results.filter((r: any) => r.status === 'error');
     if (errors.length > 0) {
         throw new Error(`MercadoLibre API Error (Price): ${JSON.stringify(errors)}`);
+    }
+}
+
+async function handleRecalcPricingBundle(job: any) {
+    const { publicacion_id } = job.payload;
+    
+    // 1. Invocar la función SQL para que recalcule y persista el precio localmente
+    const { error: calcErr } = await supabase.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id: publicacion_id });
+    if (calcErr) throw new Error(`Error en RPC matemático de precio: ${calcErr.message}`);
+
+    // 2. Obtener el precio resultante y los datos para empujar a Meli
+    const { data: pub, error: pubErr } = await supabase
+        .from('publicaciones_externas')
+        .select('marketplace_id, external_item_id, sale_price_calculated, pricing_status')
+        .eq('id', publicacion_id)
+        .single();
+        
+    if (pubErr || !pub) throw new Error(`Publicación no encontrada post-cálculo: ${publicacion_id}`);
+    
+    // Si la matemática arrojó un estado de error grave (como costo <= 0), no empujar basura a Meli
+    if (pub.pricing_status === 'error_no_cost') {
+        logger.warn({ publicacion_id }, 'El recálculo abortó por falta de costo base. No se envía a Meli.');
+        return;
+    }
+
+    if (!pub.sale_price_calculated) {
+        throw new Error(`El recálculo no generó un precio final válido para la publicación: ${publicacion_id}`);
+    }
+
+    // 3. Empujar el nuevo precio a Mercado Libre
+    logger.info({ publicacion_id, external_id: pub.external_item_id, price: pub.sale_price_calculated }, 'Sincronizando precio calculado hacia ML (V2)');
+    
+    const results = await meliAdapter.updatePrice(pub.marketplace_id, [
+        { itemId: pub.external_item_id, price: pub.sale_price_calculated }
+    ]);
+
+    const errors = results.filter((r: any) => r.status === 'error');
+    if (errors.length > 0) {
+        throw new Error(`MeLi API Sync Price Error: ${JSON.stringify(errors)}`);
     }
 }
 

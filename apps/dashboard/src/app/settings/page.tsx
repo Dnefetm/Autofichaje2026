@@ -145,6 +145,13 @@ function SettingsContent() {
                         <StatusItem label="Supabase DB" status={dbState === 'online' ? 'online' : (dbState === 'error' ? 'offline' : 'checking')} />
                         <StatusItem label="Oauth Central" status="online" />
                         <StatusItem label="Catálogo Maestro" status="online" />
+                        
+                        <div className="pt-2 border-t border-slate-100">
+                            <a href="/settings/pricing" className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center justify-between group">
+                                Estrategia de Precios 
+                                <ChevronRight className="w-4 h-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { use } from 'react';
 import { cn } from '@/lib/utils';
 import MappingModal from '@/components/mapping-modal';
+import PricingAuditCard from './pricing-audit-card';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const statusColors: Record<string, string> = {
@@ -286,7 +287,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         try {
             const { data: pubData } = await supabase
                 .from('publicaciones_externas')
-                .select(`*, marketplace:marketplace_configs(id, account_name)`)
+                .select(`*, marketplace:marketplace_configs(id, account_name), sale_price_calculated, pricing_status, last_calc_at`)
                 .eq('id', id)
                 .single();
 
@@ -949,6 +950,17 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 </div>
                             </Section>
                         )}
+
+                        {/* Auditoría de Precios V2 */}
+                        <div className="h-96">
+                            <PricingAuditCard 
+                                publicacionId={id}
+                                salePriceCalculated={pub.sale_price_calculated}
+                                pricingStatus={pub.pricing_status}
+                                lastCalcAt={pub.last_calc_at}
+                                onOverrideUpdated={loadAll}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
