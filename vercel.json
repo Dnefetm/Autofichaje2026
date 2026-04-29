@@ -1,6 +1,12 @@
 {
-    "buildCommand": "npm run build --workspace=@gestor/dashboard",
-    "outputDirectory": ".next",
-    "framework": "nextjs",
-    "installCommand": "npm install"
+  "crons": [
+    {
+      "path": "/api/cron/process-precio-queue",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-ml-prices",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }
