@@ -80,6 +80,18 @@ async function procesarImportacion(importacionId: string) {
   }
   const colGuardarSet = new Set(Array.isArray(rawCols) ? rawCols : []);
   
+  // Falla #2a fix: Ensure mapped columns (modelo, marca, codigo, descripcion, moneda, AND precios) are always added
+  if (m.columna_modelo) colGuardarSet.add(m.columna_modelo);
+  if (m.columna_marca) colGuardarSet.add(m.columna_marca);
+  if (m.columna_codigo) colGuardarSet.add(m.columna_codigo);
+  if (m.columna_descripcion) colGuardarSet.add(m.columna_descripcion);
+  if (m.columna_moneda) colGuardarSet.add(m.columna_moneda);
+  if (Array.isArray(m.precios)) {
+      m.precios.forEach((p: any) => {
+          if (p.columna) colGuardarSet.add(p.columna);
+      });
+  }
+  
   for (let i = 1; i < allRows.length; i++) {
     const vals = allRows[i].map((v: any) => String(v ?? '').trim());
     

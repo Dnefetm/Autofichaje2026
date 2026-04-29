@@ -195,25 +195,29 @@ export async function GET(
         }
     });
 
-    // ── Fetch precios_anteriores for top candidates ──────────────────────────
-    const topCandidatesIds = Array.from(candidatosTopSet);
+    // ── Fetch precios_anteriores from lista_precios_proveedor (Fase 0) ──────────────────────────
     let preciosAnterioresRaw: any[] = [];
-    if (topCandidatesIds.length > 0) {
-        const { data: paData } = await supabaseAdmin
-            .from('costos_articulo')
-            .select('articulo_id, tipo_costo, valor, moneda')
-            .in('articulo_id', topCandidatesIds)
-            .or(`importacion_id.is.null,importacion_id.neq.${id}`)
-            .eq('vigente', true);
-            
-        preciosAnterioresRaw = paData || [];
-    }
+    const { data: paData } = await supabaseAdmin
+        .from('lista_precios_proveedor')
+        .select('codigo_excel, marca_excel, modelo_excel, precio_distrib, precio_subdistrib, precio_menudeo, precio_mayoreo')
+        .eq('proveedor', imp.proveedor)
+        .eq('vigente', false)
+        .order('vigente_desde', { ascending: false });
+        
+    preciosAnterioresRaw = paData || [];
     
-    const preciosAnterioresPorArticulo: Record<string, any> = preciosAnterioresRaw.reduce((acc: any, row: any) => {
-        if (!acc[row.articulo_id]) acc[row.articulo_id] = {};
-        acc[row.articulo_id][row.tipo_costo] = { valor: row.valor, moneda: row.moneda };
-        return acc;
-    }, {});
+    const preciosAnterioresPorFila: Record<string, any> = {};
+    for (const row of preciosAnterioresRaw) {
+        const key = `${row.codigo_excel || ''}_${row.marca_excel || ''}_${row.modelo_excel || ''}`;
+        if (!preciosAnterioresPorFila[key]) {
+            preciosAnterioresPorFila[key] = {
+                ...(row.precio_distrib ? { distribuidor: { valor: row.precio_distrib, moneda: 'MXN' } } : {}),
+                ...(row.precio_subdistrib ? { subdistribuidor: { valor: row.precio_subdistrib, moneda: 'MXN' } } : {}),
+                ...(row.precio_menudeo ? { menudeo: { valor: row.precio_menudeo, moneda: 'MXN' } } : {}),
+                ...(row.precio_mayoreo ? { mayoreo: { valor: row.precio_mayoreo, moneda: 'MXN' } } : {})
+            };
+        }
+    }
 
     function clasificarEstadoInternal(puntaje: number | null) {
         if (puntaje === null) return 'sin_match';
@@ -223,9 +227,8 @@ export async function GET(
     }
 
     const grupos = Array.from(gruposMap.values()).map(g => {
-        if (g.catalogo_sugerido?.articulo_id) {
-            g.precios_anteriores = preciosAnterioresPorArticulo[g.catalogo_sugerido.articulo_id] || {};
-        }
+        const key = `${g.excel.codigo_universal || ''}_${g.excel.marca || ''}_${g.excel.modelo || ''}`;
+        g.precios_anteriores = preciosAnterioresPorFila[key] || {};
         
         // Fix del estado_grupo: tomar MAX(puntaje_match) de los candidatos
         let maxScore: number | null = null;

@@ -894,7 +894,7 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
       const res = await fetch(`/api/precios/importar/${importacionId}/confirmar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ acciones }),
+        body: JSON.stringify({ decisiones }),
       });
       const d = await res.json();
       if (!d.ok && d.errores?.length > 0) {
