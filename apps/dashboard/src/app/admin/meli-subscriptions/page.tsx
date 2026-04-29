@@ -1,8 +1,5 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 
 const ALL_KNOWN_TOPICS = [
@@ -24,6 +21,7 @@ export default function MeliSubscriptionsPage() {
                 if (data.topics) setSubscribedTopics(data.topics);
                 if (data.stats) setStats(data.stats);
             })
+            .catch(() => toast.error('Error cargando suscripciones'))
             .finally(() => setLoading(false));
     }, []);
 
@@ -55,7 +53,6 @@ export default function MeliSubscriptionsPage() {
 
     if (loading) return <div className="p-8">Cargando suscripciones...</div>;
 
-    // Calcular el total de eventos ruidosos
     const totalEvents = Object.values(stats).reduce((a, b) => a + b, 0);
 
     return (
@@ -66,24 +63,26 @@ export default function MeliSubscriptionsPage() {
                 Deshabilitar topics que no usas ahorrará CPU en Vercel. Total eventos últimas 24h: {totalEvents}
             </p>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Topics Disponibles</CardTitle>
-                    <CardDescription>
+            <div className="bg-white shadow rounded-lg border">
+                <div className="p-6 border-b">
+                    <h2 className="text-xl font-semibold">Topics Disponibles</h2>
+                    <p className="text-sm text-gray-500">
                         Recomendado mantener: items, orders_v2, payments, questions, shipments
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
+                    </p>
+                </div>
+                <div className="p-6 space-y-4">
                     {ALL_KNOWN_TOPICS.map(topic => {
                         const count = stats[topic] || 0;
                         const isSubscribed = subscribedTopics.includes(topic);
                         return (
                             <div key={topic} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                                 <div className="flex items-center space-x-3">
-                                    <Checkbox 
+                                    <input 
+                                        type="checkbox"
                                         id={topic} 
                                         checked={isSubscribed}
-                                        onCheckedChange={() => toggleTopic(topic)}
+                                        onChange={() => toggleTopic(topic)}
+                                        className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     />
                                     <label htmlFor={topic} className="font-medium cursor-pointer">
                                         {topic}
@@ -95,13 +94,17 @@ export default function MeliSubscriptionsPage() {
                             </div>
                         );
                     })}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
             <div className="flex justify-end">
-                <Button onClick={handleSave} disabled={saving}>
+                <button 
+                    onClick={handleSave} 
+                    disabled={saving}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
                     {saving ? 'Guardando...' : 'Guardar Suscripciones en ML'}
-                </Button>
+                </button>
             </div>
         </div>
     );
