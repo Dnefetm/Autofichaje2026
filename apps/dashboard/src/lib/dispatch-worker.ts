@@ -16,27 +16,39 @@ export async function dispatchWorker(): Promise<void> {
     }
 
     try {
-        // GLOBAL DEBOUNCE: Solo permitir un trigger cada 10 segundos para evitar amplificación masiva de workers
-        const { data: lock } = await supabaseAdmin
-            .from('webhook_config')
-            .select('updated_at')
-            .eq('topic', 'worker_dispatch_lock')
-            .maybeSingle();
+        const now = new Date();
+        const tenSecondsAgo = new Date(now.getTime() - 10000).toISOString();
 
-        if (lock?.updated_at) {
-            const msSinceLast = Date.now() - new Date(lock.updated_at).getTime();
-            if (msSinceLast < 10000) {
-                // Ya hay un worker en camino o procesando. Él recogerá este job.
-                return;
+        // 1. Intentar actualizar si ya pasaron 10 segundos
+        const { data: updated } = await supabaseAdmin
+            .from('webhook_config')
+            .update({ updated_at: now.toISOString() })
+            .eq('topic', 'worker_dispatch_lock')
+            .lt('updated_at', tenSecondsAgo)
+            .select('topic');
+
+        // Si no se actualizó nada, significa que alguien más lo hizo hace menos de 10s o la fila no existe.
+        if (!updated || updated.length === 0) {
+            // Verificamos si no existe
+            const { data: existing } = await supabaseAdmin
+                .from('webhook_config')
+                .select('topic')
+                .eq('topic', 'worker_dispatch_lock')
+                .maybeSingle();
+                
+            if (!existing) {
+                // Si no existe, intentamos insertarla. Si choca, otro lambda la insertó (race condition), lo cual es seguro ignorar
+                const { error: insertErr } = await supabaseAdmin.from('webhook_config').insert({
+                    topic: 'worker_dispatch_lock',
+                    updated_at: now.toISOString()
+                });
+                if (insertErr) return; // Alguien ganó el lock
+            } else {
+                return; // Alguien ganó el lock y está en cooldown
             }
         }
-
-        await supabaseAdmin.from('webhook_config').upsert({
-            topic: 'worker_dispatch_lock',
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'topic' });
     } catch (e) {
-        // Si el lock falla, continuamos para no romper la funcionalidad
+        // Ignorar
     }
 
     // Construir URL base: VERCEL_URL en produccion, localhost en dev

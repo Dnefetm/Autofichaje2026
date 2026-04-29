@@ -38,50 +38,57 @@ export async function GET(req: NextRequest) {
     };
 
     try {
-        // Mover refresh de tokens ANTES del early exit para evitar que expiren
-        // si cron-job.org se desincroniza de los múltiplos exactos de 5.
-        try {
-            await MeliTokenManager.refreshExpiringTokens();
-            results.tokensRefreshed = true;
-        } catch (tokenErr: any) {
-            results.errors.push(`Token refresh failed: ${tokenErr.message}`);
-        }
-
-        // C. Early-exit si no hay jobs para ahorrar CPU
         const now = new Date();
         const currentMinute = now.getMinutes();
         const currentHour = now.getUTCHours();
 
+        // PASO 0: Query ultra-barata — ¿hay trabajo pendiente?
+        // Esta es la UNICA query que corre en cada invocación.
+        // Si no hay jobs, salimos de inmediato sin tocar tokens, zombies ni TTL.
         const { count } = await supabaseAdmin
             .from('jobs')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'pending');
 
-        // Solo saltar si no hay jobs Y no es hora de reconciliación/catálogo
-        if (count === 0 && currentHour % 6 !== 0 && currentHour % 8 !== 0) {
-            return NextResponse.json({ ...results, skipped: true, reason: 'no_jobs' });
+        const isMaintenanceWindow = (currentMinute % 5 === 0); // Solo cada 5 min
+        const isReconciliationHour = (currentHour % 6 === 0 && currentMinute < 2);
+        const isCatalogHour = (currentHour % 8 === 0 && currentMinute < 2);
+
+        // Si no hay jobs Y no es ventana de mantenimiento, salir INMEDIATAMENTE
+        if (count === 0 && !isMaintenanceWindow && !isReconciliationHour && !isCatalogHour) {
+            return NextResponse.json({ ...results, skipped: true, reason: 'no_jobs', ms: Date.now() - now.getTime() });
         }
 
-        // 2. TTL Cleanup — Borrar jobs viejos (>7 días) con status terminal
-        const { count: cleanedCount } = await supabaseAdmin
-            .from('jobs')
-            .delete({ count: 'exact' })
-            .in('status', ['failed', 'completed'])
-            .lt('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-        results.ttlCleaned = cleanedCount || 0;
+        // HOUSEKEEPING: Solo cada 5 minutos para reducir CPU idle
+        if (isMaintenanceWindow) {
+            // Token refresh
+            try {
+                await MeliTokenManager.refreshExpiringTokens();
+                results.tokensRefreshed = true;
+            } catch (tokenErr: any) {
+                results.errors.push(`Token refresh failed: ${tokenErr.message}`);
+            }
 
-        // 2b. Reaper de zombis — liberar jobs atrapados en 'processing' > 5 min
-        // Ocurre cuando Vercel corta la función (timeout) antes de marcar el job
-        // como completed/failed. Sin esto quedan en 'processing' para siempre.
-        // La RPC hace: UPDATE jobs SET status='pending', attempts=attempts+1
-        //              WHERE status='processing' AND processed_at < now()-5min
-        const { data: zombieData } = await supabaseAdmin.rpc('release_zombie_jobs');
-        if (zombieData && zombieData > 0) {
-            logger.info({ zombiesReleased: zombieData }, 'Reaper: jobs zombi liberados');
+            // TTL Cleanup — Borrar jobs viejos (>7 días) con status terminal
+            const { count: cleanedCount } = await supabaseAdmin
+                .from('jobs')
+                .delete({ count: 'exact' })
+                .in('status', ['failed', 'completed'])
+                .lt('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+            results.ttlCleaned = cleanedCount || 0;
+
+            // Reaper de zombis
+            const { data: zombieData } = await supabaseAdmin.rpc('release_zombie_jobs');
+            if (zombieData && zombieData > 0) {
+                logger.info({ zombiesReleased: zombieData }, 'Reaper: jobs zombi liberados');
+            }
         }
 
-
-        // El token refresh ya se ejecutó arriba.
+        // Si no hay jobs pero estamos en ventana de mantenimiento/reconciliación,
+        // el housekeeping ya corrió arriba. Solo seguimos si hay reconciliación o catálogo.
+        if (count === 0 && !isReconciliationHour && !isCatalogHour) {
+            return NextResponse.json({ ...results, skipped: true, reason: 'no_jobs_maintenance_done' });
+        }
 
         // 4. Claim y procesar batch de jobs
         const { data: jobs, error: claimError } = await supabaseAdmin.rpc('claim_jobs', {
@@ -120,9 +127,8 @@ export async function GET(req: NextRequest) {
         }
         results.jobsProcessed = jobs.length;
 
-        // 5. Reconciliación periódica (~cada 6h) — B2: reducida de 30min para aliviar carga
-        // Variables now, currentMinute, currentHour ya fueron declaradas arriba
-        if (currentHour % 6 === 0 && currentMinute < 2) {
+        // 5. Reconciliación periódica (~cada 6h)
+        if (isReconciliationHour) {
             try {
                 await runReconciliation();
                 (results as any).reconciliation = 'executed';
@@ -131,9 +137,7 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        // B0: Cada 8h — encolar sync_account_catalog por cuenta activa (priority 10 = baja)
-        // Garantiza que items cerrados, títulos y campos enriquecidos se actualicen periódicamente.
-        if (currentHour % 8 === 0 && currentMinute < 2) {
+        if (isCatalogHour) {
             try {
                 const { data: cuentas } = await supabaseAdmin
                     .from('marketplace_configs')
@@ -165,23 +169,7 @@ export async function GET(req: NextRequest) {
         results.errors.push(`Fatal: ${err.message}`);
     }
 
-    // Si llenamos el batch, es muy probable que haya más jobs esperando.
-    // Disparamos otro worker en background para que continúe la cola inmediatamente.
-    if (results.jobsProcessed === BATCH_SIZE) {
-        try {
-            const baseUrl = process.env.VERCEL_URL
-                ? `https://${process.env.VERCEL_URL}`
-                : 'http://localhost:3000';
-            
-            fetch(`${baseUrl}/api/worker/process`, {
-                method: 'GET',
-                headers: { 'Authorization': `Bearer ${expectedSecret}` },
-            }).catch(() => {});
-            results.chained_execution = true;
-        } catch (e) {
-            // Silenciar errores de encadenamiento
-        }
-    }
+    // No encadenar ejecuciones — el cron cada 1 min recoge el trabajo restante.\n    // Encadenar amplificaba el CPU innecesariamente.
 
     return NextResponse.json(results);
 }
