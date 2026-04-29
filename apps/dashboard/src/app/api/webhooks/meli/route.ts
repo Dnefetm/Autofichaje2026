@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { dispatchWorker } from '@/lib/dispatch-worker';
 import { logger } from '@/lib/logger';
+import { Redis } from '@upstash/redis';
+
+// Inicializar Redis de forma segura por si faltan env vars
+let redis: Redis | null = null;
+try {
+    redis = Redis.fromEnv();
+} catch (e) {
+    console.warn('Redis no está configurado. El debounce ultra-rápido estará deshabilitado.');
+}
 
 /**
  * Webhook MeLi — Push-First con Microventanas (v55)
@@ -47,6 +57,19 @@ export async function POST(req: NextRequest) {
         const IGNORED_TOPICS = ['price_suggestion', 'shipments', 'messages', 'created_orders'];
         if (IGNORED_TOPICS.includes(topic)) {
             return NextResponse.json({ status: 'ignored', reason: 'early_filtered_topic' });
+        }
+
+        // BINGO: Redis Debounce ultra-rápido (El asesino de ráfagas original)
+        // Antes de que metiéramos el panel, usabas Redis ex:300 para matar eventos repetidos
+        // en 5 milisegundos sin tocar Postgres. Esto es lo que mantenía el CPU bajo.
+        if (redis) {
+            const resourceIdFast = String(resource).split('/').filter(Boolean).pop() ?? resource;
+            const dedupeKey = `webhook:meli:burst:${topic}:${resourceIdFast}`;
+            // 60 segundos de silencio por item/topic. Suficiente para matar ráfagas de MeLi.
+            const inserted = await redis.set(dedupeKey, '1', { nx: true, ex: 60 });
+            if (!inserted) {
+                return NextResponse.json({ status: 'ignored', reason: 'redis_burst_debounce' });
+            }
         }
 
         // Deduplication using PostgreSQL UNIQUE constraint
@@ -207,9 +230,15 @@ export async function POST(req: NextRequest) {
                     }
                 }
 
+                if (dispatchImmed && jobInserted) {
+                    // Restauramos la inmediatez real. Gracias a Redis arriba, esto
+                    // ya no explotará el CPU porque las ráfagas mueren en 5ms.
+                    await dispatchWorker().catch(() => {});
+                }
+
                 logger.info({
                     topic, resourceId,
-                    dispatch: 'cron',
+                    dispatch: dispatchImmed && jobInserted ? 'immediate' : 'cron',
                     window: windowSeconds,
                     ms: Date.now() - startMs,
                     job_inserted: jobInserted
