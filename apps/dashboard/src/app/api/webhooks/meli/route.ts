@@ -59,11 +59,13 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { topic, resource, user_id } = body;
 
-        // Early filtering to prevent CPU exhaustion on Vercel Hobby plan
-        // High-volume topics that are currently unused are discarded immediately before DB queries.
-        const IGNORED_TOPICS = ['price_suggestion', 'shipments', 'messages', 'created_orders'];
-        if (IGNORED_TOPICS.includes(topic)) {
-            return NextResponse.json({ status: 'ignored', reason: 'early_filtered_topic' });
+        // ALLOWLIST: Solo los topics que REALMENTE generan jobs pasan.
+        // Todo lo demás (fbm_stock, stock, public_offers, price_suggestion, shipments,
+        // messages, created_orders, etc.) muere aquí en <1ms sin tocar Postgres.
+        // Esto elimina miles de queries desperdiciadas por día.
+        const ALLOWED_TOPICS = ['orders_v2', 'orders', 'payments', 'items', 'questions'];
+        if (!ALLOWED_TOPICS.includes(topic)) {
+            return NextResponse.json({ status: 'ignored', reason: 'topic_not_in_allowlist' });
         }
 
         // BINGO: Redis Debounce ultra-rápido (El asesino de ráfagas original)
