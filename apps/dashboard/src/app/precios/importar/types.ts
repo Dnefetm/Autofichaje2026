@@ -43,6 +43,7 @@ export interface GrupoCostoFila {
   precios_anteriores: Record<TipoCosto, { valor: number; moneda: string } | null>;
   estado_grupo: EstadoMatch;
   articulo_id_final?: string | null;
+  matching_decision_id?: string | null;
 }
 
 export function clasificarEstado(puntaje: number | null, nivel_match?: string): EstadoMatch {

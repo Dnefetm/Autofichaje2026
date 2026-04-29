@@ -140,6 +140,18 @@ export async function GET(
         };
     });
 
+    // ── Fetch matching_decisiones IDs for the groups ──────────────────────────
+    const { data: decisionesData } = await supabaseAdmin
+        .from('matching_decisiones')
+        .select('id, codigo_universal_excel, marca_excel, modelo_excel')
+        .eq('importacion_id', id);
+
+    const decisionesMap = new Map<string, string>();
+    (decisionesData || []).forEach(d => {
+        const key = `${d.modelo_excel || ''}||${d.marca_excel || ''}||${d.codigo_universal_excel || ''}`;
+        decisionesMap.set(key, d.id);
+    });
+
     // ── Grouping ──────────────────────────────────────────
     const gruposMap = new Map<string, any>();
     const candidatosTopSet = new Set<string>();
@@ -162,6 +174,7 @@ export async function GET(
                 precios_anteriores: {},
                 estado_grupo: c.estado_match,
                 articulo_id_final: c.articulo_id || null,
+                matching_decision_id: decisionesMap.get(clave) || null,
             });
         }
         
@@ -190,7 +203,7 @@ export async function GET(
             .from('costos_articulo')
             .select('articulo_id, tipo_costo, valor, moneda')
             .in('articulo_id', topCandidatesIds)
-            .is('importacion_id', null)
+            .or(`importacion_id.is.null,importacion_id.neq.${id}`)
             .eq('vigente', true);
             
         preciosAnterioresRaw = paData || [];

@@ -870,20 +870,15 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
   }
 
   async function handleConfirmar() {
-    const acciones: any[] = [];
+    const decisiones: { id: string; articulo_id: string }[] = [];
     grupos.forEach(g => {
       const sid = selecciones[g.clave];
-      if (sid) {
-         const arr = Object.values(g.precios_nuevos) as Array<{ costo_id: string; valor: number; moneda: string; tipo_costo: string } | null>;
-         arr.forEach(pn => {
-            if (pn) {
-                acciones.push({ costo_id: pn.costo_id, accion: 'confirmar', articulo_id_override: sid });
-            }
-         });
+      if (sid && g.matching_decision_id) {
+         decisiones.push({ id: g.matching_decision_id, articulo_id: sid });
       }
     });
 
-    if (acciones.length === 0) {
+    if (decisiones.length === 0) {
        setError('No hay grupos con candidatos asignados para enviar. Marca "Sin asignar" o mapea los requeridos.'); 
        return; 
     }
