@@ -165,6 +165,24 @@ export async function GET(req: NextRequest) {
         results.errors.push(`Fatal: ${err.message}`);
     }
 
+    // Si llenamos el batch, es muy probable que haya más jobs esperando.
+    // Disparamos otro worker en background para que continúe la cola inmediatamente.
+    if (results.jobsProcessed === BATCH_SIZE) {
+        try {
+            const baseUrl = process.env.VERCEL_URL
+                ? `https://${process.env.VERCEL_URL}`
+                : 'http://localhost:3000';
+            
+            fetch(`${baseUrl}/api/worker/process`, {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${expectedSecret}` },
+            }).catch(() => {});
+            results.chained_execution = true;
+        } catch (e) {
+            // Silenciar errores de encadenamiento
+        }
+    }
+
     return NextResponse.json(results);
 }
 
