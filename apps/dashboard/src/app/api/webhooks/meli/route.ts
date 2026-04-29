@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 
@@ -89,137 +89,160 @@ export async function POST(req: NextRequest) {
         // 2. Extraer resource_id limpio
         const resourceId = String(resource).split('/').filter(Boolean).pop() ?? resource;
 
-        // 3. Upsert en buffer (trazabilidad para todos los topics)
-        const { data: existingBuf } = await supabaseAdmin
-            .from('webhook_buffer')
-            .select('id, repeat_count, status, last_processed_at')
-            .eq('topic', topic)
-            .eq('resource_id', resourceId)
-            .maybeSingle();
-
-        const nextEligibleAt = new Date(Date.now() + windowSeconds * 1000);
-
-        await supabaseAdmin.from('webhook_buffer').upsert({
-            topic,
-            resource_id:      resourceId,
-            user_id:          user_id ?? null,
-            priority,
-            last_seen_at:     new Date().toISOString(),
-            next_eligible_at: nextEligibleAt.toISOString(),
-            repeat_count:     (existingBuf?.repeat_count ?? 0) + 1,
-            status:           'pending',
-            last_payload:     { topic, resource, user_id },
-        }, { onConflict: 'topic,resource_id' });
-
-        // 4. Lógica de job según topic
-        let jobInserted = false;
-
-        if (topic === 'orders_v2' || topic === 'orders') {
-            // Dedup de 24h para órdenes
-            const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-            const alreadyProcessed = existingBuf?.last_processed_at
-                && existingBuf.last_processed_at > since24h;
-
-            if (!alreadyProcessed) {
-                const { data: pendingOrder } = await supabaseAdmin
-                    .from('jobs')
-                    .select('id')
-                    .eq('type', 'process_sale')
-                    .eq('status', 'pending')
-                    .contains('payload', { resource })
+        // Función que realiza el trabajo pesado (buffer y jobs)
+        const processBackground = async () => {
+            try {
+                // 3. Upsert en buffer (trazabilidad para todos los topics)
+                const { data: existingBuf } = await supabaseAdmin
+                    .from('webhook_buffer')
+                    .select('id, repeat_count, status, last_processed_at')
+                    .eq('topic', topic)
+                    .eq('resource_id', resourceId)
                     .maybeSingle();
 
-                if (!pendingOrder) {
-                    await supabaseAdmin.from('jobs').insert({
-                        type:         'process_sale',
-                        payload:      { marketplace: 'meli', resource, user_id },
-                        status:       'pending',
-                        priority,
-                        scheduled_at: nextEligibleAt.toISOString(),
-                    });
-                    jobInserted = true;
+                const nextEligibleAt = new Date(Date.now() + windowSeconds * 1000);
 
-                    // Marcar como procesado en buffer
-                    await supabaseAdmin.from('webhook_buffer').upsert({
-                        topic, resource_id: resourceId,
-                        last_processed_at: new Date().toISOString(),
-                        status: 'done',
-                    }, { onConflict: 'topic,resource_id' });
-                }
-            }
-        } else if (topic === 'items') {
-            const itemIdMatch = resource.match(/\/items\/(MLM\w+)/);
-            if (itemIdMatch) {
-                const externalItemId = itemIdMatch[1];
+                await supabaseAdmin.from('webhook_buffer').upsert({
+                    topic,
+                    resource_id:      resourceId,
+                    user_id:          user_id ?? null,
+                    priority,
+                    last_seen_at:     new Date().toISOString(),
+                    next_eligible_at: nextEligibleAt.toISOString(),
+                    repeat_count:     (existingBuf?.repeat_count ?? 0) + 1,
+                    status:           'pending',
+                    last_payload:     { topic, resource, user_id },
+                }, { onConflict: 'topic,resource_id' });
 
-                // Si ya hay job pendiente, no duplicar
-                const { data: pendingJob } = await supabaseAdmin
-                    .from('jobs')
-                    .select('id')
-                    .eq('type', 'sync_item')
-                    .eq('status', 'pending')
-                    .contains('payload', { external_item_id: externalItemId })
-                    .maybeSingle();
+                // 4. Lógica de job según topic
+                let jobInserted = false;
 
-                if (!pendingJob) {
-                    // Resolver marketplace_id
-                    let marketplaceId: string | null = null;
+                if (topic === 'orders_v2' || topic === 'orders') {
+                    // Dedup de 24h para órdenes
+                    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+                    const alreadyProcessed = existingBuf?.last_processed_at
+                        && existingBuf.last_processed_at > since24h;
 
-                    const { data: pub } = await supabaseAdmin
-                        .from('publicaciones_externas')
-                        .select('marketplace_id')
-                        .eq('external_item_id', externalItemId)
-                        .eq('external_variation_id', '0')
-                        .maybeSingle();
+                    if (!alreadyProcessed) {
+                        const { data: pendingOrder } = await supabaseAdmin
+                            .from('jobs')
+                            .select('id')
+                            .eq('type', 'process_sale')
+                            .eq('status', 'pending')
+                            .contains('payload', { resource })
+                            .maybeSingle();
 
-                    if (pub?.marketplace_id) {
-                        marketplaceId = pub.marketplace_id;
-                    } else if (user_id) {
-                        const { data: configs } = await supabaseAdmin
-                            .from('marketplace_configs')
-                            .select('id, settings')
-                            .in('marketplace', ['meli', 'mercadolibre']);
-                        const match = (configs || []).find((c: any) =>
-                            String(c.settings?.seller_id) === String(user_id)
-                        );
-                        if (match) marketplaceId = match.id;
+                        if (!pendingOrder) {
+                            await supabaseAdmin.from('jobs').insert({
+                                type:         'process_sale',
+                                payload:      { marketplace: 'meli', resource, user_id },
+                                status:       'pending',
+                                priority,
+                                scheduled_at: nextEligibleAt.toISOString(),
+                            });
+                            jobInserted = true;
+
+                            // Marcar como procesado en buffer
+                            await supabaseAdmin.from('webhook_buffer').upsert({
+                                topic, resource_id: resourceId,
+                                last_processed_at: new Date().toISOString(),
+                                status: 'done',
+                            }, { onConflict: 'topic,resource_id' });
+                        }
                     }
+                } else if (topic === 'items') {
+                    const itemIdMatch = resource.match(/\/items\/(MLM\w+)/);
+                    if (itemIdMatch) {
+                        const externalItemId = itemIdMatch[1];
 
-                    if (marketplaceId) {
-                        await supabaseAdmin.from('jobs').insert({
-                            type:         'sync_item',
-                            payload:      { marketplace_id: marketplaceId, external_item_id: externalItemId },
-                            status:       'pending',
-                            priority,
-                            scheduled_at: nextEligibleAt.toISOString(),
-                        });
-                        jobInserted = true;
-                        logger.info({ externalItemId, marketplaceId, window: windowSeconds }, 'items: sync_item encolado');
-                    } else {
-                        logger.info({ externalItemId }, 'items: item desconocido, ignorado');
+                        // Si ya hay job pendiente, no duplicar
+                        const { data: pendingJob } = await supabaseAdmin
+                            .from('jobs')
+                            .select('id')
+                            .eq('type', 'sync_item')
+                            .eq('status', 'pending')
+                            .contains('payload', { external_item_id: externalItemId })
+                            .maybeSingle();
+
+                        if (!pendingJob) {
+                            // Resolver marketplace_id
+                            let marketplaceId: string | null = null;
+
+                            const { data: pub } = await supabaseAdmin
+                                .from('publicaciones_externas')
+                                .select('marketplace_id')
+                                .eq('external_item_id', externalItemId)
+                                .eq('external_variation_id', '0')
+                                .maybeSingle();
+
+                            if (pub?.marketplace_id) {
+                                marketplaceId = pub.marketplace_id;
+                            } else if (user_id) {
+                                const { data: configs } = await supabaseAdmin
+                                    .from('marketplace_configs')
+                                    .select('id, settings')
+                                    .in('marketplace', ['meli', 'mercadolibre']);
+                                const match = (configs || []).find((c: any) =>
+                                    String(c.settings?.seller_id) === String(user_id)
+                                );
+                                if (match) marketplaceId = match.id;
+                            }
+
+                            if (marketplaceId) {
+                                await supabaseAdmin.from('jobs').insert({
+                                    type:         'sync_item',
+                                    payload:      { marketplace_id: marketplaceId, external_item_id: externalItemId },
+                                    status:       'pending',
+                                    priority,
+                                    scheduled_at: nextEligibleAt.toISOString(),
+                                });
+                                jobInserted = true;
+                                logger.info({ externalItemId, marketplaceId, window: windowSeconds }, 'items: sync_item encolado');
+                            } else {
+                                logger.info({ externalItemId }, 'items: item desconocido, ignorado');
+                            }
+                        } else {
+                            logger.info({ externalItemId }, 'items: job ya pendiente, buffer actualizado');
+                        }
                     }
-                } else {
-                    logger.info({ externalItemId }, 'items: job ya pendiente, buffer actualizado');
                 }
+
+                logger.info({
+                    topic, resourceId,
+                    dispatch: 'cron',
+                    window: windowSeconds,
+                    ms: Date.now() - startMs,
+                    job_inserted: jobInserted
+                }, 'Webhook procesado (completado)');
+
+                return jobInserted;
+            } catch (err: any) {
+                logger.error({ error: err.message }, 'Error en proceso background del webhook');
+                throw err;
             }
+        };
+
+        // Palanca 5: Timeout de 150ms. Si processBackground tarda más, respondemos 200 y lo pasamos a after()
+        const timeoutPromise = new Promise<string>((resolve) => setTimeout(() => resolve('timeout'), 150));
+        const raceResult = await Promise.race([processBackground().then(() => 'done'), timeoutPromise]);
+
+        if (raceResult === 'timeout') {
+            // Se agotó el tiempo, delegamos el resto de la ejecución a background (Next.js 15+ after)
+            after(() => processBackground());
+            
+            return NextResponse.json({
+                status: 'deferred',
+                priority,
+                window_seconds: windowSeconds,
+            });
         }
 
-        // 5. dispatch_immediate viene de BD (ya no hace self-fanout por CPU)
-        // El cron procesa los jobs de manera más eficiente en batches.
-
-        logger.info({
-            topic, resourceId,
-            dispatch: dispatchImmed && jobInserted ? 'immediate' : 'cron',
-            window: windowSeconds,
-            ms: Date.now() - startMs,
-        }, 'Webhook procesado');
-
+        // Si terminó a tiempo (P95 < 150ms)
         return NextResponse.json({
-            status:         'received',
+            status: 'received',
             priority,
-            dispatch:       dispatchImmed && jobInserted ? 'immediate' : 'buffered',
+            dispatch: 'buffered',
             window_seconds: windowSeconds,
-            job_inserted:   jobInserted,
         });
 
     } catch (error: any) {
