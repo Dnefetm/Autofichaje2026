@@ -125,10 +125,19 @@ export async function POST(req: NextRequest) {
                 // 3. Upsert en buffer (trazabilidad para todos los topics)
                 const { data: existingBuf } = await supabaseAdmin
                     .from('webhook_buffer')
-                    .select('id, repeat_count, status, last_processed_at')
+                    .select('id, repeat_count, status, last_processed_at, last_seen_at')
                     .eq('topic', topic)
                     .eq('resource_id', resourceId)
                     .maybeSingle();
+
+                // PG BURST DEBOUNCE: si Redis falló, usamos Postgres para ignorar ráfagas
+                if (existingBuf?.last_seen_at) {
+                    const msSinceLast = Date.now() - new Date(existingBuf.last_seen_at).getTime();
+                    // Si lo vimos hace menos de 60s, morimos silenciosamente para matar la ráfaga
+                    if (msSinceLast < 60000) {
+                        return false;
+                    }
+                }
 
                 const nextEligibleAt = new Date(Date.now() + windowSeconds * 1000);
 
@@ -258,13 +267,17 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        // Palanca 5: Timeout de 150ms. Si processBackground tarda más, respondemos 200 y lo pasamos a after()
+        // Ejecutamos la promesa UNA SOLA VEZ
+        const bgPromise = processBackground();
+
+        // Palanca 5: Timeout de 150ms. Si bgPromise tarda más, respondemos 200 y delegamos.
         const timeoutPromise = new Promise<string>((resolve) => setTimeout(() => resolve('timeout'), 150));
-        const raceResult = await Promise.race([processBackground().then(() => 'done'), timeoutPromise]);
+        const raceResult = await Promise.race([bgPromise.then(() => 'done'), timeoutPromise]);
 
         if (raceResult === 'timeout') {
-            // Se agotó el tiempo, delegamos el resto de la ejecución a background (Next.js 15+ after)
-            after(() => processBackground());
+            // ERROR GRAVE PREVIO CORREGIDO: `after(() => processBackground())` ejecutaba la función DOS VECES.
+            // Ahora devolvemos la misma promesa YA EN CURSO para que Vercel espere que termine.
+            after(() => bgPromise);
             
             return NextResponse.json({
                 status: 'deferred',
