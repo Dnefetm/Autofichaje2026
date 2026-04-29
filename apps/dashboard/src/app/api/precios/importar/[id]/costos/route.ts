@@ -195,28 +195,50 @@ export async function GET(
         }
     });
 
-    // ── Fetch precios_anteriores from lista_precios_proveedor (Fase 0) ──────────────────────────
+    // ── Fetch precios_anteriores from costos_articulo (Lista Anterior) ──────────────────────────
     let preciosAnterioresRaw: any[] = [];
-    const { data: paData } = await supabaseAdmin
-        .from('lista_precios_proveedor')
-        .select('codigo_excel, marca_excel, modelo_excel, precio_distrib, precio_subdistrib, precio_menudeo, precio_mayoreo')
+    
+    // 1. Encontrar la importación anterior de este proveedor
+    const { data: previousImports } = await supabaseAdmin
+        .from('listas_precios_proveedor')
+        .select('importacion_id')
         .eq('proveedor', imp.proveedor)
         .eq('vigente', false)
-        .order('vigente_desde', { ascending: false });
+        .order('fecha_vigor_hasta', { ascending: false })
+        .limit(1);
         
-    preciosAnterioresRaw = paData || [];
+    const prevImportId = previousImports?.[0]?.importacion_id;
+    
+    // 2. Si existe, buscar los costos en esa importación específica (vinculados o no)
+    if (prevImportId) {
+        // Extraemos los códigos/modelos que estamos viendo en esta página
+        const currentModels = Array.from(gruposMap.values()).map(g => g.excel.modelo).filter(Boolean);
+        const currentCodigos = Array.from(gruposMap.values()).map(g => g.excel.codigo_universal).filter(Boolean);
+        
+        let query = supabaseAdmin
+            .from('costos_articulo')
+            .select('codigo_universal_excel, marca_excel, modelo_excel, tipo_costo, valor, moneda')
+            .eq('importacion_id', prevImportId);
+            
+        // Filtro rudimentario para no traer 60k filas si la tabla es enorme
+        if (currentModels.length > 0 || currentCodigos.length > 0) {
+             const conditions = [];
+             if (currentModels.length > 0) conditions.push(`modelo_excel.in.(${currentModels.map(m => `"${m}"`).join(',')})`);
+             if (currentCodigos.length > 0) conditions.push(`codigo_universal_excel.in.(${currentCodigos.map(c => `"${c}"`).join(',')})`);
+             query = query.or(conditions.join(','));
+        }
+            
+        const { data: paData } = await query;
+        preciosAnterioresRaw = paData || [];
+    }
     
     const preciosAnterioresPorFila: Record<string, any> = {};
     for (const row of preciosAnterioresRaw) {
-        const key = `${row.codigo_excel || ''}_${row.marca_excel || ''}_${row.modelo_excel || ''}`;
+        const key = `${row.codigo_universal_excel || ''}_${row.marca_excel || ''}_${row.modelo_excel || ''}`;
         if (!preciosAnterioresPorFila[key]) {
-            preciosAnterioresPorFila[key] = {
-                ...(row.precio_distrib ? { distribuidor: { valor: row.precio_distrib, moneda: 'MXN' } } : {}),
-                ...(row.precio_subdistrib ? { subdistribuidor: { valor: row.precio_subdistrib, moneda: 'MXN' } } : {}),
-                ...(row.precio_menudeo ? { menudeo: { valor: row.precio_menudeo, moneda: 'MXN' } } : {}),
-                ...(row.precio_mayoreo ? { mayoreo: { valor: row.precio_mayoreo, moneda: 'MXN' } } : {})
-            };
+            preciosAnterioresPorFila[key] = {};
         }
+        preciosAnterioresPorFila[key][row.tipo_costo] = { valor: row.valor, moneda: row.moneda };
     }
 
     function clasificarEstadoInternal(puntaje: number | null) {
