@@ -17,6 +17,26 @@ export default async function DetalleProveedorPage(props: { params: Promise<{ pr
 
     const { data: listado, error } = await query;
 
+    let publicacionesVinculadas: any[] = [];
+    let pubError = null;
+    if (searchParams.tab === 'publicaciones') {
+        const { data, error: err } = await supa
+            .from('costos_articulo')
+            .select(`
+                id, articulo_id, nombre_excel, modelo_excel, marca_excel,
+                mapeo_publicacion_articulo!inner (
+                    publicacion_id,
+                    marketplace_prices ( price ),
+                    precios_publicacion ( precio_sugerido )
+                )
+            `)
+            .eq('vigente', true)
+            .not('articulo_id', 'is', null);
+        
+        publicacionesVinculadas = data || [];
+        pubError = err;
+    }
+
     function isRma(caja: string | null) {
         if (!caja) return false;
         const low = caja.toLowerCase();
@@ -56,6 +76,16 @@ export default async function DetalleProveedorPage(props: { params: Promise<{ pr
                 </div>
             </header>
 
+            {/* Tabs */}
+            <div className="px-6 border-b border-slate-200 bg-white shrink-0 flex gap-6">
+                <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}?tab=listado`} className={`py-3 border-b-2 font-medium text-sm transition-colors ${(!searchParams.tab || searchParams.tab === 'listado') ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                    Listado Principal
+                </Link>
+                <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}?tab=publicaciones`} className={`py-3 border-b-2 font-medium text-sm transition-colors ${searchParams.tab === 'publicaciones' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                    Publicaciones Vinculadas
+                </Link>
+            </div>
+
             {/* Controles de Tabla */}
             <div className="p-4 bg-slate-50 border-b border-slate-200 shrink-0 flex items-center justify-between">
                 {/* Form nativo simple para búsqueda Server-Side */}
@@ -78,15 +108,59 @@ export default async function DetalleProveedorPage(props: { params: Promise<{ pr
 
             {/* Tabla Densa Scrollable */}
             <div className="flex-1 overflow-auto bg-white relative">
-                {error ? (
-                    <div className="p-6 text-red-600">Error cargando el listado: {error.message}</div>
-                ) : !listado || listado.length === 0 ? (
-                    <div className="p-12 text-center text-slate-500">
-                        {searchParams.q ? 'No hay resultados para la búsqueda.' : 'Este proveedor no tiene SKUs vigentes o nunca se ha importado.'}
+                {searchParams.tab === 'publicaciones' ? (
+                    <div className="p-6">
+                        {pubError ? (
+                            <div className="text-red-600">Error cargando publicaciones: {pubError.message}</div>
+                        ) : publicacionesVinculadas.length === 0 ? (
+                            <div className="text-center text-slate-500 py-12">No hay publicaciones vinculadas para los artículos vigentes de este proveedor.</div>
+                        ) : (
+                            <table className="w-full text-sm text-left border-collapse">
+                                <thead className="bg-slate-100 text-slate-600 sticky top-0 z-20 font-medium whitespace-nowrap shadow-sm">
+                                    <tr>
+                                        <th className="px-4 py-3 border-b border-slate-200">Artículo</th>
+                                        <th className="px-4 py-3 border-b border-slate-200">ID Publicación</th>
+                                        <th className="px-4 py-3 border-b border-slate-200 text-right">Precio Actual (ML)</th>
+                                        <th className="px-4 py-3 border-b border-slate-200 text-right">Precio Sugerido</th>
+                                        <th className="px-4 py-3 border-b border-slate-200 text-right">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {publicacionesVinculadas.map((ca: any) => {
+                                        const mapeo = Array.isArray(ca.mapeo_publicacion_articulo) ? ca.mapeo_publicacion_articulo[0] : ca.mapeo_publicacion_articulo;
+                                        if (!mapeo) return null;
+                                        const precioActual = mapeo.marketplace_prices?.[0]?.price || mapeo.marketplace_prices?.price;
+                                        const precioSugerido = mapeo.precios_publicacion?.[0]?.precio_sugerido || mapeo.precios_publicacion?.precio_sugerido;
+                                        return (
+                                            <tr key={ca.id} className="hover:bg-slate-50">
+                                                <td className="px-4 py-3">
+                                                    <div className="font-medium text-slate-900">{ca.marca_excel} - {ca.modelo_excel}</div>
+                                                    <div className="text-xs text-slate-500">{ca.nombre_excel}</div>
+                                                </td>
+                                                <td className="px-4 py-3 font-mono text-xs">{mapeo.publicacion_id}</td>
+                                                <td className="px-4 py-3 text-right font-medium">{precioActual ? fmtMx.format(precioActual) : '—'}</td>
+                                                <td className="px-4 py-3 text-right text-indigo-600 font-medium">{precioSugerido ? fmtMx.format(precioSugerido) : '—'}</td>
+                                                <td className="px-4 py-3 text-right">
+                                                    <button className="btn-primary" onClick={() => {/* Implementar RPC aplicar precio */}}>Aplicar nuevo precio</button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 ) : (
-                    <table className="w-full text-sm text-left border-collapse">
-                        <thead className="bg-slate-100 text-slate-600 sticky top-0 z-20 font-medium whitespace-nowrap shadow-sm">
+                    <>
+                        {error ? (
+                            <div className="p-6 text-red-600">Error cargando el listado: {error.message}</div>
+                        ) : !listado || listado.length === 0 ? (
+                            <div className="p-12 text-center text-slate-500">
+                                {searchParams.q ? 'No hay resultados para la búsqueda.' : 'Este proveedor no tiene SKUs vigentes o nunca se ha importado.'}
+                            </div>
+                        ) : (
+                            <table className="w-full text-sm text-left border-collapse">
+                                <thead className="bg-slate-100 text-slate-600 sticky top-0 z-20 font-medium whitespace-nowrap shadow-sm">
                             <tr>
                                 <th className="px-4 py-3 sticky left-0 z-30 bg-slate-100 border-b border-r border-slate-200">Cód. Universal</th>
                                 <th className="px-4 py-3 border-b border-slate-200">Marca / Modelo</th>
@@ -154,6 +228,8 @@ export default async function DetalleProveedorPage(props: { params: Promise<{ pr
                             ))}
                         </tbody>
                     </table>
+                )}
+                </>
                 )}
             </div>
             {/* Custom CSS overrides para los botones agregados sin tailwind classes */}

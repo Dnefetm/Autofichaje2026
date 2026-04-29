@@ -25,13 +25,12 @@ function MatchingPageInner() {
   useEffect(() => {
     if (!importacionId) return;
     setLoadingInitial(true);
+    // Verificar si la importación sigue activa
     fetch(`/api/precios/importar/${importacionId}/progreso-matching`)
       .then(r => r.json())
       .then(d => {
-        if (d.ok && (d.estado_importacion === 'matching_completo' || d.estado_importacion === 'en_revision')) {
-          setMatchStats({ total: d.total || 0, con_match: d.progreso || 0 });
-          setStep(2);
-        }
+        // We only care about ensuring the import exists. 
+        // We no longer transition to Step 2 (PasoRevisar).
       })
       .catch(e => console.error("Error cargando estado inicial", e))
       .finally(() => setLoadingInitial(false));
@@ -51,30 +50,19 @@ function MatchingPageInner() {
   return (
     <div className="max-w-4xl mx-auto py-10 px-4">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Motor de Matching: Configuración de Proveedor</h1>
-        <p className="text-sm text-slate-500 mt-1">Configura las columnas y asocia la lista cruda del proveedor contra tu catálogo interno.</p>
+        <h1 className="text-2xl font-bold text-slate-800">Motor de Importación: Mapeo de Columnas</h1>
+        <p className="text-sm text-slate-500 mt-1">Configura las columnas de la lista cruda del proveedor para guardar la lista sana en tu base de datos.</p>
       </div>
 
       {loadingInitial ? (
         <div className="flex justify-center p-10"><Loader2 className="w-8 h-8 animate-spin text-indigo-500"/></div>
       ) : (
-        <>
-          {step === 1 && (
-            <PasoMapear importacionId={importacionId} onBack={() => {
-               router.push('/precios/importaciones'); 
-            }}
-            onDone={(s) => { setMatchStats(s); setStep(2); }} />
-          )}
-          
-          {step === 2 && matchStats && (
-            <PasoRevisar 
-              importacionId={importacionId} 
-              statsInit={matchStats}
-              onBack={() => setStep(1)} 
-              onFinish={() => router.push('/precios/importaciones')}
-            />
-          )}
-        </>
+        <PasoMapear importacionId={importacionId} onBack={() => {
+           router.push('/precios/importaciones'); 
+        }}
+        onDone={(s) => { 
+            // The mapping component handles the redirect now.
+        }} />
       )}
     </div>
   );

@@ -202,7 +202,7 @@ export async function GET(
     const { data: previousImports } = await supabaseAdmin
         .from('listas_precios_proveedor')
         .select('importacion_id')
-        .eq('proveedor', imp.proveedor)
+        .eq('proveedor', importacion.proveedor)
         .eq('vigente', false)
         .order('fecha_vigor_hasta', { ascending: false })
         .limit(1);
