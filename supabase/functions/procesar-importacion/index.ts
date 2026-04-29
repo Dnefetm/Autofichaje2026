@@ -47,7 +47,7 @@ async function procesarImportacion(importacionId: string) {
   
   if (!sheet) throw new Error('No se encontro hoja 1 en el Excel');
 
-  const allRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  const allRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: null, raw: false });
   
   if (allRows.length === 0) throw new Error('El excel parece estar vacio');
 
@@ -93,17 +93,24 @@ async function procesarImportacion(importacionId: string) {
   }
   
   for (let i = 1; i < allRows.length; i++) {
-    const vals = allRows[i].map((v: any) => String(v ?? '').trim());
+    const row = allRows[i];
+    if (!Array.isArray(row) || !row.some(v => v !== null && String(v).trim() !== '')) continue;
+
+    const vals = row.map((v: any) => String(v ?? '').trim());
     
     // Payload as jsonb
     const payload: Record<string, string> = {};
     const colsUsadas: string[] = [];
     headers.forEach((h, idx) => {
        if (usaTodas || colGuardarSet.has(h)) {
-          payload[h] = vals[idx];
-          colsUsadas.push(h);
+          if (vals[idx] !== '') {
+              payload[h] = vals[idx];
+              colsUsadas.push(h);
+          }
        }
     });
+
+    if (Object.keys(payload).length === 0) continue;
 
     chunk.push({
        importacion_id: importacionId,
