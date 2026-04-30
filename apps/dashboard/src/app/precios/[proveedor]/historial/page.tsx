@@ -52,7 +52,7 @@ export default async function HistorialProveedorPage(props: { params: Promise<{ 
                                 </div>
                                 <div>
                                     {!h.vigente && (
-                                        <button className="btn-outline-indigo" onClick={() => {/* Implementar lógica para restaurar lote */}}>Restaurar lote anterior</button>
+                                        <button className="btn-outline-indigo" disabled>Restaurar lote anterior</button>
                                     )}
                                 </div>
                             </div>

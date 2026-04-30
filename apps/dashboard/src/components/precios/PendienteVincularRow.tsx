@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { AutocompleteArticulo } from '@/components/AutocompleteArticulo';
 
 export function PendienteVincularRow({ pendiente }: { pendiente: any }) {
     const [articuloId, setArticuloId] = useState('');
@@ -47,13 +48,12 @@ export function PendienteVincularRow({ pendiente }: { pendiente: any }) {
                 </span>
             </td>
             <td className="px-4 py-3 flex space-x-2">
-                <input 
-                    type="text" 
-                    placeholder="UUID del artículo" 
-                    value={articuloId} 
-                    onChange={e => setArticuloId(e.target.value)}
-                    className="border-slate-300 rounded-md text-sm shadow-sm focus:ring-indigo-500 focus:border-indigo-500 w-full px-2 py-1 border"
-                />
+                <div className="w-64">
+                    <AutocompleteArticulo 
+                        value={articuloId} 
+                        onChange={setArticuloId} 
+                    />
+                </div>
                 <button 
                     onClick={handleVincular} 
                     disabled={loading || !articuloId}

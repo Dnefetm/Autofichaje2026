@@ -1,9 +1,11 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { use } from 'react';
 
-export default function ActualizarListaPage({ params }: { params: { proveedor: string } }) {
-    const proveedorDecoded = decodeURIComponent(params.proveedor);
+export default function ActualizarListaPage({ params }: { params: Promise<{ proveedor: string }> }) {
+    const resolvedParams = use(params);
+    const proveedorDecoded = decodeURIComponent(resolvedParams.proveedor);
     const [file, setFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
 
