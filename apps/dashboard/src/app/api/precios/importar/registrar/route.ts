@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 const ACTIVOS = ['pendiente_mapeo', 'mapeando', 'procesando'] as const;
 
 export async function POST(req: NextRequest) {
-  const { proveedor, fileName, storagePath, bucket = 'excel-precios' } = await req.json();
+  const { proveedor, fileName, storagePath, bucket = 'excel-precios', modo = 'merge' } = await req.json();
 
   if (!proveedor || !fileName || !storagePath) {
     return NextResponse.json({ ok: false, error: 'proveedor, fileName y storagePath requeridos' }, { status: 400 });
@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       nombre_archivo: fileName,
       proveedor,
       estado: 'pendiente_mapeo' satisfies ImportacionEstado,
+      modo,
       mapeo_columnas: { ...baseMapeo, _storage_path: storagePath, _bucket: bucket },
       tipo_costo_default: prev?.tipo_costo_default ?? null,
     })

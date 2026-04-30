@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
 import { ArrowLeft, Settings, History, Download, RefreshCw, Search } from 'lucide-react';
 import { HubTableActions } from '@/components/precios/flow/HubTableActions';
+import { HubRowActions } from '@/components/precios/HubRowActions';
 
 export default async function HubProveedorPage(props: { params: Promise<{ proveedor: string }>, searchParams: Promise<any> }) {
     const params = await props.params;
@@ -10,7 +11,7 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
     const supa = supabaseAdmin;
 
     // Get count
-    const { count } = await supa.from('v_lista_precios_proveedor').select('*', { count: 'exact', head: true }).eq('proveedor', proveedorDecoded);
+    const { count } = await supa.from('v_precio_vigente_sku').select('*', { count: 'exact', head: true }).eq('proveedor', proveedorDecoded);
 
     // Get latest batch
     const { data: historial } = await supa.from('v_importaciones_historial')
@@ -24,9 +25,18 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
     }
 
     // Get Active List
-    let query = supa.from('v_lista_precios_proveedor').select('*').eq('proveedor', proveedorDecoded).order('ultima_actualizacion', { ascending: false });
+    let query = supa.from('v_precio_vigente_sku').select('*').eq('proveedor', proveedorDecoded).order('articulo_id');
+    
     if (searchParams.q) {
         query = query.or(`nombre.ilike.%${searchParams.q}%,codigo_universal.ilike.%${searchParams.q}%,marca.ilike.%${searchParams.q}%,modelo.ilike.%${searchParams.q}%`);
+    }
+    
+    if (searchParams.estado && searchParams.estado !== 'todos') {
+        query = query.eq('estado_actualizacion', searchParams.estado);
+    }
+    
+    if (searchParams.ausentes === 'true') {
+        query = query.eq('presente_en_ultima_lista', false);
     }
 
     const { data: listado, error } = await query;
@@ -73,16 +83,44 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
             </header>
 
             <div className="flex-1 overflow-hidden flex flex-col bg-slate-50">
-                <div className="p-4 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
-                    <form action={`/precios/${encodeURIComponent(proveedorDecoded)}`} method="GET" className="relative w-80">
-                        <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                        <input 
-                            type="text" 
-                            name="q" 
-                            placeholder="Buscar EAN, modelo o nombre..." 
-                            defaultValue={searchParams.q || ''}
-                            className="pl-9 pr-4 py-2 w-full text-sm border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" 
-                        />
+                <div className="p-4 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 flex-wrap gap-4">
+                    <form action={`/precios/${encodeURIComponent(proveedorDecoded)}`} method="GET" className="flex items-center gap-4 flex-1">
+                        <div className="relative w-80">
+                            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                            <input 
+                                type="text" 
+                                name="q" 
+                                placeholder="Buscar EAN, modelo o nombre..." 
+                                defaultValue={searchParams.q || ''}
+                                className="pl-9 pr-4 py-2 w-full text-sm border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" 
+                            />
+                        </div>
+                        
+                        <select 
+                            name="estado" 
+                            defaultValue={searchParams.estado || 'todos'}
+                            className="text-sm border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"
+                        >
+                            <option value="todos">Todos los estados</option>
+                            <option value="vigente">Vigentes</option>
+                            <option value="desactualizado">Desactualizados</option>
+                            <option value="posiblemente_descontinuado">Posiblemente descontinuados</option>
+                        </select>
+
+                        <label className="flex items-center text-sm text-slate-700 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                name="ausentes" 
+                                value="true"
+                                defaultChecked={searchParams.ausentes === 'true'}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2" 
+                            />
+                            Mostrar solo SKUs ausentes en última lista
+                        </label>
+
+                        <button type="submit" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-sm font-medium transition-colors">
+                            Filtrar
+                        </button>
                     </form>
                     <HubTableActions proveedor={proveedorDecoded} count={count || 0} />
                 </div>
@@ -96,36 +134,50 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
                                 <tr>
                                     <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Cód. Universal</th>
                                     <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Marca / Modelo</th>
-                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Costo Dist.</th>
-                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Costo Sub.</th>
-                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Mayoreo</th>
-                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Menudeo</th>
-                                    <th className="px-4 py-3 text-center font-medium text-slate-500 uppercase text-xs">IVA</th>
-                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Últ. Act.</th>
-                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Acción</th>
+                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Precio</th>
+                                    <th className="px-4 py-3 text-center font-medium text-slate-500 uppercase text-xs">Estado</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Última Actualización</th>
+                                    <th className="px-4 py-3 text-center font-medium text-slate-500 uppercase text-xs">Acción</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-slate-200">
                                 {listado.map((item: any) => (
                                     <tr key={item.articulo_id} className="hover:bg-slate-50 transition-colors">
                                         <td className="px-4 py-3 text-slate-500 font-mono">{item.codigo_universal || '-'}</td>
-                                        <td className="px-4 py-3 font-medium text-slate-900">{item.marca} {item.modelo}</td>
-                                        <td className="px-4 py-3 text-right text-emerald-600 font-medium">{item.costo_distribuidor ? fmtMx.format(item.costo_distribuidor) : '-'}</td>
-                                        <td className="px-4 py-3 text-right text-slate-700">{item.costo_subdistribuidor ? fmtMx.format(item.costo_subdistribuidor) : '-'}</td>
-                                        <td className="px-4 py-3 text-right text-slate-700">{item.precio_mayoreo ? fmtMx.format(item.precio_mayoreo) : '-'}</td>
-                                        <td className="px-4 py-3 text-right text-slate-700">{item.precio_menudeo ? fmtMx.format(item.precio_menudeo) : '-'}</td>
-                                        <td className="px-4 py-3 text-center">
-                                            {item.algun_precio_con_iva ? (
-                                                <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-medium">Con IVA</span>
-                                            ) : (
-                                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-0.5 rounded font-medium">Sin IVA</span>
-                                            )}
+                                        <td className="px-4 py-3 font-medium text-slate-900">
+                                            <div className="flex items-center">
+                                                {item.marca} {item.modelo}
+                                                {item.presente_en_ultima_lista === false && (
+                                                    <span title="No incluido en la última lista del proveedor" className="ml-2 cursor-help text-amber-500">
+                                                        ⚠️
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-slate-500 truncate max-w-[200px]" title={item.nombre}>{item.nombre}</div>
                                         </td>
-                                        <td className="px-4 py-3 text-slate-500 text-xs">{item.ultima_actualizacion ? new Date(item.ultima_actualizacion).toLocaleDateString() : '-'}</td>
+                                        <td className="px-4 py-3 text-right font-medium text-slate-900">
+                                            {item.precio ? `${fmtMx.format(item.precio)} ${item.moneda || 'MXN'}` : '-'}
+                                        </td>
                                         <td className="px-4 py-3 text-center">
-                                            <button className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="Recalcular precio de publicación">
-                                                <RefreshCw className="w-4 h-4" />
-                                            </button>
+                                            {item.estado_actualizacion === 'vigente' && <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-medium">Vigente</span>}
+                                            {item.estado_actualizacion === 'desactualizado' && <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded font-medium">Desactualizado</span>}
+                                            {item.estado_actualizacion === 'posiblemente_descontinuado' && <span className="bg-rose-100 text-rose-800 text-xs px-2 py-0.5 rounded font-medium">Posible Descontinuado</span>}
+                                            {!item.estado_actualizacion && <span className="text-slate-400 text-xs">-</span>}
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-500 text-xs">
+                                            {item.fecha_ultima_actualizacion ? (
+                                                <span>
+                                                    {new Date(item.fecha_ultima_actualizacion).toLocaleDateString()} 
+                                                    <span className="text-slate-400 ml-1">({item.dias_desde_actualizacion} días)</span>
+                                                </span>
+                                            ) : '-'}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <HubRowActions 
+                                                articuloId={item.articulo_id} 
+                                                proveedor={proveedorDecoded} 
+                                                estadoActualizacion={item.estado_actualizacion} 
+                                            />
                                         </td>
                                     </tr>
                                 ))}
