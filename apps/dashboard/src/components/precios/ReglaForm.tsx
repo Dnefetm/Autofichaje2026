@@ -93,7 +93,20 @@ export function ReglaForm() {
                 </div>
             </div>
 
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-between items-center pt-4 border-t border-slate-200 mt-6">
+                <button 
+                    type="button"
+                    onClick={async () => {
+                        if (!confirm('¿Seguro que deseas encolar la re-aplicación de reglas a todas las publicaciones?')) return;
+                        setLoading(true);
+                        // Mock call, should actually trigger the queue logic as well
+                        alert('Esta acción encolará las actualizaciones.');
+                        setLoading(false);
+                    }}
+                    className="text-indigo-600 hover:text-indigo-800 font-medium text-sm transition-colors"
+                >
+                    Aplicar reglas a toda la lista
+                </button>
                 <button disabled={loading} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium shadow hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                     {loading ? 'Guardando...' : 'Guardar Regla de Pricing'}
                 </button>

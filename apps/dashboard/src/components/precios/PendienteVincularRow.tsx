@@ -42,11 +42,7 @@ export function PendienteVincularRow({ pendiente }: { pendiente: any }) {
             <td className="px-4 py-3 font-medium text-slate-900">
                 {Number(pendiente.valor).toLocaleString()} {pendiente.moneda}
             </td>
-            <td className="px-4 py-3">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${pendiente.motivo === 'ambiguo' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
-                    {pendiente.motivo}
-                </span>
-            </td>
+
             <td className="px-4 py-3 flex space-x-2">
                 <div className="w-64">
                     <AutocompleteArticulo 

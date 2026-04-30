@@ -1,242 +1,128 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
-import { ArrowLeft, Clock, History, FileDown, Search, AlertTriangle } from 'lucide-react';
-import { DesvincularBtn } from './DesvincularBtn';
+import { ArrowLeft, Settings, History, Download, RefreshCw, Search } from 'lucide-react';
+import { HubTableActions } from '@/components/precios/flow/HubTableActions';
 
-export default async function DetalleProveedorPage(props: { params: Promise<{ proveedor: string }>, searchParams: Promise<any> }) {
+export default async function HubProveedorPage(props: { params: Promise<{ proveedor: string }>, searchParams: Promise<any> }) {
     const params = await props.params;
     const searchParams = await props.searchParams;
     const proveedorDecoded = decodeURIComponent(params.proveedor);
     const supa = supabaseAdmin;
 
-    // Query con búsqueda simple server-side si viene el parámetro 'q'
+    // Get count
+    const { count } = await supa.from('v_lista_precios_proveedor').select('*', { count: 'exact', head: true }).eq('proveedor', proveedorDecoded);
+
+    // Get latest batch
+    const { data: historial } = await supa.from('v_importaciones_historial')
+        .select('*').eq('proveedor', proveedorDecoded).order('creado_el', { ascending: false }).limit(1);
+    
+    const latestBatch = historial?.[0];
+
+    // Get Active List
     let query = supa.from('v_lista_precios_proveedor').select('*').eq('proveedor', proveedorDecoded).order('ultima_actualizacion', { ascending: false });
     if (searchParams.q) {
         query = query.or(`nombre.ilike.%${searchParams.q}%,codigo_universal.ilike.%${searchParams.q}%,marca.ilike.%${searchParams.q}%,modelo.ilike.%${searchParams.q}%`);
     }
 
     const { data: listado, error } = await query;
-
-    let publicacionesVinculadas: any[] = [];
-    let pubError = null;
-    if (searchParams.tab === 'publicaciones') {
-        const { data, error: err } = await supa
-            .from('costos_articulo')
-            .select(`
-                id, articulo_id, nombre_excel, modelo_excel, marca_excel,
-                mapeo_publicacion_articulo!inner (
-                    publicacion_id,
-                    marketplace_prices ( price ),
-                    precios_publicacion ( precio_sugerido )
-                )
-            `)
-            .eq('vigente', true)
-            .not('articulo_id', 'is', null);
-        
-        publicacionesVinculadas = data || [];
-        pubError = err;
-    }
-
-    function isRma(caja: string | null) {
-        if (!caja) return false;
-        const low = caja.toLowerCase();
-        return low.includes('devolución') || low.includes('devolucion') || low.includes('rma') || low.includes('devuelto');
-    }
-
-    // Utilidades monetarias
     const fmtMx = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
     return (
-        <div className="flex flex-col h-[calc(100vh-80px)]">
-            {/* Header ToolBar */}
-            <header className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white shrink-0">
+        <div className="flex flex-col h-full bg-white relative">
+            <header className="flex items-center justify-between px-8 py-6 border-b border-slate-200">
                 <div className="flex flex-col">
-                    <div className="flex items-center text-sm text-slate-500 mb-1">
-                        <Link href="/precios" className="hover:text-indigo-600 transition flex items-center">
-                            <ArrowLeft className="w-3 h-3 mr-1" /> Precios
-                        </Link>
-                        <span className="mx-2">/</span>
-                        <span className="font-medium text-slate-700">{proveedorDecoded}</span>
+                    <div className="flex items-center justify-between w-full mb-1">
+                        <div className="flex items-center text-sm text-slate-500">
+                            <Link href="/precios" className="hover:text-indigo-600 transition flex items-center">
+                                <ArrowLeft className="w-3 h-3 mr-1" /> Precios
+                            </Link>
+                            <span className="mx-2">/</span>
+                            <span className="font-medium text-slate-700">{proveedorDecoded}</span>
+                        </div>
+                        <div className="flex items-center space-x-3 text-sm text-slate-500">
+                            <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}/reglas`} className="hover:text-indigo-600 flex items-center">
+                                <Settings className="w-4 h-4 mr-1" /> Reglas
+                            </Link>
+                            <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}/historico`} className="hover:text-indigo-600 flex items-center">
+                                <History className="w-4 h-4 mr-1" /> Histórico
+                            </Link>
+                        </div>
                     </div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{proveedorDecoded}</h1>
+                    <div className="flex justify-between items-end mt-2">
+                        <div>
+                            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{proveedorDecoded}</h1>
+                            <p className="text-sm text-slate-500 mt-1">
+                                {count || 0} SKUs · Última act. {latestBatch ? new Date(latestBatch.creado_el).toLocaleDateString() : 'Nunca'} · Lote activo: {latestBatch ? latestBatch.id.substring(0,8) : 'Ninguno'}
+                            </p>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center">
                     <Link
-                        href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial`}
-                        className="btn-outline-indigo"
+                        href={`/precios/${encodeURIComponent(proveedorDecoded)}/subir`}
+                        className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium shadow-sm hover:bg-indigo-700 transition-colors flex items-center text-lg"
                     >
-                        <History className="w-4 h-4 mr-2" /> Histórico
-                    </Link>
-                    <Link
-                        href={`/precios/importar?proveedor=${encodeURIComponent(proveedorDecoded)}`}
-                        className="btn-primary"
-                    >
-                        <Clock className="w-4 h-4 mr-2" /> Actualizar desde Excel
+                        <span className="mr-2 text-xl">+</span> Actualizar lista de precios
                     </Link>
                 </div>
             </header>
 
-            {/* Tabs */}
-            <div className="px-6 border-b border-slate-200 bg-white shrink-0 flex gap-6">
-                <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}?tab=listado`} className={`py-3 border-b-2 font-medium text-sm transition-colors ${(!searchParams.tab || searchParams.tab === 'listado') ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                    Listado Principal
-                </Link>
-                <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}?tab=publicaciones`} className={`py-3 border-b-2 font-medium text-sm transition-colors ${searchParams.tab === 'publicaciones' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                    Publicaciones Vinculadas
-                </Link>
-            </div>
-
-            {/* Controles de Tabla */}
-            <div className="p-4 bg-slate-50 border-b border-slate-200 shrink-0 flex items-center justify-between">
-                {/* Form nativo simple para búsqueda Server-Side */}
-                <form action={`/precios/${encodeURIComponent(proveedorDecoded)}`} method="GET" className="relative w-72">
-                    <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                    <input 
-                        type="text" 
-                        name="q" 
-                        placeholder="Buscar EAN, modelo o nombre..." 
-                        defaultValue={searchParams.q || ''}
-                        className="pl-9 pr-4 py-2 w-full text-sm border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" 
-                    />
-                </form>
+            <div className="flex-1 overflow-hidden flex flex-col bg-slate-50">
+                <div className="p-4 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
+                    <form action={`/precios/${encodeURIComponent(proveedorDecoded)}`} method="GET" className="relative w-80">
+                        <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                        <input 
+                            type="text" 
+                            name="q" 
+                            placeholder="Buscar EAN, modelo o nombre..." 
+                            defaultValue={searchParams.q || ''}
+                            className="pl-9 pr-4 py-2 w-full text-sm border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" 
+                        />
+                    </form>
+                    <HubTableActions proveedor={proveedorDecoded} count={count || 0} />
+                </div>
                 
-                <button className="text-sm text-slate-600 hover:text-slate-900 font-medium flex items-center">
-                    <FileDown className="w-4 h-4 mr-1" />
-                    Exportar Lista Activa
-                </button>
-            </div>
-
-            {/* Tabla Densa Scrollable */}
-            <div className="flex-1 overflow-auto bg-white relative">
-                {searchParams.tab === 'publicaciones' ? (
-                    <div className="p-6">
-                        {pubError ? (
-                            <div className="text-red-600">Error cargando publicaciones: {pubError.message}</div>
-                        ) : publicacionesVinculadas.length === 0 ? (
-                            <div className="text-center text-slate-500 py-12">No hay publicaciones vinculadas para los artículos vigentes de este proveedor.</div>
-                        ) : (
-                            <table className="w-full text-sm text-left border-collapse">
-                                <thead className="bg-slate-100 text-slate-600 sticky top-0 z-20 font-medium whitespace-nowrap shadow-sm">
-                                    <tr>
-                                        <th className="px-4 py-3 border-b border-slate-200">Artículo</th>
-                                        <th className="px-4 py-3 border-b border-slate-200">ID Publicación</th>
-                                        <th className="px-4 py-3 border-b border-slate-200 text-right">Precio Actual (ML)</th>
-                                        <th className="px-4 py-3 border-b border-slate-200 text-right">Precio Sugerido</th>
-                                        <th className="px-4 py-3 border-b border-slate-200 text-right">Acción</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {publicacionesVinculadas.map((ca: any) => {
-                                        const mapeo = Array.isArray(ca.mapeo_publicacion_articulo) ? ca.mapeo_publicacion_articulo[0] : ca.mapeo_publicacion_articulo;
-                                        if (!mapeo) return null;
-                                        const precioActual = mapeo.marketplace_prices?.[0]?.price || mapeo.marketplace_prices?.price;
-                                        const precioSugerido = mapeo.precios_publicacion?.[0]?.precio_sugerido || mapeo.precios_publicacion?.precio_sugerido;
-                                        return (
-                                            <tr key={ca.id} className="hover:bg-slate-50">
-                                                <td className="px-4 py-3">
-                                                    <div className="font-medium text-slate-900">{ca.marca_excel} - {ca.modelo_excel}</div>
-                                                    <div className="text-xs text-slate-500">{ca.nombre_excel}</div>
-                                                </td>
-                                                <td className="px-4 py-3 font-mono text-xs">{mapeo.publicacion_id}</td>
-                                                <td className="px-4 py-3 text-right font-medium">{precioActual ? fmtMx.format(precioActual) : '—'}</td>
-                                                <td className="px-4 py-3 text-right text-indigo-600 font-medium">{precioSugerido ? fmtMx.format(precioSugerido) : '—'}</td>
-                                                <td className="px-4 py-3 text-right">
-                                                    <button className="btn-primary" onClick={() => {/* Implementar RPC aplicar precio */}}>Aplicar nuevo precio</button>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
-                ) : (
-                    <>
-                        {error ? (
-                            <div className="p-6 text-red-600">Error cargando el listado: {error.message}</div>
-                        ) : !listado || listado.length === 0 ? (
-                            <div className="p-12 text-center text-slate-500">
-                                {searchParams.q ? 'No hay resultados para la búsqueda.' : 'Este proveedor no tiene SKUs vigentes o nunca se ha importado.'}
-                            </div>
-                        ) : (
-                            <table className="w-full text-sm text-left border-collapse">
-                                <thead className="bg-slate-100 text-slate-600 sticky top-0 z-20 font-medium whitespace-nowrap shadow-sm">
-                            <tr>
-                                <th className="px-4 py-3 sticky left-0 z-30 bg-slate-100 border-b border-r border-slate-200">Cód. Universal</th>
-                                <th className="px-4 py-3 border-b border-slate-200">Marca / Modelo</th>
-                                <th className="px-4 py-3 border-b border-slate-200 min-w-[200px]">Nombre y Ubicación</th>
-                                <th className="px-4 py-3 border-b border-slate-200 text-right">Costo Dist.</th>
-                                <th className="px-4 py-3 border-b border-slate-200 text-right">Costo Sub.</th>
-                                <th className="px-4 py-3 border-b border-slate-200 text-right">Mayoreo</th>
-                                <th className="px-4 py-3 border-b border-slate-200 text-right">Menudeo</th>
-                                <th className="px-4 py-3 border-b border-slate-200 text-center">IVA</th>
-                                <th className="px-4 py-3 border-b border-slate-200">Últ. Actualización</th>
-                                <th className="px-4 py-3 border-b border-slate-200"></th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {listado.map(row => (
-                                <tr key={row.articulo_id || row.id || Math.random()} className={`hover:bg-slate-50 transition-colors group ${row.huerfano ? 'bg-amber-50' : ''}`}>
-                                    <td className={`px-4 py-2 font-mono text-xs text-slate-600 sticky left-0 z-10 ${row.huerfano ? 'bg-amber-50' : 'bg-white'} group-hover:bg-slate-50 border-r border-slate-100`}>
-                                        {row.codigo_universal || '—'}
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap">
-                                        <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                                            {row.huerfano && <span title="Sin match en catálogo maestro — resolver antes de operar"><AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" /></span>}
-                                            {row.marca}
-                                        </div>
-                                        <div className="text-slate-500 text-xs ml-[22px]">{row.modelo}</div>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                        <div className="text-slate-800 line-clamp-2 leading-tight mb-1" title={row.nombre}>{row.nombre}</div>
-                                        {row.caja_madre && (
-                                            <span className={`text-[10px] px-1.5 py-0.5 rounded-sm font-medium ${isRma(row.caja_madre) ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
-                                                Ubic: {row.caja_madre}
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-2 text-right font-medium text-slate-700">
-                                        {row.costo_distribuidor ? fmtMx.format(row.costo_distribuidor) : '—'}
-                                    </td>
-                                    <td className="px-4 py-2 text-right text-slate-600">
-                                        {row.costo_subdistribuidor ? fmtMx.format(row.costo_subdistribuidor) : '—'}
-                                    </td>
-                                    <td className="px-4 py-2 text-right text-slate-600">
-                                        {row.precio_mayoreo ? fmtMx.format(row.precio_mayoreo) : '—'}
-                                    </td>
-                                    <td className="px-4 py-2 text-right text-slate-600">
-                                        {row.precio_menudeo ? fmtMx.format(row.precio_menudeo) : '—'}
-                                    </td>
-                                    <td className="px-4 py-2 text-center">
-                                        {row.todos_precios_con_iva ? (
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800">Con IVA</span>
-                                        ) : row.algun_precio_con_iva ? (
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800" title="Algunos precios con IVA y otros sin IVA">Mixto</span>
-                                        ) : (
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">Sin IVA</span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-2 text-xs text-slate-500">
-                                        {row.ultima_actualizacion ? new Date(row.ultima_actualizacion).toLocaleString('es-MX', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                                    </td>
-                                    <td className="px-4 py-2 text-right">
-                                        {row.articulo_id && !row.huerfano && (
-                                            <DesvincularBtn proveedor={proveedorDecoded} articuloId={row.articulo_id} />
-                                        )}
-                                    </td>
+                <div className="flex-1 overflow-auto">
+                    {error ? (
+                        <div className="p-8 text-red-600">Error: {error.message}</div>
+                    ) : (listado && listado.length > 0) ? (
+                        <table className="min-w-full divide-y divide-slate-200 text-sm">
+                            <thead className="bg-slate-50 sticky top-0 shadow-sm z-10">
+                                <tr>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Cód. Universal</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Marca / Modelo</th>
+                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Costo Lista</th>
+                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Mayoreo</th>
+                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Menudeo</th>
+                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Subdistribuidor</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Acción</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-                </>
-                )}
+                            </thead>
+                            <tbody className="bg-white divide-y divide-slate-200">
+                                {listado.map((item: any) => (
+                                    <tr key={item.articulo_id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-4 py-3 text-slate-500 font-mono">{item.codigo_universal || '-'}</td>
+                                        <td className="px-4 py-3 font-medium text-slate-900">{item.marca} {item.modelo}</td>
+                                        <td className="px-4 py-3 text-right text-emerald-600 font-medium">{item.costo_lista ? fmtMx.format(item.costo_lista) : '-'}</td>
+                                        <td className="px-4 py-3 text-right text-slate-700">{item.costo_mayoreo ? fmtMx.format(item.costo_mayoreo) : '-'}</td>
+                                        <td className="px-4 py-3 text-right text-slate-700">{item.costo_menudeo ? fmtMx.format(item.costo_menudeo) : '-'}</td>
+                                        <td className="px-4 py-3 text-right text-slate-700">{item.costo_subdistribuidor ? fmtMx.format(item.costo_subdistribuidor) : '-'}</td>
+                                        <td className="px-4 py-3 text-center">
+                                            <button className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="Recalcular precio de publicación">
+                                                <RefreshCw className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <div className="p-12 text-center text-slate-500">
+                            No hay artículos vigentes en el listado principal.
+                        </div>
+                    )}
+                </div>
             </div>
-            {/* Custom CSS overrides para los botones agregados sin tailwind classes */}
-            <style dangerouslySetInnerHTML={{__html: `
-                .btn-primary { @apply inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-medium text-white hover:bg-indigo-700 shadow-sm text-sm transition-colors; }
-                .btn-outline-indigo { @apply inline-flex items-center px-4 py-2 bg-white border border-indigo-200 rounded-md font-medium text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm text-sm transition-colors; }
-            `}} />
         </div>
     );
 }
