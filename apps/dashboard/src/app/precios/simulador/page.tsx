@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { AutocompleteArticulo } from '@/components/AutocompleteArticulo';
+import { AutocompleteRegla } from '@/components/AutocompleteRegla';
 
 export default function SimuladorPage() {
     const [articuloId, setArticuloId] = useState('');
@@ -30,8 +31,8 @@ export default function SimuladorPage() {
                         <AutocompleteArticulo value={articuloId} onChange={setArticuloId} />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">UUID de la Regla</label>
-                        <input className="border border-slate-300 p-2 w-full rounded focus:ring-indigo-500 focus:border-indigo-500" value={reglaId} onChange={e=>setReglaId(e.target.value)} />
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Regla de Pricing</label>
+                        <AutocompleteRegla value={reglaId} onChange={setReglaId} />
                     </div>
                     <button 
                         className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded font-medium shadow-sm transition-colors disabled:opacity-50" 
