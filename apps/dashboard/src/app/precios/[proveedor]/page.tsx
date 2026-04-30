@@ -17,6 +17,11 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
         .select('*').eq('proveedor', proveedorDecoded).order('creado_el', { ascending: false }).limit(1);
     
     const latestBatch = historial?.[0];
+    let loteNum = 1;
+    if (latestBatch) {
+        const { count: c } = await supa.from('v_importaciones_historial').select('*', { count: 'exact', head: true }).eq('proveedor', proveedorDecoded).lte('creado_el', latestBatch.creado_el);
+        loteNum = c || 1;
+    }
 
     // Get Active List
     let query = supa.from('v_lista_precios_proveedor').select('*').eq('proveedor', proveedorDecoded).order('ultima_actualizacion', { ascending: false });
@@ -52,7 +57,7 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
                         <div>
                             <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{proveedorDecoded}</h1>
                             <p className="text-sm text-slate-500 mt-1">
-                                {count || 0} SKUs · Última act. {latestBatch ? new Date(latestBatch.creado_el).toLocaleDateString() : 'Nunca'} · Lote activo: {latestBatch ? latestBatch.id.substring(0,8) : 'Ninguno'}
+                                {count || 0} SKUs · Última act. {latestBatch ? new Date(latestBatch.creado_el).toLocaleDateString() : 'Nunca'} · Lote activo: {latestBatch ? `Lote #${loteNum}` : 'Ninguno'}
                             </p>
                         </div>
                     </div>
@@ -91,10 +96,12 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
                                 <tr>
                                     <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Cód. Universal</th>
                                     <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Marca / Modelo</th>
-                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Costo Lista</th>
+                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Costo Dist.</th>
+                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Costo Sub.</th>
                                     <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Mayoreo</th>
                                     <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Menudeo</th>
-                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Subdistribuidor</th>
+                                    <th className="px-4 py-3 text-center font-medium text-slate-500 uppercase text-xs">IVA</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Últ. Act.</th>
                                     <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Acción</th>
                                 </tr>
                             </thead>
@@ -103,10 +110,18 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
                                     <tr key={item.articulo_id} className="hover:bg-slate-50 transition-colors">
                                         <td className="px-4 py-3 text-slate-500 font-mono">{item.codigo_universal || '-'}</td>
                                         <td className="px-4 py-3 font-medium text-slate-900">{item.marca} {item.modelo}</td>
-                                        <td className="px-4 py-3 text-right text-emerald-600 font-medium">{item.costo_lista ? fmtMx.format(item.costo_lista) : '-'}</td>
-                                        <td className="px-4 py-3 text-right text-slate-700">{item.costo_mayoreo ? fmtMx.format(item.costo_mayoreo) : '-'}</td>
-                                        <td className="px-4 py-3 text-right text-slate-700">{item.costo_menudeo ? fmtMx.format(item.costo_menudeo) : '-'}</td>
+                                        <td className="px-4 py-3 text-right text-emerald-600 font-medium">{item.costo_distribuidor ? fmtMx.format(item.costo_distribuidor) : '-'}</td>
                                         <td className="px-4 py-3 text-right text-slate-700">{item.costo_subdistribuidor ? fmtMx.format(item.costo_subdistribuidor) : '-'}</td>
+                                        <td className="px-4 py-3 text-right text-slate-700">{item.precio_mayoreo ? fmtMx.format(item.precio_mayoreo) : '-'}</td>
+                                        <td className="px-4 py-3 text-right text-slate-700">{item.precio_menudeo ? fmtMx.format(item.precio_menudeo) : '-'}</td>
+                                        <td className="px-4 py-3 text-center">
+                                            {item.algun_precio_con_iva ? (
+                                                <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-medium">Con IVA</span>
+                                            ) : (
+                                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-0.5 rounded font-medium">Sin IVA</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-500 text-xs">{item.ultima_actualizacion ? new Date(item.ultima_actualizacion).toLocaleDateString() : '-'}</td>
                                         <td className="px-4 py-3 text-center">
                                             <button className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="Recalcular precio de publicación">
                                                 <RefreshCw className="w-4 h-4" />

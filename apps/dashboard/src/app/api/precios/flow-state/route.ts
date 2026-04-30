@@ -22,8 +22,16 @@ export async function GET(req: Request) {
 
         let huerfanosCount = 0;
         let diffPendienteCount = 0;
+        let loteNum = 1;
 
         if (ultimaImportacion) {
+            // Count total historical batches to get the Lote number
+            const { count: c } = await supabaseAdmin
+                .from('v_importaciones_historial')
+                .select('*', { count: 'exact', head: true })
+                .eq('proveedor', proveedor)
+                .lte('creado_el', ultimaImportacion.creado_el);
+            loteNum = c || 1;
             // 2. Huerfanos
             const { count: hCount } = await supabaseAdmin
                 .from('costos_pendientes')
@@ -48,14 +56,14 @@ export async function GET(req: Request) {
 
         const step1 = { 
             state: ultimaImportacion ? 'done' : 'pending',
-            subtitle: ultimaImportacion ? `Lote ${ultimaImportacion.id.substring(0,8)}` : 'Sin lote'
+            subtitle: ultimaImportacion ? `Lote #${loteNum}` : 'Sin lote'
         };
         const step2 = { 
             state: huerfanosCount > 0 ? 'attention' : (ultimaImportacion ? 'skip' : 'pending'),
             subtitle: huerfanosCount > 0 ? `${huerfanosCount} pendientes` : '0 pendientes'
         };
         const step3 = { 
-            state: diffPendienteCount > 0 ? 'attention' : (isAplicada ? 'done' : (huerfanosCount > 0 ? 'pending' : (ultimaImportacion ? 'skip' : 'pending'))),
+            state: diffPendienteCount > 0 ? 'attention' : (huerfanosCount > 0 ? 'pending' : (ultimaImportacion ? 'skip' : 'pending')),
             subtitle: diffPendienteCount > 0 ? `${diffPendienteCount} sin confirmar` : (ultimaImportacion ? '0 cambios' : '')
         };
         const step4 = { 
