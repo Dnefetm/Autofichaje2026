@@ -21,12 +21,8 @@ export default async function PreciosPage() {
             <header className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Listas de Precios</h1>
-                    <p className="text-slate-500 mt-1">Gestión de costos y precios por proveedor comercial.</p>
+                    <p className="text-slate-500 mt-1">Gestión de costos y precios por proveedor comercial. Selecciona un proveedor para actualizar su lista.</p>
                 </div>
-                <Link href="/precios/importar" className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md font-medium hover:bg-indigo-700 transition">
-                    <Upload className="w-4 h-4" />
-                    Nueva Importación
-                </Link>
             </header>
 
             {error ? (
@@ -37,10 +33,7 @@ export default async function PreciosPage() {
                 <div className="flex flex-col items-center justify-center p-12 bg-slate-50 border border-slate-200 border-dashed rounded-xl">
                     <Package className="w-12 h-12 text-slate-300 mb-4" />
                     <h2 className="text-lg font-medium text-slate-900">Aún no hay listas de precios activas</h2>
-                    <p className="text-slate-500 mt-1 max-w-sm text-center">Importa tu primer listado en Excel para poblar tu catálogo con costos base y vigencia.</p>
-                    <Link href="/precios/importar" className="mt-6 inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-md font-medium hover:bg-slate-50 transition shadow-sm">
-                        Comenzar Importación
-                    </Link>
+                    <p className="text-slate-500 mt-1 max-w-sm text-center">Todavía no hay listas de precios activas.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

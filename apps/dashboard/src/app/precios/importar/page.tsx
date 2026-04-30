@@ -1087,74 +1087,8 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
   );
 }
 
-// ── Página principal ──────────────────────────────────────────────────────────
-function ImportarPreciosPageInner() {
-  const router = useRouter();
-  const sp = useSearchParams();
-  const proveedorParam = sp.get('proveedor');
-  const paso = parseInt(sp.get('paso') || '1', 10);
-  const id = sp.get('id');
-
-  useEffect(() => {
-    if (id && (!proveedorParam || proveedorParam === 'undefined')) {
-      alert('Error: Importación corrupta o proveedor faltante. Redirigiendo...');
-      router.replace('/precios');
-    }
-  }, [id, proveedorParam, router]);
-
-  // Si nos mandan un id sin proveedor válido y es paso 1, podríamos checarlo en el servidor.
-  // Pero aquí simplemente si hay id y paso > 1, renderizamos los pasos siguientes.
-  // Si llegas a paso 1 con proveedor='undefined', ya lo bloqueamos en la API y el CHECK de BD.
-
-  if (paso === 2 && id) {
-    return (
-      <div className="max-w-4xl mx-auto py-10 px-4">
-        <PasoMapear 
-          importacionId={id} 
-          onDone={(stats) => router.push(`/precios/importar?paso=3&id=${id}`)} 
-          onBack={() => router.push(`/precios/importar?proveedor=${encodeURIComponent(proveedorParam || '')}`)} 
-        />
-      </div>
-    );
-  }
-
-  if (paso === 3 && id) {
-    return (
-      <div className="max-w-4xl mx-auto py-10 px-4">
-        <PasoRevisar 
-          importacionId={id} 
-          onDone={() => {
-            if (sp.get('returnToRevisar') === 'true' && proveedorParam) {
-              router.push(`/precios/${encodeURIComponent(proveedorParam)}/revisar`);
-            } else {
-              router.push('/precios');
-            }
-          }} 
-          onBack={() => router.push(`/precios/importar?paso=2&id=${id}&proveedor=${encodeURIComponent(proveedorParam || '')}`)} 
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-4xl mx-auto py-10 px-4">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Actualizar Lista de Precios del Proveedor</h1>
-        <p className="text-sm text-slate-500 mt-1">Sube el nuevo Excel del proveedor. El sistema calculará las diferencias automáticamente respecto al mes pasado.</p>
-      </div>
-
-      <PasoSubir 
-        proveedorInicial={(proveedorParam && proveedorParam !== 'undefined') ? proveedorParam : undefined} 
-        onDone={(d) => router.push(`/precios/importar?paso=2&id=${d.id}&proveedor=${encodeURIComponent(d.proveedor)}`)} 
-      />
-    </div>
-  );
-}
+import { redirect } from 'next/navigation';
 
 export default function ImportarPreciosPage() {
-  return (
-    <Suspense fallback={<div className="p-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-indigo-600" /></div>}>
-      <ImportarPreciosPageInner />
-    </Suspense>
-  );
+  redirect('/precios');
 }

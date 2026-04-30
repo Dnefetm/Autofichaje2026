@@ -66,12 +66,15 @@ export default function SubirPaso1() {
 
             const importacionId = j3.id || j3.importacion_activa?.id;
 
-            // Wait, we need the backend to parse it. 
-            // For now, redirect to the old importer which has the mapper.
-            // But the user said: "al click, ejecuta parser y redirige a /revisar".
-            // Since we can't map columns magically if not saved, we will redirect to /precios/importar?proveedor=...
-            // Actually, we must respect the 7 routes. 
-            router.push(`/precios/importar?proveedor=${encodeURIComponent(proveedor)}&paso=2&id=${importacionId}&returnToRevisar=true`);
+            // 4) Iniciar digestión de la lista nueva automáticamente
+            const r4 = await fetch(`/api/precios/importar/${importacionId}/iniciar-parser`, { method: 'POST' });
+            if (!r4.ok) {
+                const j4 = await r4.json().catch(() => ({}));
+                throw new Error(j4.error || 'Ocurrió un error al despachar al servidor de procesamiento.');
+            }
+
+            // 5) Redirigir al Asistente de Matching (Paso 2: Mapear Columnas)
+            router.push(`/precios/matching?importacion_id=${importacionId}&proveedor=${encodeURIComponent(proveedor)}`);
         } catch (e: any) {
             setError(e.message);
             setLoading(false);
