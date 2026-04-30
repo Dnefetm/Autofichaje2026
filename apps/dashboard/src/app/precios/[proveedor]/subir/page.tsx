@@ -1,11 +1,12 @@
 'use client';
 import { useState, useCallback, useRef } from 'react';
 import { Upload, Loader2, FileSpreadsheet } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 
-export default function SubirPaso1({ params }: { params: { proveedor: string } }) {
-    const proveedor = decodeURIComponent(params.proveedor);
+export default function SubirPaso1() {
+    const params = useParams();
+    const proveedor = decodeURIComponent((params?.proveedor as string) || '');
     const router = useRouter();
     const [file, setFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
@@ -28,6 +29,10 @@ export default function SubirPaso1({ params }: { params: { proveedor: string } }
 
     async function submit() {
         if (!file) return;
+        if (!proveedor || proveedor === 'undefined') {
+            setError('Proveedor inválido o no encontrado en la URL.');
+            return;
+        }
         setLoading(true); setError(null);
         try {
             // Because full column mapping is complex, we redirect to the existing import wizard 

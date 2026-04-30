@@ -203,7 +203,7 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
       {activa && (
         <BannerImportacionActiva
           activa={activa}
-          onContinuar={(id) => router.push(`/precios/importar?id=${id}`)}
+          onContinuar={(id) => router.push(`/precios/importar?paso=2&id=${id}&proveedor=${encodeURIComponent(proveedor)}`)}
           onCancelar={async () => {
              const r = await fetch('/api/precios/importar/cancelar', {
                 method: 'POST',
@@ -1092,6 +1092,49 @@ function ImportarPreciosPageInner() {
   const router = useRouter();
   const sp = useSearchParams();
   const proveedorParam = sp.get('proveedor');
+  const paso = parseInt(sp.get('paso') || '1', 10);
+  const id = sp.get('id');
+
+  useEffect(() => {
+    if (id && (!proveedorParam || proveedorParam === 'undefined')) {
+      alert('Error: Importación corrupta o proveedor faltante. Redirigiendo...');
+      router.replace('/precios');
+    }
+  }, [id, proveedorParam, router]);
+
+  // Si nos mandan un id sin proveedor válido y es paso 1, podríamos checarlo en el servidor.
+  // Pero aquí simplemente si hay id y paso > 1, renderizamos los pasos siguientes.
+  // Si llegas a paso 1 con proveedor='undefined', ya lo bloqueamos en la API y el CHECK de BD.
+
+  if (paso === 2 && id) {
+    return (
+      <div className="max-w-4xl mx-auto py-10 px-4">
+        <PasoMapear 
+          importacionId={id} 
+          onDone={(stats) => router.push(`/precios/importar?paso=3&id=${id}`)} 
+          onBack={() => router.push(`/precios/importar?proveedor=${encodeURIComponent(proveedorParam || '')}`)} 
+        />
+      </div>
+    );
+  }
+
+  if (paso === 3 && id) {
+    return (
+      <div className="max-w-4xl mx-auto py-10 px-4">
+        <PasoRevisar 
+          importacionId={id} 
+          onDone={() => {
+            if (sp.get('returnToRevisar') === 'true' && proveedorParam) {
+              router.push(`/precios/${encodeURIComponent(proveedorParam)}/revisar`);
+            } else {
+              router.push('/precios');
+            }
+          }} 
+          onBack={() => router.push(`/precios/importar?paso=2&id=${id}&proveedor=${encodeURIComponent(proveedorParam || '')}`)} 
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto py-10 px-4">
@@ -1100,7 +1143,10 @@ function ImportarPreciosPageInner() {
         <p className="text-sm text-slate-500 mt-1">Sube el nuevo Excel del proveedor. El sistema calculará las diferencias automáticamente respecto al mes pasado.</p>
       </div>
 
-      <PasoSubir proveedorInicial={proveedorParam ?? undefined} onDone={() => {}} />
+      <PasoSubir 
+        proveedorInicial={(proveedorParam && proveedorParam !== 'undefined') ? proveedorParam : undefined} 
+        onDone={(d) => router.push(`/precios/importar?paso=2&id=${d.id}&proveedor=${encodeURIComponent(d.proveedor)}`)} 
+      />
     </div>
   );
 }
