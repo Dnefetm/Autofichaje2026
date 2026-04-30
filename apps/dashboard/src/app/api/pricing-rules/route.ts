@@ -54,7 +54,11 @@ export async function POST(req: NextRequest) {
 
     // 3. Trigger recalculation (optional via db or let user wait for next update, 
     // actually let's trigger the recalc function here for ALL items!)
-    await supabaseAdmin.rpc('fn_recalcular_precio_marketplace_all', { p_marketplace_id: marketplace_id }).catch(() => null);
+    try {
+        await supabaseAdmin.rpc('fn_recalcular_precio_marketplace_all', { p_marketplace_id: marketplace_id });
+    } catch (e) {
+        // ignore
+    }
 
     return NextResponse.json({ ok: true, rule: data });
 }

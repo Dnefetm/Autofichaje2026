@@ -272,7 +272,6 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
         if (d.estado === 'mapeando') {
            setIsMapeoGuardado(true);
            setLoadingMatching(true);
-           startPolling();
         }
         setPreview(d);
         const m = d.mapeo_previo;
@@ -376,7 +375,8 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
       </div>
     );
 
-  const headers = preview.headers;
+  const headers = preview?.headers || [];
+  const rows = preview?.rows || [];
 
   // Colores por rol para el preview
   type ColInfo = { label: string; emoji: string; hCls: string; cCls: string };
@@ -406,10 +406,10 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
       <div className="flex items-center gap-3">
         <FileSpreadsheet className="w-5 h-5 text-indigo-500" />
         <div>
-          <p className="font-bold text-sm">{preview.nombre_archivo}</p>
-          <p className="text-xs text-slate-400">{preview.total_rows} filas • Proveedor: {preview.proveedor}</p>
+          <p className="font-bold text-sm">{preview?.nombre_archivo}</p>
+          <p className="text-xs text-slate-400">{preview?.total_rows} filas • Proveedor: {preview?.proveedor}</p>
         </div>
-        {preview.mapeo_previo && (<span className="ml-auto text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full font-semibold"> ↩ Mapeo previo </span>)}
+        {preview?.mapeo_previo && (<span className="ml-auto text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full font-semibold"> ↩ Mapeo previo </span>)}
       </div>
 
       {/* Leyenda */}
@@ -535,9 +535,9 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
       </div>
 
       {/* Preview de tabla */}
-      {preview.rows.length > 0 && (
+      {rows.length > 0 && (
         <div className="border border-slate-200 rounded-2xl overflow-hidden">
-          <p className="text-xs font-bold text-slate-500 px-4 py-2 bg-slate-50">Vista previa (primeras {preview.rows.length} filas)</p>
+          <p className="text-xs font-bold text-slate-500 px-4 py-2 bg-slate-50">Vista previa (primeras {rows.length} filas)</p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead><tr className="border-b border-slate-200">
@@ -547,7 +547,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
                 })}
               </tr></thead>
               <tbody>
-                {preview.rows.map((row, i) => (
+                {rows.map((row, i) => (
                   <tr key={i} className="border-b border-slate-100">
                     {headers.map((h, j) => {
                       const r = colRole[h];
@@ -883,10 +883,10 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
                         nombre: remappedArticulo.nombre,
                         marca: remappedArticulo.marca,
                         modelo: remappedArticulo.modelo,
-                        codigo_universal: remappedArticulo.codigo_universal || '',
+                        codigo_universal: (remappedArticulo as any).codigo_universal || '',
                         puntaje_match: 100,
                         metodo_match: 'manual',
-                        caja_madre: remappedArticulo.caja_madre || null
+                        caja_madre: (remappedArticulo as any).caja_madre || null
                     }, ...(g.candidatos_jsonb || [])]
                 };
             }

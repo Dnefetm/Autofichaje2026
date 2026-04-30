@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const { clave } = await req.json();
-        const importacionId = params.id;
+        const { id: importacionId } = await params;
 
         if (!clave || !importacionId) {
             return NextResponse.json({ ok: false, error: 'Faltan parámetros' }, { status: 400 });
