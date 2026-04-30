@@ -20,7 +20,6 @@ export async function GET(req: Request) {
 
         const ultimaImportacion = ultimas?.[0] || null;
 
-        let huerfanosCount = 0;
         let diffPendienteCount = 0;
         let loteNum = 1;
 
@@ -32,16 +31,8 @@ export async function GET(req: Request) {
                 .eq('proveedor', proveedor)
                 .lte('creado_el', ultimaImportacion.creado_el);
             loteNum = c || 1;
-            // 2. Huerfanos
-            const { count: hCount } = await supabaseAdmin
-                .from('costos_pendientes')
-                .select('*', { count: 'exact', head: true })
-                .eq('importacion_id', ultimaImportacion.id)
-                .eq('resuelto', false);
-            
-            huerfanosCount = hCount || 0;
 
-            // 3. Diff pendiente (costos listos para confirmar)
+            // 2. Diff pendiente (costos listos para confirmar)
             const { count: dCount } = await supabaseAdmin
                 .from('costos_articulo')
                 .select('*', { count: 'exact', head: true })
@@ -52,21 +43,17 @@ export async function GET(req: Request) {
             diffPendienteCount = dCount || 0;
         }
 
-        const isAplicada = ultimaImportacion?.estado === 'completado' && diffPendienteCount === 0 && huerfanosCount === 0;
+        const isAplicada = ultimaImportacion?.estado === 'completado' && diffPendienteCount === 0;
 
         const step1 = { 
             state: ultimaImportacion ? 'done' : 'pending',
             subtitle: ultimaImportacion ? `Lote #${loteNum}` : 'Sin lote'
         };
         const step2 = { 
-            state: huerfanosCount > 0 ? 'attention' : (ultimaImportacion ? 'skip' : 'pending'),
-            subtitle: huerfanosCount > 0 ? `${huerfanosCount} pendientes` : '0 pendientes'
-        };
-        const step3 = { 
-            state: diffPendienteCount > 0 ? 'attention' : (huerfanosCount > 0 ? 'pending' : (ultimaImportacion ? 'skip' : 'pending')),
+            state: diffPendienteCount > 0 ? 'attention' : (ultimaImportacion ? 'skip' : 'pending'),
             subtitle: diffPendienteCount > 0 ? `${diffPendienteCount} sin confirmar` : (ultimaImportacion ? '0 cambios' : '')
         };
-        const step4 = { 
+        const step3 = { 
             state: isAplicada ? 'done' : 'pending',
             subtitle: isAplicada ? 'Completado' : 'Pendiente'
         };
@@ -76,15 +63,14 @@ export async function GET(req: Request) {
             return NextResponse.json({
                 importacion: ultimaImportacion,
                 step1: { state: 'skip', subtitle: 'Lote al día' },
-                step2: { state: 'skip', subtitle: '0 pendientes' },
-                step3: { state: 'skip', subtitle: '0 cambios' },
-                step4: { state: 'skip', subtitle: 'Todo al día' }
+                step2: { state: 'skip', subtitle: '0 cambios' },
+                step3: { state: 'skip', subtitle: 'Todo al día' }
             });
         }
 
         return NextResponse.json({
             importacion: ultimaImportacion,
-            step1, step2, step3, step4, huerfanosCount, diffPendienteCount
+            step1, step2, step3, diffPendienteCount
         });
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 });

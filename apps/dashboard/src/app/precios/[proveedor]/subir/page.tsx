@@ -30,7 +30,7 @@ export default function SubirPaso1({ params }: { params: { proveedor: string } }
         setLoading(true); setError(null);
         try {
             // Because full column mapping is complex, we redirect to the existing import wizard 
-            // but pass it a flag so it eventually returns to /vincular. 
+            // but pass it a flag so it eventually returns to /revisar. 
             // In a real refactor, we would move all the parsing logic to the backend.
             // For now, we just upload and redirect to the legacy importer but scoped.
             
@@ -62,10 +62,10 @@ export default function SubirPaso1({ params }: { params: { proveedor: string } }
 
             // Wait, we need the backend to parse it. 
             // For now, redirect to the old importer which has the mapper.
-            // But the user said: "al click, ejecuta parser y redirige a /vincular o /comparar".
+            // But the user said: "al click, ejecuta parser y redirige a /revisar".
             // Since we can't map columns magically if not saved, we will redirect to /precios/importar?proveedor=...
             // Actually, we must respect the 7 routes. 
-            router.push(`/precios/importar?proveedor=${encodeURIComponent(proveedor)}&paso=2&id=${importacionId}`);
+            router.push(`/precios/importar?proveedor=${encodeURIComponent(proveedor)}&paso=2&id=${importacionId}&returnToRevisar=true`);
         } catch (e: any) {
             setError(e.message);
             setLoading(false);
@@ -95,8 +95,9 @@ export default function SubirPaso1({ params }: { params: { proveedor: string } }
                     <Upload className="w-8 h-8 text-indigo-600" />
                 </div>
                 <h3 className="text-lg font-medium text-slate-900 mb-1">
-                    {file ? file.name : "Arrastra el Excel del proveedor o haz click para seleccionar"}
+                    {file ? file.name : "📄 Arrastra el Excel del proveedor o haz click para seleccionar"}
                 </h3>
+                {!file && <p className="text-sm text-slate-500 mt-2">Último lote procesado: -</p>}
                 {file && <p className="text-sm text-slate-500 mb-4">{(file.size / 1024 / 1024).toFixed(2)} MB</p>}
                 
                 {error && <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-sm text-center font-medium max-w-md">{error}</div>}

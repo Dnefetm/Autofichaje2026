@@ -17,9 +17,9 @@ export function PricingTimeline({ proveedor }: { proveedor: string }) {
             const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable;
             if (isTyping) return;
             
-            if (['1','2','3','4'].includes(e.key)) {
+            if (['1','2','3'].includes(e.key)) {
                 e.preventDefault();
-                const routes = ['subir', 'vincular', 'comparar', 'aplicar'];
+                const routes = ['subir', 'revisar', 'aplicar'];
                 router.push(`/precios/${encodeURIComponent(proveedor)}/${routes[+e.key-1]}`);
             }
         };
@@ -28,9 +28,8 @@ export function PricingTimeline({ proveedor }: { proveedor: string }) {
     }, [proveedor, router]);
 
     const activeStep = pathname.includes('/subir') ? 1 :
-                       pathname.includes('/vincular') ? 2 :
-                       pathname.includes('/comparar') ? 3 :
-                       pathname.includes('/aplicar') ? 4 : 0;
+                       pathname.includes('/revisar') ? 2 :
+                       pathname.includes('/aplicar') ? 3 : 0;
 
     const renderNode = (stepNum: number, label: string, route: string, stateObj: any) => {
         const isActive = activeStep === stepNum;
@@ -73,9 +72,8 @@ export function PricingTimeline({ proveedor }: { proveedor: string }) {
                 <div className="absolute top-4 left-12 right-12 h-0.5 bg-slate-200 z-0"></div>
                 
                 {renderNode(1, 'Subir', 'subir', flowState?.step1)}
-                {renderNode(2, 'Vincular', 'vincular', flowState?.step2)}
-                {renderNode(3, 'Comparar', 'comparar', flowState?.step3)}
-                {renderNode(4, 'Aplicar', 'aplicar', flowState?.step4)}
+                {renderNode(2, 'Revisar', 'revisar', flowState?.step2)}
+                {renderNode(3, 'Aplicar', 'aplicar', flowState?.step3)}
             </div>
         </div>
     );
