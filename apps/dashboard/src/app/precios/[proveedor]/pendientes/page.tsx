@@ -7,12 +7,27 @@ export default async function PendientesPage(props: { params: Promise<{ proveedo
     const params = await props.params;
     const proveedorDecoded = decodeURIComponent(params.proveedor);
 
-    const { data: pendientes, error } = await supabaseAdmin
+    const { data: rawPendientes, error } = await supabaseAdmin
         .from('costos_pendientes')
         .select('*')
         .eq('proveedor', proveedorDecoded)
         .eq('resuelto', false)
         .order('creado_el', { ascending: false });
+
+    // Group to avoid showing 4x duplicates for different tipo_costo
+    const pendientesMap = new Map();
+    if (rawPendientes) {
+        rawPendientes.forEach(p => {
+            const key = `${p.codigo_excel}-${p.marca_excel}-${p.modelo_excel}`;
+            if (!pendientesMap.has(key)) {
+                pendientesMap.set(key, p);
+            } else {
+                // If we want to show multiple costs, we could aggregate here.
+                // For UI simplicity, we just take the first one since vincular 1 resolves ALL.
+            }
+        });
+    }
+    const pendientes = Array.from(pendientesMap.values());
 
     return (
         <div className="flex flex-col h-[calc(100vh-80px)]">
