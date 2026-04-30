@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
 import { ArrowLeft, Clock, History } from 'lucide-react';
+import { LoteActions } from '@/components/precios/LoteActions';
 
 export default async function HistorialProveedorPage(props: { params: Promise<{ proveedor: string }>, searchParams: Promise<any> }) {
     const params = await props.params;
@@ -51,9 +52,7 @@ export default async function HistorialProveedorPage(props: { params: Promise<{ 
                                     <div className="text-sm">Vigente: <span className="font-medium">{h.vigente ? 'Sí' : 'No'}</span></div>
                                 </div>
                                 <div>
-                                    {!h.vigente && (
-                                        <button className="btn-outline-indigo" disabled>Restaurar lote anterior</button>
-                                    )}
+                                    <LoteActions importacion={h} proveedor={proveedorDecoded} />
                                 </div>
                             </div>
                         ))}
