@@ -64,7 +64,8 @@ export default function SubirPaso1() {
             const j3 = await r3.json();
             if (!r3.ok && r3.status !== 409) throw new Error(j3.error);
 
-            const importacionId = j3.id || j3.importacion_activa?.id;
+            const importacionId = j3.importacion_id || j3.importacion_activa?.id;
+            if (!importacionId) throw new Error("No se recibió ID de importación del servidor");
 
             // 4) Iniciar digestión de la lista nueva automáticamente
             const r4 = await fetch(`/api/precios/importar/${importacionId}/iniciar-parser`, { method: 'POST' });
