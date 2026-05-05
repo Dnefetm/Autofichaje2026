@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { dispatchWorker } from '@/lib/dispatch-worker';
 import { logger } from '@/lib/logger';
+import { getWebhookConfigCached } from '@/lib/webhook-config-cache';
 import { Redis } from '@upstash/redis';
 
 // Inicializar Redis de forma segura por si faltan env vars
@@ -81,27 +82,23 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Deduplication using PostgreSQL UNIQUE constraint
+        // Deduplicación PG + Config en PARALELO (antes eran secuenciales = ~100ms, ahora ~50ms)
         const notificationId = body._id || `${topic}_${resource}_${Date.now()}`;
-        const { error: dedupeError } = await supabaseAdmin.from('meli_webhook_events').insert({
-            notification_id: notificationId,
-            topic,
-            resource
-        });
+        const [dedupeResult, configRow] = await Promise.all([
+            supabaseAdmin.from('meli_webhook_events').insert({
+                notification_id: notificationId,
+                topic,
+                resource
+            }),
+            getWebhookConfigCached(topic) // Cache en memoria, ~0ms en cache hit
+        ]);
 
         // '23505' is PostgreSQL unique violation error code
-        if (dedupeError && dedupeError.code === '23505') {
+        if (dedupeResult.error && dedupeResult.error.code === '23505') {
             return NextResponse.json({ status: 'ignored', reason: 'deduplicated' });
         }
 
         logger.info({ topic, resource }, 'Webhook MeLi recibido');
-
-        // 1. Leer configuración desde BD — TODO viene de aquí, nada hardcodeado
-        const { data: configRow } = await supabaseAdmin
-            .from('webhook_config')
-            .select('window_seconds, dispatch_immediate, enabled, priority')
-            .eq('topic', topic)
-            .maybeSingle();
 
         // Fallback a defaults del código si no hay fila en BD
         const fallback = TOPIC_DEFAULTS[topic] ?? {
