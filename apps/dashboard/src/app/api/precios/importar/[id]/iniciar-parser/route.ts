@@ -85,7 +85,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         const colGuardarSet = new Set(Array.isArray(rawCols) ? rawCols : []);
         
         for (let i = 1; i < allRows.length; i++) {
-            const vals = allRows[i].map((v: any) => String(v ?? '').trim());       if (vals.every((s: string) => s === '')) continue;
+            const vals = allRows[i].map((v: any) => String(v ?? '').trim());       if (vals.filter((s: string) => s !== '').length < 3) continue;
             const payload: Record<string, string> = {};
             const colsUsadas: string[] = [];
             headers.forEach((h, idx) => {
