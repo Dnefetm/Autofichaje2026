@@ -28,6 +28,7 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
     .lte('creado_el', latestBatch.creado_el);
   const loteNum = c || 1;
 
+  // FIX v88: estado_match real es 'confirmado' (no 'completado')
   const { data: costosNuevos, error } = await supabaseAdmin
     .from('costos_articulo')
     .select('*, articulo:articulo_id(nombre)')
@@ -35,7 +36,7 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
     .in('estado_match', ['confirmado', 'completado'])
     .order('actualizado_el', { ascending: false });
 
-  // FIX v88: costos_articulo NO tiene columna proveedor.
+  // FIX v88: costos_articulo NO tiene columna 'proveedor'.
   // Filtrar costos vigentes previos via importaciones_excel del mismo proveedor.
   const { data: importsDelProveedor } = await supabaseAdmin
     .from('importaciones_excel')
