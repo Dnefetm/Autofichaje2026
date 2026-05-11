@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { ArrowLeft, Settings, History, Download, RefreshCw, Search } from 'lucide-react';
 import { HubTableActions } from '@/components/precios/flow/HubTableActions';
 import { HubRowActions } from '@/components/precios/HubRowActions';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function HubProveedorPage(props: { params: Promise<{ proveedor: string }>, searchParams: Promise<any> }) {
     const params = await props.params;
