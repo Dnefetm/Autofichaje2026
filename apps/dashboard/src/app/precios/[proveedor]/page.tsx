@@ -13,9 +13,20 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
     // Get count
     const { count } = await supa.from('v_precio_vigente_sku').select('*', { count: 'exact', head: true }).eq('proveedor', proveedorDecoded);
 
-    // Get latest batch
-    const { data: historial } = await supa.from('v_importaciones_historial')
-        .select('*').eq('proveedor', proveedorDecoded).order('creado_el', { ascending: false }).limit(1);
+    // Get active batch
+    const { data: activeLpp } = await supa.from('listas_precios_proveedor')
+        .select('importacion_id').eq('proveedor', proveedorDecoded).eq('vigente', true).limit(1);
+    
+    let historial = null;
+    if (activeLpp && activeLpp[0]) {
+        const { data } = await supa.from('v_importaciones_historial')
+            .select('*').eq('id', activeLpp[0].importacion_id);
+        historial = data;
+    } else {
+        const { data } = await supa.from('v_importaciones_historial')
+            .select('*').eq('proveedor', proveedorDecoded).order('creado_el', { ascending: false }).limit(1);
+        historial = data;
+    }
     
     const latestBatch = historial?.[0];
     let loteNum = 1;

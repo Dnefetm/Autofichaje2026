@@ -10,15 +10,30 @@ export async function GET(req: Request) {
     }
 
     try {
-        // 1. Ultima importacion
-        const { data: ultimas } = await supabaseAdmin
-            .from('v_importaciones_historial')
-            .select('*')
+        // 1. Importacion vigente
+        const { data: activeLpp } = await supabaseAdmin
+            .from('listas_precios_proveedor')
+            .select('importacion_id')
             .eq('proveedor', proveedor)
-            .order('creado_el', { ascending: false })
+            .eq('vigente', true)
             .limit(1);
 
-        const ultimaImportacion = ultimas?.[0] || null;
+        let ultimaImportacion = null;
+        if (activeLpp && activeLpp[0]) {
+            const { data: ultimas } = await supabaseAdmin
+                .from('v_importaciones_historial')
+                .select('*')
+                .eq('id', activeLpp[0].importacion_id);
+            ultimaImportacion = ultimas?.[0] || null;
+        } else {
+            const { data: ultimas } = await supabaseAdmin
+                .from('v_importaciones_historial')
+                .select('*')
+                .eq('proveedor', proveedor)
+                .order('creado_el', { ascending: false })
+                .limit(1);
+            ultimaImportacion = ultimas?.[0] || null;
+        }
 
         let diffPendienteCount = 0;
         let loteNum = 1;
