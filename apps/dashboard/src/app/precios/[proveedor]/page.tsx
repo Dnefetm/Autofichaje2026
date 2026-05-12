@@ -13,7 +13,7 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
     const supa = supabaseAdmin;
 
     // Get count
-    const { count } = await supa.from('v_precio_vigente_sku').select('*', { count: 'exact', head: true }).eq('proveedor', proveedorDecoded);
+    const { count } = await supa.from('v_lista_precios_proveedor').select('*', { count: 'exact', head: true }).eq('proveedor', proveedorDecoded);
 
     // Get active batch
     const { data: activeLpp } = await supa.from('listas_precios_proveedor')
@@ -38,18 +38,10 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
     }
 
     // Get Active List
-    let query = supa.from('v_precio_vigente_sku').select('*').eq('proveedor', proveedorDecoded).order('articulo_id');
+    let query = supa.from('v_lista_precios_proveedor').select('*').eq('proveedor', proveedorDecoded).order('fila_num');
     
     if (searchParams.q) {
-        query = query.or(`nombre.ilike.%${searchParams.q}%,codigo_universal.ilike.%${searchParams.q}%,marca.ilike.%${searchParams.q}%,modelo.ilike.%${searchParams.q}%`);
-    }
-    
-    if (searchParams.estado && searchParams.estado !== 'todos') {
-        query = query.eq('estado_actualizacion', searchParams.estado);
-    }
-    
-    if (searchParams.ausentes === 'true') {
-        query = query.eq('presente_en_ultima_lista', false);
+        query = query.or(`codigo.ilike.%${searchParams.q}%,codigo_barra.ilike.%${searchParams.q}%,marca.ilike.%${searchParams.q}%,descripcion.ilike.%${searchParams.q}%`);
     }
 
     const { data: listado, error } = await query;
@@ -103,33 +95,11 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
                             <input 
                                 type="text" 
                                 name="q" 
-                                placeholder="Buscar EAN, modelo o nombre..." 
+                                placeholder="Buscar código, marca o descripción..." 
                                 defaultValue={searchParams.q || ''}
                                 className="pl-9 pr-4 py-2 w-full text-sm border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" 
                             />
                         </div>
-                        
-                        <select 
-                            name="estado" 
-                            defaultValue={searchParams.estado || 'todos'}
-                            className="text-sm border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"
-                        >
-                            <option value="todos">Todos los estados</option>
-                            <option value="vigente">Vigentes</option>
-                            <option value="desactualizado">Desactualizados</option>
-                            <option value="posiblemente_descontinuado">Posiblemente descontinuados</option>
-                        </select>
-
-                        <label className="flex items-center text-sm text-slate-700 cursor-pointer">
-                            <input 
-                                type="checkbox" 
-                                name="ausentes" 
-                                value="true"
-                                defaultChecked={searchParams.ausentes === 'true'}
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2" 
-                            />
-                            Mostrar solo SKUs ausentes en última lista
-                        </label>
 
                         <button type="submit" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-sm font-medium transition-colors">
                             Filtrar
@@ -145,52 +115,30 @@ export default async function HubProveedorPage(props: { params: Promise<{ provee
                         <table className="min-w-full divide-y divide-slate-200 text-sm">
                             <thead className="bg-slate-50 sticky top-0 shadow-sm z-10">
                                 <tr>
-                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Cód. Universal</th>
-                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Marca / Modelo</th>
-                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Precio</th>
-                                    <th className="px-4 py-3 text-center font-medium text-slate-500 uppercase text-xs">Estado</th>
-                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Última Actualización</th>
-                                    <th className="px-4 py-3 text-center font-medium text-slate-500 uppercase text-xs">Acción</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Cód. / Cód. Barra</th>
+                                    <th className="px-4 py-3 text-left font-medium text-slate-500 uppercase text-xs">Marca / Descripción</th>
+                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Lista / Dist.</th>
+                                    <th className="px-4 py-3 text-right font-medium text-slate-500 uppercase text-xs">Menudeo / Mayoreo</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-slate-200">
                                 {listado.map((item: any) => (
-                                    <tr key={item.articulo_id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-4 py-3 text-slate-500 font-mono">{item.codigo_universal || '-'}</td>
-                                        <td className="px-4 py-3 font-medium text-slate-900">
-                                            <div className="flex items-center">
-                                                {item.marca} {item.modelo}
-                                                {item.presente_en_ultima_lista === false && (
-                                                    <span title="No incluido en la última lista del proveedor" className="ml-2 cursor-help text-amber-500">
-                                                        ⚠️
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="text-xs text-slate-500 truncate max-w-[200px]" title={item.nombre}>{item.nombre}</div>
+                                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-4 py-3 font-mono">
+                                            <div className="font-medium text-slate-900">{item.codigo || '-'}</div>
+                                            <div className="text-xs text-slate-500">{item.codigo_barra || ''}</div>
                                         </td>
-                                        <td className="px-4 py-3 text-right font-medium text-slate-900">
-                                            {item.precio ? `${fmtMx.format(item.precio)} ${item.moneda || 'MXN'}` : '-'}
+                                        <td className="px-4 py-3 text-slate-900">
+                                            <div className="font-medium">{item.marca || '-'}</div>
+                                            <div className="text-xs text-slate-500 truncate max-w-[400px]" title={item.descripcion}>{item.descripcion || ''}</div>
                                         </td>
-                                        <td className="px-4 py-3 text-center">
-                                            {item.estado_actualizacion === 'vigente' && <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-medium">Vigente</span>}
-                                            {item.estado_actualizacion === 'desactualizado' && <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded font-medium">Desactualizado</span>}
-                                            {item.estado_actualizacion === 'posiblemente_descontinuado' && <span className="bg-rose-100 text-rose-800 text-xs px-2 py-0.5 rounded font-medium">Posible Descontinuado</span>}
-                                            {!item.estado_actualizacion && <span className="text-slate-400 text-xs">-</span>}
+                                        <td className="px-4 py-3 text-right">
+                                            <div className="font-medium text-slate-900" title="Precio Lista">{item.precio_lista ? fmtMx.format(item.precio_lista) : '-'}</div>
+                                            <div className="text-xs text-slate-500" title="P. Dist.">{item.precio_distribuidor ? fmtMx.format(item.precio_distribuidor) : ''}</div>
                                         </td>
-                                        <td className="px-4 py-3 text-slate-500 text-xs">
-                                            {item.fecha_ultima_actualizacion ? (
-                                                <span>
-                                                    {new Date(item.fecha_ultima_actualizacion).toLocaleDateString()} 
-                                                    <span className="text-slate-400 ml-1">({item.dias_desde_actualizacion} días)</span>
-                                                </span>
-                                            ) : '-'}
-                                        </td>
-                                        <td className="px-4 py-3 text-center">
-                                            <HubRowActions 
-                                                articuloId={item.articulo_id} 
-                                                proveedor={proveedorDecoded} 
-                                                estadoActualizacion={item.estado_actualizacion} 
-                                            />
+                                        <td className="px-4 py-3 text-right">
+                                            <div className="font-medium text-indigo-700" title="Menudeo">{item.precio_menudeo ? fmtMx.format(item.precio_menudeo) : '-'}</div>
+                                            <div className="text-xs text-emerald-600" title="Mayoreo">{item.precio_mayoreo ? fmtMx.format(item.precio_mayoreo) : ''}</div>
                                         </td>
                                     </tr>
                                 ))}
