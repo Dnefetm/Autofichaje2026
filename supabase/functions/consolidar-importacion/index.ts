@@ -65,7 +65,8 @@ serve(async (req: Request) => {
     });
 
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message || 'Error interno del servidor' }), { 
+    console.error("UNCAUGHT ERROR:", error?.message, error?.stack, error);
+    return new Response(JSON.stringify({ error: error.message || 'Error interno del servidor', stack: error?.stack }), { 
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
   }
