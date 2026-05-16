@@ -5,35 +5,34 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   props: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await props.params;
-
-    // Obtener proveedor de la importación
-    const { data: imp, error: fetchErr } = await supabaseAdmin
-      .from('importaciones_excel')
-      .select('proveedor, estado')
-      .eq('id', id)
-      .single();
-
-    if (fetchErr || !imp) {
-      return NextResponse.json({ ok: false, error: 'Importación no encontrada' }, { status: 404 });
+    
+    // Parse the body to require the manual approval flag
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      body = {};
     }
 
-    if (imp.estado !== 'en_revision') {
-      return NextResponse.json({ ok: false, error: 'La importación no está en revisión' }, { status: 400 });
+    if (body.aprobado !== true) {
+      return NextResponse.json({ ok: false, error: 'Falta validación humana. La variable aprobado debe ser true.' }, { status: 403 });
     }
 
-    // Call RPC to consolidate
-    const { error: rpcErr } = await supabaseAdmin.rpc('fn_consolidar_revision_importacion', {
-      p_importacion_id: id,
-      p_proveedor: imp.proveedor
+    // Delegate to the secure Edge Function
+    const { data, error: edgeErr } = await supabaseAdmin.functions.invoke('consolidar-importacion', {
+      body: {
+        importacion_id: id,
+        aprobado: true
+      }
     });
 
-    if (rpcErr) {
-      throw new Error(rpcErr.message);
+    if (edgeErr || (data && data.error)) {
+      throw new Error(edgeErr?.message || data?.error || 'Error en Edge Function de consolidación');
     }
 
     return NextResponse.json({ ok: true });
