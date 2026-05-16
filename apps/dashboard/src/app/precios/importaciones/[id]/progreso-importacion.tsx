@@ -132,7 +132,11 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
                   onClick={async () => {
                      setIsConsolidating(true);
                      try {
-                        const res = await fetch(`/api/precios/importaciones/${id}/consolidar-revision`, { method: 'POST' });
+                        const res = await fetch(`/api/precios/importaciones/${id}/consolidar-revision`, { 
+                           method: 'POST',
+                           headers: { 'Content-Type': 'application/json' },
+                           body: JSON.stringify({ aprobado: true })
+                        });
                         if (!res.ok) throw new Error((await res.json()).error);
                         toast.success('Lista oficializada correctamente.');
                         setS((p: any) => ({ ...p, estado: 'completado' }));
