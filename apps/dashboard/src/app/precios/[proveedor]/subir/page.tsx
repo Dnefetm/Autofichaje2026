@@ -12,7 +12,7 @@ export default function SubirPaso1() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [dragging, setDragging] = useState(false);
-    const [modo, setModo] = useState('merge');
+    const [modo, setModo] = useState('parcial');
     const inputRef = useRef<HTMLInputElement>(null);
 
     function handleFile(f: File) {
@@ -117,15 +117,15 @@ export default function SubirPaso1() {
                 <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-lg p-6 mb-6 shadow-sm">
                     <h4 className="text-sm font-semibold text-slate-900 mb-4">Modo de actualización</h4>
                     <div className="space-y-4">
-                        <label className={`flex items-start p-3 border rounded-md cursor-pointer transition-colors ${modo === 'merge' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                            <input type="radio" name="modo" value="merge" checked={modo === 'merge'} onChange={() => setModo('merge')} className="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
+                        <label className={`flex items-start p-3 border rounded-md cursor-pointer transition-colors ${modo === 'parcial' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                            <input type="radio" name="modo" value="parcial" checked={modo === 'parcial'} onChange={() => setModo('parcial')} className="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
                             <div className="ml-3">
                                 <span className="block text-sm font-medium text-slate-900">Actualización parcial (merge) — recomendado</span>
                                 <span className="block text-xs text-slate-500 mt-1">Solo actualiza los SKUs presentes en el archivo. Los demás conservan su precio anterior y se marcan como desactualizados.</span>
                             </div>
                         </label>
-                        <label className={`flex items-start p-3 border rounded-md cursor-pointer transition-colors ${modo === 'reemplazo_total' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                            <input type="radio" name="modo" value="reemplazo_total" checked={modo === 'reemplazo_total'} onChange={() => setModo('reemplazo_total')} className="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
+                        <label className={`flex items-start p-3 border rounded-md cursor-pointer transition-colors ${modo === 'full' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                            <input type="radio" name="modo" value="full" checked={modo === 'full'} onChange={() => setModo('full')} className="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
                             <div className="ml-3">
                                 <span className="block text-sm font-medium text-slate-900">Reemplazo total — solo si subes la lista maestra completa</span>
                                 <span className="block text-xs text-slate-500 mt-1">SKUs ausentes quedan sin precio vigente.</span>
