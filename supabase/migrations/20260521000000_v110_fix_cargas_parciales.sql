@@ -1,42 +1,17 @@
 -- =============================================================================
--- V110: FIX CARGAS PARCIALES Y ROLLBACK DE EMERGENCIA
+-- V110: FIX CARGAS PARCIALES
 -- =============================================================================
 
--- 1. ROLLBACK DE EMERGENCIA (Paso 0)
--- Borrar la consolidación parcial dañada que cerró la vigencia de todo el catálogo.
-DO $$ 
-DECLARE
-    v_prov text;
-BEGIN
-    SELECT proveedor INTO v_prov FROM importaciones_excel WHERE id = 'ea62b745-1759-47ba-86a6-024f8e114fbd';
-    
-    IF v_prov IS NOT NULL THEN
-        -- Borramos la entrada en listas_precios_proveedor que apagó la vigencia global
-        DELETE FROM listas_precios_proveedor WHERE importacion_id = 'ea62b745-1759-47ba-86a6-024f8e114fbd';
-        
-        -- Restauramos la vigencia de la última lista válida de ese proveedor
-        UPDATE listas_precios_proveedor
-        SET vigente = true
-        WHERE id = (
-            SELECT id FROM listas_precios_proveedor 
-            WHERE proveedor = v_prov 
-            ORDER BY creado_el DESC LIMIT 1
-        );
-          
-        -- Marcamos la importación rota como error
-        UPDATE importaciones_excel 
-        SET estado = 'error', error_mensaje = 'Cancelada por Rollback de Emergencia (Bug Carga Parcial)'
-        WHERE id = 'ea62b745-1759-47ba-86a6-024f8e114fbd';
-        
-        INSERT INTO importacion_eventos (importacion_id, estado_paso, mensaje) 
-        VALUES ('ea62b745-1759-47ba-86a6-024f8e114fbd', 'ERROR_FATAL', 'Rollback de emergencia por bug de carga parcial');
-    END IF;
-END $$;
-
-
 -- 2. ALTER TABLE
+ALTER TABLE importaciones_excel ADD COLUMN IF NOT EXISTS modo_carga TEXT;
+
+-- Backfill explícito para proteger las históricas (antes del commit, todo era full)
+UPDATE importaciones_excel SET modo_carga = 'full' WHERE modo_carga IS NULL;
+
+-- Aplicar default y restricciones
 ALTER TABLE importaciones_excel
-ADD COLUMN IF NOT EXISTS modo_carga TEXT DEFAULT 'parcial' CHECK (modo_carga IN ('full', 'parcial', 'merge'));
+  ALTER COLUMN modo_carga SET DEFAULT 'parcial',
+  ADD CONSTRAINT chk_modo_carga CHECK (modo_carga IN ('full', 'parcial'));
 
 
 -- 3. REESCRITURA DE fn_preparar_importacion_revision

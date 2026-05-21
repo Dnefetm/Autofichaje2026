@@ -1,1 +1,21 @@
-const { createClient } = require('@supabase/supabase-js'); require('dotenv').config({ path: '.env' }); const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY); async function run() { const { data, error } = await supabase.from('listas_precios_raw').select('id').eq('importacion_id', '56a261b9-1ebb-4944-8ff2-956f82276ab9').limit(5); console.log('Rows in listas_precios_raw:', data?.length); } run();
+const u='https://ryxdqnzyvnrwalylqyvm.supabase.co/rest/v1/v_lista_precios_proveedor';
+const k='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5eGRxbnp5dm5yd2FseWxxeXZtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODQ4NjcwNywiZXhwIjoyMDg0MDYyNzA3fQ.wlQUbd48z0jH0rx1_2bzL0sWkU1TaA-4rpX9DAmvflw';
+async function run() {
+  for(let i=0; i<16; i++) {
+    const r = await fetch(u, {
+      headers:{
+        apikey:k, 
+        Authorization:'Bearer '+k, 
+        'Range-Unit': 'items', 
+        'Range': `${i*1000}-${(i+1)*1000-1}`
+      }
+    });
+    const d = await r.json();
+    if(d.message) {
+      console.log('Error at page', i, d.message);
+      return;
+    }
+    console.log('Page', i, 'OK');
+  }
+}
+run();
