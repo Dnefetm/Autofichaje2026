@@ -71,7 +71,7 @@ BEGIN
      WHERE r.articulo_id IS NOT NULL
   ),
   dedup AS (
-    SELECT DISTINCT ON (articulo_id, tipo_costo, 'excel')
+    SELECT DISTINCT ON (articulo_id, tipo_costo)
       articulo_id,
       p_importacion_id AS importacion_id,
       payload->>v_col_modelo AS modelo_excel,
@@ -88,7 +88,7 @@ BEGIN
     FROM expand e
     WHERE COALESCE(e.payload->>e.precio_col,'') <> ''
       AND NULLIF(regexp_replace(COALESCE(e.payload->>e.precio_col,'0'),'[^0-9.-]','','g'),'')::numeric > 0
-    ORDER BY articulo_id, tipo_costo, 'excel', fila_num DESC
+    ORDER BY articulo_id, tipo_costo, fila_num DESC
   ),
   upsert_costos AS (
     INSERT INTO costos_articulo (
@@ -272,11 +272,11 @@ BEGIN
              jsonb_array_elements(v_mapeo->'precios') AS p
     ),
     dedup AS (
-        SELECT DISTINCT ON (articulo_id_resuelto, tipo_costo, 'excel')
+        SELECT DISTINCT ON (articulo_id_resuelto, tipo_costo)
             pe.*
         FROM precios_expandidos pe
         WHERE pe.valor IS NOT NULL AND pe.articulo_id_resuelto IS NOT NULL
-        ORDER BY articulo_id_resuelto, tipo_costo, 'excel', fila_num DESC
+        ORDER BY articulo_id_resuelto, tipo_costo, fila_num DESC
     )
     INSERT INTO costos_articulo (
         importacion_id, articulo_id, articulo_sugerido_id,
