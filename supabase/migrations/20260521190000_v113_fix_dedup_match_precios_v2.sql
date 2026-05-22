@@ -359,7 +359,7 @@ BEGIN
         WHERE table_name='importaciones_excel' AND column_name='modo'
     ) THEN
         UPDATE importaciones_excel 
-           SET modo_carga = modo::modo_carga_importacion 
+           SET modo_carga = modo 
          WHERE modo_carga IS NULL 
            AND modo IS NOT NULL;
 
