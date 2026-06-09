@@ -62,9 +62,9 @@ export async function POST(req: NextRequest) {
 
         // ALLOWLIST: Solo los topics que REALMENTE generan jobs pasan.
         // Todo lo demás (fbm_stock, stock, public_offers, price_suggestion, shipments,
-        // messages, created_orders, etc.) muere aquí en <1ms sin tocar Postgres.
-        // Esto elimina miles de queries desperdiciadas por día.
-        const ALLOWED_TOPICS = ['orders_v2', 'orders', 'payments', 'items', 'questions'];
+        // messages, created_orders, payments, questions, etc.) muere aquí en <1ms sin tocar Postgres.
+        // Esto detiene el llenado de webhook_buffer de eventos que no procesamos.
+        const ALLOWED_TOPICS = ['orders_v2', 'orders', 'items'];
         if (!ALLOWED_TOPICS.includes(topic)) {
             return NextResponse.json({ status: 'ignored', reason: 'topic_not_in_allowlist' });
         }
