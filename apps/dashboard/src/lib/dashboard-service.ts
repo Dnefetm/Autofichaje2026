@@ -102,7 +102,7 @@ export const dashboardService = {
         const { data, error } = await supabase
             .from('system_alerts')
             .select('*')
-            .eq('is_resolved', false)
+            .eq('acknowledged', false)
             .order('created_at', { ascending: false })
             .limit(5);
 
