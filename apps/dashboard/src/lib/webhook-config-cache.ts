@@ -17,7 +17,6 @@ interface CacheEntry {
         window_seconds: number;
         dispatch_immediate: boolean;
         enabled: boolean;
-        priority: number;
     } | null;
     expiresAt: number;
 }
@@ -31,17 +30,11 @@ export async function getWebhookConfigCached(topic: string): Promise<CacheEntry[
         return cached.data;
     }
 
-    // Desactivado temporalmente para evitar 400 Bad Request recurrentes 
-    // en PostgREST (143/h) porque la tabla/columnas webhook_config no existen o fallan.
-    // El sistema usará los TOPIC_DEFAULTS en route.ts de forma segura.
-    /*
     const { data } = await supabaseAdmin
         .from('webhook_config')
-        .select('window_seconds, dispatch_immediate, enabled, priority')
+        .select('window_seconds, dispatch_immediate, enabled')
         .eq('topic', topic)
         .maybeSingle();
-    */
-    const data = null;
 
     CONFIG_CACHE.set(topic, {
         data,
