@@ -302,38 +302,43 @@ export default function FichaDetallePage() {
 
     async function compressImage(file: File): Promise<File> {
         return new Promise((resolve) => {
-            if (!file.type.startsWith('image/')) return resolve(file);
-            const img = new Image();
+            if (!file || !file.type || !file.type.startsWith('image/')) return resolve(file);
             const url = URL.createObjectURL(file);
+            const img = new Image();
+            img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
             img.onload = () => {
                 URL.revokeObjectURL(url);
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-                const max = 2000;
-                if (width > max || height > max) {
-                    if (width > height) {
-                        height = Math.round((height * max) / width);
-                        width = max;
-                    } else {
-                        width = Math.round((width * max) / height);
-                        height = max;
+                try {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const max = 2000;
+                    if (width > max || height > max) {
+                        if (width > height) {
+                            height = Math.round((height * max) / width);
+                            width = max;
+                        } else {
+                            width = Math.round((width * max) / height);
+                            height = max;
+                        }
                     }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) return resolve(file);
+                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob(blob => {
+                        if (!blob) return resolve(file);
+                        const safeName = file.name ? file.name.replace(/\.[^/.]+$/, "") + ".webp" : "imagen.webp";
+                        resolve(new File([blob], safeName, {
+                            type: 'image/webp',
+                            lastModified: Date.now(),
+                        }));
+                    }, 'image/webp', 0.88);
+                } catch (err) {
+                    resolve(file);
                 }
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) return resolve(file);
-                ctx.drawImage(img, 0, 0, width, height);
-                canvas.toBlob(blob => {
-                    if (!blob) return resolve(file);
-                    resolve(new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", {
-                        type: 'image/webp',
-                        lastModified: Date.now(),
-                    }));
-                }, 'image/webp', 0.88);
             };
-            img.onerror = () => resolve(file);
             img.src = url;
         });
     }
@@ -1450,10 +1455,20 @@ export default function FichaDetallePage() {
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subir desde dispositivo (máx 10)</label>
                             
                             <input id="img-upload-camera" type="file" accept="image/*" capture="environment" className="hidden"
-                                onChange={e => { addImagesFromFiles(e.target.files); e.target.value = ''; }} />
+                                onChange={async e => { 
+                                    if (e.target.files && e.target.files.length > 0) {
+                                        await addImagesFromFiles(e.target.files); 
+                                    }
+                                    e.target.value = ''; 
+                                }} />
                                 
                             <input id="img-upload-gallery" type="file" accept="image/*" multiple className="hidden"
-                                onChange={e => { addImagesFromFiles(e.target.files); e.target.value = ''; }} />
+                                onChange={async e => { 
+                                    if (e.target.files && e.target.files.length > 0) {
+                                        await addImagesFromFiles(e.target.files); 
+                                    }
+                                    e.target.value = ''; 
+                                }} />
                             
                             <div className="grid grid-cols-2 gap-3">
                                 <button type="button" onClick={() => document.getElementById('img-upload-camera')?.click()} disabled={imgUrlLoading}
