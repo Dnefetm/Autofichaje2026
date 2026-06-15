@@ -89,7 +89,7 @@ export default function FichasPage() {
                     <p className="text-slate-500 text-sm mt-0.5">{total} fichas en total</p>
                 </div>
                 <div className="flex gap-2">
-                    <Link href="/autoficha"
+                    <Link href="/fichas/nueva"
                         className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2">
                         <FileText className="w-4 h-4" /> Nueva ficha
                     </Link>

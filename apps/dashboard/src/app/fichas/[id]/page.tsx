@@ -331,19 +331,31 @@ export default function FichaDetallePage() {
         finally { setImgUrlLoading(false); }
     }
 
-    async function addImageFromFile(file: File) {
-        if (!ficha) return;
+    async function addImagesFromFiles(fileList: FileList | null) {
+        if (!ficha || !fileList || fileList.length === 0) return;
+        
+        const files = Array.from(fileList);
+        if (files.length > 10) {
+            setImagenesError('Puedes subir un máximo de 10 imágenes a la vez.');
+            return;
+        }
+
         setImgUrlLoading(true); setImagenesError('');
         try {
-            const form = new FormData();
-            form.append('file', file);
-            form.append('tipo', 'producto');
-            const res = await fetch(`/api/fichas/${ficha.id}/imagenes`, { method: 'POST', body: form });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Error al subir imagen');
+            for (const file of files) {
+                const form = new FormData();
+                form.append('file', file);
+                form.append('tipo', 'producto');
+                const res = await fetch(`/api/fichas/${ficha.id}/imagenes`, { method: 'POST', body: form });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Error al subir imagen');
+            }
             await loadImagenes(ficha.id);
-        } catch (e: any) { setImagenesError(e.message); }
-        finally { setImgUrlLoading(false); }
+        } catch (e: any) { 
+            setImagenesError(e.message); 
+        } finally { 
+            setImgUrlLoading(false); 
+        }
     }
 
     async function deleteImagen(imagenId: string) {
@@ -457,8 +469,23 @@ export default function FichaDetallePage() {
     async function cambiarEstado(e: Estado) {
         if (!ficha) return;
         setSaving(true);
-        const { error: err } = await supabase.from('fichas_tecnicas').update({ estado: e }).eq('id', ficha.id);
-        if (!err) { setFicha(p => p ? { ...p, estado: e } : p); setSavedOk(true); setTimeout(() => setSavedOk(false), 2000); }
+        try {
+            const res = await fetch(`/api/fichas/${ficha.id}/estado`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ estado: e })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || 'Error al cambiar de estado');
+            } else {
+                setFicha(p => p ? { ...p, estado: e } : p);
+                setSavedOk(true);
+                setTimeout(() => setSavedOk(false), 2000);
+            }
+        } catch (err) {
+            alert('Error de red al intentar cambiar estado');
+        }
         setSaving(false);
     }
 
@@ -1375,15 +1402,27 @@ export default function FichaDetallePage() {
                             </div>
                         </div>
 
-                        {/* Upload archivo */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subir archivo (convierte a WebP)</label>
-                            <input ref={imgFileRef} type="file" accept="image/*" className="hidden"
-                                onChange={e => { const f = e.target.files?.[0]; if (f) addImageFromFile(f); }} />
-                            <button type="button" onClick={() => imgFileRef.current?.click()} disabled={imgUrlLoading}
-                                className="w-full py-2.5 rounded-xl border-2 border-dashed border-slate-300 text-sm text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
-                                <Upload className="w-4 h-4" /> Seleccionar imagen del equipo
-                            </button>
+                        {/* Upload archivo (Múltiple y Cámara) */}
+                        <div className="space-y-3">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subir desde dispositivo (máx 10)</label>
+                            
+                            <input id="img-upload-camera" type="file" accept="image/*" capture="environment" className="hidden"
+                                onChange={e => { addImagesFromFiles(e.target.files); e.target.value = ''; }} />
+                                
+                            <input id="img-upload-gallery" type="file" accept="image/*" multiple className="hidden"
+                                onChange={e => { addImagesFromFiles(e.target.files); e.target.value = ''; }} />
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                                <button type="button" onClick={() => document.getElementById('img-upload-camera')?.click()} disabled={imgUrlLoading}
+                                    className="py-2.5 rounded-xl border-2 border-slate-200 bg-white text-sm text-slate-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2 font-semibold">
+                                    <Upload className="w-4 h-4" /> Tomar Foto
+                                </button>
+                                <button type="button" onClick={() => document.getElementById('img-upload-gallery')?.click()} disabled={imgUrlLoading}
+                                    className="py-2.5 rounded-xl border-2 border-dashed border-slate-300 text-sm text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
+                                    <Upload className="w-4 h-4" /> Elegir Galería
+                                </button>
+                            </div>
+                            <p className="text-[10px] text-slate-400 text-center">Se convierten y optimizan a WebP automáticamente al subir.</p>
                         </div>
 
                         {/* Extracción con IA desde URL de página */}

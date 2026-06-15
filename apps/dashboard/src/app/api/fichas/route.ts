@@ -56,3 +56,36 @@ export async function GET(req: NextRequest) {
         pages:  Math.ceil((count ?? 0) / limit),
     });
 }
+
+export async function POST(req: NextRequest) {
+    const supabase = getSupabase();
+    
+    try {
+        const body = await req.json();
+        const { nombre_producto, articulo_id } = body;
+
+        if (!nombre_producto || nombre_producto.trim() === '') {
+            return NextResponse.json({ error: 'El nombre del producto es obligatorio' }, { status: 400 });
+        }
+
+        const nuevaFicha = {
+            estado: 'borrador',
+            nombre_producto: nombre_producto.trim(),
+            articulo_id: articulo_id || null
+        };
+
+        const { data, error } = await supabase
+            .from('fichas_tecnicas')
+            .insert(nuevaFicha)
+            .select('id')
+            .single();
+
+        if (error) {
+            return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        return NextResponse.json({ id: data.id }, { status: 201 });
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message || 'Error en la petición' }, { status: 500 });
+    }
+}
