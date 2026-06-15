@@ -283,10 +283,6 @@ export default function FichaDetallePage() {
                     nombre_producto, descripcion, descripcion_larga,
                     fabricante, especificaciones, ingredientes,
                     uso_recomendado, precauciones,
-                    bullet_points, palabras_clave,
-                    atributos_dinamicos, atributos_categoria, atributos_extras,
-                    ficha_tecnica_data, articulo_id,
-                    marca, modelo, variante, codigo_universal, categoria,
                     peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen,
                     informacion_normativa, instrucciones_uso, leyendas_precautorias, indicaciones_almacenamiento,
                     articulos ( articulo_id, nombre, marca, modelo, variante, codigo_universal, codigo_sat, categoria, peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen, descripcion, imagenes ),
@@ -303,6 +299,44 @@ export default function FichaDetallePage() {
             setLoading(false);
         })();
     }, [id]);
+
+    async function compressImage(file: File): Promise<File> {
+        return new Promise((resolve) => {
+            if (!file.type.startsWith('image/')) return resolve(file);
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const max = 2000;
+                if (width > max || height > max) {
+                    if (width > height) {
+                        height = Math.round((height * max) / width);
+                        width = max;
+                    } else {
+                        width = Math.round((width * max) / height);
+                        height = max;
+                    }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return resolve(file);
+                ctx.drawImage(img, 0, 0, width, height);
+                canvas.toBlob(blob => {
+                    if (!blob) return resolve(file);
+                    resolve(new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", {
+                        type: 'image/webp',
+                        lastModified: Date.now(),
+                    }));
+                }, 'image/webp', 0.88);
+            };
+            img.onerror = () => resolve(file);
+            img.src = url;
+        });
+    }
 
     async function loadImagenes(fichaId: string) {
         setImagenesLoading(true);
@@ -323,8 +357,9 @@ export default function FichaDetallePage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: imgUrlInput.trim(), tipo: 'producto', fuente: 'url_directa' }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Error al guardar imagen');
+            let data;
+            try { data = await res.json(); } catch { throw new Error(`Error de conexión (HTTP ${res.status})`); }
+            if (!res.ok) throw new Error(data?.error || 'Error al guardar imagen');
             setImgUrlInput('');
             await loadImagenes(ficha.id);
         } catch (e: any) { setImagenesError(e.message); }
@@ -343,12 +378,20 @@ export default function FichaDetallePage() {
         setImgUrlLoading(true); setImagenesError('');
         try {
             for (const file of files) {
+                const compressedFile = await compressImage(file);
                 const form = new FormData();
-                form.append('file', file);
+                form.append('file', compressedFile);
                 form.append('tipo', 'producto');
                 const res = await fetch(`/api/fichas/${ficha.id}/imagenes`, { method: 'POST', body: form });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Error al subir imagen');
+                
+                let data;
+                try {
+                    data = await res.json();
+                } catch {
+                    throw new Error(`Error del servidor (HTTP ${res.status}). La imagen podría ser muy pesada.`);
+                }
+                
+                if (!res.ok) throw new Error(data?.error || 'Error al subir imagen');
             }
             await loadImagenes(ficha.id);
         } catch (e: any) { 
