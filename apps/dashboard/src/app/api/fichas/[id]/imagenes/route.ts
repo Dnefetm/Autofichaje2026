@@ -156,7 +156,14 @@ async function processImageUrl(
     supabase: ReturnType<typeof getSupabaseAdmin>,
 ) {
     // Descargar imagen
-    const resp = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    const resp = await fetch(url, {
+        signal: AbortSignal.timeout(20_000),
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Accept-Language': 'es-MX,es;q=0.9,en-US;q=0.8,en;q=0.7',
+        }
+    });
     if (!resp.ok) throw new Error(`URL respondió ${resp.status}`);
     const mimeType = resp.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
     if (!ALLOWED_MIME.includes(mimeType)) throw new Error(`Formato no soportado: ${mimeType}`);
