@@ -56,6 +56,19 @@ export async function POST(
             const resolved = resolveUrl(src);
             if (resolved) imageUrlSet.add(resolved);
         }
+        
+        const srcset = $(el).attr('srcset');
+        if (srcset) {
+            // srcset format: "url1 1x, url2 2x, url3 3x"
+            const parts = srcset.split(',');
+            for (const part of parts) {
+                const urlMatch = part.trim().split(' ')[0];
+                if (urlMatch) {
+                    const resolved = resolveUrl(urlMatch);
+                    if (resolved) imageUrlSet.add(resolved);
+                }
+            }
+        }
     });
 
     $('meta[property="og:image"], meta[name="og:image"]').each((_, el) => {
