@@ -96,7 +96,7 @@ Campos a extraer (usa null si no está disponible):
 - variante: variante del producto (tamaño, color, acabado, capacidad)
 - descripcion: descripción técnica corta del producto (máx 500 caracteres)
 - descripcion_larga: descripción técnica completa y extendida del producto (sin límite de caracteres)
-- especificaciones: texto de especificaciones técnicas tal como aparece en el documento (tablas, listas)
+    - especificaciones: especificaciones técnicas en texto LIMPIO y legible. Si el documento trae una TABLA de datos (ej. encabezados como "Ctd. embal.", "(A) mm", "(L1) mm" seguidos de sus valores), NO copies los encabezados y valores en bruto ni los concatenes; EMPAREJA cada encabezado/etiqueta con su valor correspondiente por posición y escribe cada par en su propia línea con el formato "- Etiqueta: valor\n- Etiqueta2: valor2". Nunca devuelvas una fila de etiquetas seguida de una fila de números sueltos. Las medidas dimensionales tabuladas van además en atributos_tecnicos como pares clave-valor.
 - ingredientes: composición o ingredientes activos (para lubricantes, químicos, adhesivos, etc.)
 - uso_recomendado: instrucciones de uso, aplicación o modo de empleo (campo general, puede solapar con instrucciones_uso)
 - precauciones: advertencias de seguridad y precauciones generales (campo heredado, puede solapar con leyendas_precautorias)
