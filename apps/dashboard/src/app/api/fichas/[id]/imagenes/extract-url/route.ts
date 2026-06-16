@@ -161,3 +161,4 @@ export async function POST(
         ok: true,
         imagenes: resultado,
     });
+}
