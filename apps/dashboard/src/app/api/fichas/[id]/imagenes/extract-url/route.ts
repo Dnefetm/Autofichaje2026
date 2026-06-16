@@ -6,9 +6,17 @@ export const maxDuration = 30;
 
 // Patrones típicos de imágenes de producto que NO son iconos/logos/UI
 const SKIP_PATTERNS = [
-    /favicon/i, /logo\.(svg|png|ico)/i, /icon\.(svg|png)/i,
-    /pixel\.gif/i, /tracking/i, /analytics/i, /banner/i,
-    /\.css\?/i, /spinner/i, /loading/i,
+      /favicon/i, /logo/i, /icon/i, /sprite/i,
+  /pixel\.gif/i, /tracking/i, /analytics/i, /banner/i,
+  /\.css\?/i, /spinner/i, /loading/i, /placeholder/i,
+  // Logos de medios de pago
+  /visa/i, /mastercard/i, /maestro/i, /amex/i, /american[-_]?express/i,
+  /paypal/i, /oxxo/i, /mercado[-_]?pago/i, /payment/i, /pago/i,
+  // Iconos de redes sociales
+  /whatsapp/i, /facebook/i, /instagram/i, /tiktok/i, /youtube/i,
+  /twitter/i, /linkedin/i, /pinterest/i, /telegram/i, /\bsocial\b/i,
+  // Otros elementos de UI comunes
+  /flag[-_]/i, /badge/i, /seal/i, /ssl/i, /secure/i, /thumb(nail)?[-_]?icon/i,
 ];
 
 function isLikelyProductImage(url: string): boolean {
