@@ -1,21 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import * as cheerio from 'cheerio';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
-
-/**
- * POST /api/fichas/[id]/imagenes/extract-url
- *
- * Dada una URL de página web (ficha técnica, página de producto, catálogo PDF),
- * usa GPT-4o-mini con visión para identificar y extraer URLs de imágenes del producto.
- * El usuario luego selecciona cuáles guardar — nada se auto-guarda.
- *
- * Body: { url: string }
- * Response: { ok: true, imagenes: Array<{ url, descripcion, confianza }> }
- */
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Patrones típicos de imágenes de producto que NO son iconos/logos/UI
 const SKIP_PATTERNS = [
@@ -39,7 +26,6 @@ export async function POST(
         return NextResponse.json({ ok: false, error: 'Se requiere una URL válida (http...)' }, { status: 400 });
     }
 
-    // ── Paso 1: Descargar HTML de la página ──────────────────────────────────
     let html: string;
     try {
         const resp = await fetch(url, {
@@ -56,112 +42,109 @@ export async function POST(
         return NextResponse.json({ ok: false, error: `No se pudo acceder a la URL: ${err.message}` }, { status: 400 });
     }
 
-    // ── Paso 2: Extraer todas las URLs de imágenes del HTML ──────────────────
+    const $ = cheerio.load(html);
     const BASE = new URL(url);
     const imageUrlSet = new Set<string>();
 
-    // <img src="..."> y <img data-src="...">
-    const imgRegex = /<img[^>]+(?:src|data-src|data-lazy-src)=["']([^"']+)["'][^>]*>/gi;
-    let m: RegExpExecArray | null;
-    while ((m = imgRegex.exec(html)) !== null) {
-        try {
-            const abs = new URL(m[1], BASE).href;
-            if (isLikelyProductImage(abs)) imageUrlSet.add(abs);
-        } catch { /* URL malformada */ }
-    }
+    const resolveUrl = (src: string) => {
+        try { return new URL(src, BASE).href; } catch { return null; }
+    };
 
-    // <meta og:image>
-    const ogRegex = /<meta[^>]+(?:property|name)=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/gi;
-    while ((m = ogRegex.exec(html)) !== null) {
-        try {
-            const abs = new URL(m[1], BASE).href;
-            imageUrlSet.add(abs); // og:image siempre es relevante
-        } catch { /* skip */ }
-    }
+    $('img').each((_, el) => {
+        const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src');
+        if (src) {
+            const resolved = resolveUrl(src);
+            if (resolved) imageUrlSet.add(resolved);
+        }
+    });
 
-    // Datos JSON-LD (schema.org)
-    const jsonLdRegex = /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
-    while ((m = jsonLdRegex.exec(html)) !== null) {
+    $('meta[property="og:image"], meta[name="og:image"]').each((_, el) => {
+        const content = $(el).attr('content');
+        if (content) {
+            const resolved = resolveUrl(content);
+            if (resolved) imageUrlSet.add(resolved);
+        }
+    });
+
+    $('script[type="application/ld+json"]').each((_, el) => {
         try {
-            const data = JSON.parse(m[1]);
+            const data = JSON.parse($(el).html() || '{}');
             const images = data.image || data.images || [];
             const arr = Array.isArray(images) ? images : [images];
             for (const img of arr) {
                 const imgUrl = typeof img === 'string' ? img : img?.url || img?.contentUrl;
                 if (imgUrl) {
-                    const abs = new URL(imgUrl, BASE).href;
-                    imageUrlSet.add(abs);
+                    const resolved = resolveUrl(imgUrl);
+                    if (resolved) imageUrlSet.add(resolved);
                 }
             }
-        } catch { /* JSON inválido */ }
+        } catch {}
+    });
+
+    // Decodificar Next.js /_next/image?url=
+    const finalUrls = new Set<string>();
+    for (const rawUrl of imageUrlSet) {
+        if (rawUrl.includes('/_next/image?url=')) {
+            try {
+                const u = new URL(rawUrl);
+                const encoded = u.searchParams.get('url');
+                if (encoded) {
+                    const resolved = resolveUrl(encoded);
+                    if (resolved) finalUrls.add(resolved);
+                }
+            } catch {}
+        } else {
+            finalUrls.add(rawUrl);
+        }
     }
 
-    const candidatas = [...imageUrlSet].slice(0, 30); // máx 30 para no saturar el prompt
+    // Filtrar patrones obvios de basura
+    let candidatas = [...finalUrls].filter(isLikelyProductImage).filter(u => !u.startsWith('data:'));
 
-    if (candidatas.length === 0) {
+    // Validar URLs con peticiones HEAD
+    const validImages = [];
+    for (const imgUrl of candidatas.slice(0, 50)) { // Límite para no tardar tanto
+        try {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 3000);
+            const head = await fetch(imgUrl, { 
+                method: 'HEAD', 
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+                signal: controller.signal 
+            });
+            clearTimeout(id);
+            
+            // Si la petición es exitosa y es una imagen
+            if (head.ok) {
+                const ct = head.headers.get('content-type');
+                if (ct && ct.startsWith('image/')) {
+                    validImages.push(imgUrl);
+                }
+            } else if (head.status === 405 || head.status === 403) {
+                // Si el servidor bloquea el HEAD, asumimos que es válida por ahora para no perderla
+                validImages.push(imgUrl);
+            }
+        } catch {
+            // Ignorar timeouts
+        }
+    }
+
+    if (validImages.length === 0) {
         return NextResponse.json({
             ok: true,
             imagenes: [],
-            advertencia: 'No se encontraron imágenes en la página. Verifica que la URL sea una página de producto.',
+            advertencia: 'No se encontraron imágenes válidas en la página. Verifica la URL.',
         });
     }
 
-    // ── Paso 3: GPT-4o-mini filtra y clasifica las imágenes ─────────────────
-    const prompt = `Eres un experto en catálogos de productos industriales y herramientas.
-Se te dan ${candidatas.length} URLs de imágenes extraídas de una página web de producto.
-Tu tarea: identificar cuáles son IMÁGENES DEL PRODUCTO (vistas del artículo, distintos ángulos, 
-detalles técnicos, imagen de packaging). Descartar iconos, banners, logos y elementos de UI.
-
-Para cada URL que sea imagen de producto, indica:
-- url: la URL exacta (copia textual, sin modificar)
-- descripcion: descripción breve de qué se ve (ej: "Vista frontal", "Detalle de rosca", "Embalaje")
-- confianza: porcentaje (0-100) de que sea imagen útil del produto
-
-Devuelve un array JSON con hasta 12 imágenes de producto, ordenadas de mayor a menor confianza.
-Si la URL parece inaccesible o no es una imagen real, omítela.
-
-URLs candidatas:
-${candidatas.map((u, i) => `${i + 1}. ${u}`).join('\n')}
-
-Responde SOLO con el array JSON, sin texto adicional. Ejemplo:
-[{"url": "https://...", "descripcion": "Vista frontal del producto", "confianza": 95}]`;
-
-    let imagenesSeleccionadas: any[] = [];
-    try {
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.1,
-            max_tokens: 2000,
-        });
-        const raw = completion.choices[0]?.message?.content?.trim() || '[]';
-        // Extraer JSON del response
-        const jsonMatch = raw.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-            imagenesSeleccionadas = JSON.parse(jsonMatch[0]);
-        }
-    } catch {
-        // Fallback: devolver todas las candidatas sin clasificación
-        imagenesSeleccionadas = candidatas.slice(0, 12).map(u => ({
-            url: u,
-            descripcion: 'Imagen del producto',
-            confianza: 50,
-        }));
-    }
-
-    // Filtrar por confianza mínima y limpiar estructura
-    const resultado = imagenesSeleccionadas
-        .filter(img => img?.url && img.confianza >= 40)
-        .slice(0, 12)
-        .map(img => ({
-            url:         img.url,
-            descripcion: img.descripcion || 'Imagen del producto',
-            confianza:   Math.min(100, Math.max(0, parseInt(img.confianza) || 50)),
-        }));
+    // Devolvemos las imágenes sin pasar por LLM para asegurar que las URLs sean 100% reales
+    const resultado = validImages.slice(0, 15).map((imgUrl, index) => ({
+        url: imgUrl,
+        descripcion: `Imagen extraída de la página (${index + 1})`,
+        confianza: index === 0 ? 99 : 80, // La primera suele ser la principal
+    }));
 
     return NextResponse.json({
         ok: true,
         imagenes: resultado,
-        candidatas_analizadas: candidatas.length,
     });
-}
