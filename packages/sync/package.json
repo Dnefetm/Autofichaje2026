@@ -3,9 +3,16 @@
     "version": "1.0.0",
     "main": "index.ts",
     "dependencies": {
-        "@gestor/shared": "1.0.0",
         "@azure/ai-form-recognizer": "^4.0.0",
+        "@gestor/shared": "1.0.0",
+        "@react-pdf/renderer": "^4.5.1",
         "axios": "^1.13.5",
-        "openai": "^4.0.0"
+        "openai": "^4.0.0",
+        "qrcode": "^1.5.4",
+        "react": "^19.2.3"
+    },
+    "devDependencies": {
+        "@types/qrcode": "^1.5.6",
+        "@types/react": "^19.2.17"
     }
-}
+}
