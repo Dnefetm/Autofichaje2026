@@ -1,6 +1,7 @@
 import { renderToBuffer } from '@react-pdf/renderer';
 import QRCode from 'qrcode';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import sharp from 'sharp';
 import { FichaTecnicaPDF, FichaPDFData, FichaPDFMeta } from './FichaTecnicaPDF';
 
 const COLS = `
@@ -22,6 +23,19 @@ const BRAND_COLORS: Record<string, string> = {
   'Würth': '#C8102E', 'W-Max': '#0F4C81', 'W-Max By Würth': '#C8102E',
   'Urrea': '#E30613', 'Surtek': '#F39200',
 };
+
+/** Convierte cualquier imagen (incl. WebP/AVIF, no soportados por react-pdf) a un data URL PNG. */
+async function toPdfDataUrl(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    const png = await sharp(buf).png().toBuffer();
+    return `data:image/png;base64,${png.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
 
 /** Genera el PDF de una ficha publicada, lo sube a storage y devuelve la URL pública. */
 export async function generarFichaPDF(fichaId: string, baseUrl: string) {
@@ -47,18 +61,20 @@ export async function generarFichaPDF(fichaId: string, baseUrl: string) {
   const urlPublica = `${baseUrl}/fichas/${fichaId}`;
   const qrDataUrl = await QRCode.toDataURL(urlPublica, { margin: 0, width: 120 });
 
-// 3b. Imagenes del producto (orden asc) para el bloque visual del PDF
-const { data: imgs } = await supabase
-.from('ficha_imagenes')
-.select('url, orden')
-.eq('ficha_id', fichaId)
-.order('orden', { ascending: true });
-const imagenUrls = (imgs || []).map((r: any) => r.url).filter(Boolean);
+  // 3b. Imagenes del producto (orden asc) -> convertir a PNG data URL (react-pdf no soporta WebP)
+  const { data: imgs } = await supabase
+    .from('ficha_imagenes')
+    .select('url, orden')
+    .eq('ficha_id', fichaId)
+    .order('orden', { ascending: true });
+  const imagenUrls = (
+    await Promise.all((imgs || []).map((r: any) => toPdfDataUrl(r.url)))
+  ).filter((x): x is string => !!x);
 
   const data: FichaPDFData = {
     ...(ficha as any),
     marca_nombre: (ficha as any).marcas?.nombre ?? (ficha as any).marca,
-imagen_urls: imagenUrls,
+    imagen_urls: imagenUrls,
   };
   const marcaNombre = data.marca_nombre || data.marca || '';
   const meta: FichaPDFMeta = {
@@ -69,7 +85,7 @@ imagen_urls: imagenUrls,
     brandColor: BRAND_COLORS[marcaNombre] || '#C8102E',
   };
 
-  // 4. Render → Buffer
+  // 4. Render -> Buffer
   const buffer = await renderToBuffer(FichaTecnicaPDF({ ficha: data, meta }) as any);
 
   // 5. Subir a storage con nombre SKU_vN.pdf
@@ -78,7 +94,6 @@ imagen_urls: imagenUrls,
     .from('fichas-pdf')
     .upload(path, buffer, { contentType: 'application/pdf', upsert: true });
   if (upErr) throw new Error(`Error subiendo PDF: ${upErr.message}`);
-
   const { data: pub } = supabase.storage.from('fichas-pdf').getPublicUrl(path);
 
   // 6. Registrar versión
