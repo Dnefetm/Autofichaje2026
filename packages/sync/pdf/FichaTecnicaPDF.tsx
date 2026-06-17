@@ -72,6 +72,10 @@ tdVal: { width: '60%', padding: 4, fontSize: 8.5 },
 warnBox: { borderWidth: 0.5, borderColor: brand, borderRadius: 2, padding: 6, backgroundColor: '#FFF7F8' },
 gallery: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 galleryImg: { width: 150, height: 110, objectFit: 'contain', borderWidth: 0.5, borderColor: baseColors.line, borderRadius: 2, padding: 2 },
+heroWrap: { flexDirection: 'row', gap: 14, alignItems: 'center', marginBottom: 14, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: baseColors.line },
+heroImg: { width: 150, height: 150, objectFit: 'contain', borderWidth: 0.5, borderColor: baseColors.line, borderRadius: 3, padding: 4, backgroundColor: baseColors.bgSoft },
+heroInfo: { flex: 1 },
+thumbImg: { width: 70, height: 70, objectFit: 'contain', borderWidth: 0.5, borderColor: baseColors.line, borderRadius: 2, padding: 2 },
 footer: { position: 'absolute', bottom: 18, left: 40, right: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', borderTopWidth: 0.5, borderTopColor: baseColors.line, paddingTop: 6 },
 footerText: { fontSize: 6.5, color: baseColors.muted },
 qr: { width: 40, height: 40 },
@@ -147,6 +151,8 @@ const mostrarInstrucciones = has(ficha.instrucciones_uso) && norm(ficha.instrucc
 const imagenes = (meta.imagenesDataUrl && meta.imagenesDataUrl.length > 0)
 ? meta.imagenesDataUrl
 : (ficha.imagen_urls || []).filter(Boolean);
+  const imagenPrincipal = imagenes[0];
+  const imagenesSecundarias = imagenes.slice(1);
 
 const tieneCumplimiento = has(ficha.informacion_normativa) || has(ficha.leyendas_precautorias) || has(ficha.precauciones) || has(ficha.indicaciones_almacenamiento);
 
@@ -164,6 +170,18 @@ return (
 </View>
 {meta.logoDataUrl ? <Image style={s.logo} src={meta.logoDataUrl} /> : null}
 </View>
+        {imagenPrincipal ? (
+          <View style={s.heroWrap}>
+            <Image style={s.heroImg} src={imagenPrincipal} />
+            <View style={s.heroInfo}>
+              {marca ? <Text style={s.brandName}>{marca}</Text> : null}
+              <Text style={s.title}>{ficha.nombre_producto || 'Producto'}</Text>
+              {has(ficha.modelo) ? <Text style={s.subtitle}>Modelo: {ficha.modelo}</Text> : null}
+              {has(ficha.codigo_universal) ? <Text style={s.subtitle}>SKU: {ficha.codigo_universal}</Text> : null}
+              {has(ficha.descripcion) ? <Text style={s.body}>{ficha.descripcion}</Text> : null}
+            </View>
+          </View>
+        ) : null}
 
 <View style={s.idRow}>
 <Chip label="Modelo" value={ficha.modelo} />
@@ -210,15 +228,15 @@ return (
 </Section>
 ) : null}
 
-{imagenes.length > 0 ? (
-<Section title="Imagenes">
-<View style={s.gallery}>
-{imagenes.slice(0, 4).map((src, i) => (
-<Image key={i} style={s.galleryImg} src={src} />
-))}
-</View>
-</Section>
-) : null}
+          {imagenesSecundarias.length > 0 ? (
+          <Section title="Mas imagenes">
+            <View style={s.gallery}>
+              {imagenesSecundarias.slice(0, 6).map((src, i) => (
+                <Image key={i} style={s.thumbImg} src={src} />
+              ))}
+            </View>
+          </Section>
+        ) : null}
 
 <View style={s.footer} fixed>
 <View style={s.headerLeft}>
