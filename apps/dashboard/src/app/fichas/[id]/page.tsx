@@ -271,6 +271,22 @@ export default function FichaDetallePage() {
     const [autocompletarApplying, setAutocompletarApplying] = useState(false);
     const [autocompletarMsg, setAutocompletarMsg] = useState('');
 
+    const [generandoPdf, setGenerandoPdf] = useState(false);
+    async function generarPDF() {
+        if (!ficha) return;
+        setGenerandoPdf(true);
+        try {
+            const res = await fetch(`/api/fichas/${ficha.id}/pdf`, { method: 'POST' });
+            const data = await res.json();
+            if (data.ok && data.url) window.open(data.url, '_blank');
+            else alert('Error al generar PDF: ' + (data.error || 'Desconocido'));
+        } catch (e: any) {
+            alert('Error al generar PDF: ' + e.message);
+        } finally {
+            setGenerandoPdf(false);
+        }
+    }
+
     // Fetch datos
     useEffect(() => {
         if (!id) return;
@@ -1017,10 +1033,16 @@ export default function FichaDetallePage() {
                 </div>
                 <EstadoBadge estado={ficha.estado} />
                 {!editMode && (
-                    <button type="button" onClick={startEdit}
-                        className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-white border border-slate-200 text-slate-600 rounded-xl hover:border-indigo-300 hover:text-indigo-700 transition-colors">
-                        <Edit2 className="w-4 h-4" /> Editar
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button type="button" onClick={generarPDF} disabled={generandoPdf}
+                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-white border border-slate-200 text-slate-600 rounded-xl hover:border-indigo-300 hover:text-indigo-700 transition-colors disabled:opacity-50">
+                            {generandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} PDF
+                        </button>
+                        <button type="button" onClick={startEdit}
+                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-white border border-slate-200 text-slate-600 rounded-xl hover:border-indigo-300 hover:text-indigo-700 transition-colors">
+                            <Edit2 className="w-4 h-4" /> Editar
+                        </button>
+                    </div>
                 )}
             </div>
 
