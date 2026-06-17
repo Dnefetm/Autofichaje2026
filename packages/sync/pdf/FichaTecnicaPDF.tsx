@@ -1,14 +1,6 @@
 import React from 'react';
 import { Document, Page, View, Text, Image, StyleSheet, Font } from '@react-pdf/renderer';
 
-Font.register({
-  family: 'Inter',
-  fonts: [
-    { src: `${process.cwd()}/packages/sync/pdf/fonts/Inter-Regular.ttf`, fontWeight: 'normal' },
-    { src: `${process.cwd()}/packages/sync/pdf/fonts/Inter-Medium.ttf`,  fontWeight: 'medium' },
-    { src: `${process.cwd()}/packages/sync/pdf/fonts/Inter-Bold.ttf`,    fontWeight: 'bold' },
-  ],
-});
 Font.registerHyphenationCallback((word) => [word]);
 
 export interface FichaPDFData {
@@ -53,7 +45,7 @@ export interface FichaPDFMeta {
 const baseColors = { text: '#1A1A1A', muted: '#666666', line: '#E2E2E2', bgSoft: '#F7F7F7' };
 
 const buildStyles = (brand: string) => StyleSheet.create({
-  page: { fontFamily: 'Inter', fontSize: 9, color: baseColors.text, paddingTop: 36, paddingBottom: 44, paddingHorizontal: 40, lineHeight: 1.4 },
+  page: { fontFamily: 'Helvetica', fontSize: 9, color: baseColors.text, paddingTop: 36, paddingBottom: 44, paddingHorizontal: 40, lineHeight: 1.4 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', borderBottomWidth: 2, borderBottomColor: brand, paddingBottom: 8, marginBottom: 14 },
   headerLeft: { flexShrink: 1, paddingRight: 12 },
   brandName: { fontSize: 8, color: brand, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 },
