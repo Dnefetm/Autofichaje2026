@@ -55,7 +55,7 @@ export async function generarFichaPDF(fichaId: string, baseUrl: string) {
     .from('ficha_pdfs')
     .select('id', { count: 'exact', head: true })
     .eq('ficha_tecnica_id', fichaId);
-  const version = (count ?? 0) + 1;
+    const version = (count ?? 0) || 1; // sobrescribe la ultima version (no acumula)
 
   // 3. QR a la URL pública
   const urlPublica = `${baseUrl}/fichas/${fichaId}`;
@@ -97,13 +97,13 @@ export async function generarFichaPDF(fichaId: string, baseUrl: string) {
   const { data: pub } = supabase.storage.from('fichas-pdf').getPublicUrl(path);
 
   // 6. Registrar versión
-  await supabase.from('ficha_pdfs').insert({
+    await supabase.from('ficha_pdfs').upsert({
     ficha_tecnica_id: fichaId,
     version,
     storage_path: path,
     url_publica: pub.publicUrl,
     generado_en: meta.generadoEn,
-  });
+    }, { onConflict: 'ficha_tecnica_id,version' });
 
   return { ok: true, version, path, url: pub.publicUrl, bytes: buffer.length };
 }
