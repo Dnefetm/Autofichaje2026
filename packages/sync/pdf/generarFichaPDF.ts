@@ -47,9 +47,18 @@ export async function generarFichaPDF(fichaId: string, baseUrl: string) {
   const urlPublica = `${baseUrl}/fichas/${fichaId}`;
   const qrDataUrl = await QRCode.toDataURL(urlPublica, { margin: 0, width: 120 });
 
+// 3b. Imagenes del producto (orden asc) para el bloque visual del PDF
+const { data: imgs } = await supabase
+.from('ficha_imagenes')
+.select('url, orden')
+.eq('ficha_id', fichaId)
+.order('orden', { ascending: true });
+const imagenUrls = (imgs || []).map((r: any) => r.url).filter(Boolean);
+
   const data: FichaPDFData = {
     ...(ficha as any),
     marca_nombre: (ficha as any).marcas?.nombre ?? (ficha as any).marca,
+imagen_urls: imagenUrls,
   };
   const marcaNombre = data.marca_nombre || data.marca || '';
   const meta: FichaPDFMeta = {
