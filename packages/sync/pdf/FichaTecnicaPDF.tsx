@@ -147,6 +147,7 @@ const atributosRows: Array<[string, any]> = ficha.atributos_dinamicos
 : [];
 
 const mostrarInstrucciones = has(ficha.instrucciones_uso) && norm(ficha.instrucciones_uso) !== norm(ficha.uso_recomendado);
+const mostrarPrecauciones = has(ficha.precauciones) && norm(ficha.precauciones) !== norm(ficha.leyendas_precautorias);
 
 const imagenes = (meta.imagenesDataUrl && meta.imagenesDataUrl.length > 0)
 ? meta.imagenesDataUrl
@@ -154,7 +155,7 @@ const imagenes = (meta.imagenesDataUrl && meta.imagenesDataUrl.length > 0)
   const imagenPrincipal = imagenes[0];
   const imagenesSecundarias = imagenes.slice(1);
 
-const tieneCumplimiento = has(ficha.informacion_normativa) || has(ficha.leyendas_precautorias) || has(ficha.precauciones) || has(ficha.indicaciones_almacenamiento);
+const tieneCumplimiento = has(ficha.informacion_normativa) || has(ficha.leyendas_precautorias) || mostrarPrecauciones || has(ficha.indicaciones_almacenamiento);
 
 const fechaGen = new Date(meta.generadoEn).toLocaleDateString('es-MX');
 const footerInfo = `${marca ? marca + ' \u00b7 ' : ''}Ficha tecnica v${meta.version} \u00b7 Generada ${fechaGen}`;
@@ -222,7 +223,7 @@ return (
 <View style={s.warnBox}>
 {has(ficha.informacion_normativa) ? <Text style={s.body}>Normativa: {ficha.informacion_normativa}</Text> : null}
 {has(ficha.leyendas_precautorias) ? <Text style={s.body}>Leyendas precautorias: {ficha.leyendas_precautorias}</Text> : null}
-{has(ficha.precauciones) ? <Text style={s.body}>Precauciones: {ficha.precauciones}</Text> : null}
+{mostrarPrecauciones ? <Text style={s.body}>Precauciones: {ficha.precauciones}</Text> : null}
 {has(ficha.indicaciones_almacenamiento) ? <Text style={s.body}>Almacenamiento: {ficha.indicaciones_almacenamiento}</Text> : null}
 </View>
 </Section>
