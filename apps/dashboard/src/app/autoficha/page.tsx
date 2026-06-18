@@ -454,6 +454,21 @@ function AutofichaPageInner() {
                 ? 'create'        // SKU manual → crear artículo nuevo
                 : 'draft';        // sin nada → ficha borrador desvinculada
 
+        // ── GUARD CAPA 2: UX ──────────────────────────────────────────────────────
+        const tieneDocumento = (inputMode === 'url' ? !!url : false) || files.length > 0;
+        const sinTecnicos =
+            !edited.especificaciones?.trim() &&
+            !edited.descripcion_larga?.trim() &&
+            !edited.uso_recomendado?.trim() &&
+            (!atribCategoria || Object.keys(atribCategoria).length === 0) &&
+            (!atribExtras || Object.keys(atribExtras).length === 0);
+
+        if (mode !== 'draft' && tieneDocumento && sinTecnicos) {
+            setErrorMsg('Adjuntaste un documento pero no hay datos técnicos extraídos. Pulsa "Extraer datos" antes de guardar, o guárdalo como borrador.');
+            setStatus('error');
+            return;
+        }
+
         const primaryFile = files.find(f => f.storageUrl);
 
         try {
