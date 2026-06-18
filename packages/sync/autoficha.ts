@@ -148,7 +148,8 @@ Campos a extraer (usa null si no está disponible):
 - descripcion: descripción técnica corta del producto (máx 500 caracteres)
 - descripcion_larga: descripción técnica completa y extendida del producto (sin límite de caracteres)
     - especificaciones: especificaciones técnicas en texto LIMPIO y legible. Si el documento trae una TABLA de datos (ej. encabezados como "Ctd. embal.", "(A) mm", "(L1) mm" seguidos de sus valores), NO copies los encabezados y valores en bruto ni los concatenes; EMPAREJA cada encabezado/etiqueta con su valor correspondiente por posición y escribe cada par en su propia línea con el formato "- Etiqueta: valor\n- Etiqueta2: valor2". Nunca devuelvas una fila de etiquetas seguida de una fila de números sueltos. Las medidas dimensionales tabuladas van además en atributos_tecnicos como pares clave-valor.
-- ingredientes: composición o ingredientes activos (para lubricantes, químicos, adhesivos, etc.)
+- descripcion_larga: Descripción detallada y comercial del producto. Si no hay una explícita, redacta un párrafo coherente uniendo las características principales y ventajas comerciales. NO uses listas con guiones aquí.
+- especificaciones: especificaciones técnicas en texto LIMPIO y legible. Si el documento es un catálogo (ej. código, descripción, piezas), extrae esos datos como "- Código: valor\n- Descripción: valor". EMPAREJA cada encabezado con su valor.
 - uso_recomendado: instrucciones de uso, aplicación o modo de empleo (campo general, puede solapar con instrucciones_uso)
 - precauciones: advertencias de seguridad y precauciones generales (campo heredado, puede solapar con leyendas_precautorias)
 - informacion_normativa: textos que el fabricante/importador está OBLIGADO a incluir por ley en el etiquetado:
@@ -172,24 +173,26 @@ REGLA CRÍTICA DE SEPARACIÓN:
   - Leyendas de peligro NO van en precauciones generales.
   - Normativa obligatoria NO va en descripción ni atributos técnicos.
   - Instrucciones de uso NO van mezcladas con advertencias ni specs.
-- bullet_points: array de strings con las características/beneficios principales del producto (3-8 puntos)
+- bullet_points: array de strings con las características/beneficios principales o ventajas del producto (3-8 puntos)
 - palabras_clave: array de strings con keywords para búsqueda en marketplaces (5-12 palabras)
 - codigo_universal: EAN, UPC, GTIN o código de barras (13 dígitos preferentemente)
 - codigo_sat: clave SAT de producto (7 dígitos, prefijos 22, 27, 31...)
+- modelo: modelo, código de fabricante, SKU o número de parte (frecuentemente alfanumérico al inicio de tablas).
+- marca: marca del producto si se menciona explícitamente.
 - peso_kg: peso en kilogramos (número decimal)
 - largo_cm: largo en centímetros (número decimal)
 - ancho_cm: ancho en centímetros (número decimal)
 - alto_cm: alto en centímetros (número decimal)
-- materiales: materiales de fabricación (acero, aluminio, plástico ABS, etc.)
+- materiales: materiales de fabricación (acero, aluminio, plástico ABS, Cr-V, etc.)
 - pais_origen: país de fabricación
 - atributos_tecnicos: objeto JSON con TODOS los datos técnicos adicionales que encuentres
   en el documento. DEBE ser un objeto JSON de pares clave-valor, NO texto con guiones.
   Usa keys descriptivas en español con mayúscula inicial (no snake_case).
-  Incluye: normas (NOM, ISO, ASTM), capacidades, voltajes, presiones, rpm, temperaturas,
-  torques, resistencias, certificaciones, viscosidades, caudales, dimensiones clave.
-  Ejemplo correcto: {"Apertura máxima": "1-3/8\"", "Material": "Cromo-Vanadio", "Norma": "NOM-116", "Longitud": "25.4 cm"}
+  Incluye: contenido (piezas, accesorios), acabados, normas, capacidades, voltajes, presiones, rpm,
+  temperaturas, torques, certificaciones, caudales, dimensiones clave.
+  Ejemplo correcto: {"Apertura máxima": "1-3/8\"", "Material": "Cromo-Vanadio", "Contenido": "30 piezas", "Acabado": "Cromado"}
   Ejemplo incorrecto: "- Apertura máxima: 1-3/8\"\n- Material: Cromo-Vanadio"
-  No filtres nada — extrae todo dato técnico que no haya sido capturado arriba.
+  No filtres nada — extrae todo dato técnico, beneficio o característica que no haya sido capturado arriba.
   Si no hay datos adicionales, retorna objeto vacío {}.
 - confidence: tu nivel de confianza en la extracción (0.0 a 1.0)`;
 
