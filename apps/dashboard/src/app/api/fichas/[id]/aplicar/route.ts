@@ -35,16 +35,27 @@ export async function POST(
     const supabase = getSupabaseAdmin();
 
     // Whitelist de campos permitidos
-    const CAMPOS_EDITABLES = new Set([
+    const CAMPOS_TEXTO = new Set([
         'nombre_producto', 'descripcion', 'descripcion_larga', 'fabricante',
         'especificaciones', 'uso_recomendado', 'precauciones', 'ingredientes',
+        'marca', 'modelo', 'variante', 'codigo_universal',
+        'categoria', 'materiales', 'pais_origen',
+        'informacion_normativa', 'instrucciones_uso',
+        'leyendas_precautorias', 'indicaciones_almacenamiento',
+    ]);
+    const CAMPOS_JSONB = new Set([
         'bullet_points', 'palabras_clave', 'atributos_dinamicos',
         'atributos_categoria', 'atributos_extras',
+    ]);
+    const CAMPOS_NUM = new Set([
+        'peso_kg', 'largo_cm', 'ancho_cm', 'alto_cm'
     ]);
 
     const update: Record<string, any> = {};
     for (const [campo, valor] of Object.entries(campos_aceptados)) {
-        if (CAMPOS_EDITABLES.has(campo)) update[campo] = valor;
+        if (CAMPOS_TEXTO.has(campo)) update[campo] = valor ?? null;
+        else if (CAMPOS_JSONB.has(campo)) update[campo] = valor;
+        else if (CAMPOS_NUM.has(campo)) update[campo] = valor === null || valor === '' ? null : Number(valor) || null;
     }
 
     if (Object.keys(update).length === 0) {
