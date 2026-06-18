@@ -1020,7 +1020,7 @@ export default function FichaDetallePage() {
     if (!editMode && ficha.estado === 'publicado') {
         return (
             <FichaPublicadaView 
-                ficha={ficha as any} 
+                ficha={{ ...ficha, imagen_urls: imagenes.map(i => i.url) } as any} 
                 onEdit={startEdit} 
                 onGenerarPDF={generarPDF} 
                 generandoPdf={generandoPdf} 
