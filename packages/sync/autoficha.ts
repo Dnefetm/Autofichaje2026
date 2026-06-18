@@ -64,11 +64,61 @@ async function extractTextFromBuffer(
     }
 
     const client = new DocumentAnalysisClient(endpoint, new AzureKeyCredential(apiKey));
-    const poller  = await client.beginAnalyzeDocument('prebuilt-read', buffer);
+    const poller  = await client.beginAnalyzeDocument('prebuilt-layout', buffer);
     const result  = await poller.pollUntilDone();
 
     if (!result?.content) {
         throw new Error('Azure Document Intelligence no pudo extraer texto del documento.');
+    }
+
+    let extractedText = result.content;
+
+    // Serializar tablas encontradas a Markdown
+    if (result.tables && result.tables.length > 0) {
+        extractedText += '\n\n--- TABLAS ESTRUCTURADAS ---\n\n';
+        result.tables.forEach((table, tableIdx) => {
+            // Etiquetar la tabla usando el contenido de la primera celda (si existe) para dar contexto
+            let headerContext = '';
+            if (table.cells && table.cells.length > 0) {
+                const firstCell = table.cells.find(c => c.rowIndex === 0 && c.columnIndex === 0);
+                if (firstCell && firstCell.content) {
+                    headerContext = ` (Contexto: ${firstCell.content.replace(/\n/g, ' ').trim()})`;
+                }
+            }
+            
+            extractedText += `TABLA ${tableIdx + 1}${headerContext}:\n`;
+            
+            const numRows = table.rowCount;
+            const numCols = table.columnCount;
+            
+            const grid: string[][] = Array.from({ length: numRows }, () => Array(numCols).fill(''));
+            
+            table.cells.forEach(cell => {
+                // Rellenar la celda inicial
+                grid[cell.rowIndex][cell.columnIndex] = cell.content.replace(/\n/g, ' ').trim();
+                
+                // Rellenar spans para no desalinear si una celda abarca múltiples columnas/filas
+                const rSpan = cell.rowSpan || 1;
+                const cSpan = cell.columnSpan || 1;
+                
+                for (let r = 0; r < rSpan; r++) {
+                    for (let c = 0; c < cSpan; c++) {
+                        if (r === 0 && c === 0) continue; // Ya rellenada
+                        if (cell.rowIndex + r < numRows && cell.columnIndex + c < numCols) {
+                            grid[cell.rowIndex + r][cell.columnIndex + c] = grid[cell.rowIndex][cell.columnIndex];
+                        }
+                    }
+                }
+            });
+            
+            grid.forEach((row, rowIdx) => {
+                extractedText += '| ' + row.join(' | ') + ' |\n';
+                if (rowIdx === 0) {
+                    extractedText += '|' + Array(numCols).fill('---').join('|') + '|\n';
+                }
+            });
+            extractedText += '\n';
+        });
     }
 
     // Calcular confianza promedio de páginas
@@ -79,7 +129,7 @@ async function extractTextFromBuffer(
                    Math.max(p.words?.length ?? 1, 1), 0) / pages.length
         : 0.9;
 
-    return { text: result.content, confidence: Math.round(avgConf * 100) / 100 };
+    return { text: extractedText, confidence: Math.round(avgConf * 100) / 100 };
 }
 
 // ─── Paso 2: Estructuración con GPT-4o-mini ───────────────────────────────────
