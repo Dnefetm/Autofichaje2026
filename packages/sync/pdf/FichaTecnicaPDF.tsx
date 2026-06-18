@@ -3,6 +3,8 @@ import { Document, Page, View, Text, Image, StyleSheet, Font } from '@react-pdf/
 
 Font.registerHyphenationCallback((word) => [word]);
 
+import { buildFichaBlocks, has } from './buildFichaBlocks';
+
 export interface FichaPDFData {
 id: string;
 nombre_producto: string | null;
@@ -81,13 +83,14 @@ footerText: { fontSize: 6.5, color: baseColors.muted },
 qr: { width: 40, height: 40 },
 });
 
-const has = (v: any) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0);
-const norm = (v: any) => String(v ?? '').trim().toLowerCase();
-
-export function FichaTecnicaPDF({ ficha, meta }: { ficha: FichaPDFData; meta: FichaPDFMeta }) {
+export const FichaTecnicaPDF = ({ ficha, meta, marca }: { ficha: FichaPDFData, meta: FichaPDFMeta, marca?: string }) => {
 const brand = meta.brandColor || '#C8102E';
 const s = buildStyles(brand);
-const marca = ficha.marca_nombre || ficha.marca || '';
+const brandName = marca || ficha.marca_nombre || ficha.marca || '';
+
+const { atributosRows, dims, mostrarInstrucciones, mostrarPrecauciones, imagenes, tieneCumplimiento } = buildFichaBlocks(ficha, meta.imagenesDataUrl);
+const imagenPrincipal = imagenes[0];
+const imagenesSecundarias = imagenes.slice(1);
 
 const Chip = ({ label, value }: { label: string; value: any }) => has(value) ? (
 <View style={s.chip}>
@@ -135,30 +138,8 @@ return (
 );
 };
 
-const dims: Array<[string, any]> = [
-['Peso (kg)', ficha.peso_kg],
-['Largo (cm)', ficha.largo_cm],
-['Ancho (cm)', ficha.ancho_cm],
-['Alto (cm)', ficha.alto_cm],
-];
-
-const atributosRows: Array<[string, any]> = ficha.atributos_dinamicos
-? Object.entries(ficha.atributos_dinamicos).map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : v])
-: [];
-
-const mostrarInstrucciones = has(ficha.instrucciones_uso) && norm(ficha.instrucciones_uso) !== norm(ficha.uso_recomendado);
-const mostrarPrecauciones = has(ficha.precauciones) && norm(ficha.precauciones) !== norm(ficha.leyendas_precautorias);
-
-const imagenes = (meta.imagenesDataUrl && meta.imagenesDataUrl.length > 0)
-? meta.imagenesDataUrl
-: (ficha.imagen_urls || []).filter(Boolean);
-  const imagenPrincipal = imagenes[0];
-  const imagenesSecundarias = imagenes.slice(1);
-
-const tieneCumplimiento = has(ficha.informacion_normativa) || has(ficha.leyendas_precautorias) || mostrarPrecauciones || has(ficha.indicaciones_almacenamiento);
-
 const fechaGen = new Date(meta.generadoEn).toLocaleDateString('es-MX');
-const footerInfo = `${marca ? marca + ' \u00b7 ' : ''}Ficha tecnica v${meta.version} \u00b7 Generada ${fechaGen}`;
+const footerInfo = `${brandName ? brandName + ' \u00b7 ' : ''}Ficha tecnica v${meta.version} \u00b7 Generada ${fechaGen}`;
 
 return (
 <Document>

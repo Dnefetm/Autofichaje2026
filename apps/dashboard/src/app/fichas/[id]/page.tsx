@@ -11,6 +11,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { PublishPanel } from '@/components/publish-panel';
 import { PricesSection } from '@/components/prices-section';
+import { FichaPublicadaView } from './FichaPublicadaView';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -1015,6 +1016,17 @@ export default function FichaDetallePage() {
     const completitudColor = completitud >= 80 ? 'bg-emerald-500' : completitud >= 50 ? 'bg-amber-400' : 'bg-rose-400';
 
     // ─── JSX ─────────────────────────────────────────────────────────────────
+
+    if (!editMode && ficha.estado === 'publicado') {
+        return (
+            <FichaPublicadaView 
+                ficha={ficha as any} 
+                onEdit={startEdit} 
+                onGenerarPDF={generarPDF} 
+                generandoPdf={generandoPdf} 
+            />
+        );
+    }
 
     return (
         <div className="max-w-5xl mx-auto space-y-5 pb-12">
