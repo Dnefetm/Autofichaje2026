@@ -30,9 +30,10 @@ async function toPdfDataUrl(url: string): Promise<string | null> {
     const res = await fetch(url);
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
-    // Redimensionar para evitar que react-pdf colapse con data URIs gigantes (ej. imágenes de 2000x2000)
+    // Redimensionar y asegurar fondo blanco antes de convertir a JPEG para que las imágenes transparentes no queden negras
     const jpg = await sharp(buf)
       .resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: { r: 255, g: 255, b: 255 } })
       .jpeg({ quality: 85 })
       .toBuffer();
     return `data:image/jpeg;base64,${jpg.toString('base64')}`;
