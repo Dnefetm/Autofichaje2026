@@ -200,10 +200,24 @@ export async function POST(
         return NextResponse.json({ error: err?.message || 'Error al obtener el documento' }, { status: 500 });
     }
 
-    // 3. Storage (auditíria)
+    // 3. Storage (auditíria) y registro en fuentes_documento
+    let fuenteDocId: string | undefined;
     try {
         storagePath = `enriquecimientos/${fichaId}/${Date.now()}_${fileName}`;
         await supabase.storage.from('documentos-fuente').upload(storagePath, buffer, { contentType: mimeType, upsert: false });
+        
+        // Registrar en fuentes_documento para cumplir el constraint NOT NULL en ficha_extracciones
+        const { data: fd } = await supabase
+            .from('fuentes_documento')
+            .insert({
+                nombre_archivo: fileName,
+                url_storage: storagePath,
+                tipo_archivo: mimeType,
+                procesado: true
+            })
+            .select('id')
+            .single();
+        if (fd) fuenteDocId = fd.id;
     } catch { storagePath = undefined; }
 
     // 4. OCR + LLM — con hint de campos si el operador los especificó
@@ -225,15 +239,27 @@ export async function POST(
     }
 
     // 5. Guardar extracción como pendiente
-    const { data: extraccion } = await supabase
+    if (!fuenteDocId) {
+        // Fallback: si falló la subida/inserción a fuentes_documento, creamos un dummy para no romper la FK
+        const { data: fdFallback } = await supabase
+            .from('fuentes_documento')
+            .insert({ nombre_archivo: fileName, tipo_archivo: mimeType, procesado: true })
+            .select('id').single();
+        fuenteDocId = fdFallback?.id;
+    }
+
+    const { data: extraccion, error: extErr } = await supabase
         .from('ficha_extracciones')
         .insert({
             ficha_tecnica_id: fichaId,
+            fuente_documento_id: fuenteDocId,
             extraccion_cruda: { ...extracted, rawText: extracted.rawText?.slice(0, 10_000) },
             aplicada_a_ficha: false,
         })
         .select('id')
         .single();
+        
+    if (extErr) console.error('[Enriquecer] Error guardando extracción:', extErr);
 
     // 6. Clasificar TODOS los campos — filtrar por campos_solicitados si vienen
     // IMPORTANTE: ninguno se auto-aplica. Todo va al modal para aprobación del operador.

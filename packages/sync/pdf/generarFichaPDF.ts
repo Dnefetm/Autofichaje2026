@@ -30,9 +30,14 @@ async function toPdfDataUrl(url: string): Promise<string | null> {
     const res = await fetch(url);
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
-    const png = await sharp(buf).png().toBuffer();
-    return `data:image/png;base64,${png.toString('base64')}`;
-  } catch {
+    // Redimensionar para evitar que react-pdf colapse con data URIs gigantes (ej. imágenes de 2000x2000)
+    const jpg = await sharp(buf)
+      .resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    return `data:image/jpeg;base64,${jpg.toString('base64')}`;
+  } catch (err) {
+    console.error('[toPdfDataUrl] Error convirtiendo imagen:', url, err);
     return null;
   }
 }
@@ -55,7 +60,7 @@ export async function generarFichaPDF(fichaId: string, baseUrl: string) {
     .from('ficha_pdfs')
     .select('id', { count: 'exact', head: true })
     .eq('ficha_tecnica_id', fichaId);
-  const version = (count ?? 0) || 1;
+  const version = (count ?? 0) + 1;
 
   // 3. QR a la URL pública
   const urlPublica = `${baseUrl}/fichas/${fichaId}`;

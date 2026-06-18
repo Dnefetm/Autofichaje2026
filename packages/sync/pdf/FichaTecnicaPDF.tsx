@@ -148,22 +148,26 @@ return (
 <View style={s.headerLeft}>
 {marca ? <Text style={s.brandName}>{marca}</Text> : null}
 <Text style={s.title}>{ficha.nombre_producto || 'Producto'}</Text>
-{has(ficha.descripcion) ? <Text style={s.subtitle}>{ficha.descripcion}</Text> : null}
+{has(ficha.modelo) || has(ficha.codigo_universal) ? (
+  <Text style={s.subtitle}>
+    {[
+      ficha.modelo ? `Modelo: ${ficha.modelo}` : '',
+      ficha.codigo_universal ? `SKU: ${ficha.codigo_universal}` : ''
+    ].filter(Boolean).join('  |  ')}
+  </Text>
+) : null}
 </View>
 {meta.logoDataUrl ? <Image style={s.logo} src={meta.logoDataUrl} /> : null}
 </View>
-        {imagenPrincipal ? (
-          <View style={s.heroWrap}>
-            <Image style={s.heroImg} src={imagenPrincipal} />
-            <View style={s.heroInfo}>
-              {marca ? <Text style={s.brandName}>{marca}</Text> : null}
-              <Text style={s.title}>{ficha.nombre_producto || 'Producto'}</Text>
-              {has(ficha.modelo) ? <Text style={s.subtitle}>Modelo: {ficha.modelo}</Text> : null}
-              {has(ficha.codigo_universal) ? <Text style={s.subtitle}>SKU: {ficha.codigo_universal}</Text> : null}
-              {has(ficha.descripcion) ? <Text style={s.body}>{ficha.descripcion}</Text> : null}
-            </View>
-          </View>
-        ) : null}
+
+{imagenPrincipal || has(ficha.descripcion) ? (
+  <View style={s.heroWrap}>
+    {imagenPrincipal ? <Image style={s.heroImg} src={imagenPrincipal} /> : null}
+    <View style={s.heroInfo}>
+      {has(ficha.descripcion) ? <Text style={s.body}>{ficha.descripcion}</Text> : null}
+    </View>
+  </View>
+) : null}
 
 <View style={s.idRow}>
 <Chip label="Modelo" value={ficha.modelo} />

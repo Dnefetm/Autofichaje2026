@@ -279,8 +279,13 @@ export default function FichaDetallePage() {
         try {
             const res = await fetch(`/api/fichas/${ficha.id}/pdf`, { method: 'POST' });
             const data = await res.json();
-            if (data.ok && data.url) window.open(data.url, '_blank');
-            else alert('Error al generar PDF: ' + (data.error || 'Desconocido'));
+            if (data.ok && data.url) {
+                const urlObj = new URL(data.url);
+                urlObj.searchParams.set('t', Date.now().toString());
+                window.open(urlObj.toString(), '_blank');
+            } else {
+                alert('Error al generar PDF: ' + (data.error || 'Desconocido'));
+            }
         } catch (e: any) {
             alert('Error al generar PDF: ' + e.message);
         } finally {
@@ -950,15 +955,29 @@ export default function FichaDetallePage() {
                     }
                 }
                 // Atributos en conflicto: honra la selección por clave
+                let hasConflictChanges = false;
                 if (d.keys_conflicto) {
                     for (const [k, vals] of Object.entries(d.keys_conflicto)) {
                         const conflictSel = seleccion[`${d.campo}::conflict::${k}`];
-                        base[k] = conflictSel === 'nuevo' ? (vals as any).nuevo : (vals as any).actual;
+                        const picked = conflictSel === 'nuevo' ? (vals as any).nuevo : (vals as any).actual;
+                        base[k] = picked;
+                        if (picked !== (vals as any).actual) hasConflictChanges = true;
                     }
                 }
-                if (Object.keys(base).length > Object.keys(d.valor_actual ?? {}).length ||
-                    Object.keys(d.keys_conflicto ?? {}).length > 0) {
+                
+                // Determinar si realmente hubo cambios (nuevos keys aceptados o conflictos resueltos a favor del nuevo)
+                let hasNewKeysChecked = false;
+                if (d.keys_nuevas) {
+                    hasNewKeysChecked = Object.keys(d.keys_nuevas).some(k => {
+                        const checkKey = `${d.campo}::${k}`;
+                        return listChecks[checkKey] !== undefined ? listChecks[checkKey].has('yes') : true;
+                    });
+                }
+
+                if (hasNewKeysChecked || hasConflictChanges) {
                     campos_aceptados[d.campo] = base;
+                } else if (Object.keys(base).length > Object.keys(d.valor_actual ?? {}).length) {
+                    campos_aceptados[d.campo] = base; // Fallback por si acaso
                 }
             } else {
                 if (sel === 'nuevo')    campos_aceptados[d.campo] = d.valor_nuevo;
