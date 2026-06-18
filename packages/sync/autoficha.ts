@@ -188,9 +188,9 @@ REGLA CRÍTICA DE SEPARACIÓN:
 - atributos_tecnicos: objeto JSON con TODOS los datos técnicos adicionales que encuentres
   en el documento. DEBE ser un objeto JSON de pares clave-valor, NO texto con guiones.
   Usa keys descriptivas en español con mayúscula inicial (no snake_case).
-  Incluye: contenido (piezas, accesorios), acabados, normas, capacidades, voltajes, presiones, rpm,
+  Incluye: contenido exacto del juego (lista de piezas y accesorios), TODAS las medidas de dados o herramientas incluidas (métricas y pulgadas), acabados, normas, capacidades, voltajes, presiones, rpm,
   temperaturas, torques, certificaciones, caudales, dimensiones clave.
-  Ejemplo correcto: {"Apertura máxima": "1-3/8\"", "Material": "Cromo-Vanadio", "Contenido": "30 piezas", "Acabado": "Cromado"}
+  Ejemplo correcto: {"Apertura máxima": "1-3/8\"", "Material": "Cromo-Vanadio", "Dados métricos": "8mm a 21mm", "Dados pulgadas": "5/16\" a 1\"", "Accesorios": "Matraca, 2 extensiones, nudo universal", "Acabado": "Cromado"}
   Ejemplo incorrecto: "- Apertura máxima: 1-3/8\"\n- Material: Cromo-Vanadio"
   No filtres nada — extrae todo dato técnico, beneficio o característica que no haya sido capturado arriba.
   Si no hay datos adicionales, retorna objeto vacío {}.
