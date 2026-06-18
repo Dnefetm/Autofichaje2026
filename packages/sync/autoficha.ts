@@ -123,11 +123,12 @@ async function extractTextFromBuffer(
 
     // Calcular confianza promedio de páginas
     const pages = result.pages ?? [];
-    const avgConf = pages.length > 0
+    const textoReal = extractedText?.trim() ?? '';
+    const avgConf = (textoReal.length >= 50 && pages.length > 0)
         ? pages.reduce((sum: number, p: any) =>
             sum + (p.words?.reduce((ws: number, w: any) => ws + (w.confidence ?? 1), 0) ?? 0) /
                    Math.max(p.words?.length ?? 1, 1), 0) / pages.length
-        : 0.9;
+        : 0;
 
     return { text: extractedText, confidence: Math.round(avgConf * 100) / 100 };
 }
@@ -385,12 +386,13 @@ export async function processProductDocument(
     camposHint?: string[],  // Campos a extraer (undefined = todos)
     productoObjetivo?: string, // Texto libre: "extrae solo el producto WÜRTH 8890402"
 ): Promise<AutofichaResult> {
-    const { text: rawText } = await extractTextFromBuffer(fileBuffer, mimeType);
+    const { text: rawText, confidence } = await extractTextFromBuffer(fileBuffer, mimeType);
 
-    if (!rawText || rawText.trim().length < 50) {
+    // GUARDA DURA: OCR vacío = error, nunca extracción muda con confidence alto
+    if (!rawText || rawText.trim().length < 50 || confidence === 0) {
         throw new Error(
-            'El documento no contiene suficiente texto legible. ' +
-            'Verifica que el PDF no esté protegido o que la imagen tenga buena resolución.'
+            'OCR no extrajo texto del documento (posible PDF de solo-imagen, escaneo de baja calidad o archivo corrupto). ' +
+            'No se guardó ninguna extracción para evitar fichas mudas.'
         );
     }
 
