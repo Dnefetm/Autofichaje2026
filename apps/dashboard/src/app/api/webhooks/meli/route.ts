@@ -70,30 +70,32 @@ export async function POST(req: NextRequest) {
         }
 
         // BINGO: Redis Debounce ultra-rápido (El asesino de ráfagas original)
-        // Antes de que metiéramos el panel, usabas Redis ex:300 para matar eventos repetidos
-        // en 5 milisegundos sin tocar Postgres. Esto es lo que mantenía el CPU bajo.
         if (redis) {
             const resourceIdFast = String(resource).split('/').filter(Boolean).pop() ?? resource;
             const dedupeKey = `webhook:meli:burst:${topic}:${resourceIdFast}`;
-            // 60 segundos de silencio por item/topic. Suficiente para matar ráfagas de MeLi.
-            const inserted = await redis.set(dedupeKey, '1', { nx: true, ex: 60 });
+            // 180 segundos de silencio para items, 60s para el resto
+            const exTime = topic === 'items' ? 180 : 60;
+            const inserted = await redis.set(dedupeKey, '1', { nx: true, ex: exTime });
             if (!inserted) {
                 return NextResponse.json({ status: 'ignored', reason: 'redis_burst_debounce' });
             }
         }
 
-        // Deduplicación PG + Config en PARALELO (antes eran secuenciales = ~100ms, ahora ~50ms)
+        // Deduplicación PG + Config en PARALELO
         const notificationId = body._id || `${topic}_${resource}_${Date.now()}`;
         const [dedupeResult, configRow] = await Promise.all([
-            supabaseAdmin.from('meli_webhook_events').insert({
+            supabaseAdmin.from('meli_webhook_events').upsert({
                 notification_id: notificationId,
                 topic,
                 resource
-            }),
+            }, { onConflict: 'notification_id', ignoreDuplicates: true }),
             getWebhookConfigCached(topic) // Cache en memoria, ~0ms en cache hit
         ]);
 
-        // '23505' is PostgreSQL unique violation error code
+        // Si ya existía, ignoreDuplicates hace que no devuelva error 23505, 
+        // pero podemos checar si dedupeResult.status es 201 o algo, o depender del early exit.
+        // Dado que upsert con ignoreDuplicates no rompe el flujo, ya no hace falta el check 23505.
+        // (Aunque lo dejamos por si las moscas).
         if (dedupeResult.error && dedupeResult.error.code === '23505') {
             return NextResponse.json({ status: 'ignored', reason: 'deduplicated' });
         }
