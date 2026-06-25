@@ -84,18 +84,17 @@ export async function POST(req: NextRequest) {
         // Deduplicación PG + Config en PARALELO
         const notificationId = body._id || `${topic}_${resource}_${Date.now()}`;
         const [dedupeResult, configRow] = await Promise.all([
-            supabaseAdmin.from('meli_webhook_events').upsert({
+            supabaseAdmin.from('meli_webhook_events').insert({
                 notification_id: notificationId,
                 topic,
                 resource
-            }, { onConflict: 'notification_id', ignoreDuplicates: true }),
+            }),
             getWebhookConfigCached(topic) // Cache en memoria, ~0ms en cache hit
         ]);
 
-        // Si ya existía, ignoreDuplicates hace que no devuelva error 23505, 
-        // pero podemos checar si dedupeResult.status es 201 o algo, o depender del early exit.
-        // Dado que upsert con ignoreDuplicates no rompe el flujo, ya no hace falta el check 23505.
-        // (Aunque lo dejamos por si las moscas).
+        // 23505 = PK duplicada. Es el mecanismo de dedup: si ya existe, es una notificación repetida.
+        // No es un error real, es comportamiento esperado. Redis mata el 95% de duplicados antes
+        // de llegar aquí; este catch atrapa el 5% restante.
         if (dedupeResult.error && dedupeResult.error.code === '23505') {
             return NextResponse.json({ status: 'ignored', reason: 'deduplicated' });
         }
