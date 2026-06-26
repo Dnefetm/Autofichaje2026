@@ -73,8 +73,8 @@ export async function POST(req: NextRequest) {
         if (redis) {
             const resourceIdFast = String(resource).split('/').filter(Boolean).pop() ?? resource;
             const dedupeKey = `webhook:meli:burst:${topic}:${resourceIdFast}`;
-            // 180 segundos de silencio para items, 60s para el resto
-            const exTime = topic === 'items' ? 180 : 60;
+            // 600 segundos (10 min) de silencio para items, 60s para el resto
+            const exTime = topic === 'items' ? 600 : 60;
             const inserted = await redis.set(dedupeKey, '1', { nx: true, ex: exTime });
             if (!inserted) {
                 return NextResponse.json({ status: 'ignored', reason: 'redis_burst_debounce' });
