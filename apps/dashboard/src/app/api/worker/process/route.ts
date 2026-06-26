@@ -1,3 +1,8 @@
+// =============================================================================
+// WORKER OFICIAL Y UNICO (Vercel). Esta es la fuente de verdad para los jobs.
+// El worker standalone de Render/Docker (apps/worker) fue RETIRADO y NO se
+// reactivara. Ver apps/worker/DEPRECATED.md. Toda la logica de jobs vive aqui.
+// =============================================================================
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
