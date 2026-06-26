@@ -1,3 +1,20 @@
+/**
+ * ============================================================================
+ * [DEPRECADO - NO USAR] Procesador de jobs del worker standalone (Render).
+ * ============================================================================
+ *
+ * Este modulo (startProcessor / processJob) YA NO SE EJECUTA. El worker de
+ * Render fue retirado y su entry point (index.ts) sale de inmediato.
+ *
+ * La logica de jobs vigente vive EXCLUSIVAMENTE en Vercel:
+ *     apps/dashboard/src/app/api/worker/process/route.ts
+ *
+ * NO reactivar ni importar este archivo. Se conserva solo como referencia
+ * historica. Si se necesita cambiar el comportamiento de los jobs, editar
+ * el route.ts de Vercel, no este archivo.
+ * ============================================================================
+ */
+
 import { supabase } from '@gestor/shared/lib/supabase';
 import logger from '@gestor/shared/lib/logger';
 import { MeliAdapter } from '@gestor/adapters/meli';
