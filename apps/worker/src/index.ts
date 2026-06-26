@@ -1,51 +1,40 @@
-import { startProcessor } from './processor';
-import { runReconciliation } from '@gestor/sync/reconciliation';
-import logger from '@gestor/shared/lib/logger';
-import dotenv from 'dotenv';
-import path from 'path';
-import http from 'http';
+/**
+ * ============================================================================
+ * [DEPRECADO - NO USAR] Worker standalone (Render / Docker)
+ * ============================================================================
+ *
+ * ESTE WORKER YA NO SE USA Y NO DEBE REACTIVARSE.
+ *
+ * Toda la logica de procesamiento de jobs (sync_item, sync_price,
+ * sync_stock, sync_stock_mapped, process_sale, sync_account_catalog, etc.)
+ * vive ahora EXCLUSIVAMENTE en el endpoint de Vercel:
+ *
+ *     apps/dashboard/src/app/api/worker/process/route.ts
+ *
+ * invocado cada 1 minuto por cron-job.org (safety-net) y por dispatchWorker()
+ * de forma inmediata para ordenes.
+ *
+ * Razones por las que este worker fue retirado y NO se volvera a usar:
+ *   1. Corria en Render Free Tier, que apaga el servicio por inactividad
+ *      y obligaba a un hack de health-check HTTP para mantenerlo vivo.
+ *   2. Quedo con errores de compilacion sin resolver (ver ts-errors.txt,
+ *      ts_errors.txt, tsc.txt en apps/worker/). NO es desplegable tal cual.
+ *   3. Mantener la logica de jobs en dos lugares (Render + Vercel) duplicaba
+ *      tokens de MeLi y causaba doble procesamiento / doble conteo.
+ *   4. La fuente unica de verdad para jobs es ahora Vercel cron.
+ *
+ * Si en el futuro se necesita sacar la carga de Vercel, NO se revive este
+ * codigo: se disena una solucion nueva sobre la version vigente del route.ts.
+ *
+ * Este archivo se conserva solo como referencia historica. Su main() no
+ * arranca ningun procesador ni servidor: sale de inmediato.
+ * ============================================================================
+ */
 
-// Cargar variables de entorno (Solo local)
-if (process.env.NODE_ENV !== 'production') {
-    dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
-}
+console.warn(
+  '[apps/worker] DEPRECADO: este worker no se usa. ' +
+  'Los jobs se procesan en Vercel (apps/dashboard/src/app/api/worker/process). ' +
+  'Saliendo sin hacer nada.'
+);
 
-const RECONCILIATION_INTERVAL = 30 * 60 * 1000; // 30 minutos
-
-async function main() {
-    logger.info('--- GESTOR WORKER ENGINE START ---');
-
-    // **RENDER HEALTH CHECK WORKAROUND**
-    // Render free tier requiere que sea un servicio 'web' y escuche un puerto.
-    const port = process.env.PORT || 8080;
-    http.createServer((req, res) => {
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Autofichaje Worker is alive and running 24/7');
-    }).listen(port, () => {
-        logger.info(`Health check web server is listening on port ${port} to satisfy Render Free Tier requirements.`);
-    });
-
-    // Manejo de señales para apagado graceful
-    process.on('SIGTERM', () => {
-        logger.info('Recibida señal SIGTERM, apagando...');
-        process.exit(0);
-    });
-
-    process.on('SIGINT', () => {
-        logger.info('Recibida señal SIGINT, apagando...');
-        process.exit(0);
-    });
-
-    // ============================================================
-    // RENDER WORKER DESACTIVADO
-    // Toda la lógica de jobs migró a Vercel cron (/api/worker/process)
-    // ejecutado cada 1 min por cron-job.org
-    // Este proceso solo mantiene el health check para Render.
-    // ============================================================
-    logger.info('Worker de Render DESACTIVADO. Jobs procesados por Vercel cron (/api/worker/process).');
-}
-
-main().catch((err) => {
-    logger.fatal({ err }, 'Fallo crítico en el hilo principal');
-    process.exit(1);
-});
+process.exit(0);
