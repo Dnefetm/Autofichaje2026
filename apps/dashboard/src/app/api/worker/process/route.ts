@@ -241,7 +241,10 @@ async function processOneJob(job: any, meli: MeliAdapter) {
         }
 
         // Marcar completado
-        await supabaseAdmin.from('jobs').update({ status: 'completed' }).eq('id', job.id);
+        await supabaseAdmin.from('jobs').update({
+            status: 'completed',
+            processed_at: new Date().toISOString()
+        }).eq('id', job.id);
     } catch (error: any) {
         const errMessage = (error.message || JSON.stringify(error)).toLowerCase();
 
@@ -253,6 +256,7 @@ async function processOneJob(job: any, meli: MeliAdapter) {
             await supabaseAdmin.from('jobs').update({
                 status: 'failed',
                 attempts: (job.attempts || 0) + 1,
+                processed_at: new Date().toISOString(),
                 error_log: `AUTH ERROR (requiere re-autenticación en /settings): ${error.message}`
             }).eq('id', job.id);
             return;
@@ -263,6 +267,7 @@ async function processOneJob(job: any, meli: MeliAdapter) {
             await supabaseAdmin.from('jobs').update({
                 status: 'failed',
                 attempts: (job.attempts || 0) + 1,
+                processed_at: new Date().toISOString(),
                 error_log: `ITEM NO MODIFICABLE (fulfillment/catálogo): ${error.message}`
             }).eq('id', job.id);
             return;
@@ -277,6 +282,7 @@ async function processOneJob(job: any, meli: MeliAdapter) {
             if (attempts >= maxRateLimitRetries) {
                 await supabaseAdmin.from('jobs').update({
                     status: 'failed', attempts,
+                    processed_at: new Date().toISOString(),
                     error_log: `Rate Limit persistente tras ${attempts} intentos. Abortado.`
                 }).eq('id', job.id);
                 return;
@@ -284,6 +290,7 @@ async function processOneJob(job: any, meli: MeliAdapter) {
             const backoffMs = Math.min(attempts * 2 * 60 * 1000, 15 * 60 * 1000);
             await supabaseAdmin.from('jobs').update({
                 status: 'pending', attempts,
+                processed_at: new Date().toISOString(),
                 scheduled_at: new Date(Date.now() + backoffMs).toISOString(),
                 error_log: `Rate Limit. Reintento ${attempts}/${maxRateLimitRetries} en ${Math.round(backoffMs/60000)}min.`
             }).eq('id', job.id);
@@ -296,6 +303,7 @@ async function processOneJob(job: any, meli: MeliAdapter) {
         await supabaseAdmin.from('jobs').update({
             status: isFinal ? 'failed' : 'pending',
             attempts: nextAttempt,
+            processed_at: new Date().toISOString(),
             error_log: error.message || errMessage,
             scheduled_at: new Date(Date.now() + Math.pow(2, nextAttempt) * 1000).toISOString()
         }).eq('id', job.id);
