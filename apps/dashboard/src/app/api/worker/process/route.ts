@@ -15,7 +15,7 @@ import logger from '@/lib/logger';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Vercel Hobby permite hasta 60s
 
-const BATCH_SIZE = 25; // Aumentado para procesar más jobs por cron y ahorrar CPU
+const BATCH_SIZE = 5; // Aumentado para procesar más jobs por cron y ahorrar CPU
 
 /**
  * Worker Cron Endpoint — Reemplaza el polling de Render.
@@ -116,8 +116,8 @@ export async function GET(req: NextRequest) {
         for (const job of jobs) {
             // PROTECCIÓN CONTRA TIMEOUT DE VERCEL (60s)
             // Si nos acercamos a los 50 segundos, cortamos el batch limpiamente
-            if (Date.now() - startTimeMs > 50000) {
-                results.errors.push('Vercel timeout approaching, aborting batch early to prevent zombie jobs');
+            if (Date.now() - startTimeMs > 25000) {
+                results.errors.push('Cron timeout approaching, aborting batch early to prevent zombie jobs');
                 break;
             }
 
