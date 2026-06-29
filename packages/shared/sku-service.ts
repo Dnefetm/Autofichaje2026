@@ -15,8 +15,8 @@ export class SKU_Service {
             .eq('bundle_sku', sku);
 
         if (bundleError) {
-            logger.error({ sku, error: bundleError }, 'Error al consultar componentes del bundle');
-            throw bundleError;
+        logger.warn({ sku, error: bundleError }, 'Bundles pausados o tabla bundle_components ausente; se trata el SKU como producto simple');
+            // No se lanza error: se continua al calculo de producto simple (inventory_snapshot)
         }
 
         if (components && components.length > 0) {
