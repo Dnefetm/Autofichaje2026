@@ -15,7 +15,7 @@ import logger from '@/lib/logger';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Vercel Hobby permite hasta 60s
 
-const BATCH_SIZE = 3; // Reducido drásticamente para caber en 30s de cron-job.org
+const BATCH_SIZE = 10; // Subido de 3 a 10: cada invocación procesa ~6s/3jobs; con 10 jobs ~20s, holgado dentro del corte de 25s y maxDuration 60s
 
 /**
  * Worker Cron Endpoint — Reemplaza el polling de Render.
