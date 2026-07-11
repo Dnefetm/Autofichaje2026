@@ -3,6 +3,8 @@
 > Estado: PENDIENTE
 > Fecha de anotacion: 2026-07-03
 > Motivo: El activador fue ELIMINADO (no pausado) el 2026-07-03 para detener los correos de fallo "Exceeded maximum execution time" mientras el backend de Supabase esta caido. Apps Script no permite "pausar" un trigger; la unica opcion de la UI es "Borrar activador", por eso se elimino. Hay que recrearlo cuando la DB vuelva a estar Healthy.
+> ACTUALIZACION 2026-07-11 (evidencia real): SIGUE PENDIENTE Y BLOQUEADA. `SELECT 1;` responde OK (ts 21:30 UTC) pero el incidente de plataforma Supabase "Project status change failures in multiple regions" continua ABIERTO (ultima actualizacion Jul 10 18:41 UTC) y el banner de incidente sigue en el dashboard. NO recrear el trigger `sincInventarioCompleto` hasta que el incidente este RESUELTO y la DB confirme Healthy sostenido; de lo contrario volveran los correos "Exceeded maximum execution time".
+
 
 ## Contexto
 - Proyecto Apps Script: "Exportacion de Inventario"
