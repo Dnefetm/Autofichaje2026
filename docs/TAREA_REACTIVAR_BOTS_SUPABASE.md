@@ -5,6 +5,11 @@
 **Fecha de creacion:** 2026-07-03
 **Prioridad:** Alta (sincronizacion Sheets -> Supabase actualmente pausada)
 
+> ACTUALIZACION 2026-07-11 (evidencia real):
+> - SIGUE PENDIENTE Y BLOQUEADA. `SELECT 1;` en SQL Editor responde OK (ts 2026-07-11 21:30 UTC), pero el incidente de plataforma de Supabase "Project status change failures in multiple regions" continua ABIERTO/en monitoreo (ultima actualizacion Jul 10 18:41 UTC). El banner "We are investigating a technical issue" sigue activo en el dashboard.
+> - Regla: NO reactivar los 6 bots hasta que el incidente este RESUELTO y el API Gateway confirme 2xx sostenido (no solo un SELECT puntual). Reactivar durante el incidente puede volver a colgar el guardado.
+> - Backfill de la ventana pausada pendiente al momento de reactivar (RPC idempotente, no duplica).
+
 ---
 
 ## Contexto
