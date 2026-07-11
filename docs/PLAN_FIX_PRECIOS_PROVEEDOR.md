@@ -1,6 +1,12 @@
 # Plan de Resolucion - Logica de Precios de Proveedor (Importacion Excel)
 
 **Fecha de diagnostico:** 2026-06-29  
+> ACTUALIZACION 2026-07-11 (validado en Supabase, evidencia real, no asumida):
+> - T1/T2/T3 EFECTIVAMENTE RESUELTOS. La importacion testigo 33a6ab00-... ahora esta en estado `completado` con 10,244 costos_articulo poblados (antes: 0 en staging). Otra grande fb8a73c8-... `completado` con 96,221 costos. El desatasco de importaciones grandes esta confirmado en produccion.
+> - PENDIENTE RESIDUAL (nueva sub-tarea, no bug de proceso): 50,792 costos_pendientes.resuelto=false. Desglose por motivo: `sin_match`=50,448 (codigo_excel presente pero sin alias/articulo asociado -> backlog de catalogo, requiere alta de alias) y `sin_alias_ni_articulo`=344. NO es fallo de timeout ni de pipeline.
+> - T5 (higiene): importaciones canceladas 40501a6f-... y ce163f37-... (15,343 filas c/u) sin residuos (0 costos, 0 pendientes). Falta confirmar staging huerfano.
+> - BUG NUEVO DETECTADO (21000): ver seccion 5.
+
 **Estado:** Causa raiz identificada - Pendiente de implementacion  
 **Proveedor afectado (caso testigo):** Urrea Herramientas  
 **Importacion congelada:** `33a6ab00-c7c7-4451-baec-dec99fff6ef9` (15,360 filas)
@@ -83,3 +89,21 @@ Con 15K filas excede 180s -> **rollback completo** -> todo queda en staging y el
 | Fecha | Tarea | Accion | Resultado medido |
 | --- | --- | --- | --- |
 |  |  |  |  |
+
+
+---
+
+## 5. BUG 21000 en fn_consolidar_matching_decisiones (detectado 2026-07-11)
+
+**Sintoma:** `ON CONFLICT DO UPDATE command cannot affect row a second time` (SQLSTATE 21000) al confirmar/consolidar decisiones de matching (diff RPC).
+
+**Causa raiz:** en `fn_consolidar_matching_decisiones` hay dos `INSERT ... SELECT ... ON CONFLICT ... DO UPDATE` (aprendizaje de alias): uno con clave `(proveedor, codigo_excel)` y otro con `(proveedor, marca_excel, modelo_excel)`. Si el SELECT devuelve dos o mas filas confirmadas con la MISMA clave de conflicto, el upsert intenta afectar la misma fila destino dos veces en una sola sentencia -> 21000.
+
+**Estado actual (medido):** 0 duplicados en ambos bloques con los datos confirmados de hoy -> el error NO se dispara ahora, pero es una VULNERABILIDAD LATENTE: cualquier importacion futura que confirme dos filas con el mismo codigo (o misma marca+modelo sin codigo) volvera a tronar.
+
+**Fix propuesto (atomico, riesgo bajo):** deduplicar el SELECT con `DISTINCT ON (clave)` + `ORDER BY` determinista antes del upsert, en ambos INSERT. Sin cambio de esquema ni de firma.
+
+- [ ] Aplicar `CREATE OR REPLACE FUNCTION fn_consolidar_matching_decisiones` con DISTINCT ON en ambos bloques.
+- [ ] Validar en transaccion con ROLLBACK inyectando duplicados de prueba.
+- [ ] Confirmar firma real sin cambios (pg_get_functiondef).
+- **Validacion / resultado real:** ___________
