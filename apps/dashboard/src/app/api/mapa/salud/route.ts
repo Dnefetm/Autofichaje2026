@@ -28,3 +28,23 @@ const msg = e instanceof Error ? e.message : 'error';
 return NextResponse.json({ ok: false, error: msg }, { status: 500 });
 }
 }
+
+
+const CAMPOS_EDITABLES = ['nombre', 'etapa', 'descripcion', 'proposito', 'entradas', 'salidas', 'responsable', 'orden'] as const;
+export async function PATCH(req: Request) {
+try {
+const body = await req.json();
+const clave = typeof body?.clave === 'string' ? body.clave.trim() : '';
+if (!clave) return NextResponse.json({ ok: false, error: 'falta clave' }, { status: 400 });
+const updates: Record<string, unknown> = {};
+for (const c of CAMPOS_EDITABLES) { if (c in (body ?? {})) updates[c] = body[c]; }
+if (Object.keys(updates).length === 0) return NextResponse.json({ ok: false, error: 'sin campos a actualizar' }, { status: 400 });
+const { data, error } = await supabaseAdmin.from('mapa_diccionario').update(updates).eq('clave', clave).select();
+if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+if (!data || data.length === 0) return NextResponse.json({ ok: false, error: 'clave no encontrada' }, { status: 404 });
+return NextResponse.json({ ok: true, actualizado: data[0] });
+} catch (e: unknown) {
+const msg = e instanceof Error ? e.message : 'error';
+return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+}
+}
