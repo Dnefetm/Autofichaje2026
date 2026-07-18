@@ -20,9 +20,9 @@ async function main() {
     // Obtener los eventos de las últimas 2 horas, agrupados por intervalos de 15 min
     const { data, error } = await supabase
         .from('meli_webhook_events')
-        .select('created_at')
-        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
-        .order('created_at', { ascending: false });
+        .select('received_at')
+        .gte('received_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
+        .order('received_at', { ascending: false });
 
     if (error) {
         console.error("Error al obtener eventos:", error.message);
@@ -34,7 +34,7 @@ async function main() {
     const now = new Date();
     
     for (const evt of data || []) {
-        const d = new Date(evt.created_at);
+        const d = new Date(evt.received_at);
         const minutesAgo = Math.floor((now.getTime() - d.getTime()) / 60000);
         // Agrupar en buckets de 15 mins (0-15, 15-30, etc.)
         const bucket = Math.floor(minutesAgo / 15) * 15;
