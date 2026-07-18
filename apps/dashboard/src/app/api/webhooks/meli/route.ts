@@ -84,12 +84,11 @@ export async function POST(req: NextRequest) {
         // Deduplicación PG + Config en PARALELO
         const notificationId = body._id || `${topic}_${resource}_${Date.now()}`;
         const [dedupeResult, configRow] = await Promise.all([
-            supabaseAdmin.from('meli_webhook_events').insert({
+            supabaseAdmin.from('meli_webhook_events').upsert({
                 notification_id: notificationId,
                 topic,
                 resource
-            }),
-            getWebhookConfigCached(topic) // Cache en memoria, ~0ms en cache hit
+      }, { onConflict: 'notification_id', ignoreDuplicates: true }),            getWebhookConfigCached(topic) // Cache en memoria, ~0ms en cache hit
         ]);
 
         // 23505 = PK duplicada. Es el mecanismo de dedup: si ya existe, es una notificación repetida.
