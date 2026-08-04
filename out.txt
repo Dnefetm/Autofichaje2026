@@ -1,7 +1,174 @@
-ERROR:
-{
-  "message": "TypeError: fetch failed",
-  "details": "TypeError: fetch failed\n\nCaused by: Error: getaddrinfo ENOTFOUND placeholder-url.supabase.co (ENOTFOUND)\nError: getaddrinfo ENOTFOUND placeholder-url.supabase.co\n    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)",
-  "hint": "",
-  "code": ""
-}
+JOBS:
+[
+  {
+    "id": "22614767-83e9-488e-bdfd-dd68353761ff",
+    "type": "sync_item",
+    "payload": {
+      "marketplace_id": "709df7c0-e6b0-4773-a91c-0a6364b8437a",
+      "external_item_id": "MLM2788340439"
+    },
+    "status": "pending",
+    "attempts": 0,
+    "max_attempts": 3,
+    "scheduled_at": "2026-06-18T20:33:42.802+00:00",
+    "processed_at": null,
+    "error_log": null,
+    "checkpoint": null,
+    "created_at": "2026-06-18T20:03:42.960454+00:00",
+    "priority": 2
+  },
+  {
+    "id": "862b6348-939c-4e8b-ac2f-476e2ff44b7d",
+    "type": "sync_item",
+    "payload": {
+      "marketplace_id": "709df7c0-e6b0-4773-a91c-0a6364b8437a",
+      "external_item_id": "MLM4980573278"
+    },
+    "status": "pending",
+    "attempts": 0,
+    "max_attempts": 3,
+    "scheduled_at": "2026-06-18T20:33:41.061+00:00",
+    "processed_at": null,
+    "error_log": null,
+    "checkpoint": null,
+    "created_at": "2026-06-18T20:03:41.237831+00:00",
+    "priority": 2
+  },
+  {
+    "id": "2a1351a9-f912-4780-b2ae-b554cc3b5b64",
+    "type": "sync_item",
+    "payload": {
+      "marketplace_id": "709df7c0-e6b0-4773-a91c-0a6364b8437a",
+      "external_item_id": "MLM3450421734"
+    },
+    "status": "pending",
+    "attempts": 0,
+    "max_attempts": 3,
+    "scheduled_at": "2026-06-18T20:33:31.201+00:00",
+    "processed_at": null,
+    "error_log": null,
+    "checkpoint": null,
+    "created_at": "2026-06-18T20:03:31.584855+00:00",
+    "priority": 2
+  },
+  {
+    "id": "b87caffd-0fc0-4267-8c5e-7ff3d3726fee",
+    "type": "sync_item",
+    "payload": {
+      "marketplace_id": "709df7c0-e6b0-4773-a91c-0a6364b8437a",
+      "external_item_id": "MLM3450357860"
+    },
+    "status": "pending",
+    "attempts": 0,
+    "max_attempts": 3,
+    "scheduled_at": "2026-06-18T20:33:31.123+00:00",
+    "processed_at": null,
+    "error_log": null,
+    "checkpoint": null,
+    "created_at": "2026-06-18T20:03:31.30114+00:00",
+    "priority": 2
+  },
+  {
+    "id": "4b1ca369-7456-4b69-af6d-a222e8d194a3",
+    "type": "sync_item",
+    "payload": {
+      "marketplace_id": "709df7c0-e6b0-4773-a91c-0a6364b8437a",
+      "external_item_id": "MLM2305391911"
+    },
+    "status": "pending",
+    "attempts": 0,
+    "max_attempts": 3,
+    "scheduled_at": "2026-06-18T20:32:45.052+00:00",
+    "processed_at": null,
+    "error_log": null,
+    "checkpoint": null,
+    "created_at": "2026-06-18T20:02:45.202772+00:00",
+    "priority": 2
+  },
+  {
+    "id": "09a744da-60f3-4cab-ab5e-ae454828e1cc",
+    "type": "sync_item",
+    "payload": {
+      "marketplace_id": "709df7c0-e6b0-4773-a91c-0a6364b8437a",
+      "external_item_id": "MLM2296561217"
+    },
+    "status": "pending",
+    "attempts": 0,
+    "max_attempts": 3,
+    "scheduled_at": "2026-06-18T20:32:44.092+00:00",
+    "processed_at": null,
+    "error_log": null,
+    "checkpoint": null,
+    "created_at": "2026-06-18T20:02:44.253667+00:00",
+    "priority": 2
+  },
+  {
+    "id": "35ccd796-0c96-4b6e-83c1-3056741f4e47",
+    "type": "process_sale",
+    "payload": {
+      "user_id": 415760926,
+      "resource": "/orders/2000016907943842",
+      "marketplace": "meli"
+    },
+    "status": "pending",
+    "attempts": 0,
+    "max_attempts": 3,
+    "scheduled_at": "2026-06-18T20:32:23.474+00:00",
+    "processed_at": null,
+    "error_log": null,
+    "checkpoint": null,
+    "created_at": "2026-06-18T20:02:23.611509+00:00",
+    "priority": 0
+  },
+  {
+    "id": "56b190bc-b2a1-4cf3-a177-482bb7ae3508",
+    "type": "sync_item",
+    "payload": {
+      "marketplace_id": "709df7c0-e6b0-4773-a91c-0a6364b8437a",
+      "external_item_id": "MLM904277447"
+    },
+    "status": "pending",
+    "attempts": 0,
+    "max_attempts": 3,
+    "scheduled_at": "2026-06-18T20:32:17.773+00:00",
+    "processed_at": null,
+    "error_log": null,
+    "checkpoint": null,
+    "created_at": "2026-06-18T20:02:17.918588+00:00",
+    "priority": 2
+  },
+  {
+    "id": "16f30434-76dc-414e-89f1-76681def5ec5",
+    "type": "sync_item",
+    "payload": {
+      "marketplace_id": "709df7c0-e6b0-4773-a91c-0a6364b8437a",
+      "external_item_id": "MLM5196668436"
+    },
+    "status": "pending",
+    "attempts": 0,
+    "max_attempts": 3,
+    "scheduled_at": "2026-06-18T20:32:17.153+00:00",
+    "processed_at": null,
+    "error_log": null,
+    "checkpoint": null,
+    "created_at": "2026-06-18T20:02:17.30492+00:00",
+    "priority": 2
+  },
+  {
+    "id": "eb9e4b5e-cf0c-48c4-800a-3ef88c8d3852",
+    "type": "sync_item",
+    "payload": {
+      "marketplace_id": "709df7c0-e6b0-4773-a91c-0a6364b8437a",
+      "external_item_id": "MLM5199683472"
+    },
+    "status": "pending",
+    "attempts": 0,
+    "max_attempts": 3,
+    "scheduled_at": "2026-06-18T20:32:17.079+00:00",
+    "processed_at": null,
+    "error_log": null,
+    "checkpoint": null,
+    "created_at": "2026-06-18T20:02:17.285909+00:00",
+    "priority": 2
+  }
+]

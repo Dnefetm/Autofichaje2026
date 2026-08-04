@@ -84,6 +84,22 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         const usaTodas = !rawCols || rawCols.length === 0;
         const colGuardarSet = new Set(Array.isArray(rawCols) ? rawCols : []);
         
+        // Candado Anti "0 filas": validar columnas mapeadas
+        const missingCols: string[] = [];
+        if (m.columna_modelo && !headers.includes(m.columna_modelo)) missingCols.push(m.columna_modelo);
+        if (m.columna_codigo && !headers.includes(m.columna_codigo)) missingCols.push(m.columna_codigo);
+        if (Array.isArray(m.precios)) {
+            m.precios.forEach((p: any) => {
+                if (p.columna && !headers.includes(p.columna)) missingCols.push(p.columna);
+            });
+        }
+        
+        if (missingCols.length > 0) {
+            const errStr = `Faltan columnas mapeadas en el Excel: ${missingCols.join(', ')}`;
+            await logEvento(supabaseAdmin, id, 'ERROR', errStr);
+            return NextResponse.json({ ok: false, error: errStr }, { status: 400 });
+        }
+        
         for (let i = 1; i < allRows.length; i++) {
             const vals = allRows[i].map((v: any) => String(v ?? '').trim());       if (vals.filter((s: string) => s !== '').length < 3) continue;
             const payload: Record<string, string> = {};
