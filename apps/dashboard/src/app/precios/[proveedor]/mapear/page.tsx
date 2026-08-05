@@ -194,9 +194,9 @@ export default function MapearColumnasPage() {
                                         </datalist>
                                     </div>
                                     <div className="w-24 flex items-end pb-2">
-                                        <label className="flex items-center text-sm cursor-pointer">
+                                        <label className="flex items-center text-sm cursor-pointer" title="Marca esta casilla si el precio en el Excel ya tiene el IVA sumado">
                                             <input type="checkbox" className="mr-2 rounded text-indigo-600 focus:ring-indigo-500" checked={p.incluye_iva} onChange={e => handlePrecioChange(index, 'incluye_iva', e.target.checked)} />
-                                            + IVA
+                                            ¿Ya incluye IVA?
                                         </label>
                                     </div>
                                 </div>
