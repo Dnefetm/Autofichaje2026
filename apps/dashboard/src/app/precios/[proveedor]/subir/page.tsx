@@ -67,15 +67,8 @@ export default function SubirPaso1() {
             const importacionId = j3.importacion_id || j3.importacion_activa?.id;
             if (!importacionId) throw new Error("No se recibió ID de importación del servidor");
 
-            // 4) Iniciar digestión de la lista nueva automáticamente
-            const r4 = await fetch(`/api/precios/importar/${importacionId}/iniciar-parser`, { method: 'POST' });
-            if (!r4.ok) {
-                const j4 = await r4.json().catch(() => ({}));
-                throw new Error(j4.error || 'Ocurrió un error al despachar al servidor de procesamiento.');
-            }
-
-            // 5) Redirigir al Asistente de Matching (Paso 2: Mapear Columnas)
-            router.push(`/precios/matching?importacion_id=${importacionId}&proveedor=${encodeURIComponent(proveedor)}`);
+            // 4) Ir a MAPEAR columnas (el usuario confirma; el parser se dispara DESPUÉS)
+            router.push(`/precios/${encodeURIComponent(proveedor)}/mapear?importacion_id=${importacionId}`);
         } catch (e: any) {
             setError(e.message);
             setLoading(false);
