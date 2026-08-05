@@ -97,6 +97,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         if (missingCols.length > 0) {
             const errStr = `Faltan columnas mapeadas en el Excel: ${missingCols.join(', ')}`;
             await logEvento(supabaseAdmin, id, 'ERROR', errStr);
+            // Revertir a pendiente_mapeo para permitir que el usuario vuelva a guardar
+            await supabaseAdmin.from('importaciones_excel').update({ estado: 'pendiente_mapeo' }).eq('id', id);
             return NextResponse.json({ ok: false, error: errStr }, { status: 400 });
         }
         

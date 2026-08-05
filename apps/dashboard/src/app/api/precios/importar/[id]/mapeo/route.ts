@@ -18,9 +18,9 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
             return NextResponse.json({ ok: false, error: 'Importación no encontrada' }, { status: 404 });
         }
 
-        if (imp.estado !== 'pendiente_mapeo') {
+        if (!['pendiente_mapeo', 'mapeando', 'error'].includes(imp.estado)) {
             return NextResponse.json(
-                { ok: false, error: `Solo se puede mapear en estado pendiente_mapeo (actual: ${imp.estado})` },
+                { ok: false, error: `Solo se puede mapear en estado pendiente_mapeo, mapeando o error (actual: ${imp.estado})` },
                 { status: 400 }
             );
         }
@@ -50,6 +50,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
             .from('importaciones_excel')
             .update({ 
                 mapeo_columnas: merged,
+                estado: 'pendiente_mapeo', // Forzar estado para que el parser lo acepte de nuevo
                 ultima_actividad: new Date().toISOString()
             })
             .eq('id', id);
