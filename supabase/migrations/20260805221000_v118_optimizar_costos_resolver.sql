@@ -203,14 +203,8 @@ BEGIN
       valor,
       'sin_alias_ni_articulo', false
     FROM dedup_pend
-    ON CONFLICT (proveedor, COALESCE(codigo_excel,''), COALESCE(marca_excel,''), COALESCE(modelo_excel,''), tipo_costo, importacion_id)
-      WHERE (resuelto = false)
-    DO UPDATE SET
-      importacion_id = EXCLUDED.importacion_id,
-      valor          = EXCLUDED.valor,
-      moneda         = EXCLUDED.moneda,
-      motivo         = EXCLUDED.motivo,
-      actualizado_el = now()
+    ON CONFLICT (proveedor, COALESCE(codigo_excel,''), COALESCE(marca_excel,''), COALESCE(modelo_excel,''), tipo_costo) WHERE (resuelto = false)
+    DO UPDATE SET importacion_id = EXCLUDED.importacion_id, valor = EXCLUDED.valor, moneda = EXCLUDED.moneda, motivo = EXCLUDED.motivo, actualizado_el = now()
     RETURNING modelo_excel
   )
   SELECT count(*), count(DISTINCT modelo_excel)
