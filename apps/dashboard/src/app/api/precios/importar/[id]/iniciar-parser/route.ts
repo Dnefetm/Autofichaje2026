@@ -5,6 +5,7 @@
  * 2. Invoca la Edge Function 'procesar-importacion' para que lea el Excel y calcule el diff.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 
@@ -143,14 +144,22 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
         await logEvento(supabaseAdmin, id, 'STAGING_COMPLETO', `Se volcaron ${totalProcesadas} filas planas en cuarentena. Calculando diferencias DB.`);
 
-        const { error: rpcErr } = await supabaseAdmin.rpc('fn_preparar_importacion_revision', {
-            p_importacion_id: id,
-            p_proveedor: proveedor
+        after(async () => {
+            try {
+                const { error: rpcErr } = await supabaseAdmin.rpc('fn_preparar_importacion_revision', {
+                    p_importacion_id: id,
+                    p_proveedor: proveedor
+                });
+
+                if (rpcErr) throw new Error(rpcErr.message);
+
+                await logEvento(supabaseAdmin, id, 'COMPLETADO', 'Diff calculado. Listo para revisión manual.');
+            } catch (rpcEx: any) {
+                console.error("Error en Diff Async:", rpcEx);
+                const msg = String(rpcEx?.message ?? rpcEx);
+                await supabaseAdmin.from('importaciones_excel').update({ estado: 'error', error_mensaje: "Fallo calculo de Diff RPC: " + msg, ultima_actividad: new Date().toISOString() }).eq('id', id);
+            }
         });
-
-        if (rpcErr) throw new Error(`Fallo calculo de Diff RPC: ${rpcErr.message}`);
-
-        await logEvento(supabaseAdmin, id, 'COMPLETADO', 'Diff calculado. Listo para revisión manual.');
 
     } catch (e: any) {
         console.error("Error Parseando:", e);
