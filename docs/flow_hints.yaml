@@ -1,0 +1,13 @@
+hints:
+  public.fn_preparar_importacion_revision:
+    estimated_time_ms: 2500
+  public.fn_resolver_y_poblar_costos:
+    estimated_time_ms: 6000
+  public.fn_match_precios_v2:
+    estimated_time_ms: 4000
+  public.fn_confirmar_matching_decisiones:
+    estimated_time_ms: 1500
+  public.fn_consolidar_matching_decisiones:
+    estimated_time_ms: 2000
+  public.fn_marcar_vigente:
+    estimated_time_ms: 500

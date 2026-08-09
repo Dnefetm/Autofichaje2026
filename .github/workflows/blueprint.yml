@@ -1,0 +1,43 @@
+name: Blueprint DB Guardian
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Cada hora
+  push:
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/generate_flow_blueprint.ts'
+      - 'docs/flow_hints.yaml'
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+
+jobs:
+  generate-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Blueprint
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npx tsx scripts/generate_flow_blueprint.ts
+
+      - name: Check for schema live changes (Commit if changed via cron/push)
+        if: github.event_name != 'pull_request'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(db): Auto-update DB Flow Blueprint [skip ci]"
+          file_pattern: "docs/db_flow_blueprint.*"
+
+      - name: Validate Blueprint Timings & Limits
+        run: npx tsx scripts/ci_validate_blueprint.ts

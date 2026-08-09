@@ -1,0 +1,5 @@
+{
+  "api_gateway_timeout_ms": 15000,
+  "nextjs_server_timeout_ms": 30000,
+  "supabase_edge_function_timeout_ms": 10000
+}

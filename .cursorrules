@@ -1,0 +1,6 @@
+# CRITICAL DB RULE
+# ANTES de analizar, diagnosticar o modificar cualquier función de PostgreSQL, triggers o reglas de seguridad:
+# 1. ESTÁS OBLIGADO a leer `docs/db_flow_blueprint.json` (o `.md`). Este archivo refleja el estado real de la base de datos, sus límites de tiempo (roles) y el árbol de dependencias completo.
+# 2. Si encuentras una función con `dynamic_sql: true`, busca en la clave `calls_tables` y `calls_functions` para ver las dependencias inyectadas por hints. Si no están ahí, solicita al humano que te explique el flujo oculto en `docs/flow_hints.yaml`.
+# 3. NUNCA propongas un cambio estructural que sume un tiempo asíncrono superior al statement_timeout de 8s (para el rol authenticated) o el límite de la API Gateway.
+# 4. Todos los cambios SQL deben someterse vía Pull Request para que el CI "Blueprint Validator" valide matemáticamente el impacto end-to-end antes del merge.
