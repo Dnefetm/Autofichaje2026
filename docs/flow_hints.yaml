@@ -11,4 +11,4 @@ hints:
     estimated_time_ms: 2000
   public.fn_marcar_vigente:
     estimated_time_ms: 500
-# ci: trigger blueprint run after CI dependency fix (retry 2) (retry 3) (retry 4)
+# ci: trigger blueprint run after CI dependency fix (retry 2) (retry 3) (retry 4) (retry 5)
