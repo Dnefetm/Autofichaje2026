@@ -11,7 +11,12 @@ hints:
     estimated_time_ms: 2000
   public.fn_marcar_vigente:
     estimated_time_ms: 500
-    
+    # ====================================================================
+# REGLA FIJA (por orden del owner, 2026-08-10):
+# El mapeo publicacion<->articulo es 100% MANUAL (mapping-modal.tsx) hasta
+# que el owner indique lo contrario. NO proponer ni implementar poblado
+# masivo/automatico del mapeo. Foco: dejar el flujo funcional END-TO-END.
+# ====================================================================
 # ====================================================================
 # TRANSPARENCIA DE RUTAS DE PRECIOS (auditoria 2026-08-10)
 # Estado: alive = en uso | legacy = funciona pero a deprecar | dead = roto/desconectado
