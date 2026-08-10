@@ -11,4 +11,40 @@ hints:
     estimated_time_ms: 2000
   public.fn_marcar_vigente:
     estimated_time_ms: 500
+    
+# ====================================================================
+# TRANSPARENCIA DE RUTAS DE PRECIOS (auditoria 2026-08-10)
+# Estado: alive = en uso | legacy = funciona pero a deprecar | dead = roto/desconectado
+# ====================================================================
+pipeline_routes:
+  v1_precio_recalc_queue:
+    status: dead
+    productor_trigger: tg_encolar_recalculo (costos_articulo, ACTIVO)
+    cola: precio_recalc_queue
+    consumidor: NINGUNO (sin cron)
+    motor: fn_recalcular_lote
+    motivo_muerte: fn_recalcular_lote usa esquema viejo de reglas_precio (columna 'retenciones' no existe); cola con 10620 pendientes sin drenar
+    accion: deshabilitar trigger tg_encolar_recalculo y DROP de cola+funcion tras validar
+  v2_marketplace_prices:
+    status: legacy
+    motor: fn_recalcular_precio_marketplace
+    reglas: pricing_rules
+    destino: marketplace_prices
+    nota: evaluar deprecacion; convive con v3
+  v3_publication_pricing:
+    status: alive
+    productor_trigger_sync: trg_recalcular_precio_publicacion (publicaciones_externas) -> llama fn_recalcular_precio_publicacion directo
+    productor_trigger_async: trg_mapeo_publicacion_recalcular_async (mapeo_publicacion_articulo) -> encola job 'recalc_pricing_bundle'
+    cola: jobs
+    consumidor: apps/dashboard/src/app/api/worker/process/route.ts (Vercel, cron 1min)
+    motor: fn_recalcular_precio_publicacion (pricing_rule_v3 + overrides + categorias) -> publication_pricing_history
+    gap_critico: el worker (route.ts) NO tiene case 'recalc_pricing_bundle' -> los jobs de recalc por mapeo se descartan
+    accion: agregar handler 'recalc_pricing_bundle' en route.ts
+
+# Poblado de mapeo_publicacion_articulo (bloqueante para las ~9k publicaciones):
+#   Fuente UNICA: apps/dashboard/src/components/mapping-modal.tsx (INSERT manual via modal)
+#   Estado: 157 mapeos de 9148 publicaciones_externas -> matching 100% manual, no escala
+#   Ninguna funcion de BD escribe esta tabla.
+#
+# Worker DEPRECADO (no usar): apps/worker/src/processor.ts (Render retirado)
 # ci: trigger blueprint run after CI dependency fix (retry 2) (retry 3) (retry 4) (retry 5)
