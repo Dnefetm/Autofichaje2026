@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-10T20:29:59.169Z",
-  "schema_hash": "e35a8b9f12da231480aa1911c537734abbcb3747d82b4e3e5420319036066db1",
+  "generated_at": "2026-08-10T22:11:53.466Z",
+  "schema_hash": "a6875dcf03e2730334b9aab6c9c162271fdec9c233e54e57b29594c3dff31188",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -626,7 +626,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 5.50044293469388,
+      "avg_time_ms": 5.491429994709,
       "p95_time_ms": 164.12963,
       "timing_source": "pg_stat_statements"
     },
@@ -1114,9 +1114,9 @@
       ],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 5,
-      "p95_time_ms": null,
-      "timing_source": "ast_estimator"
+      "avg_time_ms": 0.29383,
+      "p95_time_ms": 0.29383,
+      "timing_source": "pg_stat_statements"
     },
     "public.fn_recalcular_precio_publicacion": {
       "source_sql": "\nDECLARE\n  v_pub RECORD; v_rule pricing_rule_v3; v_override RECORD;\n  v_costo_base NUMERIC(12,2);\n  v_commission_pct NUMERIC(5,2); v_commission_src TEXT;\n  v_withholding_pct NUMERIC(5,2); v_withholding_src TEXT;\n  v_denominador NUMERIC(8,4); v_numerador NUMERIC(12,2);\n  v_precio_final NUMERIC(12,2);\n  v_status TEXT := 'valid'; v_reason TEXT := 'OK';\nBEGIN\n  IF pg_trigger_depth() > 1 THEN RETURN; END IF;\n\n  SELECT * INTO v_pub FROM publicaciones_externas WHERE id = p_publicacion_id;\n  IF v_pub IS NULL THEN RETURN; END IF;\n\n  SELECT * INTO v_override\n  FROM publication_pricing_overrides\n  WHERE publicacion_id = p_publicacion_id\n    AND (valido_hasta IS NULL OR valido_hasta > now());\n\n  IF v_override IS NOT NULL AND v_override.override_type = 'force_rule' THEN\n    SELECT * INTO v_rule FROM pricing_rule_v3 WHERE id = v_override.force_rule_id;\n    v_reason := 'override_force_rule';\n  ELSE\n    v_rule := fn_resolver_regla_pricing(p_publicacion_id);\n    IF v_rule IS NULL THEN\n      UPDATE publicaciones_externas SET pricing_status='no_rule', last_calc_at=now() WHERE id=p_publicacion_id;\n      RETURN;\n    END IF;\n  END IF;\n\n  WITH costo_unico AS (\n    SELECT DISTINCT ON (c.articulo_id) c.articulo_id, c.valor\n    FROM costos_articulo c\n    WHERE c.vigente = true AND c.valor > 0\n      AND lower(c.tipo_costo) = lower(v_rule.cost_basis)\n    ORDER BY c.articulo_id, c.creado_el DESC\n  )\n  SELECT SUM(cu.valor * m.cantidad_requerida) INTO v_costo_base\n  FROM mapeo_publicacion_articulo m\n  JOIN costo_unico cu ON cu.articulo_id = m.articulo_id\n  WHERE m.publicacion_id = p_publicacion_id;\n\n  IF v_costo_base IS NULL OR v_costo_base <= 0 THEN\n    UPDATE publicaciones_externas\n       SET pricing_status='missing_cost', last_calc_at=now()\n     WHERE id=p_publicacion_id;\n    RETURN;\n  END IF;\n\n  SELECT commission_effective, commission_source,\n         withholding_effective, withholding_source\n    INTO v_commission_pct, v_commission_src,\n         v_withholding_pct, v_withholding_src\n  FROM v_category_pricing_params\n  WHERE category_id = v_pub.category_id;\n\n  IF v_commission_pct IS NULL THEN\n    v_commission_pct  := 16.0; v_commission_src := 'fallback_global';\n    v_withholding_pct := 8.0;  v_withholding_src:= 'fallback_global';\n    v_status := 'estimated_params';\n  END IF;\n\n  IF v_override IS NOT NULL THEN\n    IF v_override.override_type = 'fixed_price' THEN\n      v_precio_final := v_override.value;\n      v_reason := 'override_fixed_price';\n      v_status := 'override_active';\n    ELSIF v_override.override_type = 'custom_margin' THEN\n      v_rule.margen_objetivo := v_override.value;\n      v_reason := 'override_margin';\n    END IF;\n  END IF;\n\n  IF v_status NOT IN ('override_active', 'override') THEN\n    v_numerador := v_costo_base * (1 + v_rule.margen_objetivo / 100.0)\n                 + COALESCE(v_rule.envio_fijo, 0);\n    v_denominador := 1.0 - (v_commission_pct + v_withholding_pct) / 100.0;\n\n    IF v_denominador <= 0 THEN\n      UPDATE publicaciones_externas\n         SET pricing_status='invalid_strategy',\n             last_calc_at=now()\n       WHERE id=p_publicacion_id;\n      RETURN;\n    END IF;\n\n    v_precio_final := v_numerador / v_denominador;\n\n    v_precio_final := CASE v_rule.redondeo\n      WHEN '99' THEN FLOOR(v_precio_final / 10) * 10 + 9\n      WHEN '00' THEN ROUND(v_precio_final / 10) * 10\n      WHEN '5'  THEN ROUND(v_precio_final / 5)  * 5\n      ELSE ROUND(v_precio_final, 2)\n    END;\n  END IF;\n\n  UPDATE publicaciones_externas\n     SET sale_price_calculated = v_precio_final,\n         pricing_status = v_status,\n         last_calc_at = now()\n   WHERE id = p_publicacion_id;\n\n  INSERT INTO publication_pricing_history(\n    publicacion_id, old_price, new_price, status, reason, details, created_at)\n  VALUES (\n    p_publicacion_id, v_pub.sale_price_calculated, v_precio_final, v_status, v_reason,\n    jsonb_build_object(\n      'costo_base', v_costo_base,\n      'cost_basis', v_rule.cost_basis,\n      'margen_pct', v_rule.margen_objetivo,\n      'comision_pct', v_commission_pct, 'comision_src', v_commission_src,\n      'retenciones_pct', v_withholding_pct, 'retenciones_src', v_withholding_src,\n      'envio_fijo', v_rule.envio_fijo,\n      'rule_id', v_rule.id, 'rule_name', v_rule.name,\n      'override_aplicado', (v_override IS NOT NULL)\n    ), now());\nEND ",
@@ -2150,7 +2150,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 7.75320701966676,
+      "avg_time_ms": 7.80412528886527,
       "p95_time_ms": 435.565929,
       "timing_source": "pg_stat_statements"
     },
@@ -2167,9 +2167,9 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 765,
-      "p95_time_ms": null,
-      "timing_source": "ast_estimator"
+      "avg_time_ms": 22.751425,
+      "p95_time_ms": 22.751425,
+      "timing_source": "pg_stat_statements"
     },
     "public.fn_consolidar_matching_decisiones": {
       "source_sql": "\r\nBEGIN\r\n  -- 2.1 Desactivar costos previos para el proveedor y los articulos que vamos a confirmar\r\n  -- FIX: costos_articulo no tiene columna proveedor; se deriva via su propia importacion\r\n  UPDATE costos_articulo ca_old\r\n     SET vigente = false\r\n    FROM matching_decisiones md\r\n    JOIN importaciones_excel ie ON ie.id = md.importacion_id\r\n   WHERE md.importacion_id = p_importacion_id\r\n     AND md.confirmado = true\r\n     AND md.articulo_id_final IS NOT NULL\r\n     AND ie.proveedor = (SELECT proveedor FROM importaciones_excel WHERE id = ca_old.importacion_id)\r\n     AND ca_old.articulo_id = md.articulo_id_final\r\n     AND ca_old.tipo_costo = ie.tipo_costo_default\r\n     AND ca_old.importacion_id != p_importacion_id;\r\n\r\n  -- 2.2 Actualizar las filas actuales en costos_articulo con las decisiones tomadas\r\n  UPDATE costos_articulo ca\r\n     SET articulo_id = md.articulo_id_final,\r\n         vigente = true,\r\n         estado_match = 'completado'\r\n    FROM matching_decisiones md\r\n   WHERE ca.importacion_id = p_importacion_id\r\n     AND md.importacion_id = p_importacion_id\r\n     AND md.confirmado = true\r\n     AND md.articulo_id_final IS NOT NULL\r\n     AND NOT ca.codigo_universal_excel IS DISTINCT FROM md.codigo_universal_excel\r\n     AND NOT ca.marca_excel IS DISTINCT FROM md.marca_excel\r\n     AND NOT ca.modelo_excel IS DISTINCT FROM md.modelo_excel\r\n     AND NOT ca.nombre_excel IS DISTINCT FROM md.nombre_excel;\r\n\r\n  -- 2.3 FEEDBACK LOOP: alias para productos CON codigo (dedup con DISTINCT ON para evitar error 21000)\r\n  INSERT INTO proveedor_articulos_alias (proveedor, codigo_excel, marca_excel, modelo_excel, articulo_id)\r\n  SELECT DISTINCT ON (ie.proveedor, md.codigo_universal_excel)\r\n         ie.proveedor, md.codigo_universal_excel, md.marca_excel, md.modelo_excel, md.articulo_id_final\r\n    FROM matching_decisiones md\r\n    JOIN importaciones_excel ie ON ie.id = md.importacion_id\r\n   WHERE md.importacion_id = p_importacion_id\r\n     AND md.confirmado = true\r\n     AND md.articulo_id_final IS NOT NULL\r\n     AND md.codigo_universal_excel IS NOT NULL\r\n     AND md.codigo_universal_excel <> ''\r\n   ORDER BY ie.proveedor, md.codigo_universal_excel, md.confirmado_at DESC\r\n  ON CONFLICT (proveedor, codigo_excel) WHERE codigo_excel IS NOT NULL AND codigo_excel <> ''\r\n  DO UPDATE SET\r\n     articulo_id = EXCLUDED.articulo_id,\r\n     marca_excel = EXCLUDED.marca_excel,\r\n     modelo_excel = EXCLUDED.modelo_excel,\r\n     ultima_vez_visto = now(),\r\n     estado_proveedor = 'activo';\r\nEND;\r\n",
@@ -2276,7 +2276,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 16.9916003258287,
+      "avg_time_ms": 17.081817949394,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
@@ -2291,6 +2291,24 @@
       "dynamic_sql": false,
       "avg_time_ms": 110.588578,
       "p95_time_ms": 110.588578,
+      "timing_source": "pg_stat_statements"
+    },
+    "public.procesar_precio_recalc_queue": {
+      "source_sql": "\r\nDECLARE claimed_ids uuid[]; art_ids text[];\r\nBEGIN\r\n  SELECT array_agg(id), array_agg(DISTINCT articulo_id)\r\n    INTO claimed_ids, art_ids\r\n  FROM ( SELECT id, articulo_id FROM precio_recalc_queue\r\n         WHERE procesado_at IS NULL\r\n         ORDER BY COALESCE(prioridad,100) ASC, encolado_at ASC\r\n         LIMIT batch_size_limit FOR UPDATE SKIP LOCKED ) s;\r\n  IF claimed_ids IS NULL THEN RETURN 0; END IF;\r\n  PERFORM public.fn_recalcular_lote(art_ids);\r\n  UPDATE precio_recalc_queue SET procesado_at = now() WHERE id = ANY(claimed_ids);\r\n  RETURN array_length(claimed_ids,1);\r\nEND; ",
+      "statement_timeout_override": null,
+      "security": "DEFINER",
+      "calls_tables": [
+        "public.SKIP",
+        "public.precio_recalc_queue"
+      ],
+      "calls_functions": [
+        "public.fn_recalcular_lote"
+      ],
+      "triggers_on_tables": [],
+      "triggers_cascade": [],
+      "dynamic_sql": false,
+      "avg_time_ms": 22.751425,
+      "p95_time_ms": 22.751425,
       "timing_source": "pg_stat_statements"
     },
     "public.encolar_import_job": {

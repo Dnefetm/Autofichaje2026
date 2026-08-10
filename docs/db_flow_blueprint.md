@@ -1,6 +1,6 @@
 # DB Flow Blueprint
 
-- **Schema hash:** `e35a8b9f12da231480aa1911c537734abbcb3747d82b4e3e5420319036066db1`
+- **Schema hash:** `a6875dcf03e2730334b9aab6c9c162271fdec9c233e54e57b29594c3dff31188`
 - **Tables:** 69 | **Triggers:** 32 | **Cron jobs:** 3 | **Edge fns:** 3
 
 ## public.actualizar_updated_at
@@ -213,7 +213,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.50 ms (source: pg_stat_statements)
+- **Avg Time:** 5.49 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -376,7 +376,7 @@
 ## public.trg_recalcular_precio_publicacion
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** 0.29 ms (source: pg_stat_statements)
 - **Calls Functions:** public.fn_recalcular_precio_publicacion
 
 ## public.fn_recalcular_precio_publicacion
@@ -696,13 +696,13 @@
 ## public.claim_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 7.75 ms (source: pg_stat_statements)
+- **Avg Time:** 7.80 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.jobs
 
 ## public.fn_recalcular_lote
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 765.00 ms (source: ast_estimator)
+- **Avg Time:** 22.75 ms (source: pg_stat_statements)
 - **Touches Tables:** public.precios_publicados, public.ml_publicacion_sync_queue, public.SET
 
 ## public.fn_consolidar_matching_decisiones
@@ -730,7 +730,7 @@
 ## public.procesar_import_job
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 16.99 ms (source: pg_stat_statements)
+- **Avg Time:** 17.08 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.import_jobs, public.importaciones_excel
 - **Calls Functions:** public.fn_preparar_importacion_revision
 - **Cascading Triggers:**
@@ -742,6 +742,13 @@
 - **Security:** DEFINER
 - **Timeout Override:** None
 - **Avg Time:** 110.59 ms (source: pg_stat_statements)
+
+## public.procesar_precio_recalc_queue
+- **Security:** DEFINER
+- **Timeout Override:** None
+- **Avg Time:** 22.75 ms (source: pg_stat_statements)
+- **Touches Tables:** public.SKIP, public.precio_recalc_queue
+- **Calls Functions:** public.fn_recalcular_lote
 
 ## public.encolar_import_job
 - **Security:** DEFINER
