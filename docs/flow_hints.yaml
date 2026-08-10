@@ -53,3 +53,40 @@ pipeline_routes:
 #
 # Worker DEPRECADO (no usar): apps/worker/src/processor.ts (Render retirado)
 # ci: trigger blueprint run after CI dependency fix (retry 2) (retry 3) (retry 4) (retry 5)
+
+# ====================================================================
+# CIERRE DE BRECHA recalc_pricing_bundle (auditoria + fix 2026-08-10)
+# ====================================================================
+recalc_pricing_bundle_fix:
+  estado: IMPLEMENTADO
+  commit: e1e57f8 (branch Dnefetm-patch-2)
+  archivo: apps/dashboard/src/app/api/worker/process/route.ts
+  productor_real: trg_costos_articulo_recalcular_async  # AST/pg_proc: dispara al cambiar costos_articulo (vigente=true)
+  payload: { publicacion_id: uuid }                     # jsonb_build_object desde mapeo_publicacion_articulo, ON CONFLICT DO NOTHING (dedupe)
+  handler_nuevo: handleRecalcPricingBundle
+  logica:
+    - 1_recalcular: supabaseAdmin.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id })
+    - 2_guardas: no propaga si sync_disabled=true o pricing_status != 'ok'
+    - 3_propagar: encola job 'sync_price' (payload { publicacion_id }, priority 5) -> MeLi
+  flujo_end_to_end: costos_articulo -> trg_costos_articulo_recalcular_async -> job recalc_pricing_bundle -> route.ts/handleRecalcPricingBundle -> fn_recalcular_precio_publicacion -> publicaciones_externas + publication_pricing_history -> job sync_price -> MeliAdapter.updatePrice
+
+# ====================================================================
+# BLOQUEANTE DE DATOS confirmado por validacion (transaccion con ROLLBACK, sin mutar prod)
+# ====================================================================
+pricing_data_blocker:
+  costos_articulo_total: 0
+  costos_articulo_vigentes: 0
+  articulos_mapeados_distintos: 88
+  articulos_mapeados_con_costo_vigente: 0
+  publicaciones_mapeadas: 155        # 154 pending + 1 estimated_params, 0 en 'ok'
+  recalc_masivo_simulado: missing_cost=155   # correr fn_recalcular_precio_publicacion sobre las 155 -> TODAS missing_cost
+  conclusion: >-
+    El worker path esta completo y verificado a nivel RPC, pero la tabla costos_articulo
+    esta VACIA. Sin costos vigentes, fn_recalcular_precio_publicacion devuelve missing_cost
+    (no escribe history, no encola sync_price). Por eso nunca han existido jobs recalc_pricing_bundle.
+  siguiente_paso_datos: >-
+    Poblar costos_articulo (import de proveedor / fn_resolver_y_poblar_costos) para los 88 articulos
+    mapeados. Es operacion de datos controlada por el owner; no se ejecuta automaticamente.
+  nota_gap_previo: >-
+    El gap_critico de v3_publication_pricing queda RESUELTO en codigo (handler agregado).
+    Correccion: el productor real es trg_costos_articulo_recalcular_async (no trg_mapeo_publicacion_recalcular_async).
