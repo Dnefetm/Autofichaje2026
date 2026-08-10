@@ -213,7 +213,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.51 ms (source: pg_stat_statements)
+- **Avg Time:** 5.50 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -730,7 +730,7 @@
 ## public.procesar_import_job
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 16.93 ms (source: pg_stat_statements)
+- **Avg Time:** 16.95 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.import_jobs, public.importaciones_excel
 - **Calls Functions:** public.fn_preparar_importacion_revision
 - **Cascading Triggers:**

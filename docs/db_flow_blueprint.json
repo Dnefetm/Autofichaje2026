@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-10T19:59:47.068Z",
+  "generated_at": "2026-08-10T20:04:02.939Z",
   "schema_hash": "e35a8b9f12da231480aa1911c537734abbcb3747d82b4e3e5420319036066db1",
   "roles": {
     "anon": [
@@ -626,7 +626,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 5.50674428806584,
+      "avg_time_ms": 5.50296085068493,
       "p95_time_ms": 164.12963,
       "timing_source": "pg_stat_statements"
     },
@@ -2150,7 +2150,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 7.73501072321675,
+      "avg_time_ms": 7.74221098184819,
       "p95_time_ms": 435.565929,
       "timing_source": "pg_stat_statements"
     },
@@ -2276,7 +2276,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 16.9344732488159,
+      "avg_time_ms": 16.947081008512,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
