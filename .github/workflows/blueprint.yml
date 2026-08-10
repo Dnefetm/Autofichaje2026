@@ -25,7 +25,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm ci
+              run: npm install pg pgsql-ast-parser yaml tsx
 
       - name: Generate Blueprint
         env:
