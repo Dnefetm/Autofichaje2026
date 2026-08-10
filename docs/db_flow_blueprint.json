@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-10T22:56:41.973Z",
+  "generated_at": "2026-08-10T23:22:45.091Z",
   "schema_hash": "a6875dcf03e2730334b9aab6c9c162271fdec9c233e54e57b29594c3dff31188",
   "roles": {
     "anon": [
@@ -626,7 +626,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 5.4768930379085,
+      "avg_time_ms": 5.49941556753247,
       "p95_time_ms": 164.12963,
       "timing_source": "pg_stat_statements"
     },
@@ -1143,9 +1143,9 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 1105,
-      "p95_time_ms": null,
-      "timing_source": "ast_estimator"
+      "avg_time_ms": 164.336456,
+      "p95_time_ms": 164.336456,
+      "timing_source": "pg_stat_statements"
     },
     "public.fn_parse_precio": {
       "source_sql": "\nDECLARE\n    v_clean text;\nBEGIN\n    IF p_text IS NULL OR trim(p_text) = '' THEN\n        RETURN NULL;\n    END IF;\n    -- Quitar espacios, comas y signos de dólar\n    v_clean := regexp_replace(p_text, '[$\\s,]', '', 'g');\n    -- Manejar paréntesis para negativos ej: (10.50) -> -10.50\n    IF v_clean LIKE '(%)' THEN\n        v_clean := '-' || substring(v_clean from 2 for length(v_clean) - 2);\n    END IF;\n    RETURN v_clean::numeric;\nEXCEPTION WHEN OTHERS THEN\n    RETURN NULL;\nEND;\n",
@@ -2150,7 +2150,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 7.89835482116597,
+      "avg_time_ms": 7.97694053599374,
       "p95_time_ms": 435.565929,
       "timing_source": "pg_stat_statements"
     },
@@ -2276,7 +2276,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 17.0901405421651,
+      "avg_time_ms": 17.1305341397626,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
