@@ -90,3 +90,46 @@ pricing_data_blocker:
   nota_gap_previo: >-
     El gap_critico de v3_publication_pricing queda RESUELTO en codigo (handler agregado).
     Correccion: el productor real es trg_costos_articulo_recalcular_async (no trg_mapeo_publicacion_recalcular_async).
+
+
+# ====================================================================
+# PROCESOS (pipelines de negocio) - consumido por generate_flow_blueprint.ts
+# Capa declarativa curada: define ORDEN logico + fronteras externas que la
+# introspeccion de Postgres no expone. El generador valida que cada 'fn' y
+# 'estado' exista realmente en la BD (si no, el CI falla).
+# ====================================================================
+processes:
+  importacion_precios:
+    descripcion: Importacion de lista de precios de proveedor y aplicacion end-to-end.
+    trigger: POST /api/precios/importar/[id]/iniciar-parser
+    ingesta:
+      tabla_staging: listas_precios_raw_staging
+      columna_modelo: CLAVE
+      columna_codigo: CODIGO DE BARRA SIN CERO
+    steps:
+      - fn: public.fn_preparar_importacion_revision
+        estado: mapeando
+      - fn: public.fn_match_precios_v2
+        estado: procesando
+      - fn: public.fn_confirmar_matching_decisiones
+        estado: en_revision
+      - fn: public.fn_consolidar_matching_decisiones
+        estado: matching_completo
+      - fn: public.fn_resolver_y_poblar_costos
+        tabla_destino: costos_articulo
+      - fn: public.fn_marcar_vigente
+        estado: completado
+    downstream:
+      - trigger: trg_costos_articulo_recalcular_async
+        tabla: costos_articulo
+      - job: recalc_pricing_bundle
+        consumidor: apps/dashboard/src/app/api/worker/process/route.ts#handleRecalcPricingBundle
+      - fn: public.fn_recalcular_precio_publicacion
+        destino: publication_pricing_history
+      - job: sync_price
+        consumidor: MeliAdapter.updatePrice
+    state_machine: importacion
+    recovery:
+      desde: error
+      rutas: [mapeando, procesando, completado]
+      motivo: Resuelve error 23514; el lote en error reintenta hasta completado sin intervencion.
