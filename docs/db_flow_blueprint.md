@@ -1,6 +1,6 @@
 # DB Flow Blueprint
 
-- **Schema hash:** `a6875dcf03e2730334b9aab6c9c162271fdec9c233e54e57b29594c3dff31188`
+- **Schema hash:** `ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558`
 - **Tables:** 69 | **Triggers:** 32 | **Cron jobs:** 3 | **Edge fns:** 3
 
 ## public.actualizar_updated_at
@@ -213,7 +213,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.50 ms (source: pg_stat_statements)
+- **Avg Time:** 6.00 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -239,7 +239,7 @@
 ## public.fn_pop_matching_job
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 2.34 ms (source: pg_stat_statements)
+- **Avg Time:** 6.00 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.matching_jobs
 
 ## public.fn_buscar_listas_raw
@@ -333,7 +333,7 @@
 ## public.f_unaccent_immutable
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 25.00 ms (source: ast_estimator)
+- **Avg Time:** 4847.59 ms (source: pg_stat_statements)
 
 ## public.fn_consolidar_importacion
 - **Security:** DEFINER
@@ -392,7 +392,7 @@
 ## public.fn_parse_precio
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** 53.98 ms (source: pg_stat_statements)
 
 ## public.fn_tg_promote_pendientes
 - **Security:** DEFINER
@@ -429,7 +429,7 @@
 ## public.fn_resolver_y_poblar_costos
 - **Security:** DEFINER
 - **Timeout Override:** statement_timeout=180s
-- **Avg Time:** 9.63 ms (source: pg_stat_statements)
+- **Avg Time:** 196689.53 ms (source: pg_stat_statements)
 - **Touches Tables:** public.costos_articulo, public.costos_pendientes, public.SET
 - **Calls Functions:** public.f_unaccent_immutable
 - **Cascading Triggers:**
@@ -454,7 +454,7 @@
 ## public.fn_match_precios_v2
 - **Security:** DEFINER
 - **Timeout Override:** statement_timeout=180s
-- **Avg Time:** 4000.00 ms (source: yaml_hint)
+- **Avg Time:** 20541.45 ms (source: pg_stat_statements)
 - **Touches Tables:** public.costos_articulo, public.costos_pendientes, public.matching_jobs, public.SET, public.proveedor_articulos_alias, public.importaciones_excel, public.listas_precios_raw_staging
 - **Calls Functions:** public.f_unaccent_immutable, public.fn_parse_precio, public.fn_marcar_vigente
 - **Cascading Triggers:**
@@ -474,7 +474,7 @@
 ## public.recalcular_par_item_id
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 166.13 ms (source: pg_stat_statements)
+- **Avg Time:** 163.99 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
   - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -483,7 +483,7 @@
 ## public.recalcular_catalog_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 50.57 ms (source: pg_stat_statements)
+- **Avg Time:** 48.51 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
   - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -492,7 +492,7 @@
 ## public.recalcular_associated_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 44.92 ms (source: pg_stat_statements)
+- **Avg Time:** 44.61 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
   - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -674,7 +674,7 @@
 ## public.fn_marcar_vigente
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 500.00 ms (source: yaml_hint)
+- **Avg Time:** 53.98 ms (source: pg_stat_statements)
 - **Touches Tables:** public.listas_precios_proveedor
 
 ## public.upsert_egreso
@@ -696,7 +696,7 @@
 ## public.claim_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 7.98 ms (source: pg_stat_statements)
+- **Avg Time:** 8.54 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.jobs
 
 ## public.fn_recalcular_lote
@@ -730,7 +730,7 @@
 ## public.procesar_import_job
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 17.13 ms (source: pg_stat_statements)
+- **Avg Time:** 17.79 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.import_jobs, public.importaciones_excel
 - **Calls Functions:** public.fn_preparar_importacion_revision
 - **Cascading Triggers:**
