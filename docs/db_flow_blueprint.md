@@ -1,7 +1,43 @@
 # DB Flow Blueprint
 
 - **Schema hash:** `ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558`
+- **Processes hash:** `3b7b3bbcc8e2ec2a455f932b9509b4c46aafe506aa5a6531abef62605a9d0791`
 - **Tables:** 69 | **Triggers:** 32 | **Cron jobs:** 3 | **Edge fns:** 3
+
+## Maquinas de estado
+
+### importacion (enum `estado_importacion_excel`)
+- **Estados:** pendiente_mapeo, mapeando, procesando, en_revision, completado, error, cancelado, matching_completo
+- **Recuperacion desde error ->** cancelado, completado, en_revision, mapeando, matching_completo, pendiente_mapeo, procesando
+- **Transiciones:**
+  - `pendiente_mapeo` -> cancelado, error, mapeando
+  - `mapeando` -> cancelado, completado, en_revision, error, matching_completo, pendiente_mapeo, procesando
+  - `procesando` -> cancelado, completado, en_revision, error, matching_completo
+  - `completado` -> cancelado, en_revision, mapeando
+  - `error` -> cancelado, completado, en_revision, mapeando, matching_completo, pendiente_mapeo, procesando
+  - `cancelado` -> pendiente_mapeo
+  - `en_revision` -> cancelado, completado, error
+  - `matching_completo` -> cancelado, completado, en_revision, error
+
+## Procesos (pipelines)
+
+### importacion_precios
+- Importacion de lista de precios de proveedor y aplicacion end-to-end.
+- **Trigger:** POST /api/precios/importar/[id]/iniciar-parser
+- **State machine:** importacion
+- **Pasos:**
+  1. `public.fn_preparar_importacion_revision` (estado: mapeando)
+  2. `public.fn_match_precios_v2` (estado: procesando)
+  3. `public.fn_confirmar_matching_decisiones` (estado: en_revision)
+  4. `public.fn_consolidar_matching_decisiones` (estado: matching_completo)
+  5. `public.fn_resolver_y_poblar_costos` (-> costos_articulo)
+  6. `public.fn_marcar_vigente` (estado: completado)
+- **Downstream (fronteras externas):**
+  - trigger trg_costos_articulo_recalcular_async (costos_articulo)
+  - job recalc_pricing_bundle -> apps/dashboard/src/app/api/worker/process/route.ts#handleRecalcPricingBundle
+  - fn public.fn_recalcular_precio_publicacion -> publication_pricing_history
+  - job sync_price -> MeliAdapter.updatePrice
+- **Recuperacion:** desde `error` -> mapeando, procesando, completado
 
 ## public.actualizar_updated_at
 - **Security:** INVOKER
@@ -213,7 +249,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 6.00 ms (source: pg_stat_statements)
+- **Avg Time:** 5.93 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -474,7 +510,7 @@
 ## public.recalcular_par_item_id
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 163.99 ms (source: pg_stat_statements)
+- **Avg Time:** 177.98 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
   - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -483,7 +519,7 @@
 ## public.recalcular_catalog_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 48.51 ms (source: pg_stat_statements)
+- **Avg Time:** 52.55 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
   - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -492,7 +528,7 @@
 ## public.recalcular_associated_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 44.61 ms (source: pg_stat_statements)
+- **Avg Time:** 52.19 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
   - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -696,7 +732,7 @@
 ## public.claim_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 8.54 ms (source: pg_stat_statements)
+- **Avg Time:** 8.58 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.jobs
 
 ## public.fn_recalcular_lote

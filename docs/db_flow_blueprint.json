@@ -1,6 +1,7 @@
 {
-  "generated_at": "2026-08-11T22:59:53.121Z",
+  "generated_at": "2026-08-12T01:02:39.763Z",
   "schema_hash": "ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558",
+  "processes_hash": "3b7b3bbcc8e2ec2a455f932b9509b4c46aafe506aa5a6531abef62605a9d0791",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -626,7 +627,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 5.99975896961064,
+      "avg_time_ms": 5.93475049257885,
       "p95_time_ms": 236.431296,
       "timing_source": "pg_stat_statements"
     },
@@ -1437,8 +1438,8 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 163.9905458,
-      "p95_time_ms": 293.930015,
+      "avg_time_ms": 177.979863545455,
+      "p95_time_ms": 317.873041,
       "timing_source": "pg_stat_statements"
     },
     "public.recalcular_catalog_count": {
@@ -1463,8 +1464,8 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 48.5134533,
-      "p95_time_ms": 90.435203,
+      "avg_time_ms": 52.5494119090909,
+      "p95_time_ms": 92.908998,
       "timing_source": "pg_stat_statements"
     },
     "public.recalcular_associated_count": {
@@ -1489,8 +1490,8 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 44.6110649,
-      "p95_time_ms": 68.766585,
+      "avg_time_ms": 52.1851523636364,
+      "p95_time_ms": 127.926027,
       "timing_source": "pg_stat_statements"
     },
     "public.vincular_ficha": {
@@ -2150,7 +2151,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 8.54474773224147,
+      "avg_time_ms": 8.57764753889096,
       "p95_time_ms": 543.728639,
       "timing_source": "pg_stat_statements"
     },
@@ -2276,7 +2277,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 17.7873393275538,
+      "avg_time_ms": 17.7904443156823,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
@@ -7289,5 +7290,145 @@
       "name": "procesar-matching",
       "path": "supabase/functions/procesar-matching"
     }
-  ]
+  ],
+  "state_machines": {
+    "importacion": {
+      "enum_type": "estado_importacion_excel",
+      "states": [
+        "pendiente_mapeo",
+        "mapeando",
+        "procesando",
+        "en_revision",
+        "completado",
+        "error",
+        "cancelado",
+        "matching_completo"
+      ],
+      "transitions": {
+        "pendiente_mapeo": [
+          "cancelado",
+          "error",
+          "mapeando"
+        ],
+        "mapeando": [
+          "cancelado",
+          "completado",
+          "en_revision",
+          "error",
+          "matching_completo",
+          "pendiente_mapeo",
+          "procesando"
+        ],
+        "procesando": [
+          "cancelado",
+          "completado",
+          "en_revision",
+          "error",
+          "matching_completo"
+        ],
+        "completado": [
+          "cancelado",
+          "en_revision",
+          "mapeando"
+        ],
+        "error": [
+          "cancelado",
+          "completado",
+          "en_revision",
+          "mapeando",
+          "matching_completo",
+          "pendiente_mapeo",
+          "procesando"
+        ],
+        "cancelado": [
+          "pendiente_mapeo"
+        ],
+        "en_revision": [
+          "cancelado",
+          "completado",
+          "error"
+        ],
+        "matching_completo": [
+          "cancelado",
+          "completado",
+          "en_revision",
+          "error"
+        ]
+      },
+      "recovery_from": [
+        "cancelado",
+        "completado",
+        "en_revision",
+        "mapeando",
+        "matching_completo",
+        "pendiente_mapeo",
+        "procesando"
+      ]
+    }
+  },
+  "processes": {
+    "importacion_precios": {
+      "descripcion": "Importacion de lista de precios de proveedor y aplicacion end-to-end.",
+      "trigger": "POST /api/precios/importar/[id]/iniciar-parser",
+      "ingesta": {
+        "tabla_staging": "listas_precios_raw_staging",
+        "columna_modelo": "CLAVE",
+        "columna_codigo": "CODIGO DE BARRA SIN CERO"
+      },
+      "steps": [
+        {
+          "fn": "public.fn_preparar_importacion_revision",
+          "estado": "mapeando"
+        },
+        {
+          "fn": "public.fn_match_precios_v2",
+          "estado": "procesando"
+        },
+        {
+          "fn": "public.fn_confirmar_matching_decisiones",
+          "estado": "en_revision"
+        },
+        {
+          "fn": "public.fn_consolidar_matching_decisiones",
+          "estado": "matching_completo"
+        },
+        {
+          "fn": "public.fn_resolver_y_poblar_costos",
+          "tabla_destino": "costos_articulo"
+        },
+        {
+          "fn": "public.fn_marcar_vigente",
+          "estado": "completado"
+        }
+      ],
+      "downstream": [
+        {
+          "trigger": "trg_costos_articulo_recalcular_async",
+          "tabla": "costos_articulo"
+        },
+        {
+          "job": "recalc_pricing_bundle",
+          "consumidor": "apps/dashboard/src/app/api/worker/process/route.ts#handleRecalcPricingBundle"
+        },
+        {
+          "fn": "public.fn_recalcular_precio_publicacion",
+          "destino": "publication_pricing_history"
+        },
+        {
+          "job": "sync_price",
+          "consumidor": "MeliAdapter.updatePrice"
+        }
+      ],
+      "state_machine": "importacion",
+      "recovery": {
+        "desde": "error",
+        "rutas": [
+          "mapeando",
+          "procesando",
+          "completado"
+        ],
+        "motivo": "Resuelve error 23514; el lote en error reintenta hasta completado sin intervencion."
+      }
+    }
+  }
 }
