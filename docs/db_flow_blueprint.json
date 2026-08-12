@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-12T14:03:52.352Z",
+  "generated_at": "2026-08-12T14:50:55.326Z",
   "schema_hash": "ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558",
-  "processes_hash": "4270c215133874fca869294acd32b53e46077b50a81c51175096f7dedce0a0f0",
+  "processes_hash": "4cb402cd7b8f2eb90f8f955f96bdac3c71e795c42bf940ef7b7b9849fd28b812",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -627,7 +627,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 5.8120434286872,
+      "avg_time_ms": 5.93673704501608,
       "p95_time_ms": 236.431296,
       "timing_source": "pg_stat_statements"
     },
@@ -978,9 +978,9 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 4847.592804,
+      "avg_time_ms": 5,
       "p95_time_ms": 4847.592804,
-      "timing_source": "pg_stat_statements"
+      "timing_source": "yaml_hint"
     },
     "public.fn_consolidar_importacion": {
       "source_sql": "\nDECLARE\n    v_totales int := 0;\nBEGIN\n    SELECT COUNT(*) INTO v_totales FROM listas_precios_raw_staging WHERE importacion_id = p_importacion_id;\n\n    INSERT INTO listas_precios_raw (importacion_id, proveedor, fila_num, payload, columnas_guardadas)\n    SELECT importacion_id, proveedor, fila_num, payload, columnas_guardadas\n    FROM listas_precios_raw_staging\n    WHERE importacion_id = p_importacion_id;\n\n    DELETE FROM listas_precios_raw_staging WHERE importacion_id = p_importacion_id;\n\n    -- Update status\n    UPDATE importaciones_excel\n    SET resumen_diff = jsonb_build_object('totales', v_totales, 'nuevos', v_totales, 'modificados', 0, 'eliminados', 0)\n    WHERE id = p_importacion_id;\n\n    BEGIN\n        -- Desactivar triggers de usuario temporalmente en lugar de session_replication_role\n        ALTER TABLE listas_precios_proveedor DISABLE TRIGGER USER;\n        ALTER TABLE costos_articulo DISABLE TRIGGER USER;\n\n        UPDATE listas_precios_proveedor SET vigente = false WHERE proveedor = p_proveedor AND vigente = true;\n\n        INSERT INTO listas_precios_proveedor (proveedor, importacion_id, vigente, total_filas)\n        VALUES (p_proveedor, p_importacion_id, true, v_totales);\n\n        -- Borrado lógico rápido de costos anteriores\n        UPDATE costos_articulo SET vigente = false WHERE proveedor = p_proveedor AND vigente = true;\n\n        -- Reactivar triggers\n        ALTER TABLE listas_precios_proveedor ENABLE TRIGGER USER;\n        ALTER TABLE costos_articulo ENABLE TRIGGER USER;\n    EXCEPTION WHEN OTHERS THEN\n        -- Asegurar que se reactivan incluso si hay un error\n        ALTER TABLE listas_precios_proveedor ENABLE TRIGGER USER;\n        ALTER TABLE costos_articulo ENABLE TRIGGER USER;\n        RAISE;\n    END;\n\n    UPDATE importaciones_excel SET estado = 'completado'::estado_importacion_excel, ultima_actividad = now() WHERE id = p_importacion_id;\n\n    INSERT INTO importacion_eventos (importacion_id, estado_paso, mensaje)\n    VALUES (p_importacion_id, 'CONSOLIDADO', 'Lista de precios actualizada y costos anteriores invalidados.');\nEND;\n",
@@ -1287,9 +1287,9 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 196689.525015,
+      "avg_time_ms": 6000,
       "p95_time_ms": 196689.525015,
-      "timing_source": "pg_stat_statements"
+      "timing_source": "yaml_hint"
     },
     "public.fn_consolidar_revision_importacion": {
       "source_sql": "\nDECLARE\n  v_insertados INT;\n  v_actualizados INT;\n  v_modo TEXT;\nBEGIN\n  SELECT modo_carga INTO v_modo FROM importaciones_excel WHERE id = p_importacion_id;\n  v_modo := COALESCE(v_modo, 'parcial');\n\n  -- 1) UPSERT en precios_proveedor_actual\n  WITH upsert AS (\n    INSERT INTO precios_proveedor_actual (\n      proveedor, codigo, codigo_barra, marca, descripcion,\n      precio_lista, precio_distribuidor, precio_dist_iva,\n      precio_menudeo, precio_mayoreo, precio_subdist, pvl, pp,\n      importacion_origen, fila_raw_origen, actualizado_el\n    )\n    SELECT\n      p_proveedor,\n      lpr.payload->>'CÓDIGO',\n      lpr.payload->>'CÓDIGO DE BARRA',\n      lpr.payload->>'MARCA',\n      lpr.payload->>'DESCRIPCIÓN LARGA',\n      NULLIF(REGEXP_REPLACE(lpr.payload->>'PRECIO DE LISTA', '[^0-9.-]', '', 'g'), '')::numeric,\n      NULLIF(REGEXP_REPLACE(lpr.payload->>'P.DIST', '[^0-9.-]', '', 'g'), '')::numeric,\n      NULLIF(REGEXP_REPLACE(lpr.payload->>'P.DIST (CON IVA)', '[^0-9.-]', '', 'g'), '')::numeric,\n      NULLIF(REGEXP_REPLACE(lpr.payload->>'PRECIO MENUDEO (CON IVA)', '[^0-9.-]', '', 'g'), '')::numeric,\n      NULLIF(REGEXP_REPLACE(lpr.payload->>'PRECIO MAYORE (CON IVA)', '[^0-9.-]', '', 'g'), '')::numeric,\n      NULLIF(REGEXP_REPLACE(lpr.payload->>'PRECIO SUBDISTRIBUIDOR (CON IVA)', '[^0-9.-]', '', 'g'), '')::numeric,\n      NULLIF(REGEXP_REPLACE(lpr.payload->>'PVL', '[^0-9.-]', '', 'g'), '')::numeric,\n      NULLIF(REGEXP_REPLACE(lpr.payload->>'PP', '[^0-9.-]', '', 'g'), '')::numeric,\n      p_importacion_id, lpr.id, now()\n    FROM listas_precios_raw lpr\n    WHERE lpr.importacion_id = p_importacion_id\n      AND lpr.payload <> '{}'::jsonb\n      AND lpr.payload->>'CÓDIGO' IS NOT NULL\n      AND lpr.payload->>'CÓDIGO' != 'CÓDIGO'\n      AND lpr.revertido_at IS NULL\n    ON CONFLICT (proveedor, codigo) DO UPDATE SET\n      codigo_barra       = EXCLUDED.codigo_barra,\n      marca              = EXCLUDED.marca,\n      descripcion        = EXCLUDED.descripcion,\n      precio_lista       = EXCLUDED.precio_lista,\n      precio_distribuidor= EXCLUDED.precio_distribuidor,\n      precio_dist_iva    = EXCLUDED.precio_dist_iva,\n      precio_menudeo     = EXCLUDED.precio_menudeo,\n      precio_mayoreo     = EXCLUDED.precio_mayoreo,\n      precio_subdist     = EXCLUDED.precio_subdist,\n      pvl                = EXCLUDED.pvl,\n      pp                 = EXCLUDED.pp,\n      importacion_origen = EXCLUDED.importacion_origen,\n      fila_raw_origen    = EXCLUDED.fila_raw_origen,\n      actualizado_el     = now()\n    RETURNING (xmax = 0) AS inserted\n  )\n  SELECT\n    count(*) FILTER (WHERE inserted) AS insertados,\n    count(*) FILTER (WHERE NOT inserted) AS actualizados\n  INTO v_insertados, v_actualizados FROM upsert;\n\n  -- 2) Auditoría y Vigencia (Diferenciada por modo_carga)\n  IF v_modo = 'full' THEN\n      UPDATE listas_precios_proveedor\n         SET vigente = false\n       WHERE proveedor = p_proveedor\n         AND vigente = true\n         AND importacion_id IS DISTINCT FROM p_importacion_id;\n  END IF;\n\n  INSERT INTO listas_precios_proveedor (proveedor, importacion_id, vigente, total_filas)\n  VALUES (p_proveedor, p_importacion_id, true, v_insertados + v_actualizados)\n  ON CONFLICT DO NOTHING;\n\n  -- 3) MERGE-SAFE en costos_articulo\n  ALTER TABLE costos_articulo DISABLE TRIGGER USER;\n  IF v_modo = 'full' THEN\n      UPDATE costos_articulo ca\n         SET vigente = false\n       WHERE ca.vigente = true\n         AND ca.importacion_id IS DISTINCT FROM p_importacion_id\n         AND ca.articulo_id IN (\n           SELECT DISTINCT articulo_id\n             FROM costos_articulo\n            WHERE importacion_id = p_importacion_id\n              AND articulo_id IS NOT NULL\n         );\n  END IF;\n\n  UPDATE costos_articulo\n     SET vigente = true\n   WHERE importacion_id = p_importacion_id\n     AND articulo_id IS NOT NULL;\n  ALTER TABLE costos_articulo ENABLE TRIGGER USER;\n\n  UPDATE importaciones_excel SET estado='completado'::estado_importacion_excel, ultima_actividad=now()\n   WHERE id = p_importacion_id;\n\n  INSERT INTO importacion_eventos (importacion_id, estado_paso, mensaje)\n  VALUES (p_importacion_id, 'CONSOLIDADO', format('Revision finalizada en modo %s. Cambios proyectados al catalogo.', v_modo));\n\n  RETURN jsonb_build_object('insertados', v_insertados, 'actualizados', v_actualizados);\nEXCEPTION WHEN OTHERS THEN\n  ALTER TABLE costos_articulo ENABLE TRIGGER USER;\n  RAISE;\nEND;\n",
@@ -1399,9 +1399,9 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 20541.451141,
+      "avg_time_ms": 4000,
       "p95_time_ms": 20541.451141,
-      "timing_source": "pg_stat_statements"
+      "timing_source": "yaml_hint"
     },
     "public.fn_app_config_get": {
       "source_sql": "\r\n  SELECT value FROM app_config WHERE key = p_key;\r\n",
@@ -2087,9 +2087,9 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 53.983803,
+      "avg_time_ms": 500,
       "p95_time_ms": 53.983803,
-      "timing_source": "pg_stat_statements"
+      "timing_source": "yaml_hint"
     },
     "public.upsert_egreso": {
       "source_sql": "\r\nDECLARE v_norm text; v_tipo text; v_op text; v_art text;\r\nBEGIN\r\n  v_norm := lower(btrim(translate(coalesce(p_tipo_egreso,''), 'ÁÉÍÓÚÜÑáéíóúüñ','AEIOUUNaeiouun')));\r\n  v_tipo := CASE WHEN v_norm='' THEN 'otro'\r\n    WHEN position('venta' in v_norm)>0 THEN 'venta'\r\n    WHEN position('full' in v_norm)>0 OR position('fulfillment' in v_norm)>0 THEN 'envio_full'\r\n    WHEN position('devolucion' in v_norm)>0 OR position('proveedor' in v_norm)>0 THEN 'devolucion_proveedor'\r\n    ELSE 'otro' END;\r\n  v_op  := NULLIF(btrim(coalesce(p_operador_id,'')),'');\r\n  v_art := NULLIF(btrim(coalesce(p_articulo_id,'')),'');\r\n  INSERT INTO egresos (egreso_id,articulo_id,cantidad,guia,transportista,tipo_egreso,notas,fecha,operador_id,largo,ancho,alto,peso)\r\n  VALUES (p_egreso_id, v_art, p_cantidad, p_guia, p_transportista, v_tipo, p_notas, p_fecha, v_op,\r\n    NULLIF(btrim(p_largo),'')::numeric, NULLIF(btrim(p_ancho),'')::numeric,\r\n    NULLIF(btrim(p_alto),'')::numeric, NULLIF(btrim(p_peso),'')::numeric)\r\n  ON CONFLICT (egreso_id) DO UPDATE SET\r\n    articulo_id=EXCLUDED.articulo_id, cantidad=EXCLUDED.cantidad, guia=EXCLUDED.guia,\r\n    transportista=EXCLUDED.transportista, tipo_egreso=EXCLUDED.tipo_egreso, notas=EXCLUDED.notas,\r\n    fecha=EXCLUDED.fecha, operador_id=EXCLUDED.operador_id,\r\n    largo=EXCLUDED.largo, ancho=EXCLUDED.ancho, alto=EXCLUDED.alto, peso=EXCLUDED.peso;\r\nEND;",
@@ -2151,7 +2151,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 8.44204582325203,
+      "avg_time_ms": 8.4455205296111,
       "p95_time_ms": 543.728639,
       "timing_source": "pg_stat_statements"
     },
@@ -2242,9 +2242,9 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 56.37726,
+      "avg_time_ms": 2500,
       "p95_time_ms": 56.37726,
-      "timing_source": "pg_stat_statements"
+      "timing_source": "yaml_hint"
     },
     "public.procesar_import_job": {
       "source_sql": "\r\nDECLARE\r\n  v_job public.import_jobs;\r\nBEGIN\r\n  -- Toma un job especifico o el mas antiguo en cola, con lock para evitar doble ejecucion\r\n  IF p_job_id IS NOT NULL THEN\r\n    SELECT * INTO v_job FROM public.import_jobs\r\n      WHERE id = p_job_id AND estado IN ('queued','running')\r\n      FOR UPDATE SKIP LOCKED;\r\n  ELSE\r\n    SELECT * INTO v_job FROM public.import_jobs\r\n      WHERE estado IN ('queued','running')\r\n      ORDER BY created_at\r\n      FOR UPDATE SKIP LOCKED\r\n      LIMIT 1;\r\n  END IF;\r\n\r\n  IF v_job.id IS NULL THEN\r\n    RETURN NULL;  -- no hay trabajo disponible\r\n  END IF;\r\n\r\n  -- Marca en ejecucion\r\n  UPDATE public.import_jobs\r\n     SET estado='running', intentos=intentos+1, locked_at=now(), updated_at=now()\r\n   WHERE id=v_job.id\r\n   RETURNING * INTO v_job;\r\n\r\n  BEGIN\r\n    -- Timeout amplio SOLO para esta transaccion (no depende del gateway HTTP)\r\n    PERFORM set_config('statement_timeout','600000', true); -- 10 min local\r\n\r\n    -- Ejecuta el pipeline pesado ya encapsulado\r\n    PERFORM public.fn_preparar_importacion_revision(v_job.importacion_id, v_job.proveedor);\r\n\r\n    UPDATE public.import_jobs\r\n       SET estado='done', fase='finalize', cursor_offset=COALESCE(total_items,cursor_offset),\r\n           error_msg=NULL, updated_at=now()\r\n     WHERE id=v_job.id\r\n     RETURNING * INTO v_job;\r\n\r\n  EXCEPTION WHEN OTHERS THEN\r\n    UPDATE public.import_jobs\r\n       SET estado = CASE WHEN intentos >= max_intentos THEN 'error' ELSE 'queued' END,\r\n           error_msg = left(SQLERRM, 2000), locked_at=NULL, updated_at=now()\r\n     WHERE id=v_job.id\r\n     RETURNING * INTO v_job;\r\n\r\n    IF v_job.estado='error' THEN\r\n      UPDATE public.importaciones_excel SET estado='error' WHERE id=v_job.importacion_id;\r\n    END IF;\r\n  END;\r\n\r\n  RETURN v_job;\r\nEND;\r\n",
@@ -2277,7 +2277,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 17.9255832412582,
+      "avg_time_ms": 17.9165879458,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
@@ -7401,11 +7401,11 @@
       "type": "sync_item",
       "status_counts": {
         "processing": 46,
-        "completed": 7159,
-        "pending": 12
+        "completed": 7140,
+        "pending": 20
       },
-      "total": 7217,
-      "pending": 12,
+      "total": 7206,
+      "pending": 20,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
@@ -7434,12 +7434,12 @@
     "process_sale": {
       "type": "process_sale",
       "status_counts": {
-        "pending": 1,
-        "completed": 1956,
+        "pending": 10,
+        "completed": 1954,
         "processing": 22
       },
-      "total": 1979,
-      "pending": 1,
+      "total": 1986,
+      "pending": 10,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",

@@ -1,7 +1,7 @@
 # DB Flow Blueprint
 
 - **Schema hash:** `ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558`
-- **Processes hash:** `4270c215133874fca869294acd32b53e46077b50a81c51175096f7dedce0a0f0`
+- **Processes hash:** `4cb402cd7b8f2eb90f8f955f96bdac3c71e795c42bf940ef7b7b9849fd28b812`
 - **Tables:** 69 | **Triggers:** 32 | **Cron jobs:** 3 | **Edge fns:** 3 | **Queues:** 6
 
 ## Maquinas de estado
@@ -31,8 +31,8 @@
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
 ### sync_item
-- **Total:** 7217 (processing=46, completed=7159, pending=12)
-- **Pendientes:** 12
+- **Total:** 7206 (processing=46, completed=7140, pending=20)
+- **Pendientes:** 20
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
 ### sync_stock
@@ -40,8 +40,8 @@
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
 ### process_sale
-- **Total:** 1979 (pending=1, completed=1956, processing=22)
-- **Pendientes:** 1
+- **Total:** 1986 (pending=10, completed=1954, processing=22)
+- **Pendientes:** 10
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
 ### recalc_pricing_bundle
@@ -303,7 +303,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.81 ms (source: pg_stat_statements)
+- **Avg Time:** 5.94 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -423,7 +423,7 @@
 ## public.f_unaccent_immutable
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 4847.59 ms (source: pg_stat_statements)
+- **Avg Time:** 5.00 ms (source: yaml_hint)
 
 ## public.fn_consolidar_importacion
 - **Security:** DEFINER
@@ -519,7 +519,7 @@
 ## public.fn_resolver_y_poblar_costos
 - **Security:** DEFINER
 - **Timeout Override:** statement_timeout=180s
-- **Avg Time:** 196689.53 ms (source: pg_stat_statements)
+- **Avg Time:** 6000.00 ms (source: yaml_hint)
 - **Touches Tables:** public.costos_articulo, public.costos_pendientes, public.SET
 - **Calls Functions:** public.f_unaccent_immutable
 - **Cascading Triggers:**
@@ -544,7 +544,7 @@
 ## public.fn_match_precios_v2
 - **Security:** DEFINER
 - **Timeout Override:** statement_timeout=180s
-- **Avg Time:** 20541.45 ms (source: pg_stat_statements)
+- **Avg Time:** 4000.00 ms (source: yaml_hint)
 - **Touches Tables:** public.costos_articulo, public.costos_pendientes, public.matching_jobs, public.SET, public.proveedor_articulos_alias, public.importaciones_excel, public.listas_precios_raw_staging
 - **Calls Functions:** public.f_unaccent_immutable, public.fn_parse_precio, public.fn_marcar_vigente
 - **Cascading Triggers:**
@@ -764,7 +764,7 @@
 ## public.fn_marcar_vigente
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 53.98 ms (source: pg_stat_statements)
+- **Avg Time:** 500.00 ms (source: yaml_hint)
 - **Touches Tables:** public.listas_precios_proveedor
 
 ## public.upsert_egreso
@@ -786,7 +786,7 @@
 ## public.claim_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 8.44 ms (source: pg_stat_statements)
+- **Avg Time:** 8.45 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.jobs
 
 ## public.fn_recalcular_lote
@@ -809,7 +809,7 @@
 ## public.fn_preparar_importacion_revision
 - **Security:** DEFINER
 - **Timeout Override:** statement_timeout=180s
-- **Avg Time:** 56.38 ms (source: pg_stat_statements)
+- **Avg Time:** 2500.00 ms (source: yaml_hint)
 - **Touches Tables:** public.listas_precios_raw, public.listas_precios_proveedor, public.importaciones_excel, public.listas_precios_raw_staging
 - **Calls Functions:** public.fn_resolver_y_poblar_costos
 - **Cascading Triggers:**
@@ -820,7 +820,7 @@
 ## public.procesar_import_job
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 17.93 ms (source: pg_stat_statements)
+- **Avg Time:** 17.92 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.import_jobs, public.importaciones_excel
 - **Calls Functions:** public.fn_preparar_importacion_revision
 - **Cascading Triggers:**
