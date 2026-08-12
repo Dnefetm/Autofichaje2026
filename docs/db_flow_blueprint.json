@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-12T16:03:45.442Z",
+  "generated_at": "2026-08-12T16:23:24.784Z",
   "schema_hash": "ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558",
-  "processes_hash": "8ca5fe3605100400955ca3bacd71737be49e8873f1988c61afc041096d20885d",
+  "processes_hash": "4bbc74763b95cae2062be25548c7392461134f065585c87860b8e33df26f4ade",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -627,7 +627,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 5.92047878696343,
+      "avg_time_ms": 5.9104527836767,
       "p95_time_ms": 236.431296,
       "timing_source": "pg_stat_statements"
     },
@@ -1287,8 +1287,8 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 6000,
-      "p95_time_ms": 6000,
+      "avg_time_ms": 3500,
+      "p95_time_ms": 3500,
       "timing_source": "yaml_hint"
     },
     "public.fn_consolidar_revision_importacion": {
@@ -2151,7 +2151,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 8.44031423748006,
+      "avg_time_ms": 8.43864486327504,
       "p95_time_ms": 543.728639,
       "timing_source": "pg_stat_statements"
     },
@@ -2277,7 +2277,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 17.929225720358,
+      "avg_time_ms": 17.9194803311611,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
@@ -7383,12 +7383,12 @@
     "sync_account_catalog": {
       "type": "sync_account_catalog",
       "status_counts": {
-        "completed": 19,
-        "failed": 14
+        "completed": 18,
+        "failed": 13
       },
-      "total": 33,
+      "total": 31,
       "pending": 0,
-      "failed": 14,
+      "failed": 13,
       "producers": [
         "public.fn_encolar_sync_price",
         "public.fn_encolar_sync_price_marketplace",
@@ -7401,11 +7401,11 @@
       "type": "sync_item",
       "status_counts": {
         "processing": 46,
-        "completed": 7164,
-        "pending": 35
+        "completed": 7171,
+        "pending": 29
       },
-      "total": 7245,
-      "pending": 35,
+      "total": 7246,
+      "pending": 29,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
@@ -7431,6 +7431,24 @@
         "public.trg_mapeo_publicacion_recalcular_async"
       ]
     },
+    "process_sale": {
+      "type": "process_sale",
+      "status_counts": {
+        "pending": 8,
+        "completed": 1963,
+        "processing": 22
+      },
+      "total": 1993,
+      "pending": 8,
+      "failed": 0,
+      "producers": [
+        "public.fn_encolar_sync_price",
+        "public.fn_encolar_sync_price_marketplace",
+        "public.fn_encolar_sync_stock",
+        "public.trg_costos_articulo_recalcular_async",
+        "public.trg_mapeo_publicacion_recalcular_async"
+      ]
+    },
     "recalc_pricing_bundle": {
       "type": "recalc_pricing_bundle",
       "status_counts": {
@@ -7440,24 +7458,6 @@
       "pending": 0,
       "failed": 276,
       "producers": [
-        "public.trg_costos_articulo_recalcular_async",
-        "public.trg_mapeo_publicacion_recalcular_async"
-      ]
-    },
-    "process_sale": {
-      "type": "process_sale",
-      "status_counts": {
-        "pending": 8,
-        "completed": 1961,
-        "processing": 22
-      },
-      "total": 1991,
-      "pending": 8,
-      "failed": 0,
-      "producers": [
-        "public.fn_encolar_sync_price",
-        "public.fn_encolar_sync_price_marketplace",
-        "public.fn_encolar_sync_stock",
         "public.trg_costos_articulo_recalcular_async",
         "public.trg_mapeo_publicacion_recalcular_async"
       ]

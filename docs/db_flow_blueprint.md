@@ -1,7 +1,7 @@
 # DB Flow Blueprint
 
 - **Schema hash:** `ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558`
-- **Processes hash:** `8ca5fe3605100400955ca3bacd71737be49e8873f1988c61afc041096d20885d`
+- **Processes hash:** `4bbc74763b95cae2062be25548c7392461134f065585c87860b8e33df26f4ade`
 - **Tables:** 69 | **Triggers:** 32 | **Cron jobs:** 3 | **Edge fns:** 3 | **Queues:** 6
 
 ## Maquinas de estado
@@ -26,28 +26,28 @@
 - **Productores:** public.fn_encolar_sync_stock
 
 ### sync_account_catalog
-- **Total:** 33 (completed=19, failed=14)
-- **WARNING - Fallidos:** 14
+- **Total:** 31 (completed=18, failed=13)
+- **WARNING - Fallidos:** 13
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
 ### sync_item
-- **Total:** 7245 (processing=46, completed=7164, pending=35)
-- **Pendientes:** 35
+- **Total:** 7246 (processing=46, completed=7171, pending=29)
+- **Pendientes:** 29
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
 ### sync_stock
 - **Total:** 8 (completed=8)
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
+### process_sale
+- **Total:** 1993 (pending=8, completed=1963, processing=22)
+- **Pendientes:** 8
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
+
 ### recalc_pricing_bundle
 - **Total:** 276 (failed=276)
 - **WARNING - Fallidos:** 276
 - **Productores:** public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
-
-### process_sale
-- **Total:** 1991 (pending=8, completed=1961, processing=22)
-- **Pendientes:** 8
-- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
 ## Rutas de pricing (estado)
 
@@ -303,7 +303,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.92 ms (source: pg_stat_statements)
+- **Avg Time:** 5.91 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -519,7 +519,7 @@
 ## public.fn_resolver_y_poblar_costos
 - **Security:** DEFINER
 - **Timeout Override:** statement_timeout=180s
-- **Avg Time:** 6000.00 ms (source: yaml_hint)
+- **Avg Time:** 3500.00 ms (source: yaml_hint)
 - **Touches Tables:** public.costos_articulo, public.costos_pendientes, public.SET
 - **Calls Functions:** public.f_unaccent_immutable
 - **Cascading Triggers:**
@@ -820,7 +820,7 @@
 ## public.procesar_import_job
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 17.93 ms (source: pg_stat_statements)
+- **Avg Time:** 17.92 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.import_jobs, public.importaciones_excel
 - **Calls Functions:** public.fn_preparar_importacion_revision
 - **Cascading Triggers:**
