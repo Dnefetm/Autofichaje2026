@@ -53,34 +53,23 @@ console.log(`[processes-hash] ${currentProcHash}`);
 console.warn("[processes-hash] Blueprint sin processes_hash; se omite comparacion.");
 }
 
-// --- Validacion cruzada de PROCESOS: cada fn debe existir; cada estado debe existir en la state machine ---
-const processes = blueprint.processes || {};
-const functions = blueprint.functions || {};
-const smStates = new Set<string>((blueprint.state_machines?.importacion?.states) || []);
-const procErrors: string[] = [];
-for (const procName of Object.keys(processes)) {
-const proc = processes[procName] || {};
-const steps = Array.isArray(proc.steps) ? proc.steps : [];
-for (const step of steps) {
-if (step.fn && !functions[step.fn]) {
-procErrors.push(`[processes.${procName}] funcion inexistente en el blueprint: ${step.fn}`);
+// --- Analisis de diagnosticos emitidos por el motor LDFB ---
+const diagnostics = blueprint.diagnostics || [];
+const errors = diagnostics.filter((d: any) => d.severity === 'error');
+const warns = diagnostics.filter((d: any) => d.severity === 'warn');
+const infos = diagnostics.filter((d: any) => d.severity === 'info');
+const fmt = (d: any) => `  [${d.code}] ${d.scope}: ${d.message}`;
+
+if (errors.length > 0) {
+    console.error(`\n[ci-validator] Validacion cruzada FALLIDA. Se detectaron ${errors.length} errores estructurales:`);
+    errors.forEach((e: any) => console.error(fmt(e)));
+    process.exit(1);
 }
-if (step.estado && smStates.size > 0 && !smStates.has(step.estado)) {
-procErrors.push(`[processes.${procName}] estado inexistente en la state machine: ${step.estado}`);
+if (warns.length > 0) {
+    console.warn(`\n[ci-validator] ADVERTENCIAS (${warns.length}):`);
+    warns.forEach((w: any) => console.warn(fmt(w)));
 }
-}
-if (proc.recovery?.rutas && smStates.size > 0) {
-(proc.recovery.rutas as string[]).forEach(r => {
-if (!smStates.has(r)) procErrors.push(`[processes.${procName}.recovery] estado de recuperacion inexistente: ${r}`);
-});
-}
-}
-if (procErrors.length > 0) {
-console.error("\n[processes] Validacion cruzada FALLIDA. La capa declarativa esta desincronizada con la BD:");
-procErrors.forEach(e => console.error("  - " + e));
-process.exit(1);
-}
-console.log(`[processes] ${Object.keys(processes).length} proceso(s) OK contra ${Object.keys(functions).length} funciones y ${smStates.size} estados.`);
+console.log(`[ci-validator] Capa declarativa OK. (0 errores, ${warns.length} warns, ${infos.length} infos).`);
 
 // Limits
 const ROLE_LIMIT_MS = blueprint.roles?.authenticated?.statement_timeout_ms || 8000;

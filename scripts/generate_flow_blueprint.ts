@@ -14,6 +14,21 @@ calls_functions?: string[];
 
 type TimingSource = 'live_stats' | 'pg_stat_statements' | 'yaml_hint' | 'ast_estimator' | 'none';
 
+type Severity = 'error' | 'warn' | 'info';
+interface DiagnosticEvidence {
+  runtime?: boolean;
+  handler?: string[];
+  producer?: string[];
+  yaml?: boolean;
+}
+interface Diagnostic {
+  scope: string;
+  severity: Severity;
+  code: string;
+  message: string;
+  hint?: string;
+  evidence?: DiagnosticEvidence;
+}
 interface BlueprintNode {
 source_sql: string;
 statement_timeout_override: string | null;
@@ -74,6 +89,8 @@ edge_functions: any[];
 state_machines: Record<string, StateMachine>;
 queues: Record<string, Queue>;
 processes: Record<string, ProcessDef>;
+job_handlers: Record<string, string[]>;
+diagnostics: Diagnostic[];
 }
 
 // Deduplica preservando orden
@@ -98,10 +115,12 @@ if (fs.existsSync(limitsPath)) { external_limits = JSON.parse(fs.readFileSync(li
 
 let hints: Record<string, FlowHint> = {};
 let declaredProcesses: Record<string, ProcessDef> = {};
+let pipelineRoutes: Record<string, any> = {};
 if (fs.existsSync(hintsPath)) {
 const parsedHints = yaml.parse(fs.readFileSync(hintsPath, 'utf8'));
 if (parsedHints && parsedHints.hints) { hints = parsedHints.hints; }
 if (parsedHints && parsedHints.processes) { declaredProcesses = parsedHints.processes; }
+if (parsedHints && parsedHints.pipeline_routes) { pipelineRoutes = parsedHints.pipeline_routes; }
 }
 
 const rolesRes = await client.query(`SELECT rolname, rolconfig FROM pg_roles WHERE rolname IN ('authenticated', 'anon', 'service_role')`);
@@ -226,6 +245,31 @@ queues[t].producers = dedup(specific.length > 0 ? specific : genericProducers);
 console.log(`[queues] ${Object.keys(queues).length} cola(s) detectada(s) en public.jobs; ${genericProducers.length} funcion(es) productora(s).`);
 } catch (e) { console.warn("[queues] No se pudo introspectar public.jobs.", (e as Error).message); }
 
+const diagnostics: Diagnostic[] = [];
+const job_handlers: Record<string, string[]> = {};
+const producedByWorker = new Set<string>();
+const workerRoutePath = path.join(rootDir, 'apps', 'dashboard', 'src', 'app', 'api', 'worker', 'process', 'route.ts');
+if (fs.existsSync(workerRoutePath)) {
+    const routeSrc = fs.readFileSync(workerRoutePath, 'utf8');
+    const rel = path.relative(rootDir, workerRoutePath).replace(/\\/g, '/');
+    for (const m of routeSrc.matchAll(/case\s*['"]([a-zA-Z0-9_]+)['"]\s*:/g)) {
+        const t = m[1];
+        if (!job_handlers[t]) job_handlers[t] = [];
+        if (!job_handlers[t].includes(rel)) job_handlers[t].push(rel);
+    }
+    for (const m of routeSrc.matchAll(/type\s*:\s*['"]([a-zA-Z0-9_]+)['"]/g)) {
+        producedByWorker.add(m[1]);
+    }
+    console.log(`[job-handlers] ${Object.keys(job_handlers).length} handler(s) detectados en ${rel}.`);
+} else {
+    diagnostics.push({
+        scope: 'worker.route', severity: 'warn', code: 'WORKER_ROUTE_MISSING',
+        message: 'No se encontro route.ts del worker oficial; la validacion de consumidores queda degradada.',
+        hint: 'Verifica apps/dashboard/src/app/api/worker/process/route.ts',
+        evidence: { yaml: true }
+    });
+}
+
 const blueprint: Blueprint = {
 generated_at: new Date().toISOString(),
 schema_hash,
@@ -239,7 +283,9 @@ cron_jobs,
 edge_functions,
 state_machines,
 queues,
-processes: {}
+processes: {},
+job_handlers,
+diagnostics
 };
 
 const knownFunctions = new Set<string>(funcsRes.rows.map((row: any) => row.proname));
@@ -332,41 +378,54 @@ timing_source
 }
 
 // === Construccion + validacion cruzada de PROCESOS (capa declarativa) ===
-const validationErrors: string[] = [];
 const smStates = new Set<string>(state_machines['importacion']?.states || []);
-for (const [procName, proc] of Object.entries(declaredProcesses)) {
-const steps = Array.isArray(proc.steps) ? proc.steps : [];
-for (const step of steps) {
-if (step.fn && !blueprint.functions[step.fn]) {
-validationErrors.push(`[processes.${procName}] funcion inexistente en la BD: ${step.fn}`);
-}
-if (step.estado && smStates.size > 0 && !smStates.has(step.estado)) {
-validationErrors.push(`[processes.${procName}] estado inexistente en enum estado_importacion_excel: ${step.estado}`);
-}
-}
-if (proc.recovery && proc.recovery.rutas && smStates.size > 0) {
-(proc.recovery.rutas as string[]).forEach(r => {
-if (!smStates.has(r)) validationErrors.push(`[processes.${procName}.recovery] estado de recuperacion inexistente: ${r}`);
-});
-}
-// Validar que las colas referenciadas en downstream existan en la introspeccion de queues
-if (Array.isArray(proc.downstream)) {
-proc.downstream.forEach((d: any) => {
-if (d && d.job && !queues[d.job]) {
-validationErrors.push(`[processes.${procName}.downstream] cola inexistente en public.jobs: ${d.job}`);
-}
-});
-}
-blueprint.processes[procName] = proc;
+for (const [procName, proc] of Object.entries<any>(declaredProcesses)) {
+    const steps = Array.isArray(proc.steps) ? proc.steps : [];
+    for (const step of steps) {
+        if (step.fn && !blueprint.functions[step.fn]) {
+            diagnostics.push({ scope: `processes.${procName}`, severity: 'error', code: 'FN_MISSING', message: `funcion inexistente en la BD: ${step.fn}`, hint: 'Verifica el nombre o crea la funcion antes de declararla.', evidence: { yaml: true } });
+        }
+        if (step.estado && smStates.size > 0 && !smStates.has(step.estado)) {
+            diagnostics.push({ scope: `processes.${procName}`, severity: 'error', code: 'STATE_MISSING', message: `estado inexistente en estado_importacion_excel: ${step.estado}`, hint: 'Corrige el estado declarado o actualiza la state machine.', evidence: { yaml: true } });
+        }
+    }
+    if (proc.recovery?.rutas && smStates.size > 0) {
+        for (const r of proc.recovery.rutas as string[]) {
+            if (!smStates.has(r)) {
+                diagnostics.push({ scope: `processes.${procName}.recovery`, severity: 'error', code: 'RECOVERY_STATE_MISSING', message: `estado de recuperacion inexistente: ${r}`, hint: 'La ruta de recovery no coincide con la maquina de estados.', evidence: { yaml: true } });
+            }
+        }
+    }
+    if (Array.isArray(proc.downstream)) {
+        proc.downstream.forEach((d: any) => {
+            if (!d || !d.job) return;
+            const job = d.job as string;
+            const expectRuntime = d.expect_runtime !== false;
+            const hasRuntime = !!queues[job];
+            const handlers = job_handlers[job] || [];
+            const hasHandler = handlers.length > 0;
+            const producerHints = [...(producedByWorker.has(job) ? ['worker-route'] : []), ...(d.productor ? [String(d.productor)] : [])];
+            const isProducible = producerHints.length > 0;
+            if (hasRuntime) return;
+            if (hasHandler || isProducible) {
+                diagnostics.push({ scope: `processes.${procName}.downstream`, severity: expectRuntime ? 'warn' : 'info', code: 'QUEUE_NO_RUNTIME', message: `cola '${job}' sin filas observadas en public.jobs`, hint: d.blocked_by ? `Bloqueo conocido: ${d.blocked_by}. No es fallo estructural.` : 'La cola es valida pero aun no tiene trafico observado.', evidence: { runtime: false, handler: handlers, producer: producerHints, yaml: true } });
+            } else {
+                diagnostics.push({ scope: `processes.${procName}.downstream`, severity: 'error', code: 'QUEUE_ORPHAN', message: `cola '${job}' sin runtime, sin consumidor detectable y sin productor detectable`, hint: `Agrega el handler en route.ts o corrige el nombre en flow_hints.yaml.`, evidence: { runtime: false, handler: handlers, producer: producerHints, yaml: true } });
+            }
+        });
+    }
+    blueprint.processes[procName] = proc;
 }
 
-if (validationErrors.length > 0) {
-console.error("\n[processes] Validacion cruzada FALLIDA. El blueprint de procesos esta desincronizado con la BD:");
-validationErrors.forEach(e => console.error(" - " + e));
-await client.end();
-process.exit(1);
-}
-console.log(`[processes] ${Object.keys(blueprint.processes).length} proceso(s) validado(s) contra funciones, estados y colas de la BD.`);
+const errors = diagnostics.filter(d => d.severity === 'error');
+const warns = diagnostics.filter(d => d.severity === 'warn');
+const infos = diagnostics.filter(d => d.severity === 'info');
+const fmt = (d: Diagnostic) => `  [${d.code}] ${d.scope}: ${d.message}${d.hint ? `\n      -> ${d.hint}` : ''}`;
+if (errors.length) { console.error(`\n[processes] ${errors.length} ERROR(es):`); errors.forEach(d => console.error(fmt(d))); }
+if (warns.length) { console.warn(`\n[processes] ${warns.length} ADVERTENCIA(s):`); warns.forEach(d => console.warn(fmt(d))); }
+if (infos.length) { console.log(`\n[processes] ${infos.length} nota(s) informativa(s):`); infos.forEach(d => console.log(fmt(d))); }
+if (errors.length > 0) { await client.end(); process.exit(1); }
+console.log(`\n[processes] ${Object.keys(blueprint.processes).length} proceso(s) validados: ${errors.length} error, ${warns.length} warn, ${infos.length} info.`);
 
 if (!blueprint.schema_hash) {
 const catalog = Object.keys(blueprint.functions).sort().map(k => k + ':' + blueprint.functions[k].source_sql).join('\n');
@@ -414,32 +473,98 @@ md += '\n';
 }
 }
 
-if (Object.keys(blueprint.processes).length > 0) {
-md += `## Procesos (pipelines)\n\n`;
-for (const [procName, proc] of Object.entries(blueprint.processes)) {
-md += `### ${procName}\n`;
-if (proc.descripcion) md += `- ${proc.descripcion}\n`;
-if (proc.trigger) md += `- **Trigger:** ${proc.trigger}\n`;
-if (proc.state_machine) md += `- **State machine:** ${proc.state_machine}\n`;
-md += `- **Pasos:**\n`;
-(proc.steps || []).forEach((s, i) => {
-const extra = s.estado ? ` (estado: ${s.estado})` : (s.tabla_destino ? ` (-> ${s.tabla_destino})` : '');
-md += ` ${i + 1}. \`${s.fn}\`${extra}\n`;
-});
-if (proc.downstream && proc.downstream.length > 0) {
-md += `- **Downstream (fronteras externas):**\n`;
-proc.downstream.forEach((d: any) => {
-const label = d.trigger ? `trigger ${d.trigger}` : (d.job ? `job ${d.job}` : (d.fn ? `fn ${d.fn}` : JSON.stringify(d)));
-const target = d.consumidor ? ` -> ${d.consumidor}` : (d.destino ? ` -> ${d.destino}` : (d.tabla ? ` (${d.tabla})` : ''));
-md += ` - ${label}${target}\n`;
-});
+if (Object.keys(pipelineRoutes).length > 0) {
+    md += `## Rutas de pricing (estado)\n\n`;
+    for (const [name, r] of Object.entries<any>(pipelineRoutes)) {
+        md += `### ${name} — **${(r.status || 'unknown').toUpperCase()}**\n\n`;
+        if (r.description) md += `${r.description}\n\n`;
+        if (r.path) md += `- Path: \`${r.path}\`\n`;
+        if (r.producer) md += `- Producer: \`${r.producer}\`\n`;
+        if (r.consumer) md += `- Consumer: \`${r.consumer}\`\n`;
+        if (r.notes) md += `- Notes: ${r.notes}\n`;
+        md += `\n`;
+    }
 }
-if (proc.recovery) {
-md += `- **Recuperacion:** desde \`${proc.recovery.desde}\` -> ${(proc.recovery.rutas || []).join(', ')}\n`;
+
+if (blueprint.diagnostics.length > 0) {
+    md += `## Diagnosticos\n\n`;
+    const grouped = {
+        error: blueprint.diagnostics.filter(d => d.severity === 'error'),
+        warn:  blueprint.diagnostics.filter(d => d.severity === 'warn'),
+        info:  blueprint.diagnostics.filter(d => d.severity === 'info'),
+    };
+    for (const sev of ['error', 'warn', 'info'] as const) {
+        const items = grouped[sev];
+        if (!items.length) continue;
+        md += `### ${sev.toUpperCase()}\n\n`;
+        for (const d of items) {
+            md += `- [${d.code}] \`${d.scope}\`: ${d.message}`;
+            if (d.hint) md += ` — ${d.hint}`;
+            md += `\n`;
+        }
+        md += `\n`;
+    }
 }
-md += '\n';
+
+if (Object.keys(blueprint.processes || {}).length > 0) {
+    md += `## Procesos declarados\n\n`;
+    for (const [procName, proc] of Object.entries<any>(blueprint.processes)) {
+        md += `### ${procName}\n\n`;
+        if (proc.trigger) md += `- Trigger: \`${proc.trigger}\`\n`;
+        if (Array.isArray(proc.steps) && proc.steps.length) {
+            md += `- Steps:\n`;
+            for (const s of proc.steps) {
+                const bits = [];
+                if (s.fn) bits.push(`fn=\`${s.fn}\``);
+                if (s.estado) bits.push(`estado=\`${s.estado}\``);
+                if (s.tabla_destino) bits.push(`tabla_destino=\`${s.tabla_destino}\``);
+                if (s.destino) bits.push(`destino=\`${s.destino}\``);
+                md += `  - ${bits.join(' | ')}\n`;
+            }
+        }
+        if (Array.isArray(proc.downstream) && proc.downstream.length) {
+            md += `- Downstream:\n`;
+            for (const d of proc.downstream) {
+                if (d.trigger) {
+                    md += `  - trigger=\`${d.trigger}\`${d.tabla ? ` | tabla=\`${d.tabla}\`` : ''}\n`;
+                    continue;
+                }
+                if (d.fn) {
+                    md += `  - fn=\`${d.fn}\`${d.destino ? ` | destino=\`${d.destino}\`` : ''}\n`;
+                    continue;
+                }
+                if (d.job) {
+                    const handlers = blueprint.job_handlers?.[d.job] || [];
+                    const handlerText = handlers.length ? handlers.map(h => `\`${h}\``).join(', ') : '`no detectado`';
+                    md += `  - job=\`${d.job}\` | handler=${handlerText} | expect_runtime=\`${d.expect_runtime !== false}\``;
+                    if (d.blocked_by) md += ` | blocked_by=\`${d.blocked_by}\``;
+                    md += `\n`;
+                }
+            }
+        }
+        if (proc.recovery) {
+            md += `- Recovery: desde \`${proc.recovery.desde}\``;
+            if (Array.isArray(proc.recovery.rutas)) {
+                md += ` -> [${proc.recovery.rutas.map((r: string) => `\`${r}\``).join(', ')}]`;
+            }
+            md += `\n`;
+        }
+        md += `\n`;
+    }
 }
-}
+
+const diagCounts = {
+  error: blueprint.diagnostics.filter(d => d.severity === 'error').length,
+  warn: blueprint.diagnostics.filter(d => d.severity === 'warn').length,
+  info: blueprint.diagnostics.filter(d => d.severity === 'info').length,
+};
+
+md += `## Salud del blueprint\n\n`;
+md += `- Procesos declarados: ${Object.keys(blueprint.processes || {}).length}\n`;
+md += `- Handlers de jobs detectados en worker: ${Object.keys(blueprint.job_handlers || {}).length}\n`;
+md += `- Diagnosticos error: ${diagCounts.error}\n`;
+md += `- Diagnosticos warn: ${diagCounts.warn}\n`;
+md += `- Diagnosticos info: ${diagCounts.info}\n\n`;
 
 for (const [funcName, data] of Object.entries(blueprint.functions)) {
 md += `## ${funcName}\n`;

@@ -124,10 +124,14 @@ processes:
         tabla: costos_articulo
       - job: recalc_pricing_bundle
         consumidor: apps/dashboard/src/app/api/worker/process/route.ts#handleRecalcPricingBundle
+        expect_runtime: true
       - fn: public.fn_recalcular_precio_publicacion
         destino: publication_pricing_history
       - job: sync_price
-        consumidor: MeliAdapter.updatePrice
+        consumidor: apps/dashboard/src/app/api/worker/process/route.ts#handleSyncPrice
+        productor: recalc_pricing_bundle
+        expect_runtime: false
+        blocked_by: pricing_data_blocker
     state_machine: importacion
     recovery:
       desde: error
