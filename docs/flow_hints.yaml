@@ -11,7 +11,7 @@ hints:
     estimated_time_ms: 2000
   public.fn_marcar_vigente:
     estimated_time_ms: 500
-    public.f_unaccent_immutable:
+  public.f_unaccent_immutable:
     estimated_time_ms: 5
     # ====================================================================
 # REGLA FIJA (por orden del owner, 2026-08-10):
