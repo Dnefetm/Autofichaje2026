@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-12T01:02:39.763Z",
+  "generated_at": "2026-08-12T07:35:25.956Z",
   "schema_hash": "ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558",
-  "processes_hash": "3b7b3bbcc8e2ec2a455f932b9509b4c46aafe506aa5a6531abef62605a9d0791",
+  "processes_hash": "f3e0b11620c2b887fdd7bad6dfa8551ec00bba8baca8d9f0893955809d4d9a00",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -627,7 +627,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 5.93475049257885,
+      "avg_time_ms": 5.91805666292135,
       "p95_time_ms": 236.431296,
       "timing_source": "pg_stat_statements"
     },
@@ -2151,7 +2151,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 8.57764753889096,
+      "avg_time_ms": 8.61965474891624,
       "p95_time_ms": 543.728639,
       "timing_source": "pg_stat_statements"
     },
@@ -2277,7 +2277,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 17.7904443156823,
+      "avg_time_ms": 17.8466911798982,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
@@ -7366,6 +7366,102 @@
       ]
     }
   },
+  "queues": {
+    "sync_account_catalog": {
+      "type": "sync_account_catalog",
+      "status_counts": {
+        "completed": 18,
+        "failed": 13
+      },
+      "total": 31,
+      "pending": 0,
+      "failed": 13,
+      "producers": [
+        "public.fn_encolar_sync_price",
+        "public.fn_encolar_sync_price_marketplace",
+        "public.fn_encolar_sync_stock",
+        "public.trg_costos_articulo_recalcular_async",
+        "public.trg_mapeo_publicacion_recalcular_async"
+      ]
+    },
+    "sync_stock_mapped": {
+      "type": "sync_stock_mapped",
+      "status_counts": {
+        "completed": 291,
+        "processing": 2
+      },
+      "total": 293,
+      "pending": 0,
+      "failed": 0,
+      "producers": [
+        "public.fn_encolar_sync_stock"
+      ]
+    },
+    "sync_item": {
+      "type": "sync_item",
+      "status_counts": {
+        "processing": 46,
+        "completed": 7218,
+        "pending": 5
+      },
+      "total": 7269,
+      "pending": 5,
+      "failed": 0,
+      "producers": [
+        "public.fn_encolar_sync_price",
+        "public.fn_encolar_sync_price_marketplace",
+        "public.fn_encolar_sync_stock",
+        "public.trg_costos_articulo_recalcular_async",
+        "public.trg_mapeo_publicacion_recalcular_async"
+      ]
+    },
+    "sync_stock": {
+      "type": "sync_stock",
+      "status_counts": {
+        "completed": 8
+      },
+      "total": 8,
+      "pending": 0,
+      "failed": 0,
+      "producers": [
+        "public.fn_encolar_sync_price",
+        "public.fn_encolar_sync_price_marketplace",
+        "public.fn_encolar_sync_stock",
+        "public.trg_costos_articulo_recalcular_async",
+        "public.trg_mapeo_publicacion_recalcular_async"
+      ]
+    },
+    "recalc_pricing_bundle": {
+      "type": "recalc_pricing_bundle",
+      "status_counts": {
+        "failed": 276
+      },
+      "total": 276,
+      "pending": 0,
+      "failed": 276,
+      "producers": [
+        "public.trg_costos_articulo_recalcular_async",
+        "public.trg_mapeo_publicacion_recalcular_async"
+      ]
+    },
+    "process_sale": {
+      "type": "process_sale",
+      "status_counts": {
+        "completed": 1961,
+        "processing": 22
+      },
+      "total": 1983,
+      "pending": 0,
+      "failed": 0,
+      "producers": [
+        "public.fn_encolar_sync_price",
+        "public.fn_encolar_sync_price_marketplace",
+        "public.fn_encolar_sync_stock",
+        "public.trg_costos_articulo_recalcular_async",
+        "public.trg_mapeo_publicacion_recalcular_async"
+      ]
+    }
+  },
   "processes": {
     "importacion_precios": {
       "descripcion": "Importacion de lista de precios de proveedor y aplicacion end-to-end.",
@@ -7408,7 +7504,8 @@
         },
         {
           "job": "recalc_pricing_bundle",
-          "consumidor": "apps/dashboard/src/app/api/worker/process/route.ts#handleRecalcPricingBundle"
+          "consumidor": "apps/dashboard/src/app/api/worker/process/route.ts#handleRecalcPricingBundle",
+          "expect_runtime": true
         },
         {
           "fn": "public.fn_recalcular_precio_publicacion",
@@ -7416,7 +7513,10 @@
         },
         {
           "job": "sync_price",
-          "consumidor": "MeliAdapter.updatePrice"
+          "consumidor": "apps/dashboard/src/app/api/worker/process/route.ts#handleSyncPrice",
+          "productor": "recalc_pricing_bundle",
+          "expect_runtime": false,
+          "blocked_by": "pricing_data_blocker"
         }
       ],
       "state_machine": "importacion",
@@ -7430,5 +7530,54 @@
         "motivo": "Resuelve error 23514; el lote en error reintenta hasta completado sin intervencion."
       }
     }
-  }
+  },
+  "job_handlers": {
+    "sync_stock": [
+      "apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "sync_price": [
+      "apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "sync_stock_mapped": [
+      "apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "pause_listing": [
+      "apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "activate_listing": [
+      "apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "sync_item": [
+      "apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "recalc_pricing_bundle": [
+      "apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "sync_account_catalog": [
+      "apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "process_sale": [
+      "apps/dashboard/src/app/api/worker/process/route.ts"
+    ]
+  },
+  "diagnostics": [
+    {
+      "scope": "processes.importacion_precios.downstream",
+      "severity": "info",
+      "code": "QUEUE_NO_RUNTIME",
+      "message": "cola 'sync_price' sin filas observadas en public.jobs",
+      "hint": "Bloqueo conocido: pricing_data_blocker. No es fallo estructural.",
+      "evidence": {
+        "runtime": false,
+        "handler": [
+          "apps/dashboard/src/app/api/worker/process/route.ts"
+        ],
+        "producer": [
+          "worker-route",
+          "recalc_pricing_bundle"
+        ],
+        "yaml": true
+      }
+    }
+  ]
 }

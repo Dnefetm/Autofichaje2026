@@ -1,8 +1,8 @@
 # DB Flow Blueprint
 
 - **Schema hash:** `ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558`
-- **Processes hash:** `3b7b3bbcc8e2ec2a455f932b9509b4c46aafe506aa5a6531abef62605a9d0791`
-- **Tables:** 69 | **Triggers:** 32 | **Cron jobs:** 3 | **Edge fns:** 3
+- **Processes hash:** `f3e0b11620c2b887fdd7bad6dfa8551ec00bba8baca8d9f0893955809d4d9a00`
+- **Tables:** 69 | **Triggers:** 32 | **Cron jobs:** 3 | **Edge fns:** 3 | **Queues:** 6
 
 ## Maquinas de estado
 
@@ -10,34 +10,87 @@
 - **Estados:** pendiente_mapeo, mapeando, procesando, en_revision, completado, error, cancelado, matching_completo
 - **Recuperacion desde error ->** cancelado, completado, en_revision, mapeando, matching_completo, pendiente_mapeo, procesando
 - **Transiciones:**
-  - `pendiente_mapeo` -> cancelado, error, mapeando
-  - `mapeando` -> cancelado, completado, en_revision, error, matching_completo, pendiente_mapeo, procesando
-  - `procesando` -> cancelado, completado, en_revision, error, matching_completo
-  - `completado` -> cancelado, en_revision, mapeando
-  - `error` -> cancelado, completado, en_revision, mapeando, matching_completo, pendiente_mapeo, procesando
-  - `cancelado` -> pendiente_mapeo
-  - `en_revision` -> cancelado, completado, error
-  - `matching_completo` -> cancelado, completado, en_revision, error
+ - `pendiente_mapeo` -> cancelado, error, mapeando
+ - `mapeando` -> cancelado, completado, en_revision, error, matching_completo, pendiente_mapeo, procesando
+ - `procesando` -> cancelado, completado, en_revision, error, matching_completo
+ - `completado` -> cancelado, en_revision, mapeando
+ - `error` -> cancelado, completado, en_revision, mapeando, matching_completo, pendiente_mapeo, procesando
+ - `cancelado` -> pendiente_mapeo
+ - `en_revision` -> cancelado, completado, error
+ - `matching_completo` -> cancelado, completado, en_revision, error
 
-## Procesos (pipelines)
+## Colas (jobs)
+
+### sync_account_catalog
+- **Total:** 31 (completed=18, failed=13)
+- **WARNING - Fallidos:** 13
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
+
+### sync_stock_mapped
+- **Total:** 293 (completed=291, processing=2)
+- **Productores:** public.fn_encolar_sync_stock
+
+### sync_item
+- **Total:** 7269 (processing=46, completed=7218, pending=5)
+- **Pendientes:** 5
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
+
+### sync_stock
+- **Total:** 8 (completed=8)
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
+
+### recalc_pricing_bundle
+- **Total:** 276 (failed=276)
+- **WARNING - Fallidos:** 276
+- **Productores:** public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
+
+### process_sale
+- **Total:** 1983 (completed=1961, processing=22)
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
+
+## Rutas de pricing (estado)
+
+### v1_precio_recalc_queue — **DEAD**
+
+
+### v2_marketplace_prices — **LEGACY**
+
+
+### v3_publication_pricing — **ALIVE**
+
+
+## Diagnosticos
+
+### INFO
+
+- [QUEUE_NO_RUNTIME] `processes.importacion_precios.downstream`: cola 'sync_price' sin filas observadas en public.jobs — Bloqueo conocido: pricing_data_blocker. No es fallo estructural.
+
+## Procesos declarados
 
 ### importacion_precios
-- Importacion de lista de precios de proveedor y aplicacion end-to-end.
-- **Trigger:** POST /api/precios/importar/[id]/iniciar-parser
-- **State machine:** importacion
-- **Pasos:**
-  1. `public.fn_preparar_importacion_revision` (estado: mapeando)
-  2. `public.fn_match_precios_v2` (estado: procesando)
-  3. `public.fn_confirmar_matching_decisiones` (estado: en_revision)
-  4. `public.fn_consolidar_matching_decisiones` (estado: matching_completo)
-  5. `public.fn_resolver_y_poblar_costos` (-> costos_articulo)
-  6. `public.fn_marcar_vigente` (estado: completado)
-- **Downstream (fronteras externas):**
-  - trigger trg_costos_articulo_recalcular_async (costos_articulo)
-  - job recalc_pricing_bundle -> apps/dashboard/src/app/api/worker/process/route.ts#handleRecalcPricingBundle
-  - fn public.fn_recalcular_precio_publicacion -> publication_pricing_history
-  - job sync_price -> MeliAdapter.updatePrice
-- **Recuperacion:** desde `error` -> mapeando, procesando, completado
+
+- Trigger: `POST /api/precios/importar/[id]/iniciar-parser`
+- Steps:
+  - fn=`public.fn_preparar_importacion_revision` | estado=`mapeando`
+  - fn=`public.fn_match_precios_v2` | estado=`procesando`
+  - fn=`public.fn_confirmar_matching_decisiones` | estado=`en_revision`
+  - fn=`public.fn_consolidar_matching_decisiones` | estado=`matching_completo`
+  - fn=`public.fn_resolver_y_poblar_costos` | tabla_destino=`costos_articulo`
+  - fn=`public.fn_marcar_vigente` | estado=`completado`
+- Downstream:
+  - trigger=`trg_costos_articulo_recalcular_async` | tabla=`costos_articulo`
+  - job=`recalc_pricing_bundle` | handler=`apps/dashboard/src/app/api/worker/process/route.ts` | expect_runtime=`true`
+  - fn=`public.fn_recalcular_precio_publicacion` | destino=`publication_pricing_history`
+  - job=`sync_price` | handler=`apps/dashboard/src/app/api/worker/process/route.ts` | expect_runtime=`false` | blocked_by=`pricing_data_blocker`
+- Recovery: desde `error` -> [`mapeando`, `procesando`, `completado`]
+
+## Salud del blueprint
+
+- Procesos declarados: 1
+- Handlers de jobs detectados en worker: 9
+- Diagnosticos error: 0
+- Diagnosticos warn: 0
+- Diagnosticos info: 1
 
 ## public.actualizar_updated_at
 - **Security:** INVOKER
@@ -65,10 +118,10 @@
 - **Avg Time:** 215.00 ms (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
-  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
-  - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
+ - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
 
 ## public.buscar_fichas_por_atributo
 - **Security:** INVOKER
@@ -91,10 +144,10 @@
 - **Avg Time:** 615.00 ms (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas, public.ficha_extracciones
 - **Cascading Triggers:**
-  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
-  - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
+ - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
 
 ## public.calcular_completitud_ficha
 - **Security:** INVOKER
@@ -140,8 +193,8 @@
 - **Avg Time:** 375.00 ms (source: ast_estimator)
 - **Touches Tables:** public.inventory_transactions, public.inventory_snapshot
 - **Cascading Triggers:**
-  - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
-  - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
+ - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
+ - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
 
 ## public.actualizar_estado_mapeo_publicacion
 - **Security:** INVOKER
@@ -149,8 +202,8 @@
 - **Avg Time:** 425.00 ms (source: ast_estimator)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
-  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
-  - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
+ - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
+ - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
 
 ## public.fn_auto_create_inventory_snapshot
 - **Security:** INVOKER
@@ -158,8 +211,8 @@
 - **Avg Time:** 155.00 ms (source: ast_estimator)
 - **Touches Tables:** public.inventory_snapshot
 - **Cascading Triggers:**
-  - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
-  - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
+ - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
+ - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
 
 ## public.fn_ensure_snapshot_on_mapping
 - **Security:** INVOKER
@@ -167,8 +220,8 @@
 - **Avg Time:** 155.00 ms (source: ast_estimator)
 - **Touches Tables:** public.inventory_snapshot
 - **Cascading Triggers:**
-  - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
-  - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
+ - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
+ - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
 
 ## public.purge_old_failed_jobs
 - **Security:** INVOKER
@@ -188,8 +241,8 @@
 - **Avg Time:** 265.00 ms (source: ast_estimator)
 - **Touches Tables:** public.inventory_snapshot
 - **Cascading Triggers:**
-  - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
-  - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
+ - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
+ - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
 
 ## public.compute_ingreso_hash
 - **Security:** INVOKER
@@ -208,8 +261,8 @@
 - **Avg Time:** 445.00 ms (source: ast_estimator)
 - **Touches Tables:** public.inventory_snapshot
 - **Cascading Triggers:**
-  - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
-  - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
+ - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
+ - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
 
 ## public.update_fecha_modificacion
 - **Security:** INVOKER
@@ -233,8 +286,8 @@
 - **Avg Time:** 475.00 ms (source: ast_estimator)
 - **Touches Tables:** public.articulos
 - **Cascading Triggers:**
-  - `articulos` -> `public.fn_auto_create_inventory_snapshot` (Trigger: trg_auto_create_inventory_snapshot)
-  - `articulos` -> `public.update_actualizado_el_column` (Trigger: set_actualizado_el)
+ - `articulos` -> `public.fn_auto_create_inventory_snapshot` (Trigger: trg_auto_create_inventory_snapshot)
+ - `articulos` -> `public.update_actualizado_el_column` (Trigger: set_actualizado_el)
 
 ## public.compute_egreso_hash
 - **Security:** INVOKER
@@ -249,7 +302,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.93 ms (source: pg_stat_statements)
+- **Avg Time:** 5.92 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -263,9 +316,9 @@
 - **Avg Time:** 635.00 ms (source: ast_estimator)
 - **Touches Tables:** public.ingresos
 - **Cascading Triggers:**
-  - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_ingreso)
-  - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_insert_ingreso)
-  - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_delete_ingreso)
+ - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_ingreso)
+ - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_insert_ingreso)
+ - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_delete_ingreso)
 
 ## public.buscar_publicaciones
 - **Security:** DEFINER
@@ -289,9 +342,9 @@
 - **Avg Time:** 205.00 ms (source: ast_estimator)
 - **Touches Tables:** public.importaciones_excel
 - **Cascading Triggers:**
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
 
 ## public.fn_eliminar_importacion
 - **Security:** INVOKER
@@ -299,12 +352,12 @@
 - **Avg Time:** 325.00 ms (source: ast_estimator)
 - **Touches Tables:** public.costos_articulo, public.listas_precios_raw, public.importaciones_excel
 - **Cascading Triggers:**
-  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
-  - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
-  - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
+ - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
+ - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
 
 ## public.fn_cancelar_importacion
 - **Security:** INVOKER
@@ -312,9 +365,9 @@
 - **Avg Time:** 205.00 ms (source: ast_estimator)
 - **Touches Tables:** public.importaciones_excel
 - **Cascading Triggers:**
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
 
 ## public.fn_claim_next_importacion
 - **Security:** INVOKER
@@ -322,9 +375,9 @@
 - **Avg Time:** 425.00 ms (source: ast_estimator)
 - **Touches Tables:** public.importaciones_excel, public.SKIP
 - **Cascading Triggers:**
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
 
 ## public.fn_recalcular_precio_marketplace_all
 - **Security:** INVOKER
@@ -377,12 +430,12 @@
 - **Avg Time:** 1595.00 ms (source: ast_estimator)
 - **Touches Tables:** public.listas_precios_raw, public.listas_precios_proveedor, public.importacion_eventos, public.status, public.importaciones_excel, public.costos_articulo, public.listas_precios_raw_staging
 - **Cascading Triggers:**
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
-  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
-  - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
-  - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
+ - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
+ - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
 
 ## public.trg_costos_articulo_recalcular
 - **Security:** INVOKER
@@ -396,7 +449,7 @@
 - **Avg Time:** 565.00 ms (source: ast_estimator)
 - **Touches Tables:** public.marketplace_prices, public.SET
 - **Cascading Triggers:**
-  - `marketplace_prices` -> `public.fn_set_marketplace_prices_updated_at` (Trigger: trg_marketplace_prices_updated_at)
+ - `marketplace_prices` -> `public.fn_set_marketplace_prices_updated_at` (Trigger: trg_marketplace_prices_updated_at)
 
 ## public.fn_actualizar_comisiones_reales
 - **Security:** INVOKER
@@ -422,8 +475,8 @@
 - **Touches Tables:** public.publication_pricing_history, public.publicaciones_externas
 - **Calls Functions:** public.fn_resolver_regla_pricing
 - **Cascading Triggers:**
-  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
-  - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
+ - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
+ - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
 
 ## public.fn_parse_precio
 - **Security:** INVOKER
@@ -436,9 +489,9 @@
 - **Avg Time:** 575.00 ms (source: ast_estimator)
 - **Touches Tables:** public.costos_articulo, public.SET, public.costos_pendientes
 - **Cascading Triggers:**
-  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
-  - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
-  - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
+ - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
+ - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
+ - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
 
 ## public.fn_confirmar_matching_decisiones
 - **Security:** DEFINER
@@ -469,9 +522,9 @@
 - **Touches Tables:** public.costos_articulo, public.costos_pendientes, public.SET
 - **Calls Functions:** public.f_unaccent_immutable
 - **Cascading Triggers:**
-  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
-  - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
-  - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
+ - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
+ - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
+ - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
 
 ## public.fn_consolidar_revision_importacion
 - **Security:** DEFINER
@@ -480,12 +533,12 @@
 - WARNING: **Dynamic SQL Detected**
 - **Touches Tables:** public.precios_proveedor_actual, public.listas_precios_proveedor, public.importacion_eventos, public.SET, public.costos_articulo, public.importaciones_excel
 - **Cascading Triggers:**
-  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
-  - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
-  - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
+ - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
+ - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
 
 ## public.fn_match_precios_v2
 - **Security:** DEFINER
@@ -494,13 +547,13 @@
 - **Touches Tables:** public.costos_articulo, public.costos_pendientes, public.matching_jobs, public.SET, public.proveedor_articulos_alias, public.importaciones_excel, public.listas_precios_raw_staging
 - **Calls Functions:** public.f_unaccent_immutable, public.fn_parse_precio, public.fn_marcar_vigente
 - **Cascading Triggers:**
-  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
-  - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
-  - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
-  - `proveedor_articulos_alias` -> `public.fn_tg_promote_pendientes` (Trigger: tg_promote_pendientes)
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
+ - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
+ - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
+ - `proveedor_articulos_alias` -> `public.fn_tg_promote_pendientes` (Trigger: tg_promote_pendientes)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
 
 ## public.fn_app_config_get
 - **Security:** DEFINER
@@ -513,8 +566,8 @@
 - **Avg Time:** 177.98 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
-  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
-  - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
+ - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
+ - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
 
 ## public.recalcular_catalog_count
 - **Security:** DEFINER
@@ -522,8 +575,8 @@
 - **Avg Time:** 52.55 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
-  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
-  - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
+ - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
+ - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
 
 ## public.recalcular_associated_count
 - **Security:** DEFINER
@@ -531,8 +584,8 @@
 - **Avg Time:** 52.19 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
-  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
-  - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
+ - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
+ - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
 
 ## public.vincular_ficha
 - **Security:** DEFINER
@@ -540,10 +593,10 @@
 - **Avg Time:** 245.00 ms (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
-  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
-  - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
+ - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
 
 ## public.desvincular_ficha
 - **Security:** DEFINER
@@ -551,10 +604,10 @@
 - **Avg Time:** 225.00 ms (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
-  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
-  - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
+ - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
 
 ## public.eliminar_ficha_completa
 - **Security:** DEFINER
@@ -562,10 +615,10 @@
 - **Avg Time:** 225.00 ms (source: ast_estimator)
 - **Touches Tables:** public.ficha_extracciones, public.fichas_tecnicas
 - **Cascading Triggers:**
-  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
-  - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
+ - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
 
 ## public.desvincular_ficha_articulo
 - **Security:** DEFINER
@@ -573,10 +626,10 @@
 - **Avg Time:** 225.00 ms (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
-  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
-  - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
+ - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
 
 ## public.upsert_ingreso
 - **Security:** DEFINER
@@ -584,9 +637,9 @@
 - **Avg Time:** 355.00 ms (source: ast_estimator)
 - **Touches Tables:** public.ingresos, public.SET
 - **Cascading Triggers:**
-  - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_ingreso)
-  - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_insert_ingreso)
-  - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_delete_ingreso)
+ - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_ingreso)
+ - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_insert_ingreso)
+ - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_delete_ingreso)
 
 ## public.actualizar_campos_regulatorios
 - **Security:** DEFINER
@@ -594,10 +647,10 @@
 - **Avg Time:** 205.00 ms (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
-  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
-  - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
+ - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
 
 ## public.fn_validar_transicion_estado_importacion
 - **Security:** DEFINER
@@ -610,10 +663,10 @@
 - **Avg Time:** 225.00 ms (source: ast_estimator)
 - **Touches Tables:** public.ficha_extracciones, public.fichas_tecnicas
 - **Cascading Triggers:**
-  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
-  - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
+ - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
 
 ## public.vincular_ficha_articulo
 - **Security:** DEFINER
@@ -621,10 +674,10 @@
 - **Avg Time:** 245.00 ms (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
-  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
-  - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
+ - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
 
 ## public.fix_par_item_id_faltantes
 - **Security:** DEFINER
@@ -632,8 +685,8 @@
 - **Avg Time:** 205.00 ms (source: ast_estimator)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
-  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
-  - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
+ - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
+ - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
 
 ## public.guardar_ficha_autoficha
 - **Security:** DEFINER
@@ -641,14 +694,14 @@
 - **Avg Time:** 1275.00 ms (source: ast_estimator)
 - **Touches Tables:** public.fuentes_documento, public.articulos, public.inventory_snapshot, public.fichas_tecnicas, public.ficha_extracciones, public.SET
 - **Cascading Triggers:**
-  - `articulos` -> `public.fn_auto_create_inventory_snapshot` (Trigger: trg_auto_create_inventory_snapshot)
-  - `articulos` -> `public.update_actualizado_el_column` (Trigger: set_actualizado_el)
-  - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
-  - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
-  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
-  - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
-  - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
+ - `articulos` -> `public.fn_auto_create_inventory_snapshot` (Trigger: trg_auto_create_inventory_snapshot)
+ - `articulos` -> `public.update_actualizado_el_column` (Trigger: set_actualizado_el)
+ - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
+ - `inventory_snapshot` -> `public.update_updated_at_column` (Trigger: update_inventory_snapshot_updated_at)
+ - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
+ - `fichas_tecnicas` -> `public.update_fecha_modificacion` (Trigger: trigger_update_fecha_modificacion)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_campos_regulatorios)
+ - `fichas_tecnicas` -> `public.trg_extraer_campos_regulatorios` (Trigger: trg_extraer_campos_regulatorios)
 
 ## public.fn_backfill_egreso_ids
 - **Security:** DEFINER
@@ -656,9 +709,9 @@
 - **Avg Time:** 415.00 ms (source: ast_estimator)
 - **Touches Tables:** public.egresos
 - **Cascading Triggers:**
-  - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_egreso)
-  - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_insert_egreso)
-  - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_delete_egreso)
+ - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_egreso)
+ - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_insert_egreso)
+ - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_delete_egreso)
 
 ## public.fn_resumen_matching
 - **Security:** DEFINER
@@ -671,12 +724,12 @@
 - **Avg Time:** 925.00 ms (source: ast_estimator)
 - **Touches Tables:** public.importacion_eventos, public.importaciones_excel, public.listas_precios_raw, public.listas_precios_raw_staging, public.costos_articulo, public.matching_jobs
 - **Cascading Triggers:**
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
-  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
-  - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
-  - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
+ - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
+ - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
 
 ## public.fn_confirmar_decisiones_masivo
 - **Security:** DEFINER
@@ -684,9 +737,9 @@
 - **Avg Time:** 605.00 ms (source: ast_estimator)
 - **Touches Tables:** public.matching_decisiones, public.costos_articulo
 - **Cascading Triggers:**
-  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
-  - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
-  - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
+ - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
+ - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
+ - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
 
 ## public.fn_tg_encolar_recalculo
 - **Security:** DEFINER
@@ -700,12 +753,12 @@
 - **Avg Time:** 815.00 ms (source: ast_estimator)
 - **Touches Tables:** public.precio_recalc_queue, public.listas_precios_proveedor, public.importaciones_excel, public.costos_articulo, public.costos_pendientes
 - **Cascading Triggers:**
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
-  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
-  - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
-  - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
+ - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
+ - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
 
 ## public.fn_marcar_vigente
 - **Security:** DEFINER
@@ -719,9 +772,9 @@
 - **Avg Time:** 355.00 ms (source: ast_estimator)
 - **Touches Tables:** public.egresos, public.SET
 - **Cascading Triggers:**
-  - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_egreso)
-  - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_insert_egreso)
-  - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_delete_egreso)
+ - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_egreso)
+ - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_insert_egreso)
+ - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_delete_egreso)
 
 ## public.claim_precio_recalc
 - **Security:** INVOKER
@@ -732,7 +785,7 @@
 ## public.claim_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 8.58 ms (source: pg_stat_statements)
+- **Avg Time:** 8.62 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.jobs
 
 ## public.fn_recalcular_lote
@@ -747,10 +800,10 @@
 - **Avg Time:** 2000.00 ms (source: yaml_hint)
 - **Touches Tables:** public.proveedor_articulos_alias, public.costos_articulo, public.SET
 - **Cascading Triggers:**
-  - `proveedor_articulos_alias` -> `public.fn_tg_promote_pendientes` (Trigger: tg_promote_pendientes)
-  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
-  - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
-  - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
+ - `proveedor_articulos_alias` -> `public.fn_tg_promote_pendientes` (Trigger: tg_promote_pendientes)
+ - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
+ - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
+ - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
 
 ## public.fn_preparar_importacion_revision
 - **Security:** DEFINER
@@ -759,20 +812,20 @@
 - **Touches Tables:** public.listas_precios_raw, public.listas_precios_proveedor, public.importaciones_excel, public.listas_precios_raw_staging
 - **Calls Functions:** public.fn_resolver_y_poblar_costos
 - **Cascading Triggers:**
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
 
 ## public.procesar_import_job
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 17.79 ms (source: pg_stat_statements)
+- **Avg Time:** 17.85 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.import_jobs, public.importaciones_excel
 - **Calls Functions:** public.fn_preparar_importacion_revision
 - **Cascading Triggers:**
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
 
 ## public.estado_import_job
 - **Security:** DEFINER
@@ -792,9 +845,9 @@
 - **Avg Time:** 21.05 ms (source: pg_stat_statements)
 - **Touches Tables:** public.import_jobs, public.importaciones_excel
 - **Cascading Triggers:**
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
 
 ## public.tmp_run_diff_dacb722a
 - **Security:** INVOKER
@@ -803,7 +856,7 @@
 - **Touches Tables:** public.importaciones_excel
 - **Calls Functions:** public.fn_preparar_importacion_revision
 - **Cascading Triggers:**
-  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
-  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
-  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+ - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
+ - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
+ - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
 
