@@ -2,7 +2,7 @@ hints:
   public.fn_preparar_importacion_revision:
     estimated_time_ms: 2500
   public.fn_resolver_y_poblar_costos:
-    estimated_time_ms: 6000
+    estimated_time_ms: 3500
   public.fn_match_precios_v2:
     estimated_time_ms: 4000
   public.fn_confirmar_matching_decisiones:
