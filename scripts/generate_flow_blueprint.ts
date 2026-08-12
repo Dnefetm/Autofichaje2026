@@ -324,6 +324,7 @@ if (!avg_time_ms) { avg_time_ms = statRes.rows[0].mean_exec_time; timing_source 
 }
 
 if (hints[fullFuncName]?.estimated_time_ms) {avg_time_ms = hints[fullFuncName].estimated_time_ms!;
+p95_time_ms = hints[fullFuncName].estimated_time_ms!;
 timing_source = 'yaml_hint';
 }
 
