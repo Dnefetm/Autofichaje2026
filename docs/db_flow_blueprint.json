@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-12T07:35:25.956Z",
+  "generated_at": "2026-08-12T14:03:52.352Z",
   "schema_hash": "ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558",
-  "processes_hash": "f3e0b11620c2b887fdd7bad6dfa8551ec00bba8baca8d9f0893955809d4d9a00",
+  "processes_hash": "4270c215133874fca869294acd32b53e46077b50a81c51175096f7dedce0a0f0",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -627,7 +627,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 5.91805666292135,
+      "avg_time_ms": 5.8120434286872,
       "p95_time_ms": 236.431296,
       "timing_source": "pg_stat_statements"
     },
@@ -1438,7 +1438,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 177.979863545455,
+      "avg_time_ms": 183.928647769231,
       "p95_time_ms": 317.873041,
       "timing_source": "pg_stat_statements"
     },
@@ -1464,8 +1464,8 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 52.5494119090909,
-      "p95_time_ms": 92.908998,
+      "avg_time_ms": 56.6097036153846,
+      "p95_time_ms": 102.198692,
       "timing_source": "pg_stat_statements"
     },
     "public.recalcular_associated_count": {
@@ -1490,7 +1490,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 52.1851523636364,
+      "avg_time_ms": 51.3315386923077,
       "p95_time_ms": 127.926027,
       "timing_source": "pg_stat_statements"
     },
@@ -2151,7 +2151,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 8.61965474891624,
+      "avg_time_ms": 8.44204582325203,
       "p95_time_ms": 543.728639,
       "timing_source": "pg_stat_statements"
     },
@@ -2277,7 +2277,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 17.8466911798982,
+      "avg_time_ms": 17.9255832412582,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
@@ -7367,6 +7367,19 @@
     }
   },
   "queues": {
+    "sync_stock_mapped": {
+      "type": "sync_stock_mapped",
+      "status_counts": {
+        "completed": 291,
+        "processing": 2
+      },
+      "total": 293,
+      "pending": 0,
+      "failed": 0,
+      "producers": [
+        "public.fn_encolar_sync_stock"
+      ]
+    },
     "sync_account_catalog": {
       "type": "sync_account_catalog",
       "status_counts": {
@@ -7384,28 +7397,15 @@
         "public.trg_mapeo_publicacion_recalcular_async"
       ]
     },
-    "sync_stock_mapped": {
-      "type": "sync_stock_mapped",
-      "status_counts": {
-        "completed": 291,
-        "processing": 2
-      },
-      "total": 293,
-      "pending": 0,
-      "failed": 0,
-      "producers": [
-        "public.fn_encolar_sync_stock"
-      ]
-    },
     "sync_item": {
       "type": "sync_item",
       "status_counts": {
         "processing": 46,
-        "completed": 7218,
-        "pending": 5
+        "completed": 7159,
+        "pending": 12
       },
-      "total": 7269,
-      "pending": 5,
+      "total": 7217,
+      "pending": 12,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
@@ -7431,6 +7431,24 @@
         "public.trg_mapeo_publicacion_recalcular_async"
       ]
     },
+    "process_sale": {
+      "type": "process_sale",
+      "status_counts": {
+        "pending": 1,
+        "completed": 1956,
+        "processing": 22
+      },
+      "total": 1979,
+      "pending": 1,
+      "failed": 0,
+      "producers": [
+        "public.fn_encolar_sync_price",
+        "public.fn_encolar_sync_price_marketplace",
+        "public.fn_encolar_sync_stock",
+        "public.trg_costos_articulo_recalcular_async",
+        "public.trg_mapeo_publicacion_recalcular_async"
+      ]
+    },
     "recalc_pricing_bundle": {
       "type": "recalc_pricing_bundle",
       "status_counts": {
@@ -7440,23 +7458,6 @@
       "pending": 0,
       "failed": 276,
       "producers": [
-        "public.trg_costos_articulo_recalcular_async",
-        "public.trg_mapeo_publicacion_recalcular_async"
-      ]
-    },
-    "process_sale": {
-      "type": "process_sale",
-      "status_counts": {
-        "completed": 1961,
-        "processing": 22
-      },
-      "total": 1983,
-      "pending": 0,
-      "failed": 0,
-      "producers": [
-        "public.fn_encolar_sync_price",
-        "public.fn_encolar_sync_price_marketplace",
-        "public.fn_encolar_sync_stock",
         "public.trg_costos_articulo_recalcular_async",
         "public.trg_mapeo_publicacion_recalcular_async"
       ]
