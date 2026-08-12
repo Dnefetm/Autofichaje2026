@@ -28,9 +28,33 @@ p95_time_ms: number | null;
 timing_source: TimingSource;
 }
 
+interface StateMachine {
+enum_type: string;
+states: string[];
+transitions: Record<string, string[]>;
+recovery_from: string[];
+}
+
+interface ProcessStep {
+fn: string;
+estado?: string;
+tabla_destino?: string;
+}
+
+interface ProcessDef {
+descripcion?: string;
+trigger?: string;
+ingesta?: any;
+steps: ProcessStep[];
+downstream?: any[];
+state_machine?: string;
+recovery?: any;
+}
+
 interface Blueprint {
 generated_at: string;
 schema_hash: string | null;
+processes_hash: string | null;
 roles: Record<string, any>;
 external_limits: Record<string, number>;
 functions: Record<string, BlueprintNode>;
@@ -38,6 +62,8 @@ tables: Record<string, any>;
 triggers: any[];
 cron_jobs: any[];
 edge_functions: any[];
+state_machines: Record<string, StateMachine>;
+processes: Record<string, ProcessDef>;
 }
 
 // Deduplica preservando orden
@@ -51,6 +77,7 @@ if (!dbUrl) {
 console.error("ERROR: DATABASE_URL o SUPABASE_DB_URL no configurada.");
 process.exit(1);
 }
+
 const client = new Client({ connectionString: dbUrl });
 await client.connect();
 console.log("Conectado a la base de datos. Extrayendo catalogos...");
@@ -63,11 +90,16 @@ let external_limits = {};
 if (fs.existsSync(limitsPath)) {
 external_limits = JSON.parse(fs.readFileSync(limitsPath, 'utf8'));
 }
+
 let hints: Record<string, FlowHint> = {};
+let declaredProcesses: Record<string, ProcessDef> = {};
 if (fs.existsSync(hintsPath)) {
 const parsedHints = yaml.parse(fs.readFileSync(hintsPath, 'utf8'));
 if (parsedHints && parsedHints.hints) {
 hints = parsedHints.hints;
+}
+if (parsedHints && parsedHints.processes) {
+declaredProcesses = parsedHints.processes;
 }
 }
 
@@ -125,16 +157,9 @@ WHERE n.nspname = 'public' AND c.relkind = 'r'
 GROUP BY c.relname, c.relrowsecurity
 `);
 const tables: Record<string, any> = {};
-tablesRes.rows.forEach(t => {
-tables[`public.${t.table_name}`] = { rls_enabled: t.rls_enabled, columns: t.columns };
-});
+tablesRes.rows.forEach(t => { tables[`public.${t.table_name}`] = { rls_enabled: t.rls_enabled, columns: t.columns }; });
 
-// Triggers (lista global deduplicada)
-const triggers = triggersRes.rows.map(t => ({
-trigger: t.tgname,
-table: `public.${t.table_name}`,
-target_function: `${t.target_schema}.${t.target_function}`
-}));
+const triggers = triggersRes.rows.map(t => ({ trigger: t.tgname, table: `public.${t.table_name}`, target_function: `${t.target_schema}.${t.target_function}` }));
 
 // Cron jobs (pg_cron, si esta instalado)
 let cron_jobs: any[] = [];
@@ -152,24 +177,61 @@ edge_functions = fs.readdirSync(edgeDir, { withFileTypes: true })
 .map(d => ({ name: d.name, path: `supabase/functions/${d.name}` }));
 }
 
+// === NUEVO: Introspeccion de la maquina de estados de importacion ===
+// Fuente introspectable: enum estado_importacion_excel + tabla importacion_estado_transiciones
+const state_machines: Record<string, StateMachine> = {};
+try {
+const enumRes = await client.query(`
+SELECT e.enumlabel AS label
+FROM pg_type t
+JOIN pg_enum e ON e.enumtypid = t.oid
+WHERE t.typname = 'estado_importacion_excel'
+ORDER BY e.enumsortorder
+`);
+const enumStates: string[] = enumRes.rows.map(r => r.label);
+if (enumStates.length > 0) {
+const transRes = await client.query(`
+SELECT desde::text AS desde, hasta::text AS hasta
+FROM importacion_estado_transiciones
+`);
+const transitions: Record<string, string[]> = {};
+transRes.rows.forEach(r => {
+if (!transitions[r.desde]) transitions[r.desde] = [];
+transitions[r.desde].push(r.hasta);
+});
+Object.keys(transitions).forEach(k => { transitions[k] = dedup(transitions[k]).sort(); });
+state_machines['importacion'] = {
+enum_type: 'estado_importacion_excel',
+states: enumStates,
+transitions,
+recovery_from: transitions['error'] ? dedup(transitions['error']).sort() : []
+};
+console.log(`[state-machine] importacion: ${enumStates.length} estados, ${Object.keys(transitions).length} origenes de transicion.`);
+}
+} catch (e) {
+console.warn("[state-machine] No se pudo introspectar estado_importacion_excel / importacion_estado_transiciones.", (e as Error).message);
+}
+
 const blueprint: Blueprint = {
 generated_at: new Date().toISOString(),
 schema_hash,
+processes_hash: null,
 roles,
 external_limits,
 functions: {},
 tables,
 triggers,
 cron_jobs,
-edge_functions
+edge_functions,
+state_machines,
+processes: {}
 };
 
-const knownFunctions = new Set(funcsRes.rows.map(row => row.proname));
+const knownFunctions = new Set<string>(funcsRes.rows.map(row => row.proname));
 
 for (const f of funcsRes.rows) {
 const fullFuncName = `${f.schema}.${f.proname}`;
 const source: string = f.prosrc;
-
 let calls_tables = new Set<string>();
 let calls_functions = new Set<string>();
 let dynamic_sql = false;
@@ -186,7 +248,6 @@ hints[fullFuncName].affects_tables?.forEach(t => calls_tables.add(t));
 hints[fullFuncName].calls_functions?.forEach(fn => calls_functions.add(fn));
 }
 
-// Timings + timing_source (prioridad: live_stats > pg_stat_statements > yaml_hint > ast_estimator)
 let avg_time_ms: number | null = f.calls && f.calls > 0 ? f.total_time / f.calls : null;
 let p95_time_ms: number | null = null;
 let timing_source: TimingSource = avg_time_ms ? 'live_stats' : 'none';
@@ -206,7 +267,6 @@ avg_time_ms = hints[fullFuncName].estimated_time_ms!;
 timing_source = 'yaml_hint';
 }
 
-// Deteccion de llamadas a funciones de usuario
 const allFuncCallsMatches = [...source.matchAll(/\b(?:public\.)?([a-zA-Z0-9_]+)\s*\(/gi)].map(m => m[1]);
 allFuncCallsMatches.forEach(fn => { if (knownFunctions.has(fn)) calls_functions.add(`public.${fn}`); });
 
@@ -215,7 +275,6 @@ const updateMatches = [...source.matchAll(/UPDATE\s+(?:public\.)?([a-zA-Z0-9_]+)
 const deleteMatches = [...source.matchAll(/DELETE\s+FROM\s+(?:public\.)?([a-zA-Z0-9_]+)/gi)].map(m => m[1]);
 insertMatches.concat(updateMatches, deleteMatches).forEach(t => calls_tables.add(`public.${t}`));
 
-// AST Complexity Estimator (fallback cuando no hay stats ni hints)
 if (!avg_time_ms && !p95_time_ms) {
 let estimatedCostMs = 5;
 estimatedCostMs += insertMatches.length * 150;
@@ -230,7 +289,6 @@ timing_source = 'ast_estimator';
 console.log(`[Estimador] ${fullFuncName}: inferencia AST = ${avg_time_ms}ms`);
 }
 
-// Cascade de triggers sobre tablas tocadas
 const cascade: any[] = [];
 const seenCascade = new Set<string>();
 for (const table of calls_tables) {
@@ -258,12 +316,46 @@ timing_source
 };
 }
 
+// === NUEVO: Construccion + validacion cruzada de PROCESOS (capa declarativa) ===
+// Valida que cada fn exista en blueprint.functions y cada estado en la state machine.
+const validationErrors: string[] = [];
+const smStates = new Set<string>(state_machines['importacion']?.states || []);
+for (const [procName, proc] of Object.entries(declaredProcesses)) {
+const steps = Array.isArray(proc.steps) ? proc.steps : [];
+for (const step of steps) {
+if (step.fn && !blueprint.functions[step.fn]) {
+validationErrors.push(`[processes.${procName}] funcion inexistente en la BD: ${step.fn}`);
+}
+if (step.estado && smStates.size > 0 && !smStates.has(step.estado)) {
+validationErrors.push(`[processes.${procName}] estado inexistente en enum estado_importacion_excel: ${step.estado}`);
+}
+}
+if (proc.recovery && proc.recovery.rutas && smStates.size > 0) {
+(proc.recovery.rutas as string[]).forEach(r => {
+if (!smStates.has(r)) validationErrors.push(`[processes.${procName}.recovery] estado de recuperacion inexistente: ${r}`);
+});
+}
+blueprint.processes[procName] = proc;
+}
+
+if (validationErrors.length > 0) {
+console.error("\n[processes] Validacion cruzada FALLIDA. El blueprint de procesos esta desincronizado con la BD:");
+validationErrors.forEach(e => console.error("  - " + e));
+await client.end();
+process.exit(1);
+}
+console.log(`[processes] ${Object.keys(blueprint.processes).length} proceso(s) validado(s) contra funciones y estados de la BD.`);
+
 // Fallback local de schema_hash si la funcion SQL no existe
 if (!blueprint.schema_hash) {
 const catalog = Object.keys(blueprint.functions).sort().map(k => k + ':' + blueprint.functions[k].source_sql).join('\n');
 const tablesCatalog = JSON.stringify(blueprint.tables);
 blueprint.schema_hash = crypto.createHash('sha256').update(catalog + tablesCatalog).digest('hex');
 }
+
+// processes_hash: detecta drift de la capa declarativa + state machines
+const processesCatalog = JSON.stringify(blueprint.processes) + JSON.stringify(blueprint.state_machines);
+blueprint.processes_hash = crypto.createHash('sha256').update(processesCatalog).digest('hex');
 
 // Escribir JSON
 const outJsonPath = path.join(rootDir, 'docs', 'db_flow_blueprint.json');
@@ -273,7 +365,52 @@ console.log(`Guardado JSON en: ${outJsonPath}`);
 // Markdown resumen
 let md = `# DB Flow Blueprint\n\n`;
 md += `- **Schema hash:** \`${blueprint.schema_hash}\`\n`;
+md += `- **Processes hash:** \`${blueprint.processes_hash}\`\n`;
 md += `- **Tables:** ${Object.keys(blueprint.tables).length} | **Triggers:** ${blueprint.triggers.length} | **Cron jobs:** ${blueprint.cron_jobs.length} | **Edge fns:** ${blueprint.edge_functions.length}\n\n`;
+
+// Seccion: Maquinas de estado
+if (Object.keys(blueprint.state_machines).length > 0) {
+md += `## Maquinas de estado\n\n`;
+for (const [smName, sm] of Object.entries(blueprint.state_machines)) {
+md += `### ${smName} (enum \`${sm.enum_type}\`)\n`;
+md += `- **Estados:** ${sm.states.join(', ')}\n`;
+if (sm.recovery_from.length > 0) md += `- **Recuperacion desde error ->** ${sm.recovery_from.join(', ')}\n`;
+md += `- **Transiciones:**\n`;
+Object.entries(sm.transitions).forEach(([desde, hasta]) => {
+md += `  - \`${desde}\` -> ${hasta.join(', ')}\n`;
+});
+md += '\n';
+}
+}
+
+// Seccion: Procesos (pipelines)
+if (Object.keys(blueprint.processes).length > 0) {
+md += `## Procesos (pipelines)\n\n`;
+for (const [procName, proc] of Object.entries(blueprint.processes)) {
+md += `### ${procName}\n`;
+if (proc.descripcion) md += `- ${proc.descripcion}\n`;
+if (proc.trigger) md += `- **Trigger:** ${proc.trigger}\n`;
+if (proc.state_machine) md += `- **State machine:** ${proc.state_machine}\n`;
+md += `- **Pasos:**\n`;
+(proc.steps || []).forEach((s, i) => {
+const extra = s.estado ? ` (estado: ${s.estado})` : (s.tabla_destino ? ` (-> ${s.tabla_destino})` : '');
+md += `  ${i + 1}. \`${s.fn}\`${extra}\n`;
+});
+if (proc.downstream && proc.downstream.length > 0) {
+md += `- **Downstream (fronteras externas):**\n`;
+proc.downstream.forEach((d: any) => {
+const label = d.trigger ? `trigger ${d.trigger}` : (d.job ? `job ${d.job}` : (d.fn ? `fn ${d.fn}` : JSON.stringify(d)));
+const target = d.consumidor ? ` -> ${d.consumidor}` : (d.destino ? ` -> ${d.destino}` : (d.tabla ? ` (${d.tabla})` : ''));
+md += `  - ${label}${target}\n`;
+});
+}
+if (proc.recovery) {
+md += `- **Recuperacion:** desde \`${proc.recovery.desde}\` -> ${(proc.recovery.rutas || []).join(', ')}\n`;
+}
+md += '\n';
+}
+}
+
 for (const [funcName, data] of Object.entries(blueprint.functions)) {
 md += `## ${funcName}\n`;
 md += `- **Security:** ${data.security}\n`;
@@ -284,10 +421,13 @@ if (data.calls_tables.length > 0) md += `- **Touches Tables:** ${data.calls_tabl
 if (data.calls_functions.length > 0) md += `- **Calls Functions:** ${data.calls_functions.join(', ')}\n`;
 if (data.triggers_cascade.length > 0) {
 md += `- **Cascading Triggers:**\n`;
-data.triggers_cascade.forEach(tc => { md += `  - \`${tc.table}\` -> \`${tc.target_function}\` (Trigger: ${tc.trigger})\n`; });
+data.triggers_cascade.forEach(tc => {
+md += `  - \`${tc.table}\` -> \`${tc.target_function}\` (Trigger: ${tc.trigger})\n`;
+});
 }
 md += '\n';
 }
+
 const outMdPath = path.join(rootDir, 'docs', 'db_flow_blueprint.md');
 fs.writeFileSync(outMdPath, md);
 console.log(`Guardado MD en: ${outMdPath}`);
