@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-12T14:50:55.326Z",
+  "generated_at": "2026-08-12T16:03:45.442Z",
   "schema_hash": "ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558",
-  "processes_hash": "4cb402cd7b8f2eb90f8f955f96bdac3c71e795c42bf940ef7b7b9849fd28b812",
+  "processes_hash": "8ca5fe3605100400955ca3bacd71737be49e8873f1988c61afc041096d20885d",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -627,7 +627,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 5.93673704501608,
+      "avg_time_ms": 5.92047878696343,
       "p95_time_ms": 236.431296,
       "timing_source": "pg_stat_statements"
     },
@@ -979,7 +979,7 @@
       "triggers_cascade": [],
       "dynamic_sql": false,
       "avg_time_ms": 5,
-      "p95_time_ms": 4847.592804,
+      "p95_time_ms": 5,
       "timing_source": "yaml_hint"
     },
     "public.fn_consolidar_importacion": {
@@ -1210,7 +1210,7 @@
       "triggers_cascade": [],
       "dynamic_sql": false,
       "avg_time_ms": 1500,
-      "p95_time_ms": null,
+      "p95_time_ms": 1500,
       "timing_source": "yaml_hint"
     },
     "public.fn_calcular_precio_publico": {
@@ -1288,7 +1288,7 @@
       ],
       "dynamic_sql": false,
       "avg_time_ms": 6000,
-      "p95_time_ms": 196689.525015,
+      "p95_time_ms": 6000,
       "timing_source": "yaml_hint"
     },
     "public.fn_consolidar_revision_importacion": {
@@ -1400,7 +1400,7 @@
       ],
       "dynamic_sql": false,
       "avg_time_ms": 4000,
-      "p95_time_ms": 20541.451141,
+      "p95_time_ms": 4000,
       "timing_source": "yaml_hint"
     },
     "public.fn_app_config_get": {
@@ -1438,7 +1438,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 183.928647769231,
+      "avg_time_ms": 187.377339214286,
       "p95_time_ms": 317.873041,
       "timing_source": "pg_stat_statements"
     },
@@ -1464,7 +1464,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 56.6097036153846,
+      "avg_time_ms": 58.776693,
       "p95_time_ms": 102.198692,
       "timing_source": "pg_stat_statements"
     },
@@ -1490,7 +1490,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 51.3315386923077,
+      "avg_time_ms": 52.3728236428571,
       "p95_time_ms": 127.926027,
       "timing_source": "pg_stat_statements"
     },
@@ -2088,7 +2088,7 @@
       "triggers_cascade": [],
       "dynamic_sql": false,
       "avg_time_ms": 500,
-      "p95_time_ms": 53.983803,
+      "p95_time_ms": 500,
       "timing_source": "yaml_hint"
     },
     "public.upsert_egreso": {
@@ -2151,7 +2151,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 8.4455205296111,
+      "avg_time_ms": 8.44031423748006,
       "p95_time_ms": 543.728639,
       "timing_source": "pg_stat_statements"
     },
@@ -2207,7 +2207,7 @@
       ],
       "dynamic_sql": false,
       "avg_time_ms": 2000,
-      "p95_time_ms": null,
+      "p95_time_ms": 2000,
       "timing_source": "yaml_hint"
     },
     "public.fn_preparar_importacion_revision": {
@@ -2243,7 +2243,7 @@
       ],
       "dynamic_sql": false,
       "avg_time_ms": 2500,
-      "p95_time_ms": 56.37726,
+      "p95_time_ms": 2500,
       "timing_source": "yaml_hint"
     },
     "public.procesar_import_job": {
@@ -2277,7 +2277,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 17.9165879458,
+      "avg_time_ms": 17.929225720358,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
@@ -7383,12 +7383,12 @@
     "sync_account_catalog": {
       "type": "sync_account_catalog",
       "status_counts": {
-        "completed": 18,
-        "failed": 13
+        "completed": 19,
+        "failed": 14
       },
-      "total": 31,
+      "total": 33,
       "pending": 0,
-      "failed": 13,
+      "failed": 14,
       "producers": [
         "public.fn_encolar_sync_price",
         "public.fn_encolar_sync_price_marketplace",
@@ -7401,11 +7401,11 @@
       "type": "sync_item",
       "status_counts": {
         "processing": 46,
-        "completed": 7140,
-        "pending": 20
+        "completed": 7164,
+        "pending": 35
       },
-      "total": 7206,
-      "pending": 20,
+      "total": 7245,
+      "pending": 35,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
@@ -7431,24 +7431,6 @@
         "public.trg_mapeo_publicacion_recalcular_async"
       ]
     },
-    "process_sale": {
-      "type": "process_sale",
-      "status_counts": {
-        "pending": 10,
-        "completed": 1954,
-        "processing": 22
-      },
-      "total": 1986,
-      "pending": 10,
-      "failed": 0,
-      "producers": [
-        "public.fn_encolar_sync_price",
-        "public.fn_encolar_sync_price_marketplace",
-        "public.fn_encolar_sync_stock",
-        "public.trg_costos_articulo_recalcular_async",
-        "public.trg_mapeo_publicacion_recalcular_async"
-      ]
-    },
     "recalc_pricing_bundle": {
       "type": "recalc_pricing_bundle",
       "status_counts": {
@@ -7458,6 +7440,24 @@
       "pending": 0,
       "failed": 276,
       "producers": [
+        "public.trg_costos_articulo_recalcular_async",
+        "public.trg_mapeo_publicacion_recalcular_async"
+      ]
+    },
+    "process_sale": {
+      "type": "process_sale",
+      "status_counts": {
+        "pending": 8,
+        "completed": 1961,
+        "processing": 22
+      },
+      "total": 1991,
+      "pending": 8,
+      "failed": 0,
+      "producers": [
+        "public.fn_encolar_sync_price",
+        "public.fn_encolar_sync_price_marketplace",
+        "public.fn_encolar_sync_stock",
         "public.trg_costos_articulo_recalcular_async",
         "public.trg_mapeo_publicacion_recalcular_async"
       ]

@@ -1,7 +1,7 @@
 # DB Flow Blueprint
 
 - **Schema hash:** `ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558`
-- **Processes hash:** `4cb402cd7b8f2eb90f8f955f96bdac3c71e795c42bf940ef7b7b9849fd28b812`
+- **Processes hash:** `8ca5fe3605100400955ca3bacd71737be49e8873f1988c61afc041096d20885d`
 - **Tables:** 69 | **Triggers:** 32 | **Cron jobs:** 3 | **Edge fns:** 3 | **Queues:** 6
 
 ## Maquinas de estado
@@ -26,28 +26,28 @@
 - **Productores:** public.fn_encolar_sync_stock
 
 ### sync_account_catalog
-- **Total:** 31 (completed=18, failed=13)
-- **WARNING - Fallidos:** 13
+- **Total:** 33 (completed=19, failed=14)
+- **WARNING - Fallidos:** 14
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
 ### sync_item
-- **Total:** 7206 (processing=46, completed=7140, pending=20)
-- **Pendientes:** 20
+- **Total:** 7245 (processing=46, completed=7164, pending=35)
+- **Pendientes:** 35
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
 ### sync_stock
 - **Total:** 8 (completed=8)
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
-### process_sale
-- **Total:** 1986 (pending=10, completed=1954, processing=22)
-- **Pendientes:** 10
-- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
-
 ### recalc_pricing_bundle
 - **Total:** 276 (failed=276)
 - **WARNING - Fallidos:** 276
 - **Productores:** public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
+
+### process_sale
+- **Total:** 1991 (pending=8, completed=1961, processing=22)
+- **Pendientes:** 8
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async
 
 ## Rutas de pricing (estado)
 
@@ -303,7 +303,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.94 ms (source: pg_stat_statements)
+- **Avg Time:** 5.92 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -564,7 +564,7 @@
 ## public.recalcular_par_item_id
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 183.93 ms (source: pg_stat_statements)
+- **Avg Time:** 187.38 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -573,7 +573,7 @@
 ## public.recalcular_catalog_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 56.61 ms (source: pg_stat_statements)
+- **Avg Time:** 58.78 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -582,7 +582,7 @@
 ## public.recalcular_associated_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 51.33 ms (source: pg_stat_statements)
+- **Avg Time:** 52.37 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -786,7 +786,7 @@
 ## public.claim_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 8.45 ms (source: pg_stat_statements)
+- **Avg Time:** 8.44 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.jobs
 
 ## public.fn_recalcular_lote
@@ -820,7 +820,7 @@
 ## public.procesar_import_job
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 17.92 ms (source: pg_stat_statements)
+- **Avg Time:** 17.93 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.import_jobs, public.importaciones_excel
 - **Calls Functions:** public.fn_preparar_importacion_revision
 - **Cascading Triggers:**
