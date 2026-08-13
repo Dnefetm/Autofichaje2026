@@ -1,7 +1,7 @@
 # DB Flow Blueprint
 
 - **Schema hash:** `01ddc9f54c762328daafb2f282b757676712fe316bd8df606a2c22cbfec2b3f0`
-- **Processes hash:** `f6f3623e87324f073f4b1e9a268bc548a168a692a3d5c3932ae5f165d13bdce7`
+- **Processes hash:** `6dab1bd588c201e94b4182e453ae2dbd8018a495189306fc0a7130fffec0b87d`
 - **Tables:** 70 | **Triggers:** 32 | **Cron jobs:** 4 | **Edge fns:** 3 | **Queues:** 6
 
 ## Maquinas de estado
@@ -35,13 +35,13 @@
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo
 
 ### sync_item
-- **Total:** 7342 (completed=7337, pending=5)
+- **Total:** 7339 (completed=7334, pending=5)
 - **Pendientes:** 5
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo
 
 ### process_sale
-- **Total:** 2087 (pending=3, completed=2084)
-- **Pendientes:** 3
+- **Total:** 2087 (pending=2, completed=2085)
+- **Pendientes:** 2
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo
 
 ### recalc_pricing_bundle
@@ -303,7 +303,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 74.98 ms (source: pg_stat_statements)
+- **Avg Time:** 75.15 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -820,7 +820,7 @@
 ## public.procesar_import_job
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 17.75 ms (source: pg_stat_statements)
+- **Avg Time:** 17.74 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.import_jobs, public.importaciones_excel
 - **Calls Functions:** public.fn_preparar_importacion_revision
 - **Cascading Triggers:**
