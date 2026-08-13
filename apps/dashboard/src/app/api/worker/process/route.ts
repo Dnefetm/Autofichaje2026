@@ -195,6 +195,9 @@ break;
 case 'process_sale':
 await handleProcessSale(job, meli);
 break;
+case 'confirm_matching_batch':
+await handleConfirmMatchingBatch(job);
+break;
 default:
 throw new Error(`Tipo de job no soportado: ${job.type}`);
 }
@@ -593,5 +596,96 @@ await supabaseAdmin
 .eq('estado', 'activa');
 logger.info({ articuloId, meliOrderId }, 'Reservacion consumida por entrega de orden MeLi');
 }
+}
+}
+
+const CHUNK_SIZE = 200;
+
+async function handleConfirmMatchingBatch(job: any) {
+const confirmJobId = job.payload?.confirm_job_id as string;
+if (!confirmJobId) throw new Error('missing confirm_job_id');
+
+// 1) Marcar running (idempotente)
+const { data: cj, error: e1 } = await supabaseAdmin
+.from('matching_confirm_jobs')
+.update({ status: 'running', started_at: new Date().toISOString() })
+.eq('id', confirmJobId)
+.in('status', ['queued', 'running'])
+.select('id, importacion_id, decisiones, processed, total')
+.single();
+
+if (e1 || !cj) throw new Error(`confirm_job not claimable: ${e1?.message}`);
+
+const decisiones: Array<{ id: string; articulo_id: string }> = cj.decisiones ?? [];
+const startIdx = cj.processed ?? 0;
+let totalConfirmadas = 0;
+let totalAliases = 0;
+const affectedArticulos = new Set<string>();
+
+try {
+// 2) Chunkear y llamar RPC — idempotente por UNIQUE(importacion_id, ...)
+for (let i = startIdx; i < decisiones.length; i += CHUNK_SIZE) {
+const chunk = decisiones.slice(i, i + CHUNK_SIZE);
+const { data, error } = await supabaseAdmin.rpc('fn_confirmar_matching_decisiones', {
+_importacion_id: cj.importacion_id,
+_decisiones: chunk,
+});
+if (error) throw error;
+const row = Array.isArray(data) ? data[0] : data;
+totalConfirmadas += row?.decisiones_confirmadas ?? 0;
+totalAliases += row?.alias_aprendidos ?? 0;
+
+chunk.forEach((d: any) => affectedArticulos.add(d.articulo_id));
+// Checkpoint de progreso
+await supabaseAdmin
+.from('matching_confirm_jobs')
+.update({ processed: i + chunk.length, alias_aprendidos: totalAliases })
+.eq('id', confirmJobId);
+}
+
+// 3) Expandir a duplicados por GTIN
+const { data: dupes } = await supabaseAdmin
+.from('articulos')
+.select('articulo_id, codigo_universal')
+.in('articulo_id', [...affectedArticulos]);
+const gtins = [...new Set((dupes ?? []).map((d: any) => d.codigo_universal).filter(Boolean))];
+
+const { data: allDupes } = await supabaseAdmin
+.from('articulos')
+.select('articulo_id')
+.in('codigo_universal', gtins);
+(allDupes ?? []).forEach((a: any) => affectedArticulos.add(a.articulo_id));
+
+// 4) Encolar recalc_pricing_bundle
+const recalcRows = [...affectedArticulos].map(articulo_id => ({
+type: 'recalc_pricing_bundle',
+payload: { articulo_id },
+priority: 3,
+status: 'pending'
+}));
+if (recalcRows.length) {
+await supabaseAdmin.from('jobs').insert(recalcRows);
+}
+
+// 5) Marcar done
+await supabaseAdmin
+.from('matching_confirm_jobs')
+.update({
+status: 'done',
+finished_at: new Date().toISOString(),
+alias_aprendidos: totalAliases,
+})
+.eq('id', confirmJobId);
+
+} catch (err: any) {
+await supabaseAdmin
+.from('matching_confirm_jobs')
+.update({
+status: 'failed',
+error: err?.message ?? String(err),
+finished_at: new Date().toISOString()
+})
+.eq('id', confirmJobId);
+throw err;
 }
 }
