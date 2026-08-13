@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import {
     LayoutDashboard, Database, Activity, Settings,
     Package, PlusCircle, RefreshCcw, Store,
@@ -11,6 +12,26 @@ import {
 } from 'lucide-react';
 
 export default function Sidebar() {
+    const [pendingCount, setPendingCount] = useState<number | null>(null);
+
+    useEffect(() => {
+        let cancel = false;
+        async function fetchCount() {
+            const { count } = await supabase
+                .from('publicaciones_externas')
+                .select('id', { count: 'exact', head: true })
+                .or('esta_mapeado.is.null,esta_mapeado.eq.false')
+                .eq('external_variation_id', '0');
+            if (!cancel) setPendingCount(count ?? 0);
+        }
+        fetchCount();
+        const t = setInterval(fetchCount, 60_000);
+        return () => {
+            cancel = true;
+            clearInterval(t);
+        };
+    }, []);
+
     const menuItems = [
         { name: 'Dashboard',        icon: LayoutDashboard, href: '/' },
         { name: 'Catálogo Maestro', icon: Package,         href: '/catalog' },
@@ -67,6 +88,27 @@ export default function Sidebar() {
                         {!collapsed && <span>{item.name}</span>}
                     </Link>
                 ))}
+                
+                <Link
+                    href="/catalog/external/pendientes"
+                    title="Pendientes"
+                    className={cn(
+                        'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md hover:bg-slate-800 transition-colors group',
+                        collapsed && 'justify-center'
+                    )}
+                >
+                    <ClipboardList className="w-4 h-4 shrink-0 text-amber-400 group-hover:text-amber-300" />
+                    {!collapsed && (
+                        <div className="flex items-center justify-between flex-1">
+                            <span>Pendientes</span>
+                            {pendingCount !== null && pendingCount > 0 && (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                                    {pendingCount.toLocaleString()}
+                                </span>
+                            )}
+                        </div>
+                    )}
+                </Link>
             </nav>
 
             {/* Usuario */}
