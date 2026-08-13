@@ -42,6 +42,8 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
     // Punto 5: hermanas para propagación en cascada
     const [siblings, setSiblings] = useState<any[]>([]);
     const [siblingsLoading, setSiblingsLoading] = useState(false);
+    // NUEVO: costo vigente por articulo_id (para badges en sugerencias)
+    const [costMap, setCostMap] = useState<Map<string, boolean>>(new Map());
 
     const pubSku = listing?.seller_custom_field || listing?.seller_sku || '';
     const pubEan = listing?.ean || '';
@@ -241,7 +243,21 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                 });
 
                 scored.sort((a, b) => b._score - a._score);
-                setSmartSuggestions(scored.filter(s => s._score > 0.5));
+                const finalScored = scored.filter(s => s._score > 0.5);
+                setSmartSuggestions(finalScored);
+
+                // NUEVO: enriquecer con estado de costo vigente en batch
+                const artIds = finalScored.map((s: any) => s.articulo_id);
+                if (artIds.length) {
+                    const { data: costs } = await supabase
+                        .from('costos_articulo')
+                        .select('articulo_id')
+                        .in('articulo_id', artIds)
+                        .eq('vigente', true);
+                    const m = new Map<string, boolean>();
+                    (costs || []).forEach((c: any) => m.set(c.articulo_id, true));
+                    setCostMap(m);
+                }
             }
         } catch (error) {
             console.error('Error cargando sugerencias:', error);
@@ -330,6 +346,22 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
             if (insError) throw insError;
             // Punto 1: actualizar esta_mapeado en la publicación principal
             await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', listing.id);
+
+            // NUEVO: liberar sync si fue pausado por falta de mapeo
+            await supabase
+                .from('publicaciones_externas')
+                .update({ sync_disabled: false, sync_disabled_reason: null })
+                .eq('id', listing.id)
+                .eq('sync_disabled_reason', 'pricing_needs_manual_mapping');
+
+            // NUEVO: encolar recálculo de precio
+            await supabase.from('jobs').insert({
+                type: 'recalc_pricing_bundle',
+                payload: { publicacion_id: listing.id },
+                status: 'pending',
+                scheduled_at: new Date().toISOString(),
+            });
+
             // Encolar job para la pub principal
             await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: listing.id }, status: 'pending', scheduled_at: new Date().toISOString() });
 
@@ -346,6 +378,21 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                         const sibInserts = selectedSkus.map(s => ({ publicacion_id: sib.id, articulo_id: s.sku, cantidad_requerida: s.quantity }));
                         await supabase.from('mapeo_publicacion_articulo').insert(sibInserts);
                         await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', sib.id);
+
+                        // NUEVO: liberar sync y encolar recalc también para hermanas
+                        await supabase
+                            .from('publicaciones_externas')
+                            .update({ sync_disabled: false, sync_disabled_reason: null })
+                            .eq('id', sib.id)
+                            .eq('sync_disabled_reason', 'pricing_needs_manual_mapping');
+
+                        await supabase.from('jobs').insert({
+                            type: 'recalc_pricing_bundle',
+                            payload: { publicacion_id: sib.id },
+                            status: 'pending',
+                            scheduled_at: new Date().toISOString(),
+                        });
+
                         await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: sib.id }, status: 'pending', scheduled_at: new Date().toISOString() });
                     }
                 }
@@ -438,6 +485,18 @@ export default function MappingModal({ listing, onClose, onSuccess }: MappingMod
                                         {res._score >= 3 && <span className="text-[9px] bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full font-bold">Alta</span>}
                                         {res._score >= 1.5 && res._score < 3 && <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Media</span>}
                                         {res._score < 1.5 && <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">Baja</span>}
+                                        {costMap.get(res.articulo_id) ? (
+                                            <span className="inline-block px-1.5 py-0.5 text-[10px] rounded bg-emerald-100 text-emerald-700 font-semibold ml-1">
+                                                ✓ costo vigente
+                                            </span>
+                                        ) : (
+                                            <span
+                                                className="inline-block px-1.5 py-0.5 text-[10px] rounded bg-rose-100 text-rose-700 font-semibold ml-1"
+                                                title="El artículo no tiene costo vigente. Importa la lista de precios del proveedor."
+                                            >
+                                                ⚠ sin costo
+                                            </span>
+                                        )}
                                         <span className="text-[10px] font-mono text-slate-400">{res.articulo_id}</span>
                                         <Plus size={14} className="text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </div>
