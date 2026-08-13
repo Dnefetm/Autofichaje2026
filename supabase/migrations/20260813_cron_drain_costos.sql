@@ -1,5 +1,8 @@
 BEGIN;
 
+-- Nota: se usa el índice único existente ux_costos_articulo_key(articulo_id, tipo_costo, fuente)
+-- para el ON CONFLICT. No se crean nuevos índices porque el esquema ya provee la clave lógica.
+
 CREATE OR REPLACE FUNCTION public.fn_drain_costos_pendientes_sin_match()
 RETURNS void
 LANGUAGE plpgsql
@@ -50,7 +53,7 @@ BEGIN
       UNION
       SELECT v_row.articulo_id
     LOOP
-      -- 2) Insertar/actualizar costos_articulo (columnas reales)
+      -- 2) Insertar/actualizar costos_articulo (ON CONFLICT sobre ux_costos_articulo_key)
       INSERT INTO costos_articulo (
         importacion_id,
         articulo_id,
@@ -77,13 +80,17 @@ BEGIN
         'completado',
         true
       )
-      ON CONFLICT (importacion_id, articulo_id, tipo_costo)
+      ON CONFLICT (articulo_id, tipo_costo, fuente)
       DO UPDATE SET
-        valor          = EXCLUDED.valor,
-        moneda         = EXCLUDED.moneda,
-        vigente        = true,
-        estado_match   = 'completado',
-        actualizado_el = now();
+        importacion_id         = EXCLUDED.importacion_id,
+        modelo_excel           = EXCLUDED.modelo_excel,
+        marca_excel            = EXCLUDED.marca_excel,
+        codigo_universal_excel = EXCLUDED.codigo_universal_excel,
+        valor                  = EXCLUDED.valor,
+        moneda                 = EXCLUDED.moneda,
+        vigente                = true,
+        estado_match           = 'completado',
+        actualizado_el         = now();
 
       -- 3) Encolar recomputo de pricing
       INSERT INTO jobs (type, payload, priority, status)
