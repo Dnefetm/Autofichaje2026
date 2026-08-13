@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-12T16:23:24.784Z",
-  "schema_hash": "ed6cad46c06396f208f80f18fa4a25aada06efc535a6dd49ca58f37ce66dd558",
-  "processes_hash": "4bbc74763b95cae2062be25548c7392461134f065585c87860b8e33df26f4ade",
+  "generated_at": "2026-08-13T06:22:07.004Z",
+  "schema_hash": "01ddc9f54c762328daafb2f282b757676712fe316bd8df606a2c22cbfec2b3f0",
+  "processes_hash": "cef027f7a2ced72cea7401a85af1cd5d02bad4cfa12c3da212c93146a986eb29",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -617,7 +617,7 @@
       "timing_source": "ast_estimator"
     },
     "public.release_zombie_jobs": {
-      "source_sql": "\r\nDECLARE\r\n    released integer;\r\nBEGIN\r\n    UPDATE jobs\r\n    SET status = 'pending',\r\n        attempts = COALESCE(attempts, 0) + 1\r\n    WHERE status = 'processing'\r\n    AND processed_at < now() - interval '5 minutes';\r\n\r\n    GET DIAGNOSTICS released = ROW_COUNT;\r\n    RETURN released;\r\nEND;\r\n",
+      "source_sql": "\r\nDECLARE released integer;\r\nBEGIN\r\n  UPDATE jobs\r\n     SET status = 'pending',\r\n         attempts = COALESCE(attempts, 0) + 1\r\n   WHERE status = 'processing'\r\n     AND COALESCE(processed_at, scheduled_at, created_at) < now() - interval '5 minutes';\r\n  GET DIAGNOSTICS released = ROW_COUNT;\r\n  RETURN released;\r\nEND;\r\n",
       "statement_timeout_override": null,
       "security": "INVOKER",
       "calls_tables": [
@@ -627,8 +627,8 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 5.9104527836767,
-      "p95_time_ms": 236.431296,
+      "avg_time_ms": 75.0465167832258,
+      "p95_time_ms": 665.993294,
       "timing_source": "pg_stat_statements"
     },
     "public.update_borradores_updated_at": {
@@ -686,9 +686,9 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 45,
-      "p95_time_ms": null,
-      "timing_source": "ast_estimator"
+      "avg_time_ms": 887.336671,
+      "p95_time_ms": 2515.995797,
+      "timing_source": "pg_stat_statements"
     },
     "public.fn_pop_matching_job": {
       "source_sql": "\nDECLARE\n    v_job_id uuid;\nBEGIN\n    SELECT id INTO v_job_id \n    FROM matching_jobs\n    WHERE estado = 'pendiente'\n    ORDER BY creado_el ASC\n    FOR UPDATE SKIP LOCKED\n    LIMIT 1;\n\n    IF v_job_id IS NOT NULL THEN\n        UPDATE matching_jobs \n        SET estado = 'corriendo', iniciado_el = now() \n        WHERE id = v_job_id;\n    END IF;\n\n    RETURN v_job_id;\nEND;\n",
@@ -1144,8 +1144,8 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 164.336456,
-      "p95_time_ms": 164.336456,
+      "avg_time_ms": 522.564912,
+      "p95_time_ms": 522.564912,
       "timing_source": "pg_stat_statements"
     },
     "public.fn_parse_precio": {
@@ -1438,7 +1438,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 187.377339214286,
+      "avg_time_ms": 186.028827,
       "p95_time_ms": 317.873041,
       "timing_source": "pg_stat_statements"
     },
@@ -1464,7 +1464,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 58.776693,
+      "avg_time_ms": 57.4051954,
       "p95_time_ms": 102.198692,
       "timing_source": "pg_stat_statements"
     },
@@ -1490,7 +1490,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 52.3728236428571,
+      "avg_time_ms": 50.9124126,
       "p95_time_ms": 127.926027,
       "timing_source": "pg_stat_statements"
     },
@@ -2009,23 +2009,6 @@
       "p95_time_ms": null,
       "timing_source": "ast_estimator"
     },
-    "public.fn_tg_encolar_recalculo": {
-      "source_sql": "\nBEGIN\n    INSERT INTO precio_recalc_queue (articulo_id) \n    VALUES (COALESCE(NEW.articulo_id, OLD.articulo_id));\n    RETURN NULL;\nEND;\n",
-      "statement_timeout_override": null,
-      "security": "DEFINER",
-      "calls_tables": [
-        "public.precio_recalc_queue"
-      ],
-      "calls_functions": [],
-      "triggers_on_tables": [
-        "costos_articulo"
-      ],
-      "triggers_cascade": [],
-      "dynamic_sql": false,
-      "avg_time_ms": 155,
-      "p95_time_ms": null,
-      "timing_source": "ast_estimator"
-    },
     "public.fn_revertir_importacion": {
       "source_sql": "\nDECLARE\n    v_proveedor text;\nBEGIN\n    SELECT proveedor INTO v_proveedor FROM importaciones_excel WHERE id = p_importacion_id;\n    IF v_proveedor IS NULL THEN\n        RAISE EXCEPTION 'Importación no encontrada';\n    END IF;\n\n    -- Eliminar los costos generados por esta importacion\n    DELETE FROM costos_articulo WHERE importacion_id = p_importacion_id;\n    \n    -- Eliminar los pendientes generados por esta importacion\n    DELETE FROM costos_pendientes WHERE importacion_id = p_importacion_id;\n\n    -- Activar la lista anterior más reciente del proveedor\n    UPDATE listas_precios_proveedor\n    SET vigente = true, fecha_vigor_hasta = NULL\n    WHERE id = (\n        SELECT id FROM listas_precios_proveedor \n        WHERE proveedor = v_proveedor AND importacion_id <> p_importacion_id\n        ORDER BY importacion_fecha DESC LIMIT 1\n    );\n\n    UPDATE importaciones_excel SET estado = 'revertido', ultima_actividad = now() WHERE id = p_importacion_id;\n    \n    -- Encolar recalculo masivo de los articulos afectados si tenian precio basado en esta importacion\n    INSERT INTO precio_recalc_queue (articulo_id)\n    SELECT DISTINCT articulo_id FROM costos_articulo WHERE proveedor = v_proveedor\n    ON CONFLICT DO NOTHING;\nEND;\n",
       "statement_timeout_override": null,
@@ -2091,6 +2074,24 @@
       "p95_time_ms": 500,
       "timing_source": "yaml_hint"
     },
+    "public.fn_tg_encolar_recalculo": {
+      "source_sql": " DECLARE v_articulo_id text := COALESCE(NEW.articulo_id, OLD.articulo_id); v_inserted int := 0; BEGIN IF v_articulo_id IS NULL THEN RETURN COALESCE(NEW, OLD); END IF; WITH resolved AS (SELECT DISTINCT p.id AS publicacion_id FROM public.articulos a JOIN public.publicaciones_externas p ON p.external_item_id = a.publicacion_ml WHERE a.articulo_id = v_articulo_id AND p.status_externo IN ('active','paused') UNION SELECT m.publicacion_id FROM public.mapeo_publicacion_articulo m JOIN public.publicaciones_externas p ON p.id = m.publicacion_id WHERE m.articulo_id = v_articulo_id AND p.status_externo IN ('active','paused')) INSERT INTO public.jobs (type, payload) SELECT 'recalc_pricing_bundle', jsonb_build_object('publicacion_id', r.publicacion_id, 'source', 'trigger:costos_articulo', 'articulo_id', v_articulo_id) FROM resolved r WHERE NOT EXISTS (SELECT 1 FROM public.jobs j WHERE j.status='pending' AND j.type='recalc_pricing_bundle' AND j.payload @> jsonb_build_object('publicacion_id', r.publicacion_id)); GET DIAGNOSTICS v_inserted = ROW_COUNT; IF v_inserted = 0 THEN INSERT INTO public.precio_recalc_orphans_log(articulo_id, motivo, source_table) VALUES (v_articulo_id, 'no_publicacion_viva', TG_TABLE_NAME); END IF; RETURN COALESCE(NEW, OLD); END; ",
+      "statement_timeout_override": null,
+      "security": "INVOKER",
+      "calls_tables": [
+        "public.jobs",
+        "public.precio_recalc_orphans_log"
+      ],
+      "calls_functions": [],
+      "triggers_on_tables": [
+        "costos_articulo"
+      ],
+      "triggers_cascade": [],
+      "dynamic_sql": false,
+      "avg_time_ms": 3.29582,
+      "p95_time_ms": 3.29582,
+      "timing_source": "pg_stat_statements"
+    },
     "public.upsert_egreso": {
       "source_sql": "\r\nDECLARE v_norm text; v_tipo text; v_op text; v_art text;\r\nBEGIN\r\n  v_norm := lower(btrim(translate(coalesce(p_tipo_egreso,''), 'ÁÉÍÓÚÜÑáéíóúüñ','AEIOUUNaeiouun')));\r\n  v_tipo := CASE WHEN v_norm='' THEN 'otro'\r\n    WHEN position('venta' in v_norm)>0 THEN 'venta'\r\n    WHEN position('full' in v_norm)>0 OR position('fulfillment' in v_norm)>0 THEN 'envio_full'\r\n    WHEN position('devolucion' in v_norm)>0 OR position('proveedor' in v_norm)>0 THEN 'devolucion_proveedor'\r\n    ELSE 'otro' END;\r\n  v_op  := NULLIF(btrim(coalesce(p_operador_id,'')),'');\r\n  v_art := NULLIF(btrim(coalesce(p_articulo_id,'')),'');\r\n  INSERT INTO egresos (egreso_id,articulo_id,cantidad,guia,transportista,tipo_egreso,notas,fecha,operador_id,largo,ancho,alto,peso)\r\n  VALUES (p_egreso_id, v_art, p_cantidad, p_guia, p_transportista, v_tipo, p_notas, p_fecha, v_op,\r\n    NULLIF(btrim(p_largo),'')::numeric, NULLIF(btrim(p_ancho),'')::numeric,\r\n    NULLIF(btrim(p_alto),'')::numeric, NULLIF(btrim(p_peso),'')::numeric)\r\n  ON CONFLICT (egreso_id) DO UPDATE SET\r\n    articulo_id=EXCLUDED.articulo_id, cantidad=EXCLUDED.cantidad, guia=EXCLUDED.guia,\r\n    transportista=EXCLUDED.transportista, tipo_egreso=EXCLUDED.tipo_egreso, notas=EXCLUDED.notas,\r\n    fecha=EXCLUDED.fecha, operador_id=EXCLUDED.operador_id,\r\n    largo=EXCLUDED.largo, ancho=EXCLUDED.ancho, alto=EXCLUDED.alto, peso=EXCLUDED.peso;\r\nEND;",
       "statement_timeout_override": null,
@@ -2140,7 +2141,7 @@
       "timing_source": "ast_estimator"
     },
     "public.claim_jobs": {
-      "source_sql": "\r\nDECLARE\r\n    claimed_ids uuid[];\r\nBEGIN\r\n    SELECT array_agg(id) INTO claimed_ids\r\n    FROM (\r\n        SELECT id FROM jobs\r\n        WHERE status = 'pending' AND scheduled_at <= now()\r\n        ORDER BY GREATEST(priority - FLOOR(EXTRACT(EPOCH FROM (now() - scheduled_at)) / 300), 0) ASC, scheduled_at ASC\r\n        LIMIT batch_size_limit\r\n        FOR UPDATE SKIP LOCKED\r\n    ) limited_jobs;\r\n\r\n    IF claimed_ids IS NULL THEN\r\n        RETURN;\r\n    END IF;\r\n\r\n    RETURN QUERY\r\n    UPDATE jobs\r\n    SET status = 'processing', attempts = attempts + 1\r\n    WHERE id = ANY(claimed_ids)\r\n    RETURNING *;\r\nEND;\r\n",
+      "source_sql": "\r\nDECLARE claimed_ids uuid[];\r\nBEGIN\r\n  SELECT array_agg(id) INTO claimed_ids\r\n  FROM (\r\n    SELECT id FROM jobs\r\n    WHERE status = 'pending' AND scheduled_at <= now()\r\n    ORDER BY GREATEST(priority - FLOOR(EXTRACT(EPOCH FROM (now() - scheduled_at)) / 300), 0) ASC, scheduled_at ASC\r\n    LIMIT batch_size_limit\r\n    FOR UPDATE SKIP LOCKED\r\n  ) limited_jobs;\r\n  IF claimed_ids IS NULL THEN RETURN; END IF;\r\n  RETURN QUERY\r\n  UPDATE jobs\r\n     SET status = 'processing',\r\n         attempts = attempts + 1,\r\n         processed_at = now()\r\n   WHERE id = ANY(claimed_ids)\r\n  RETURNING *;\r\nEND;\r\n",
       "statement_timeout_override": null,
       "security": "INVOKER",
       "calls_tables": [
@@ -2151,7 +2152,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 8.43864486327504,
+      "avg_time_ms": 9.09825791569648,
       "p95_time_ms": 543.728639,
       "timing_source": "pg_stat_statements"
     },
@@ -2277,7 +2278,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 17.9194803311611,
+      "avg_time_ms": 17.7543455415293,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
@@ -2308,8 +2309,8 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 22.751425,
-      "p95_time_ms": 22.751425,
+      "avg_time_ms": 897.033043,
+      "p95_time_ms": 897.033043,
       "timing_source": "pg_stat_statements"
     },
     "public.encolar_import_job": {
@@ -2375,6 +2376,24 @@
       "dynamic_sql": false,
       "avg_time_ms": 56.37726,
       "p95_time_ms": 56.37726,
+      "timing_source": "pg_stat_statements"
+    },
+    "public.fn_procesar_precio_recalc_queue": {
+      "source_sql": "\r\nDECLARE q record; m record; n int := 0;\r\nBEGIN\r\n  FOR q IN\r\n    SELECT id, articulo_id FROM precio_recalc_queue\r\n     WHERE procesado_at IS NULL\r\n     ORDER BY prioridad DESC NULLS LAST, encolado_at\r\n     FOR UPDATE SKIP LOCKED\r\n     LIMIT p_batch\r\n  LOOP\r\n    BEGIN\r\n      FOR m IN SELECT publicacion_id FROM mapeo_publicacion_articulo WHERE articulo_id = q.articulo_id LOOP\r\n        BEGIN\r\n          PERFORM fn_recalcular_precio_publicacion(m.publicacion_id);\r\n        EXCEPTION WHEN OTHERS THEN\r\n          RAISE WARNING 'recalc pub % : %', m.publicacion_id, SQLERRM;\r\n        END;\r\n      END LOOP;\r\n      UPDATE precio_recalc_queue SET procesado_at = now() WHERE id = q.id;\r\n      n := n + 1;\r\n    EXCEPTION WHEN OTHERS THEN\r\n      UPDATE precio_recalc_queue SET procesado_at = now() WHERE id = q.id;\r\n      RAISE WARNING 'recalc articulo % : %', q.articulo_id, SQLERRM;\r\n    END;\r\n  END LOOP;\r\n  RETURN n;\r\nEND ",
+      "statement_timeout_override": null,
+      "security": "INVOKER",
+      "calls_tables": [
+        "public.SKIP",
+        "public.precio_recalc_queue"
+      ],
+      "calls_functions": [
+        "public.fn_recalcular_precio_publicacion"
+      ],
+      "triggers_on_tables": [],
+      "triggers_cascade": [],
+      "dynamic_sql": false,
+      "avg_time_ms": 897.033043,
+      "p95_time_ms": 897.033043,
       "timing_source": "pg_stat_statements"
     }
   },
@@ -5669,6 +5688,36 @@
         }
       ]
     },
+    "public.precio_recalc_orphans_log": {
+      "rls_enabled": true,
+      "columns": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "notnull": true
+        },
+        {
+          "column": "articulo_id",
+          "type": "text",
+          "notnull": true
+        },
+        {
+          "column": "motivo",
+          "type": "text",
+          "notnull": true
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "notnull": false
+        },
+        {
+          "column": "created_at",
+          "type": "timestamp with time zone",
+          "notnull": true
+        }
+      ]
+    },
     "public.precio_recalc_queue": {
       "rls_enabled": false,
       "columns": [
@@ -7275,6 +7324,12 @@
       "schedule": "* * * * *",
       "command": " SELECT public.procesar_import_job(); ",
       "active": true
+    },
+    {
+      "jobid": "8",
+      "schedule": "* * * * *",
+      "command": "SELECT public.release_zombie_jobs();",
+      "active": true
     }
   ],
   "edge_functions": [
@@ -7367,99 +7422,101 @@
     }
   },
   "queues": {
+    "sync_account_catalog": {
+      "type": "sync_account_catalog",
+      "status_counts": {
+        "completed": 19,
+        "failed": 14
+      },
+      "total": 33,
+      "pending": 0,
+      "failed": 14,
+      "producers": [
+        "public.fn_encolar_sync_price",
+        "public.fn_encolar_sync_price_marketplace",
+        "public.fn_encolar_sync_stock",
+        "public.trg_costos_articulo_recalcular_async",
+        "public.trg_mapeo_publicacion_recalcular_async",
+        "public.fn_tg_encolar_recalculo"
+      ]
+    },
     "sync_stock_mapped": {
       "type": "sync_stock_mapped",
       "status_counts": {
-        "completed": 291,
-        "processing": 2
+        "completed": 320
       },
-      "total": 293,
+      "total": 320,
       "pending": 0,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_stock"
       ]
     },
-    "sync_account_catalog": {
-      "type": "sync_account_catalog",
+    "sync_stock": {
+      "type": "sync_stock",
       "status_counts": {
-        "completed": 18,
-        "failed": 13
+        "completed": 6
       },
-      "total": 31,
+      "total": 6,
       "pending": 0,
-      "failed": 13,
+      "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
         "public.fn_encolar_sync_price_marketplace",
         "public.fn_encolar_sync_stock",
         "public.trg_costos_articulo_recalcular_async",
-        "public.trg_mapeo_publicacion_recalcular_async"
+        "public.trg_mapeo_publicacion_recalcular_async",
+        "public.fn_tg_encolar_recalculo"
       ]
     },
     "sync_item": {
       "type": "sync_item",
       "status_counts": {
-        "processing": 46,
-        "completed": 7171,
-        "pending": 29
+        "completed": 7343,
+        "pending": 7
       },
-      "total": 7246,
-      "pending": 29,
+      "total": 7350,
+      "pending": 7,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
         "public.fn_encolar_sync_price_marketplace",
         "public.fn_encolar_sync_stock",
         "public.trg_costos_articulo_recalcular_async",
-        "public.trg_mapeo_publicacion_recalcular_async"
-      ]
-    },
-    "sync_stock": {
-      "type": "sync_stock",
-      "status_counts": {
-        "completed": 8
-      },
-      "total": 8,
-      "pending": 0,
-      "failed": 0,
-      "producers": [
-        "public.fn_encolar_sync_price",
-        "public.fn_encolar_sync_price_marketplace",
-        "public.fn_encolar_sync_stock",
-        "public.trg_costos_articulo_recalcular_async",
-        "public.trg_mapeo_publicacion_recalcular_async"
+        "public.trg_mapeo_publicacion_recalcular_async",
+        "public.fn_tg_encolar_recalculo"
       ]
     },
     "process_sale": {
       "type": "process_sale",
       "status_counts": {
-        "pending": 8,
-        "completed": 1963,
-        "processing": 22
+        "pending": 2,
+        "completed": 2084
       },
-      "total": 1993,
-      "pending": 8,
+      "total": 2086,
+      "pending": 2,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
         "public.fn_encolar_sync_price_marketplace",
         "public.fn_encolar_sync_stock",
         "public.trg_costos_articulo_recalcular_async",
-        "public.trg_mapeo_publicacion_recalcular_async"
+        "public.trg_mapeo_publicacion_recalcular_async",
+        "public.fn_tg_encolar_recalculo"
       ]
     },
     "recalc_pricing_bundle": {
       "type": "recalc_pricing_bundle",
       "status_counts": {
-        "failed": 276
+        "failed": 2136
       },
-      "total": 276,
+      "total": 2136,
       "pending": 0,
-      "failed": 276,
+      "failed": 2136,
       "producers": [
         "public.trg_costos_articulo_recalcular_async",
-        "public.trg_mapeo_publicacion_recalcular_async"
+        "public.trg_mapeo_publicacion_recalcular_async",
+        "public.fn_tg_encolar_recalculo"
       ]
     }
   },
@@ -7558,6 +7615,9 @@
       "apps/dashboard/src/app/api/worker/process/route.ts"
     ],
     "process_sale": [
+      "apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "confirm_matching_batch": [
       "apps/dashboard/src/app/api/worker/process/route.ts"
     ]
   },
