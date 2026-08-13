@@ -1,8 +1,8 @@
 # DB Flow Blueprint
 
-- **Schema hash:** `01ddc9f54c762328daafb2f282b757676712fe316bd8df606a2c22cbfec2b3f0`
-- **Processes hash:** `6dab1bd588c201e94b4182e453ae2dbd8018a495189306fc0a7130fffec0b87d`
-- **Tables:** 70 | **Triggers:** 32 | **Cron jobs:** 4 | **Edge fns:** 3 | **Queues:** 6
+- **Schema hash:** `fa2e698e8d55fbdadc492224fa30ece26e1423293b0d3785ae4927835d1129e7`
+- **Processes hash:** `4e3da58d09b3e9d26d2aa203e50decaf8ceba8dd052c905edcb99abc906a7102`
+- **Tables:** 71 | **Triggers:** 32 | **Cron jobs:** 4 | **Edge fns:** 3 | **Queues:** 6
 
 ## Maquinas de estado
 
@@ -24,7 +24,7 @@
 ### sync_account_catalog
 - **Total:** 33 (completed=19, failed=14)
 - **WARNING - Fallidos:** 14
-- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### sync_stock_mapped
 - **Total:** 320 (completed=320)
@@ -32,22 +32,22 @@
 
 ### sync_stock
 - **Total:** 6 (completed=6)
-- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### sync_item
-- **Total:** 7339 (completed=7334, pending=5)
-- **Pendientes:** 5
-- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo
+- **Total:** 7336 (completed=7329, pending=7)
+- **Pendientes:** 7
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### process_sale
-- **Total:** 2087 (pending=2, completed=2085)
-- **Pendientes:** 2
-- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo
+- **Total:** 2086 (pending=1, completed=2085)
+- **Pendientes:** 1
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### recalc_pricing_bundle
 - **Total:** 2136 (failed=2136)
 - **WARNING - Fallidos:** 2136
-- **Productores:** public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo
+- **Productores:** public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ## Rutas de pricing (estado)
 
@@ -303,7 +303,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 75.15 ms (source: pg_stat_statements)
+- **Avg Time:** 75.26 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -786,7 +786,7 @@
 ## public.claim_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 9.09 ms (source: pg_stat_statements)
+- **Avg Time:** 9.08 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.jobs
 
 ## public.fn_recalcular_lote
@@ -867,4 +867,14 @@
 - **Avg Time:** 897.03 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.precio_recalc_queue
 - **Calls Functions:** public.fn_recalcular_precio_publicacion
+
+## public.fn_drain_costos_pendientes_sin_match
+- **Security:** DEFINER
+- **Timeout Override:** None
+- **Avg Time:** 17904.22 ms (source: pg_stat_statements)
+- **Touches Tables:** public.costos_articulo, public.jobs, public.SET, public.costos_pendientes
+- **Cascading Triggers:**
+ - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
+ - `costos_articulo` -> `public.update_actualizado_el` (Trigger: trg_costos_articulo_actualizado_el)
+ - `costos_articulo` -> `public.trg_costos_articulo_recalcular_async` (Trigger: trigger_recalcular_precios_async)
 

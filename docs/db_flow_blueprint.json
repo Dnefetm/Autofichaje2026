@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-13T06:36:33.370Z",
-  "schema_hash": "01ddc9f54c762328daafb2f282b757676712fe316bd8df606a2c22cbfec2b3f0",
-  "processes_hash": "6dab1bd588c201e94b4182e453ae2dbd8018a495189306fc0a7130fffec0b87d",
+  "generated_at": "2026-08-13T06:45:11.674Z",
+  "schema_hash": "fa2e698e8d55fbdadc492224fa30ece26e1423293b0d3785ae4927835d1129e7",
+  "processes_hash": "4e3da58d09b3e9d26d2aa203e50decaf8ceba8dd052c905edcb99abc906a7102",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -627,7 +627,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 75.1474249708491,
+      "avg_time_ms": 75.2557104172932,
       "p95_time_ms": 665.993294,
       "timing_source": "pg_stat_statements"
     },
@@ -2152,7 +2152,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 9.09027424471513,
+      "avg_time_ms": 9.08426524818235,
       "p95_time_ms": 543.728639,
       "timing_source": "pg_stat_statements"
     },
@@ -2278,7 +2278,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 17.744112667714,
+      "avg_time_ms": 17.7366702695354,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
@@ -2394,6 +2394,40 @@
       "dynamic_sql": false,
       "avg_time_ms": 897.033043,
       "p95_time_ms": 897.033043,
+      "timing_source": "pg_stat_statements"
+    },
+    "public.fn_drain_costos_pendientes_sin_match": {
+      "source_sql": " DECLARE v_row record; v_articulo record; BEGIN FOR v_row IN SELECT cp.id, cp.importacion_id, cp.proveedor, cp.codigo_excel, cp.marca_excel, cp.modelo_excel, cp.tipo_costo, cp.valor, cp.moneda, alias.articulo_id FROM costos_pendientes cp JOIN proveedor_articulos_alias alias ON alias.proveedor = cp.proveedor AND ((cp.codigo_excel IS NOT NULL AND cp.codigo_excel <> '' AND alias.codigo_excel = cp.codigo_excel) OR ((cp.codigo_excel IS NULL OR cp.codigo_excel = '') AND alias.marca_excel = cp.marca_excel AND alias.modelo_excel = cp.modelo_excel)) WHERE cp.motivo = 'sin_match' AND cp.resuelto = false LOOP FOR v_articulo IN WITH target AS (SELECT codigo_universal FROM articulos WHERE articulo_id = v_row.articulo_id) SELECT a.articulo_id FROM articulos a JOIN target t ON a.codigo_universal = t.codigo_universal WHERE a.codigo_universal IS NOT NULL AND a.codigo_universal <> '' UNION SELECT v_row.articulo_id LOOP INSERT INTO costos_articulo (importacion_id, articulo_id, modelo_excel, marca_excel, codigo_universal_excel, tipo_costo, valor, moneda, fuente, estado_match, vigente) VALUES (v_row.importacion_id, v_articulo.articulo_id, v_row.modelo_excel, v_row.marca_excel, v_row.codigo_excel, v_row.tipo_costo, v_row.valor, v_row.moneda, 'excel', 'completado', true) ON CONFLICT (articulo_id, tipo_costo, fuente) DO UPDATE SET importacion_id = EXCLUDED.importacion_id, modelo_excel = EXCLUDED.modelo_excel, marca_excel = EXCLUDED.marca_excel, codigo_universal_excel = EXCLUDED.codigo_universal_excel, valor = EXCLUDED.valor, moneda = EXCLUDED.moneda, vigente = true, estado_match = 'completado', actualizado_el = now(); INSERT INTO jobs (type, payload, priority, status) VALUES ('recalc_pricing_bundle', jsonb_build_object('articulo_id', v_articulo.articulo_id), 3, 'pending'); END LOOP; UPDATE costos_pendientes SET resuelto = true WHERE id = v_row.id; END LOOP; END; ",
+      "statement_timeout_override": null,
+      "security": "DEFINER",
+      "calls_tables": [
+        "public.costos_articulo",
+        "public.jobs",
+        "public.SET",
+        "public.costos_pendientes"
+      ],
+      "calls_functions": [],
+      "triggers_on_tables": [],
+      "triggers_cascade": [
+        {
+          "table": "costos_articulo",
+          "trigger": "tg_encolar_recalculo",
+          "target_function": "public.fn_tg_encolar_recalculo"
+        },
+        {
+          "table": "costos_articulo",
+          "trigger": "trg_costos_articulo_actualizado_el",
+          "target_function": "public.update_actualizado_el"
+        },
+        {
+          "table": "costos_articulo",
+          "trigger": "trigger_recalcular_precios_async",
+          "target_function": "public.trg_costos_articulo_recalcular_async"
+        }
+      ],
+      "dynamic_sql": false,
+      "avg_time_ms": 17904.217428,
+      "p95_time_ms": 17904.217428,
       "timing_source": "pg_stat_statements"
     }
   },
@@ -5113,6 +5147,66 @@
         }
       ]
     },
+    "public.matching_confirm_jobs": {
+      "rls_enabled": true,
+      "columns": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "notnull": true
+        },
+        {
+          "column": "importacion_id",
+          "type": "uuid",
+          "notnull": true
+        },
+        {
+          "column": "decisiones",
+          "type": "jsonb",
+          "notnull": true
+        },
+        {
+          "column": "status",
+          "type": "text",
+          "notnull": true
+        },
+        {
+          "column": "processed",
+          "type": "integer",
+          "notnull": true
+        },
+        {
+          "column": "total",
+          "type": "integer",
+          "notnull": true
+        },
+        {
+          "column": "alias_aprendidos",
+          "type": "integer",
+          "notnull": true
+        },
+        {
+          "column": "error",
+          "type": "text",
+          "notnull": false
+        },
+        {
+          "column": "created_at",
+          "type": "timestamp with time zone",
+          "notnull": true
+        },
+        {
+          "column": "started_at",
+          "type": "timestamp with time zone",
+          "notnull": false
+        },
+        {
+          "column": "finished_at",
+          "type": "timestamp with time zone",
+          "notnull": false
+        }
+      ]
+    },
     "public.matching_decisiones": {
       "rls_enabled": true,
       "columns": [
@@ -6218,6 +6312,21 @@
         },
         {
           "column": "estado_proveedor",
+          "type": "text",
+          "notnull": false
+        },
+        {
+          "column": "locked",
+          "type": "boolean",
+          "notnull": true
+        },
+        {
+          "column": "locked_at",
+          "type": "timestamp with time zone",
+          "notnull": false
+        },
+        {
+          "column": "locked_by",
           "type": "text",
           "notnull": false
         }
@@ -7437,7 +7546,8 @@
         "public.fn_encolar_sync_stock",
         "public.trg_costos_articulo_recalcular_async",
         "public.trg_mapeo_publicacion_recalcular_async",
-        "public.fn_tg_encolar_recalculo"
+        "public.fn_tg_encolar_recalculo",
+        "public.fn_drain_costos_pendientes_sin_match"
       ]
     },
     "sync_stock_mapped": {
@@ -7466,17 +7576,18 @@
         "public.fn_encolar_sync_stock",
         "public.trg_costos_articulo_recalcular_async",
         "public.trg_mapeo_publicacion_recalcular_async",
-        "public.fn_tg_encolar_recalculo"
+        "public.fn_tg_encolar_recalculo",
+        "public.fn_drain_costos_pendientes_sin_match"
       ]
     },
     "sync_item": {
       "type": "sync_item",
       "status_counts": {
-        "completed": 7334,
-        "pending": 5
+        "completed": 7329,
+        "pending": 7
       },
-      "total": 7339,
-      "pending": 5,
+      "total": 7336,
+      "pending": 7,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
@@ -7484,17 +7595,18 @@
         "public.fn_encolar_sync_stock",
         "public.trg_costos_articulo_recalcular_async",
         "public.trg_mapeo_publicacion_recalcular_async",
-        "public.fn_tg_encolar_recalculo"
+        "public.fn_tg_encolar_recalculo",
+        "public.fn_drain_costos_pendientes_sin_match"
       ]
     },
     "process_sale": {
       "type": "process_sale",
       "status_counts": {
-        "pending": 2,
+        "pending": 1,
         "completed": 2085
       },
-      "total": 2087,
-      "pending": 2,
+      "total": 2086,
+      "pending": 1,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
@@ -7502,7 +7614,8 @@
         "public.fn_encolar_sync_stock",
         "public.trg_costos_articulo_recalcular_async",
         "public.trg_mapeo_publicacion_recalcular_async",
-        "public.fn_tg_encolar_recalculo"
+        "public.fn_tg_encolar_recalculo",
+        "public.fn_drain_costos_pendientes_sin_match"
       ]
     },
     "recalc_pricing_bundle": {
@@ -7516,7 +7629,8 @@
       "producers": [
         "public.trg_costos_articulo_recalcular_async",
         "public.trg_mapeo_publicacion_recalcular_async",
-        "public.fn_tg_encolar_recalculo"
+        "public.fn_tg_encolar_recalculo",
+        "public.fn_drain_costos_pendientes_sin_match"
       ]
     }
   },
