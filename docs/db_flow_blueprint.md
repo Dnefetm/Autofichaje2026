@@ -1,7 +1,7 @@
 # DB Flow Blueprint
 
 - **Schema hash:** `01ddc9f54c762328daafb2f282b757676712fe316bd8df606a2c22cbfec2b3f0`
-- **Processes hash:** `cef027f7a2ced72cea7401a85af1cd5d02bad4cfa12c3da212c93146a986eb29`
+- **Processes hash:** `f6f3623e87324f073f4b1e9a268bc548a168a692a3d5c3932ae5f165d13bdce7`
 - **Tables:** 70 | **Triggers:** 32 | **Cron jobs:** 4 | **Edge fns:** 3 | **Queues:** 6
 
 ## Maquinas de estado
@@ -35,13 +35,13 @@
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo
 
 ### sync_item
-- **Total:** 7350 (completed=7343, pending=7)
-- **Pendientes:** 7
+- **Total:** 7342 (completed=7337, pending=5)
+- **Pendientes:** 5
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo
 
 ### process_sale
-- **Total:** 2086 (pending=2, completed=2084)
-- **Pendientes:** 2
+- **Total:** 2087 (pending=3, completed=2084)
+- **Pendientes:** 3
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo
 
 ### recalc_pricing_bundle
@@ -303,7 +303,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 75.05 ms (source: pg_stat_statements)
+- **Avg Time:** 74.98 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -786,7 +786,7 @@
 ## public.claim_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 9.10 ms (source: pg_stat_statements)
+- **Avg Time:** 9.09 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.jobs
 
 ## public.fn_recalcular_lote
