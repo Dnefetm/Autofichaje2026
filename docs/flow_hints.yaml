@@ -2,7 +2,7 @@ hints:
   public.fn_preparar_importacion_revision:
     estimated_time_ms: 2500
   public.fn_resolver_y_poblar_costos:
-    estimated_time_ms: 6000
+    estimated_time_ms: 3500
   public.fn_match_precios_v2:
     estimated_time_ms: 4000
   public.fn_confirmar_matching_decisiones:
@@ -11,4 +11,131 @@ hints:
     estimated_time_ms: 2000
   public.fn_marcar_vigente:
     estimated_time_ms: 500
+  public.f_unaccent_immutable:
+    estimated_time_ms: 5
+    # ====================================================================
+# REGLA FIJA (por orden del owner, 2026-08-10):
+# El mapeo publicacion<->articulo es 100% MANUAL (mapping-modal.tsx) hasta
+# que el owner indique lo contrario. NO proponer ni implementar poblado
+# masivo/automatico del mapeo. Foco: dejar el flujo funcional END-TO-END.
+# ====================================================================
+# ====================================================================
+# TRANSPARENCIA DE RUTAS DE PRECIOS (auditoria 2026-08-10)
+# Estado: alive = en uso | legacy = funciona pero a deprecar | dead = roto/desconectado
+# ====================================================================
+pipeline_routes:
+  v1_precio_recalc_queue:
+    status: dead
+    productor_trigger: tg_encolar_recalculo (costos_articulo, ACTIVO)
+    cola: precio_recalc_queue
+    consumidor: NINGUNO (sin cron)
+    motor: fn_recalcular_lote
+    motivo_muerte: fn_recalcular_lote usa esquema viejo de reglas_precio (columna 'retenciones' no existe); cola con 10620 pendientes sin drenar
+    accion: deshabilitar trigger tg_encolar_recalculo y DROP de cola+funcion tras validar
+  v2_marketplace_prices:
+    status: legacy
+    motor: fn_recalcular_precio_marketplace
+    reglas: pricing_rules
+    destino: marketplace_prices
+    nota: evaluar deprecacion; convive con v3
+  v3_publication_pricing:
+    status: alive
+    productor_trigger_sync: trg_recalcular_precio_publicacion (publicaciones_externas) -> llama fn_recalcular_precio_publicacion directo
+    productor_trigger_async: trg_mapeo_publicacion_recalcular_async (mapeo_publicacion_articulo) -> encola job 'recalc_pricing_bundle'
+    cola: jobs
+    consumidor: apps/dashboard/src/app/api/worker/process/route.ts (Vercel, cron 1min)
+    motor: fn_recalcular_precio_publicacion (pricing_rule_v3 + overrides + categorias) -> publication_pricing_history
+    gap_critico: el worker (route.ts) NO tiene case 'recalc_pricing_bundle' -> los jobs de recalc por mapeo se descartan
+    accion: agregar handler 'recalc_pricing_bundle' en route.ts
+
+# Poblado de mapeo_publicacion_articulo (bloqueante para las ~9k publicaciones):
+#   Fuente UNICA: apps/dashboard/src/components/mapping-modal.tsx (INSERT manual via modal)
+#   Estado: 157 mapeos de 9148 publicaciones_externas -> matching 100% manual, no escala
+#   Ninguna funcion de BD escribe esta tabla.
+#
+# Worker DEPRECADO (no usar): apps/worker/src/processor.ts (Render retirado)
 # ci: trigger blueprint run after CI dependency fix (retry 2) (retry 3) (retry 4) (retry 5)
+
+# ====================================================================
+# CIERRE DE BRECHA recalc_pricing_bundle (auditoria + fix 2026-08-10)
+# ====================================================================
+recalc_pricing_bundle_fix:
+  estado: IMPLEMENTADO
+  commit: e1e57f8 (branch Dnefetm-patch-2)
+  archivo: apps/dashboard/src/app/api/worker/process/route.ts
+  productor_real: trg_costos_articulo_recalcular_async  # AST/pg_proc: dispara al cambiar costos_articulo (vigente=true)
+  payload: { publicacion_id: uuid }                     # jsonb_build_object desde mapeo_publicacion_articulo, ON CONFLICT DO NOTHING (dedupe)
+  handler_nuevo: handleRecalcPricingBundle
+  logica:
+    - 1_recalcular: supabaseAdmin.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id })
+    - 2_guardas: no propaga si sync_disabled=true o pricing_status != 'ok'
+    - 3_propagar: encola job 'sync_price' (payload { publicacion_id }, priority 5) -> MeLi
+  flujo_end_to_end: costos_articulo -> trg_costos_articulo_recalcular_async -> job recalc_pricing_bundle -> route.ts/handleRecalcPricingBundle -> fn_recalcular_precio_publicacion -> publicaciones_externas + publication_pricing_history -> job sync_price -> MeliAdapter.updatePrice
+
+# ====================================================================
+# BLOQUEANTE DE DATOS confirmado por validacion (transaccion con ROLLBACK, sin mutar prod)
+# ====================================================================
+pricing_data_blocker:
+  costos_articulo_total: 0
+  costos_articulo_vigentes: 0
+  articulos_mapeados_distintos: 88
+  articulos_mapeados_con_costo_vigente: 0
+  publicaciones_mapeadas: 155        # 154 pending + 1 estimated_params, 0 en 'ok'
+  recalc_masivo_simulado: missing_cost=155   # correr fn_recalcular_precio_publicacion sobre las 155 -> TODAS missing_cost
+  conclusion: >-
+    El worker path esta completo y verificado a nivel RPC, pero la tabla costos_articulo
+    esta VACIA. Sin costos vigentes, fn_recalcular_precio_publicacion devuelve missing_cost
+    (no escribe history, no encola sync_price). Por eso nunca han existido jobs recalc_pricing_bundle.
+  siguiente_paso_datos: >-
+    Poblar costos_articulo (import de proveedor / fn_resolver_y_poblar_costos) para los 88 articulos
+    mapeados. Es operacion de datos controlada por el owner; no se ejecuta automaticamente.
+  nota_gap_previo: >-
+    El gap_critico de v3_publication_pricing queda RESUELTO en codigo (handler agregado).
+    Correccion: el productor real es trg_costos_articulo_recalcular_async (no trg_mapeo_publicacion_recalcular_async).
+
+
+# ====================================================================
+# PROCESOS (pipelines de negocio) - consumido por generate_flow_blueprint.ts
+# Capa declarativa curada: define ORDEN logico + fronteras externas que la
+# introspeccion de Postgres no expone. El generador valida que cada 'fn' y
+# 'estado' exista realmente en la BD (si no, el CI falla).
+# ====================================================================
+processes:
+  importacion_precios:
+    descripcion: Importacion de lista de precios de proveedor y aplicacion end-to-end.
+    trigger: POST /api/precios/importar/[id]/iniciar-parser
+    ingesta:
+      tabla_staging: listas_precios_raw_staging
+      columna_modelo: CLAVE
+      columna_codigo: CODIGO DE BARRA SIN CERO
+    steps:
+      - fn: public.fn_preparar_importacion_revision
+        estado: mapeando
+      - fn: public.fn_match_precios_v2
+        estado: procesando
+      - fn: public.fn_confirmar_matching_decisiones
+        estado: en_revision
+      - fn: public.fn_consolidar_matching_decisiones
+        estado: matching_completo
+      - fn: public.fn_resolver_y_poblar_costos
+        tabla_destino: costos_articulo
+      - fn: public.fn_marcar_vigente
+        estado: completado
+    downstream:
+      - trigger: trg_costos_articulo_recalcular_async
+        tabla: costos_articulo
+      - job: recalc_pricing_bundle
+        consumidor: apps/dashboard/src/app/api/worker/process/route.ts#handleRecalcPricingBundle
+        expect_runtime: true
+      - fn: public.fn_recalcular_precio_publicacion
+        destino: publication_pricing_history
+      - job: sync_price
+        consumidor: apps/dashboard/src/app/api/worker/process/route.ts#handleSyncPrice
+        productor: recalc_pricing_bundle
+        expect_runtime: false
+        blocked_by: pricing_data_blocker
+    state_machine: importacion
+    recovery:
+      desde: error
+      rutas: [mapeando, procesando, completado]
+      motivo: Resuelve error 23514; el lote en error reintenta hasta completado sin intervencion.

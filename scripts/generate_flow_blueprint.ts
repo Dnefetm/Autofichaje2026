@@ -14,6 +14,21 @@ calls_functions?: string[];
 
 type TimingSource = 'live_stats' | 'pg_stat_statements' | 'yaml_hint' | 'ast_estimator' | 'none';
 
+type Severity = 'error' | 'warn' | 'info';
+interface DiagnosticEvidence {
+  runtime?: boolean;
+  handler?: string[];
+  producer?: string[];
+  yaml?: boolean;
+}
+interface Diagnostic {
+  scope: string;
+  severity: Severity;
+  code: string;
+  message: string;
+  hint?: string;
+  evidence?: DiagnosticEvidence;
+}
 interface BlueprintNode {
 source_sql: string;
 statement_timeout_override: string | null;
@@ -28,22 +43,58 @@ p95_time_ms: number | null;
 timing_source: TimingSource;
 }
 
+interface StateMachine {
+enum_type: string;
+states: string[];
+transitions: Record<string, string[]>;
+recovery_from: string[];
+}
+
+interface Queue {
+type: string;
+status_counts: Record<string, number>;
+total: number;
+pending: number;
+failed: number;
+producers: string[];
+}
+
+interface ProcessStep {
+fn: string;
+estado?: string;
+tabla_destino?: string;
+}
+
+interface ProcessDef {
+descripcion?: string;
+trigger?: string;
+ingesta?: any;
+steps: ProcessStep[];
+downstream?: any[];
+state_machine?: string;
+recovery?: any;
+}
+
 interface Blueprint {
 generated_at: string;
 schema_hash: string | null;
+processes_hash: string | null;
 roles: Record<string, any>;
-external_limits: Record<string, number>;
+external_limits: Record<string, any>;
 functions: Record<string, BlueprintNode>;
 tables: Record<string, any>;
 triggers: any[];
 cron_jobs: any[];
 edge_functions: any[];
+state_machines: Record<string, StateMachine>;
+queues: Record<string, Queue>;
+processes: Record<string, ProcessDef>;
+job_handlers: Record<string, string[]>;
+diagnostics: Diagnostic[];
 }
 
 // Deduplica preservando orden
-function dedup(arr: string[]): string[] {
-return Array.from(new Set(arr));
-}
+function dedup(arr: string[]): string[] { return Array.from(new Set(arr)); }
 
 async function main() {
 const dbUrl = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
@@ -60,32 +111,28 @@ const limitsPath = path.join(rootDir, 'infra_limits.json');
 const hintsPath = path.join(rootDir, 'docs', 'flow_hints.yaml');
 
 let external_limits = {};
-if (fs.existsSync(limitsPath)) {
-external_limits = JSON.parse(fs.readFileSync(limitsPath, 'utf8'));
-}
+if (fs.existsSync(limitsPath)) { external_limits = JSON.parse(fs.readFileSync(limitsPath, 'utf8')); }
+
 let hints: Record<string, FlowHint> = {};
+let declaredProcesses: Record<string, ProcessDef> = {};
+let pipelineRoutes: Record<string, any> = {};
 if (fs.existsSync(hintsPath)) {
 const parsedHints = yaml.parse(fs.readFileSync(hintsPath, 'utf8'));
-if (parsedHints && parsedHints.hints) {
-hints = parsedHints.hints;
-}
+if (parsedHints && parsedHints.hints) { hints = parsedHints.hints; }
+if (parsedHints && parsedHints.processes) { declaredProcesses = parsedHints.processes; }
+if (parsedHints && parsedHints.pipeline_routes) { pipelineRoutes = parsedHints.pipeline_routes; }
 }
 
-// Roles config
 const rolesRes = await client.query(`SELECT rolname, rolconfig FROM pg_roles WHERE rolname IN ('authenticated', 'anon', 'service_role')`);
 const roles: Record<string, any> = {};
 rolesRes.rows.forEach(r => { roles[r.rolname] = r.rolconfig; });
 
-// Schema hash (usa fn_schema_hash si existe; fallback a hash local del catalogo)
 let schema_hash: string | null = null;
 try {
 const hashRes = await client.query(`SELECT public.fn_schema_hash() AS h`);
 schema_hash = hashRes.rows[0]?.h ?? null;
-} catch (e) {
-console.warn("[schema_hash] fn_schema_hash() no disponible, se calculara localmente.");
-}
+} catch (e) { console.warn("[schema_hash] fn_schema_hash() no disponible, se calculara localmente."); }
 
-// Funciones (filtrando objetos de extension deptype='e')
 const funcsRes = await client.query(`
 SELECT p.oid, p.proname, n.nspname as schema, p.prosrc, p.proconfig, p.prosecdef, s.total_time, s.calls
 FROM pg_proc p
@@ -98,7 +145,6 @@ AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 
 let hasPgStatStatements = false;
 try { await client.query(`SELECT 1 FROM pg_stat_statements LIMIT 1`); hasPgStatStatements = true; } catch(e) {}
 
-// Triggers
 const triggersRes = await client.query(`
 SELECT t.tgname, t.tgtype, c.relname as table_name, p.proname as target_function, n.nspname as target_schema
 FROM pg_trigger t
@@ -114,7 +160,6 @@ if (!triggersByFunc[fullFuncName]) triggersByFunc[fullFuncName] = [];
 triggersByFunc[fullFuncName].push(t);
 });
 
-// Tablas (columnas + rls)
 const tablesRes = await client.query(`
 SELECT c.relname as table_name, c.relrowsecurity as rls_enabled,
 COALESCE(json_agg(json_build_object('column', a.attname, 'type', format_type(a.atttypid, a.atttypmod), 'notnull', a.attnotnull) ORDER BY a.attnum) FILTER (WHERE a.attnum > 0 AND NOT a.attisdropped), '[]') as columns
@@ -125,25 +170,16 @@ WHERE n.nspname = 'public' AND c.relkind = 'r'
 GROUP BY c.relname, c.relrowsecurity
 `);
 const tables: Record<string, any> = {};
-tablesRes.rows.forEach(t => {
-tables[`public.${t.table_name}`] = { rls_enabled: t.rls_enabled, columns: t.columns };
-});
+tablesRes.rows.forEach(t => { tables[`public.${t.table_name}`] = { rls_enabled: t.rls_enabled, columns: t.columns }; });
 
-// Triggers (lista global deduplicada)
-const triggers = triggersRes.rows.map(t => ({
-trigger: t.tgname,
-table: `public.${t.table_name}`,
-target_function: `${t.target_schema}.${t.target_function}`
-}));
+const triggers = triggersRes.rows.map(t => ({ trigger: t.tgname, table: `public.${t.table_name}`, target_function: `${t.target_schema}.${t.target_function}` }));
 
-// Cron jobs (pg_cron, si esta instalado)
 let cron_jobs: any[] = [];
 try {
 const cronRes = await client.query(`SELECT jobid, schedule, command, active FROM cron.job`);
 cron_jobs = cronRes.rows;
 } catch(e) { console.warn("[cron] pg_cron no disponible o sin permisos."); }
 
-// Edge functions (desde supabase/functions/*)
 let edge_functions: any[] = [];
 const edgeDir = path.join(rootDir, 'supabase', 'functions');
 if (fs.existsSync(edgeDir)) {
@@ -152,24 +188,111 @@ edge_functions = fs.readdirSync(edgeDir, { withFileTypes: true })
 .map(d => ({ name: d.name, path: `supabase/functions/${d.name}` }));
 }
 
+// === Introspeccion de la maquina de estados de importacion ===
+const state_machines: Record<string, StateMachine> = {};
+try {
+const enumRes = await client.query(`
+SELECT e.enumlabel AS label
+FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid
+WHERE t.typname = 'estado_importacion_excel'
+ORDER BY e.enumsortorder
+`);
+const enumStates: string[] = enumRes.rows.map(r => r.label);
+if (enumStates.length > 0) {
+const transRes = await client.query(`SELECT desde::text AS desde, hasta::text AS hasta FROM importacion_estado_transiciones`);
+const transitions: Record<string, string[]> = {};
+transRes.rows.forEach(r => {
+if (!transitions[r.desde]) transitions[r.desde] = [];
+transitions[r.desde].push(r.hasta);
+});
+Object.keys(transitions).forEach(k => { transitions[k] = dedup(transitions[k]).sort(); });
+state_machines['importacion'] = {
+enum_type: 'estado_importacion_excel',
+states: enumStates,
+transitions,
+recovery_from: transitions['error'] ? dedup(transitions['error']).sort() : []
+};
+console.log(`[state-machine] importacion: ${enumStates.length} estados, ${Object.keys(transitions).length} origenes de transicion.`);
+}
+} catch (e) { console.warn("[state-machine] No se pudo introspectar estado_importacion_excel / importacion_estado_transiciones.", (e as Error).message); }
+
+// === NUEVO (B): Introspeccion de colas (jobs) + productores ===
+// Fuente introspectable: tabla public.jobs (type, status) + funciones que hacen INSERT INTO jobs.
+const queues: Record<string, Queue> = {};
+try {
+const jobsRes = await client.query(`SELECT type, status, count(*)::int AS n FROM public.jobs GROUP BY type, status`);
+// Productores: funciones/triggers cuyo prosrc inserta en la cola jobs.
+// Se intenta asociar por tipo si el prosrc menciona el literal del tipo; si no, se marca como productor generico.
+const producerRows = funcsRes.rows.filter((f: any) => /INSERT\s+INTO\s+(?:public\.)?jobs\b/i.test(f.prosrc || ''));
+for (const row of jobsRes.rows) {
+const t = row.type as string;
+if (!queues[t]) {
+queues[t] = { type: t, status_counts: {}, total: 0, pending: 0, failed: 0, producers: [] };
+}
+queues[t].status_counts[row.status] = row.n;
+queues[t].total += row.n;
+if (row.status === 'pending') queues[t].pending += row.n;
+if (row.status === 'failed') queues[t].failed += row.n;
+}
+// Asociar productores: si el prosrc del productor menciona el tipo, se lista en esa cola; ademas se listan como genericos.
+const genericProducers: string[] = producerRows.map((f: any) => `${f.schema}.${f.proname}`);
+for (const t of Object.keys(queues)) {
+const specific = producerRows
+.filter((f: any) => new RegExp(`['"]${t}['"]`).test(f.prosrc || ''))
+.map((f: any) => `${f.schema}.${f.proname}`);
+queues[t].producers = dedup(specific.length > 0 ? specific : genericProducers);
+}
+console.log(`[queues] ${Object.keys(queues).length} cola(s) detectada(s) en public.jobs; ${genericProducers.length} funcion(es) productora(s).`);
+} catch (e) { console.warn("[queues] No se pudo introspectar public.jobs.", (e as Error).message); }
+
+const diagnostics: Diagnostic[] = [];
+const job_handlers: Record<string, string[]> = {};
+const producedByWorker = new Set<string>();
+const workerRoutePath = path.join(rootDir, 'apps', 'dashboard', 'src', 'app', 'api', 'worker', 'process', 'route.ts');
+if (fs.existsSync(workerRoutePath)) {
+    const routeSrc = fs.readFileSync(workerRoutePath, 'utf8');
+    const rel = path.relative(rootDir, workerRoutePath).replace(/\\/g, '/');
+    for (const m of routeSrc.matchAll(/case\s*['"]([a-zA-Z0-9_]+)['"]\s*:/g)) {
+        const t = m[1];
+        if (!job_handlers[t]) job_handlers[t] = [];
+        if (!job_handlers[t].includes(rel)) job_handlers[t].push(rel);
+    }
+    for (const m of routeSrc.matchAll(/type\s*:\s*['"]([a-zA-Z0-9_]+)['"]/g)) {
+        producedByWorker.add(m[1]);
+    }
+    console.log(`[job-handlers] ${Object.keys(job_handlers).length} handler(s) detectados en ${rel}.`);
+} else {
+    diagnostics.push({
+        scope: 'worker.route', severity: 'warn', code: 'WORKER_ROUTE_MISSING',
+        message: 'No se encontro route.ts del worker oficial; la validacion de consumidores queda degradada.',
+        hint: 'Verifica apps/dashboard/src/app/api/worker/process/route.ts',
+        evidence: { yaml: true }
+    });
+}
+
 const blueprint: Blueprint = {
 generated_at: new Date().toISOString(),
 schema_hash,
+processes_hash: null,
 roles,
 external_limits,
 functions: {},
 tables,
 triggers,
 cron_jobs,
-edge_functions
+edge_functions,
+state_machines,
+queues,
+processes: {},
+job_handlers,
+diagnostics
 };
 
-const knownFunctions = new Set(funcsRes.rows.map(row => row.proname));
+const knownFunctions = new Set<string>(funcsRes.rows.map((row: any) => row.proname));
 
 for (const f of funcsRes.rows) {
 const fullFuncName = `${f.schema}.${f.proname}`;
 const source: string = f.prosrc;
-
 let calls_tables = new Set<string>();
 let calls_functions = new Set<string>();
 let dynamic_sql = false;
@@ -186,7 +309,6 @@ hints[fullFuncName].affects_tables?.forEach(t => calls_tables.add(t));
 hints[fullFuncName].calls_functions?.forEach(fn => calls_functions.add(fn));
 }
 
-// Timings + timing_source (prioridad: live_stats > pg_stat_statements > yaml_hint > ast_estimator)
 let avg_time_ms: number | null = f.calls && f.calls > 0 ? f.total_time / f.calls : null;
 let p95_time_ms: number | null = null;
 let timing_source: TimingSource = avg_time_ms ? 'live_stats' : 'none';
@@ -201,12 +323,11 @@ if (!avg_time_ms) { avg_time_ms = statRes.rows[0].mean_exec_time; timing_source 
 } catch(e) {}
 }
 
-if (!avg_time_ms && hints[fullFuncName]?.estimated_time_ms) {
-avg_time_ms = hints[fullFuncName].estimated_time_ms!;
+if (hints[fullFuncName]?.estimated_time_ms) {avg_time_ms = hints[fullFuncName].estimated_time_ms!;
+p95_time_ms = hints[fullFuncName].estimated_time_ms!;
 timing_source = 'yaml_hint';
 }
 
-// Deteccion de llamadas a funciones de usuario
 const allFuncCallsMatches = [...source.matchAll(/\b(?:public\.)?([a-zA-Z0-9_]+)\s*\(/gi)].map(m => m[1]);
 allFuncCallsMatches.forEach(fn => { if (knownFunctions.has(fn)) calls_functions.add(`public.${fn}`); });
 
@@ -215,7 +336,6 @@ const updateMatches = [...source.matchAll(/UPDATE\s+(?:public\.)?([a-zA-Z0-9_]+)
 const deleteMatches = [...source.matchAll(/DELETE\s+FROM\s+(?:public\.)?([a-zA-Z0-9_]+)/gi)].map(m => m[1]);
 insertMatches.concat(updateMatches, deleteMatches).forEach(t => calls_tables.add(`public.${t}`));
 
-// AST Complexity Estimator (fallback cuando no hay stats ni hints)
 if (!avg_time_ms && !p95_time_ms) {
 let estimatedCostMs = 5;
 estimatedCostMs += insertMatches.length * 150;
@@ -230,7 +350,6 @@ timing_source = 'ast_estimator';
 console.log(`[Estimador] ${fullFuncName}: inferencia AST = ${avg_time_ms}ms`);
 }
 
-// Cascade de triggers sobre tablas tocadas
 const cascade: any[] = [];
 const seenCascade = new Set<string>();
 for (const table of calls_tables) {
@@ -258,22 +377,195 @@ timing_source
 };
 }
 
-// Fallback local de schema_hash si la funcion SQL no existe
+// === Construccion + validacion cruzada de PROCESOS (capa declarativa) ===
+const smStates = new Set<string>(state_machines['importacion']?.states || []);
+for (const [procName, proc] of Object.entries<any>(declaredProcesses)) {
+    const steps = Array.isArray(proc.steps) ? proc.steps : [];
+    for (const step of steps) {
+        if (step.fn && !blueprint.functions[step.fn]) {
+            diagnostics.push({ scope: `processes.${procName}`, severity: 'error', code: 'FN_MISSING', message: `funcion inexistente en la BD: ${step.fn}`, hint: 'Verifica el nombre o crea la funcion antes de declararla.', evidence: { yaml: true } });
+        }
+        if (step.estado && smStates.size > 0 && !smStates.has(step.estado)) {
+            diagnostics.push({ scope: `processes.${procName}`, severity: 'error', code: 'STATE_MISSING', message: `estado inexistente en estado_importacion_excel: ${step.estado}`, hint: 'Corrige el estado declarado o actualiza la state machine.', evidence: { yaml: true } });
+        }
+    }
+    if (proc.recovery?.rutas && smStates.size > 0) {
+        for (const r of proc.recovery.rutas as string[]) {
+            if (!smStates.has(r)) {
+                diagnostics.push({ scope: `processes.${procName}.recovery`, severity: 'error', code: 'RECOVERY_STATE_MISSING', message: `estado de recuperacion inexistente: ${r}`, hint: 'La ruta de recovery no coincide con la maquina de estados.', evidence: { yaml: true } });
+            }
+        }
+    }
+    if (Array.isArray(proc.downstream)) {
+        proc.downstream.forEach((d: any) => {
+            if (!d || !d.job) return;
+            const job = d.job as string;
+            const expectRuntime = d.expect_runtime !== false;
+            const hasRuntime = !!queues[job];
+            const handlers = job_handlers[job] || [];
+            const hasHandler = handlers.length > 0;
+            const producerHints = [...(producedByWorker.has(job) ? ['worker-route'] : []), ...(d.productor ? [String(d.productor)] : [])];
+            const isProducible = producerHints.length > 0;
+            if (hasRuntime) return;
+            if (hasHandler || isProducible) {
+                diagnostics.push({ scope: `processes.${procName}.downstream`, severity: expectRuntime ? 'warn' : 'info', code: 'QUEUE_NO_RUNTIME', message: `cola '${job}' sin filas observadas en public.jobs`, hint: d.blocked_by ? `Bloqueo conocido: ${d.blocked_by}. No es fallo estructural.` : 'La cola es valida pero aun no tiene trafico observado.', evidence: { runtime: false, handler: handlers, producer: producerHints, yaml: true } });
+            } else {
+                diagnostics.push({ scope: `processes.${procName}.downstream`, severity: 'error', code: 'QUEUE_ORPHAN', message: `cola '${job}' sin runtime, sin consumidor detectable y sin productor detectable`, hint: `Agrega el handler en route.ts o corrige el nombre en flow_hints.yaml.`, evidence: { runtime: false, handler: handlers, producer: producerHints, yaml: true } });
+            }
+        });
+    }
+    blueprint.processes[procName] = proc;
+}
+
+const errors = diagnostics.filter(d => d.severity === 'error');
+const warns = diagnostics.filter(d => d.severity === 'warn');
+const infos = diagnostics.filter(d => d.severity === 'info');
+const fmt = (d: Diagnostic) => `  [${d.code}] ${d.scope}: ${d.message}${d.hint ? `\n      -> ${d.hint}` : ''}`;
+if (errors.length) { console.error(`\n[processes] ${errors.length} ERROR(es):`); errors.forEach(d => console.error(fmt(d))); }
+if (warns.length) { console.warn(`\n[processes] ${warns.length} ADVERTENCIA(s):`); warns.forEach(d => console.warn(fmt(d))); }
+if (infos.length) { console.log(`\n[processes] ${infos.length} nota(s) informativa(s):`); infos.forEach(d => console.log(fmt(d))); }
+if (errors.length > 0) { await client.end(); process.exit(1); }
+console.log(`\n[processes] ${Object.keys(blueprint.processes).length} proceso(s) validados: ${errors.length} error, ${warns.length} warn, ${infos.length} info.`);
+
 if (!blueprint.schema_hash) {
 const catalog = Object.keys(blueprint.functions).sort().map(k => k + ':' + blueprint.functions[k].source_sql).join('\n');
 const tablesCatalog = JSON.stringify(blueprint.tables);
 blueprint.schema_hash = crypto.createHash('sha256').update(catalog + tablesCatalog).digest('hex');
 }
 
-// Escribir JSON
+// processes_hash: detecta drift de la capa declarativa + state machines + queues
+const processesCatalog = JSON.stringify(blueprint.processes) + JSON.stringify(blueprint.state_machines) + JSON.stringify(blueprint.queues);
+blueprint.processes_hash = crypto.createHash('sha256').update(processesCatalog).digest('hex');
+
 const outJsonPath = path.join(rootDir, 'docs', 'db_flow_blueprint.json');
 fs.writeFileSync(outJsonPath, JSON.stringify(blueprint, null, 2));
 console.log(`Guardado JSON en: ${outJsonPath}`);
 
-// Markdown resumen
 let md = `# DB Flow Blueprint\n\n`;
 md += `- **Schema hash:** \`${blueprint.schema_hash}\`\n`;
-md += `- **Tables:** ${Object.keys(blueprint.tables).length} | **Triggers:** ${blueprint.triggers.length} | **Cron jobs:** ${blueprint.cron_jobs.length} | **Edge fns:** ${blueprint.edge_functions.length}\n\n`;
+md += `- **Processes hash:** \`${blueprint.processes_hash}\`\n`;
+md += `- **Tables:** ${Object.keys(blueprint.tables).length} | **Triggers:** ${blueprint.triggers.length} | **Cron jobs:** ${blueprint.cron_jobs.length} | **Edge fns:** ${blueprint.edge_functions.length} | **Queues:** ${Object.keys(blueprint.queues).length}\n\n`;
+
+if (Object.keys(blueprint.state_machines).length > 0) {
+md += `## Maquinas de estado\n\n`;
+for (const [smName, sm] of Object.entries(blueprint.state_machines)) {
+md += `### ${smName} (enum \`${sm.enum_type}\`)\n`;
+md += `- **Estados:** ${sm.states.join(', ')}\n`;
+if (sm.recovery_from.length > 0) md += `- **Recuperacion desde error ->** ${sm.recovery_from.join(', ')}\n`;
+md += `- **Transiciones:**\n`;
+Object.entries(sm.transitions).forEach(([desde, hasta]) => {
+md += ` - \`${desde}\` -> ${hasta.join(', ')}\n`;
+});
+md += '\n';
+}
+}
+
+if (Object.keys(blueprint.queues).length > 0) {
+md += `## Colas (jobs)\n\n`;
+for (const [qName, q] of Object.entries(blueprint.queues)) {
+const counts = Object.entries(q.status_counts).map(([s, n]) => `${s}=${n}`).join(', ');
+md += `### ${qName}\n`;
+md += `- **Total:** ${q.total} (${counts})\n`;
+if (q.pending > 0) md += `- **Pendientes:** ${q.pending}\n`;
+if (q.failed > 0) md += `- **WARNING - Fallidos:** ${q.failed}\n`;
+if (q.producers.length > 0) md += `- **Productores:** ${q.producers.join(', ')}\n`;
+md += '\n';
+}
+}
+
+if (Object.keys(pipelineRoutes).length > 0) {
+    md += `## Rutas de pricing (estado)\n\n`;
+    for (const [name, r] of Object.entries<any>(pipelineRoutes)) {
+        md += `### ${name} — **${(r.status || 'unknown').toUpperCase()}**\n\n`;
+        if (r.description) md += `${r.description}\n\n`;
+        if (r.path) md += `- Path: \`${r.path}\`\n`;
+        if (r.producer) md += `- Producer: \`${r.producer}\`\n`;
+        if (r.consumer) md += `- Consumer: \`${r.consumer}\`\n`;
+        if (r.notes) md += `- Notes: ${r.notes}\n`;
+        md += `\n`;
+    }
+}
+
+if (blueprint.diagnostics.length > 0) {
+    md += `## Diagnosticos\n\n`;
+    const grouped = {
+        error: blueprint.diagnostics.filter(d => d.severity === 'error'),
+        warn:  blueprint.diagnostics.filter(d => d.severity === 'warn'),
+        info:  blueprint.diagnostics.filter(d => d.severity === 'info'),
+    };
+    for (const sev of ['error', 'warn', 'info'] as const) {
+        const items = grouped[sev];
+        if (!items.length) continue;
+        md += `### ${sev.toUpperCase()}\n\n`;
+        for (const d of items) {
+            md += `- [${d.code}] \`${d.scope}\`: ${d.message}`;
+            if (d.hint) md += ` — ${d.hint}`;
+            md += `\n`;
+        }
+        md += `\n`;
+    }
+}
+
+if (Object.keys(blueprint.processes || {}).length > 0) {
+    md += `## Procesos declarados\n\n`;
+    for (const [procName, proc] of Object.entries<any>(blueprint.processes)) {
+        md += `### ${procName}\n\n`;
+        if (proc.trigger) md += `- Trigger: \`${proc.trigger}\`\n`;
+        if (Array.isArray(proc.steps) && proc.steps.length) {
+            md += `- Steps:\n`;
+            for (const s of proc.steps) {
+                const bits = [];
+                if (s.fn) bits.push(`fn=\`${s.fn}\``);
+                if (s.estado) bits.push(`estado=\`${s.estado}\``);
+                if (s.tabla_destino) bits.push(`tabla_destino=\`${s.tabla_destino}\``);
+                if (s.destino) bits.push(`destino=\`${s.destino}\``);
+                md += `  - ${bits.join(' | ')}\n`;
+            }
+        }
+        if (Array.isArray(proc.downstream) && proc.downstream.length) {
+            md += `- Downstream:\n`;
+            for (const d of proc.downstream) {
+                if (d.trigger) {
+                    md += `  - trigger=\`${d.trigger}\`${d.tabla ? ` | tabla=\`${d.tabla}\`` : ''}\n`;
+                    continue;
+                }
+                if (d.fn) {
+                    md += `  - fn=\`${d.fn}\`${d.destino ? ` | destino=\`${d.destino}\`` : ''}\n`;
+                    continue;
+                }
+                if (d.job) {
+                    const handlers = blueprint.job_handlers?.[d.job] || [];
+                    const handlerText = handlers.length ? handlers.map(h => `\`${h}\``).join(', ') : '`no detectado`';
+                    md += `  - job=\`${d.job}\` | handler=${handlerText} | expect_runtime=\`${d.expect_runtime !== false}\``;
+                    if (d.blocked_by) md += ` | blocked_by=\`${d.blocked_by}\``;
+                    md += `\n`;
+                }
+            }
+        }
+        if (proc.recovery) {
+            md += `- Recovery: desde \`${proc.recovery.desde}\``;
+            if (Array.isArray(proc.recovery.rutas)) {
+                md += ` -> [${proc.recovery.rutas.map((r: string) => `\`${r}\``).join(', ')}]`;
+            }
+            md += `\n`;
+        }
+        md += `\n`;
+    }
+}
+
+const diagCounts = {
+  error: blueprint.diagnostics.filter(d => d.severity === 'error').length,
+  warn: blueprint.diagnostics.filter(d => d.severity === 'warn').length,
+  info: blueprint.diagnostics.filter(d => d.severity === 'info').length,
+};
+
+md += `## Salud del blueprint\n\n`;
+md += `- Procesos declarados: ${Object.keys(blueprint.processes || {}).length}\n`;
+md += `- Handlers de jobs detectados en worker: ${Object.keys(blueprint.job_handlers || {}).length}\n`;
+md += `- Diagnosticos error: ${diagCounts.error}\n`;
+md += `- Diagnosticos warn: ${diagCounts.warn}\n`;
+md += `- Diagnosticos info: ${diagCounts.info}\n\n`;
+
 for (const [funcName, data] of Object.entries(blueprint.functions)) {
 md += `## ${funcName}\n`;
 md += `- **Security:** ${data.security}\n`;
@@ -284,10 +576,13 @@ if (data.calls_tables.length > 0) md += `- **Touches Tables:** ${data.calls_tabl
 if (data.calls_functions.length > 0) md += `- **Calls Functions:** ${data.calls_functions.join(', ')}\n`;
 if (data.triggers_cascade.length > 0) {
 md += `- **Cascading Triggers:**\n`;
-data.triggers_cascade.forEach(tc => { md += `  - \`${tc.table}\` -> \`${tc.target_function}\` (Trigger: ${tc.trigger})\n`; });
+data.triggers_cascade.forEach(tc => {
+md += ` - \`${tc.table}\` -> \`${tc.target_function}\` (Trigger: ${tc.trigger})\n`;
+});
 }
 md += '\n';
 }
+
 const outMdPath = path.join(rootDir, 'docs', 'db_flow_blueprint.md');
 fs.writeFileSync(outMdPath, md);
 console.log(`Guardado MD en: ${outMdPath}`);
