@@ -11,6 +11,8 @@ hints:
     estimated_time_ms: 2000
   public.fn_marcar_vigente:
     estimated_time_ms: 500
+  public.fn_drain_costos_pendientes_sin_match:
+    estimated_time_ms: 150
   public.f_unaccent_immutable:
     estimated_time_ms: 5
     # ====================================================================

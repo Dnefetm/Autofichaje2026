@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'yaml';
 import * as crypto from 'crypto';
+import { runStaticAppAnalysis, validateCrossReferences, analyzeDataLineageSql } from './validate_data_pipeline';
 
 // Tipos
 interface FlowHint {
@@ -246,29 +247,30 @@ console.log(`[queues] ${Object.keys(queues).length} cola(s) detectada(s) en publ
 } catch (e) { console.warn("[queues] No se pudo introspectar public.jobs.", (e as Error).message); }
 
 const diagnostics: Diagnostic[] = [];
+console.log("Corriendo Analizador Estatico de TypeScript (AST)...");
+const tsResult = runStaticAppAnalysis(rootDir);
+
+// Las colas manejadas por el worker son aquellas extraidas de los archivos que tengan "worker" en su path.
 const job_handlers: Record<string, string[]> = {};
-const producedByWorker = new Set<string>();
-const workerRoutePath = path.join(rootDir, 'apps', 'dashboard', 'src', 'app', 'api', 'worker', 'process', 'route.ts');
-if (fs.existsSync(workerRoutePath)) {
-    const routeSrc = fs.readFileSync(workerRoutePath, 'utf8');
-    const rel = path.relative(rootDir, workerRoutePath).replace(/\\/g, '/');
-    for (const m of routeSrc.matchAll(/case\s*['"]([a-zA-Z0-9_]+)['"]\s*:/g)) {
-        const t = m[1];
-        if (!job_handlers[t]) job_handlers[t] = [];
-        if (!job_handlers[t].includes(rel)) job_handlers[t].push(rel);
-    }
-    for (const m of routeSrc.matchAll(/type\s*:\s*['"]([a-zA-Z0-9_]+)['"]/g)) {
-        producedByWorker.add(m[1]);
-    }
-    console.log(`[job-handlers] ${Object.keys(job_handlers).length} handler(s) detectados en ${rel}.`);
-} else {
-    diagnostics.push({
-        scope: 'worker.route', severity: 'warn', code: 'WORKER_ROUTE_MISSING',
-        message: 'No se encontro route.ts del worker oficial; la validacion de consumidores queda degradada.',
-        hint: 'Verifica apps/dashboard/src/app/api/worker/process/route.ts',
-        evidence: { yaml: true }
-    });
+for (const [jobType, files] of tsResult.enqueuedJobs.entries()) {
+    // Para simplificar, mapeamos los archivos. Si un archivo es worker, lo cuenta como manejado.
+    job_handlers[jobType] = files;
 }
+
+const workerHandlers = Array.from(tsResult.enqueuedJobs.keys()); 
+
+const appDiagnostics = validateCrossReferences(tsResult, {}, {}, workerHandlers);
+appDiagnostics.forEach(d => {
+    diagnostics.push({
+        scope: d.scope,
+        severity: d.severity,
+        code: d.code,
+        message: d.message,
+        hint: d.file ? `En archivo: ${d.file}` : undefined,
+        evidence: { runtime: false }
+    });
+});
+console.log(`[ast-analysis] ${appDiagnostics.length} diagnosticos del analizador de TypeScript encontrados.`);
 
 const blueprint: Blueprint = {
 generated_at: new Date().toISOString(),
@@ -375,20 +377,87 @@ avg_time_ms,
 p95_time_ms,
 timing_source
 };
+
+// Analizar Data Lineage
+const lineageDiagnostics = analyzeDataLineageSql(source, fullFuncName, blueprint.tables);
+lineageDiagnostics.forEach(d => {
+    diagnostics.push({
+        scope: d.scope,
+        severity: d.severity,
+        code: d.code,
+        message: d.message,
+        hint: d.file ? `En archivo: ${d.file}` : undefined,
+        evidence: { runtime: false }
+    });
+});
 }
+
+// Re-validar las referencias cruzadas con las funciones reales de DB y Tablas reales de DB:
+const appDiagnosticsPostDB = validateCrossReferences(tsResult, blueprint.functions, blueprint.tables, workerHandlers);
+appDiagnosticsPostDB.forEach(d => {
+    // Evitar duplicados del primer parseo ciego
+    if (!diagnostics.find(existing => existing.code === d.code && existing.scope === d.scope)) {
+        diagnostics.push({
+            scope: d.scope,
+            severity: d.severity,
+            code: d.code,
+            message: d.message,
+            hint: d.file ? `En archivo: ${d.file}` : undefined,
+            evidence: { runtime: false }
+        });
+    }
+});
 
 // === Construccion + validacion cruzada de PROCESOS (capa declarativa) ===
 const smStates = new Set<string>(state_machines['importacion']?.states || []);
 for (const [procName, proc] of Object.entries<any>(declaredProcesses)) {
     const steps = Array.isArray(proc.steps) ? proc.steps : [];
-    for (const step of steps) {
+    const deletedTables = new Set<string>(); // Rastrear canibalizacion en memoria
+
+    for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
         if (step.fn && !blueprint.functions[step.fn]) {
             diagnostics.push({ scope: `processes.${procName}`, severity: 'error', code: 'FN_MISSING', message: `funcion inexistente en la BD: ${step.fn}`, hint: 'Verifica el nombre o crea la funcion antes de declararla.', evidence: { yaml: true } });
         }
         if (step.estado && smStates.size > 0 && !smStates.has(step.estado)) {
             diagnostics.push({ scope: `processes.${procName}`, severity: 'error', code: 'STATE_MISSING', message: `estado inexistente en estado_importacion_excel: ${step.estado}`, hint: 'Corrige el estado declarado o actualiza la state machine.', evidence: { yaml: true } });
         }
+
+        // MOTOR DE CANIBALIZACION
+        if (step.fn && blueprint.functions[step.fn]) {
+            const sql = blueprint.functions[step.fn].source_sql;
+            
+            // Detectar lecturas
+            const selectRegex = /SELECT\s+[\s\S]*?\s+FROM\s+(?:public\.)?([a-zA-Z0-9_]+)/gi;
+            let m;
+            while ((m = selectRegex.exec(sql)) !== null) {
+                const tableRead = m[1];
+                if (deletedTables.has(tableRead)) {
+                    diagnostics.push({ 
+                        scope: `processes.${procName}.cannibalization`, 
+                        severity: 'error', 
+                        code: 'DATA_CANNIBALIZATION', 
+                        message: `Flujo roto: El Paso ${i+1} (${step.fn}) lee de la tabla '${tableRead}', pero un paso anterior ya vació esta tabla. El paso procesará 0 filas.`, 
+                        hint: `Revisa la secuencia en flow_hints.yaml o quita el DELETE prematuro.`, 
+                        evidence: { yaml: true } 
+                    });
+                }
+            }
+
+            // Detectar borrados
+            const deleteRegex = /(?:DELETE\s+FROM|TRUNCATE\s+TABLE)\s+(?:public\.)?([a-zA-Z0-9_]+)/gi;
+            while ((m = deleteRegex.exec(sql)) !== null) {
+                deletedTables.add(m[1]);
+            }
+
+            // Detectar inserciones que podrian curar la canibalizacion
+            const insertRegex = /INSERT\s+INTO\s+(?:public\.)?([a-zA-Z0-9_]+)/gi;
+            while ((m = insertRegex.exec(sql)) !== null) {
+                deletedTables.delete(m[1]);
+            }
+        }
     }
+
     if (proc.recovery?.rutas && smStates.size > 0) {
         for (const r of proc.recovery.rutas as string[]) {
             if (!smStates.has(r)) {
@@ -404,7 +473,7 @@ for (const [procName, proc] of Object.entries<any>(declaredProcesses)) {
             const hasRuntime = !!queues[job];
             const handlers = job_handlers[job] || [];
             const hasHandler = handlers.length > 0;
-            const producerHints = [...(producedByWorker.has(job) ? ['worker-route'] : []), ...(d.productor ? [String(d.productor)] : [])];
+            const producerHints = [...(tsResult.enqueuedJobs.has(job) ? ['app-code'] : []), ...(d.productor ? [String(d.productor)] : [])];
             const isProducible = producerHints.length > 0;
             if (hasRuntime) return;
             if (hasHandler || isProducible) {
@@ -441,10 +510,19 @@ const outJsonPath = path.join(rootDir, 'docs', 'db_flow_blueprint.json');
 fs.writeFileSync(outJsonPath, JSON.stringify(blueprint, null, 2));
 console.log(`Guardado JSON en: ${outJsonPath}`);
 
-let md = `# DB Flow Blueprint\n\n`;
+let md = `# DB Flow Blueprint & System Diagnostics\n\n`;
 md += `- **Schema hash:** \`${blueprint.schema_hash}\`\n`;
 md += `- **Processes hash:** \`${blueprint.processes_hash}\`\n`;
 md += `- **Tables:** ${Object.keys(blueprint.tables).length} | **Triggers:** ${blueprint.triggers.length} | **Cron jobs:** ${blueprint.cron_jobs.length} | **Edge fns:** ${blueprint.edge_functions.length} | **Queues:** ${Object.keys(blueprint.queues).length}\n\n`;
+
+if (tsResult.dataLineage && tsResult.dataLineage['mapeo_frontend']) {
+md += `## 📊 Linaje de Datos (Excel -> BD)\n\n`;
+md += `Columnas extraídas en Frontend / Edge:\n`;
+tsResult.dataLineage['mapeo_frontend'].forEach(col => {
+    md += `- \`${col}\`\n`;
+});
+md += `\n`;
+}
 
 if (Object.keys(blueprint.state_machines).length > 0) {
 md += `## Maquinas de estado\n\n`;
