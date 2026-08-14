@@ -147,7 +147,7 @@ export function validateCrossReferences(
 
     // Validar RPCs fantasma
     tsResult.calledRpcs.forEach((files, rpcName) => {
-        if (!dbFunctions[rpcName]) {
+        if (!dbFunctions[rpcName] && !dbFunctions[`public.${rpcName}`]) {
             diagnostics.push({
                 scope: `app.rpc.${rpcName}`,
                 severity: 'error',

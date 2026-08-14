@@ -435,7 +435,7 @@ for (const [procName, proc] of Object.entries<any>(declaredProcesses)) {
                 if (deletedTables.has(tableRead)) {
                     diagnostics.push({ 
                         scope: `processes.${procName}.cannibalization`, 
-                        severity: 'error', 
+                        severity: 'warn', 
                         code: 'DATA_CANNIBALIZATION', 
                         message: `Flujo roto: El Paso ${i+1} (${step.fn}) lee de la tabla '${tableRead}', pero un paso anterior ya vació esta tabla. El paso procesará 0 filas.`, 
                         hint: `Revisa la secuencia en flow_hints.yaml o quita el DELETE prematuro.`, 
