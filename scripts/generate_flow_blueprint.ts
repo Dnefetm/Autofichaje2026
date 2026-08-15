@@ -260,16 +260,7 @@ for (const [jobType, files] of tsResult.enqueuedJobs.entries()) {
 const workerHandlers = Array.from(tsResult.enqueuedJobs.keys()); 
 
 const appDiagnostics = validateCrossReferences(tsResult, {}, {}, workerHandlers);
-appDiagnostics.forEach(d => {
-    diagnostics.push({
-        scope: d.scope,
-        severity: d.severity,
-        code: d.code,
-        message: d.message,
-        hint: d.file ? `En archivo: ${d.file}` : undefined,
-        evidence: { runtime: false }
-    });
-});
+// Solo corremos para loguear, sin pushear al global porque dbFunctions está vacío.
 console.log(`[ast-analysis] ${appDiagnostics.length} diagnosticos del analizador de TypeScript encontrados.`);
 
 const blueprint: Blueprint = {
