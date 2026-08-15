@@ -33,6 +33,9 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: npx tsx scripts/generate_flow_blueprint.ts
 
+      - name: Validate Blueprint Timings & Limits
+        run: npx tsx scripts/ci_validate_blueprint.ts
+
       - name: Create Pull Request with DB changes
         if: github.event_name != 'pull_request'
         uses: peter-evans/create-pull-request@v6
@@ -42,6 +45,3 @@ jobs:
           body: "Se detectaron cambios en el esquema de Supabase. El Blueprint ha sido actualizado."
           branch: "chore/update-blueprint"
           base: "main"
-
-      - name: Validate Blueprint Timings & Limits
-        run: npx tsx scripts/ci_validate_blueprint.ts
