@@ -1,8 +1,17 @@
-# DB Flow Blueprint
+# DB Flow Blueprint & System Diagnostics
 
 - **Schema hash:** `b3541ac003838ce87cca76576e1cb076eb24609f0859cbaf829d2172a7846677`
-- **Processes hash:** `58300bf8d426c80a751fc00b8156495f2a7bcf187ce4b4df0371283146a520da`
+- **Processes hash:** `4fe3e8bb659127e0f40278d69392eee84fee5576a718261f98aa841f77dd5eb5`
 - **Tables:** 71 | **Triggers:** 32 | **Cron jobs:** 4 | **Edge fns:** 3 | **Queues:** 6
+
+## 📊 Linaje de Datos (Excel -> BD)
+
+Columnas extraídas en Frontend / Edge:
+- `modelo`
+- `marca`
+- `codigo`
+- `descripcion`
+- `moneda`
 
 ## Maquinas de estado
 
@@ -27,7 +36,7 @@
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### sync_stock_mapped
-- **Total:** 292 (completed=292)
+- **Total:** 299 (completed=299)
 - **Productores:** public.fn_encolar_sync_stock
 
 ### sync_stock
@@ -35,13 +44,13 @@
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### sync_item
-- **Total:** 7016 (completed=6987, pending=29)
-- **Pendientes:** 29
+- **Total:** 7119 (completed=7108, pending=11)
+- **Pendientes:** 11
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### process_sale
-- **Total:** 2066 (pending=24, completed=2042)
-- **Pendientes:** 24
+- **Total:** 2080 (pending=5, completed=2075)
+- **Pendientes:** 5
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### recalc_pricing_bundle
@@ -62,6 +71,58 @@
 
 ## Diagnosticos
 
+### WARN
+
+- [TABLE_NOT_FOUND] `app.table.marketplace_tokens`: La app hace referencia a una tabla/vista 'marketplace_tokens' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/admin/fix-seller-sku/route.ts
+- [TABLE_NOT_FOUND] `app.table.publicaciones_externas`: La app hace referencia a una tabla/vista 'publicaciones_externas' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/admin/fix-seller-sku/route.ts
+- [TABLE_NOT_FOUND] `app.table.meli_webhook_events`: La app hace referencia a una tabla/vista 'meli_webhook_events' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/admin/meli/subscriptions/route.ts
+- [TABLE_NOT_FOUND] `app.table.marketplace_configs`: La app hace referencia a una tabla/vista 'marketplace_configs' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/admin/meli/subscriptions/route.ts
+- [TABLE_NOT_FOUND] `app.table.proveedor_articulos_alias`: La app hace referencia a una tabla/vista 'proveedor_articulos_alias' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/alias/[alias_id]/route.ts
+- [TABLE_NOT_FOUND] `app.table.articulos`: La app hace referencia a una tabla/vista 'articulos' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/articulos/[id]/route.ts
+- [TABLE_NOT_FOUND] `app.table.jobs`: La app hace referencia a una tabla/vista 'jobs' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/auth/meli/callback/route.ts
+- [TABLE_NOT_FOUND] `app.table.autoficha_borradores`: La app hace referencia a una tabla/vista 'autoficha_borradores' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/autoficha/borradores/[id]/route.ts
+- [TABLE_NOT_FOUND] `app.table.categoria_plantillas`: La app hace referencia a una tabla/vista 'categoria_plantillas' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/autoficha/plantillas/route.ts
+- [TABLE_NOT_FOUND] `app.table.documentos-fuente`: La app hace referencia a una tabla/vista 'documentos-fuente' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/autoficha/route.ts
+- [TABLE_NOT_FOUND] `app.table.marketplace_prices`: La app hace referencia a una tabla/vista 'marketplace_prices' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/[id]/prices/route.ts
+- [TABLE_NOT_FOUND] `app.table.publication_pricing_history`: La app hace referencia a una tabla/vista 'publication_pricing_history' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/external/[id]/pricing/apply/route.ts
+- [TABLE_NOT_FOUND] `app.table.publication_pricing_overrides`: La app hace referencia a una tabla/vista 'publication_pricing_overrides' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/external/[id]/pricing/route.ts
+- [TABLE_NOT_FOUND] `app.table.pricing_rule_v3`: La app hace referencia a una tabla/vista 'pricing_rule_v3' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/external/[id]/pricing/route.ts
+- [TABLE_NOT_FOUND] `app.table.matching_jobs`: La app hace referencia a una tabla/vista 'matching_jobs' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/cron/dispatch-matching/route.ts
+- [TABLE_NOT_FOUND] `app.table.precio_recalc_queue`: La app hace referencia a una tabla/vista 'precio_recalc_queue' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/cron/process-precio-queue/route.ts
+- [TABLE_NOT_FOUND] `app.table.ml_publicacion_sync_queue`: La app hace referencia a una tabla/vista 'ml_publicacion_sync_queue' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/cron/sync-ml-prices/route.ts
+- [TABLE_NOT_FOUND] `app.table.precios_publicados`: La app hace referencia a una tabla/vista 'precios_publicados' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/cron/sync-ml-prices/route.ts
+- [TABLE_NOT_FOUND] `app.table.matching_decisiones`: La app hace referencia a una tabla/vista 'matching_decisiones' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/debug/route.ts
+- [TABLE_NOT_FOUND] `app.table.listas_precios_raw`: La app hace referencia a una tabla/vista 'listas_precios_raw' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/debug/route.ts
+- [TABLE_NOT_FOUND] `app.table.fichas_tecnicas`: La app hace referencia a una tabla/vista 'fichas_tecnicas' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/fichas/[id]/aplicar/route.ts
+- [TABLE_NOT_FOUND] `app.table.ficha_extracciones`: La app hace referencia a una tabla/vista 'ficha_extracciones' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/fichas/[id]/aplicar/route.ts
+- [TABLE_NOT_FOUND] `app.table.fuentes_documento`: La app hace referencia a una tabla/vista 'fuentes_documento' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/fichas/[id]/enriquecer/route.ts
+- [TABLE_NOT_FOUND] `app.table.ficha_imagenes`: La app hace referencia a una tabla/vista 'ficha_imagenes' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/fichas/[id]/estado/route.ts
+- [TABLE_NOT_FOUND] `app.table.importaciones_excel`: La app hace referencia a una tabla/vista 'importaciones_excel' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/fix-urrea/route.ts
+- [TABLE_NOT_FOUND] `app.table.mapa_diccionario`: La app hace referencia a una tabla/vista 'mapa_diccionario' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/mapa/salud/route.ts
+- [TABLE_NOT_FOUND] `app.table.matching_confirm_jobs`: La app hace referencia a una tabla/vista 'matching_confirm_jobs' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/matching/confirm-batch/route.ts
+- [TABLE_NOT_FOUND] `app.table.costos_articulo`: La app hace referencia a una tabla/vista 'costos_articulo' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/[proveedor]/aplicar/route.ts
+- [TABLE_NOT_FOUND] `app.table.importaciones_precios`: La app hace referencia a una tabla/vista 'importaciones_precios' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/[proveedor]/aplicar/route.ts
+- [TABLE_NOT_FOUND] `app.table.listas_precios_proveedor`: La app hace referencia a una tabla/vista 'listas_precios_proveedor' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/flow-state/route.ts
+- [TABLE_NOT_FOUND] `app.table.importacion_eventos`: La app hace referencia a una tabla/vista 'importacion_eventos' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importaciones/[id]/route.ts
+- [TABLE_NOT_FOUND] `app.table.listas_precios_raw_staging`: La app hace referencia a una tabla/vista 'listas_precios_raw_staging' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/[id]/iniciar-parser/route.ts
+- [TABLE_NOT_FOUND] `app.table.precios_historial_proveedor`: La app hace referencia a una tabla/vista 'precios_historial_proveedor' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts
+- [TABLE_NOT_FOUND] `app.table.precio_import_batches`: La app hace referencia a una tabla/vista 'precio_import_batches' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts
+- [TABLE_NOT_FOUND] `app.table.reglas_precio`: La app hace referencia a una tabla/vista 'reglas_precio' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/reglas/list/route.ts
+- [TABLE_NOT_FOUND] `app.table.precio_revisiones_manuales`: La app hace referencia a una tabla/vista 'precio_revisiones_manuales' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/revision-manual/route.ts
+- [TABLE_NOT_FOUND] `app.table.costos_pendientes`: La app hace referencia a una tabla/vista 'costos_pendientes' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/vincular-pendiente/route.ts
+- [TABLE_NOT_FOUND] `app.table.pricing_rules`: La app hace referencia a una tabla/vista 'pricing_rules' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/pricing-rules/route.ts
+- [TABLE_NOT_FOUND] `app.table.mapeo_publicacion_articulo`: La app hace referencia a una tabla/vista 'mapeo_publicacion_articulo' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/publicaciones/pendientes/route.ts
+- [TABLE_NOT_FOUND] `app.table.meli_category_commissions`: La app hace referencia a una tabla/vista 'meli_category_commissions' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/settings/pricing/route.ts
+- [TABLE_NOT_FOUND] `app.table.webhook_config`: La app hace referencia a una tabla/vista 'webhook_config' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/settings/webhook/route.ts
+- [TABLE_NOT_FOUND] `app.table.webhook_buffer`: La app hace referencia a una tabla/vista 'webhook_buffer' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/settings/webhook/route.ts
+- [TABLE_NOT_FOUND] `app.table.ordenes`: La app hace referencia a una tabla/vista 'ordenes' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/ventas/route.ts
+- [TABLE_NOT_FOUND] `app.table.system_alerts`: La app hace referencia a una tabla/vista 'system_alerts' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts
+- [TABLE_NOT_FOUND] `app.table.orden_items`: La app hace referencia a una tabla/vista 'orden_items' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts
+- [TABLE_NOT_FOUND] `app.table.reservaciones_stock`: La app hace referencia a una tabla/vista 'reservaciones_stock' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts
+- [TABLE_NOT_FOUND] `app.table.inventory_snapshot`: La app hace referencia a una tabla/vista 'inventory_snapshot' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/operations/page.tsx
+- [TABLE_NOT_FOUND] `app.table.bundle_components`: La app hace referencia a una tabla/vista 'bundle_components' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/lib/dashboard-service.ts
+- [DATA_CANNIBALIZATION] `processes.importacion_precios.cannibalization`: Flujo roto: El Paso 2 (public.fn_match_precios_v2) lee de la tabla 'listas_precios_raw_staging', pero un paso anterior ya vació esta tabla. El paso procesará 0 filas. — Revisa la secuencia en flow_hints.yaml o quita el DELETE prematuro.
+
 ### INFO
 
 - [QUEUE_NO_RUNTIME] `processes.importacion_precios.downstream`: cola 'sync_price' sin filas observadas en public.jobs — Bloqueo conocido: pricing_data_blocker. No es fallo estructural.
@@ -80,17 +141,17 @@
   - fn=`public.fn_marcar_vigente` | estado=`completado`
 - Downstream:
   - trigger=`trg_costos_articulo_recalcular_async` | tabla=`costos_articulo`
-  - job=`recalc_pricing_bundle` | handler=`apps/dashboard/src/app/api/worker/process/route.ts` | expect_runtime=`true`
+  - job=`recalc_pricing_bundle` | handler=`/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/external/[id]/pricing/route.ts`, `/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/components/mapping-modal.tsx` | expect_runtime=`true`
   - fn=`public.fn_recalcular_precio_publicacion` | destino=`publication_pricing_history`
-  - job=`sync_price` | handler=`apps/dashboard/src/app/api/worker/process/route.ts` | expect_runtime=`false` | blocked_by=`pricing_data_blocker`
+  - job=`sync_price` | handler=`/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts` | expect_runtime=`false` | blocked_by=`pricing_data_blocker`
 - Recovery: desde `error` -> [`mapeando`, `procesando`, `completado`]
 
 ## Salud del blueprint
 
 - Procesos declarados: 1
-- Handlers de jobs detectados en worker: 10
+- Handlers de jobs detectados en worker: 11
 - Diagnosticos error: 0
-- Diagnosticos warn: 0
+- Diagnosticos warn: 49
 - Diagnosticos info: 1
 
 ## public.actualizar_updated_at
@@ -303,7 +364,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 80.05 ms (source: pg_stat_statements)
+- **Avg Time:** 80.77 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -563,7 +624,7 @@
 ## public.recalcular_par_item_id
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 178.87 ms (source: pg_stat_statements)
+- **Avg Time:** 218.07 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -572,7 +633,7 @@
 ## public.recalcular_catalog_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 57.28 ms (source: pg_stat_statements)
+- **Avg Time:** 60.95 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -581,7 +642,7 @@
 ## public.recalcular_associated_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 46.74 ms (source: pg_stat_statements)
+- **Avg Time:** 49.80 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -785,7 +846,7 @@
 ## public.claim_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 8.67 ms (source: pg_stat_statements)
+- **Avg Time:** 8.63 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.jobs
 
 ## public.fn_recalcular_lote
@@ -797,7 +858,7 @@
 ## public.procesar_import_job
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 17.68 ms (source: pg_stat_statements)
+- **Avg Time:** 17.72 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.import_jobs, public.importaciones_excel
 - **Calls Functions:** public.fn_preparar_importacion_revision
 - **Cascading Triggers:**
@@ -859,7 +920,7 @@
 ## public.fn_drain_costos_pendientes_sin_match
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 19316.45 ms (source: pg_stat_statements)
+- **Avg Time:** 150.00 ms (source: yaml_hint)
 - **Touches Tables:** public.costos_articulo, public.jobs, public.SET, public.costos_pendientes
 - **Cascading Triggers:**
  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)

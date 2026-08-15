@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-14T21:24:37.382Z",
+  "generated_at": "2026-08-15T05:15:15.112Z",
   "schema_hash": "b3541ac003838ce87cca76576e1cb076eb24609f0859cbaf829d2172a7846677",
-  "processes_hash": "58300bf8d426c80a751fc00b8156495f2a7bcf187ce4b4df0371283146a520da",
+  "processes_hash": "4fe3e8bb659127e0f40278d69392eee84fee5576a718261f98aa841f77dd5eb5",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -627,7 +627,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 80.0530370628807,
+      "avg_time_ms": 80.7725241700109,
       "p95_time_ms": 2218.99831,
       "timing_source": "pg_stat_statements"
     },
@@ -1434,8 +1434,8 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 178.874047,
-      "p95_time_ms": 317.873041,
+      "avg_time_ms": 218.07164435,
+      "p95_time_ms": 962.825994,
       "timing_source": "pg_stat_statements"
     },
     "public.recalcular_catalog_count": {
@@ -1460,8 +1460,8 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 57.2831027368421,
-      "p95_time_ms": 116.4632,
+      "avg_time_ms": 60.95028605,
+      "p95_time_ms": 130.626769,
       "timing_source": "pg_stat_statements"
     },
     "public.recalcular_associated_count": {
@@ -1486,7 +1486,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 46.7364903684211,
+      "avg_time_ms": 49.79698685,
       "p95_time_ms": 127.926027,
       "timing_source": "pg_stat_statements"
     },
@@ -2148,7 +2148,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 8.66703948769577,
+      "avg_time_ms": 8.63347725583285,
       "p95_time_ms": 543.728639,
       "timing_source": "pg_stat_statements"
     },
@@ -2200,7 +2200,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 17.6818928005992,
+      "avg_time_ms": 17.7182960971212,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
@@ -2384,9 +2384,9 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 19316.450789,
-      "p95_time_ms": 19316.450789,
-      "timing_source": "pg_stat_statements"
+      "avg_time_ms": 150,
+      "p95_time_ms": 150,
+      "timing_source": "yaml_hint"
     },
     "public.fn_consolidar_matching_decisiones": {
       "source_sql": "\r\nBEGIN\r\n  UPDATE costos_articulo ca_old SET vigente = false\r\n  FROM matching_decisiones md JOIN importaciones_excel ie ON ie.id = md.importacion_id\r\n  WHERE md.importacion_id = p_importacion_id AND md.confirmado = true AND md.articulo_id_final IS NOT NULL\r\n    AND ca_old.articulo_id = md.articulo_id_final AND ca_old.tipo_costo = ie.tipo_costo_default AND ca_old.importacion_id != p_importacion_id;\r\n\r\n  UPDATE costos_articulo ca SET articulo_id = md.articulo_id_final, vigente = true, estado_match = 'completado'\r\n  FROM matching_decisiones md\r\n  WHERE ca.importacion_id = p_importacion_id AND md.importacion_id = p_importacion_id\r\n    AND md.confirmado = true AND md.articulo_id_final IS NOT NULL\r\n    AND NOT ca.codigo_universal_excel IS DISTINCT FROM md.codigo_universal_excel\r\n    AND NOT ca.marca_excel IS DISTINCT FROM md.marca_excel\r\n    AND NOT ca.modelo_excel IS DISTINCT FROM md.modelo_excel\r\n    AND NOT ca.nombre_excel IS DISTINCT FROM md.nombre_excel;\r\n\r\n  INSERT INTO proveedor_articulos_alias (proveedor, codigo_excel, marca_excel, modelo_excel, articulo_id)\r\n  SELECT ie.proveedor, md.codigo_universal_excel, md.marca_excel, md.modelo_excel, md.articulo_id_final\r\n  FROM matching_decisiones md JOIN importaciones_excel ie ON ie.id = md.importacion_id\r\n  WHERE md.importacion_id = p_importacion_id AND md.confirmado = true AND md.articulo_id_final IS NOT NULL\r\n    AND md.codigo_universal_excel IS NOT NULL AND md.codigo_universal_excel <> ''\r\n  ON CONFLICT (proveedor, codigo_excel) WHERE codigo_excel IS NOT NULL AND codigo_excel <> ''\r\n  DO UPDATE SET articulo_id = EXCLUDED.articulo_id, marca_excel = EXCLUDED.marca_excel, modelo_excel = EXCLUDED.modelo_excel, ultima_vez_visto = now(), estado_proveedor = 'activo'\r\n  WHERE proveedor_articulos_alias.locked = false;\r\n\r\n  INSERT INTO proveedor_articulos_alias (proveedor, codigo_excel, marca_excel, modelo_excel, articulo_id)\r\n  SELECT ie.proveedor, md.codigo_universal_excel, md.marca_excel, md.modelo_excel, md.articulo_id_final\r\n  FROM matching_decisiones md JOIN importaciones_excel ie ON ie.id = md.importacion_id\r\n  WHERE md.importacion_id = p_importacion_id AND md.confirmado = true AND md.articulo_id_final IS NOT NULL\r\n    AND (md.codigo_universal_excel IS NULL OR md.codigo_universal_excel = '')\r\n  ON CONFLICT (proveedor, marca_excel, modelo_excel) WHERE codigo_excel IS NULL OR codigo_excel = ''\r\n  DO UPDATE SET articulo_id = EXCLUDED.articulo_id, ultima_vez_visto = now(), estado_proveedor = 'activo'\r\n  WHERE proveedor_articulos_alias.locked = false;\r\nEND; ",
@@ -7549,9 +7549,9 @@
     "sync_stock_mapped": {
       "type": "sync_stock_mapped",
       "status_counts": {
-        "completed": 292
+        "completed": 299
       },
-      "total": 292,
+      "total": 299,
       "pending": 0,
       "failed": 0,
       "producers": [
@@ -7579,11 +7579,11 @@
     "sync_item": {
       "type": "sync_item",
       "status_counts": {
-        "completed": 6987,
-        "pending": 29
+        "completed": 7108,
+        "pending": 11
       },
-      "total": 7016,
-      "pending": 29,
+      "total": 7119,
+      "pending": 11,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
@@ -7598,11 +7598,11 @@
     "process_sale": {
       "type": "process_sale",
       "status_counts": {
-        "pending": 24,
-        "completed": 2042
+        "pending": 5,
+        "completed": 2075
       },
-      "total": 2066,
-      "pending": 24,
+      "total": 2080,
+      "pending": 5,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
@@ -7700,38 +7700,533 @@
     }
   },
   "job_handlers": {
-    "sync_stock": [
-      "apps/dashboard/src/app/api/worker/process/route.ts"
-    ],
-    "sync_price": [
-      "apps/dashboard/src/app/api/worker/process/route.ts"
-    ],
-    "sync_stock_mapped": [
-      "apps/dashboard/src/app/api/worker/process/route.ts"
-    ],
-    "pause_listing": [
-      "apps/dashboard/src/app/api/worker/process/route.ts"
-    ],
-    "activate_listing": [
-      "apps/dashboard/src/app/api/worker/process/route.ts"
-    ],
-    "sync_item": [
-      "apps/dashboard/src/app/api/worker/process/route.ts"
+    "sync_account_catalog": [
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/auth/meli/callback/route.ts",
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts"
     ],
     "recalc_pricing_bundle": [
-      "apps/dashboard/src/app/api/worker/process/route.ts"
-    ],
-    "sync_account_catalog": [
-      "apps/dashboard/src/app/api/worker/process/route.ts"
-    ],
-    "process_sale": [
-      "apps/dashboard/src/app/api/worker/process/route.ts"
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/external/[id]/pricing/route.ts",
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/components/mapping-modal.tsx"
     ],
     "confirm_matching_batch": [
-      "apps/dashboard/src/app/api/worker/process/route.ts"
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/matching/confirm-batch/route.ts"
+    ],
+    "process_sale": [
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/webhooks/meli/route.ts"
+    ],
+    "sync_item": [
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/webhooks/meli/route.ts"
+    ],
+    "job_dlq": [
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "sync_price": [
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "orders_sync": [
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts"
+    ],
+    "sync_stock_mapped": [
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/components/mapping-modal.tsx"
+    ],
+    "sync_stock": [
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/lib/dashboard-service.ts"
+    ],
+    "bulk_update_price": [
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/lib/dashboard-service.ts"
     ]
   },
   "diagnostics": [
+    {
+      "scope": "app.table.marketplace_tokens",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'marketplace_tokens' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/admin/fix-seller-sku/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.publicaciones_externas",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'publicaciones_externas' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/admin/fix-seller-sku/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.meli_webhook_events",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'meli_webhook_events' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/admin/meli/subscriptions/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.marketplace_configs",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'marketplace_configs' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/admin/meli/subscriptions/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.proveedor_articulos_alias",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'proveedor_articulos_alias' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/alias/[alias_id]/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.articulos",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'articulos' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/articulos/[id]/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.jobs",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'jobs' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/auth/meli/callback/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.autoficha_borradores",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'autoficha_borradores' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/autoficha/borradores/[id]/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.categoria_plantillas",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'categoria_plantillas' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/autoficha/plantillas/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.documentos-fuente",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'documentos-fuente' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/autoficha/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.marketplace_prices",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'marketplace_prices' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/[id]/prices/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.publication_pricing_history",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'publication_pricing_history' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/external/[id]/pricing/apply/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.publication_pricing_overrides",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'publication_pricing_overrides' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/external/[id]/pricing/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.pricing_rule_v3",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'pricing_rule_v3' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/external/[id]/pricing/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.matching_jobs",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'matching_jobs' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/cron/dispatch-matching/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.precio_recalc_queue",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'precio_recalc_queue' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/cron/process-precio-queue/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.ml_publicacion_sync_queue",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'ml_publicacion_sync_queue' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/cron/sync-ml-prices/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.precios_publicados",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'precios_publicados' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/cron/sync-ml-prices/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.matching_decisiones",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'matching_decisiones' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/debug/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.listas_precios_raw",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'listas_precios_raw' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/debug/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.fichas_tecnicas",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'fichas_tecnicas' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/fichas/[id]/aplicar/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.ficha_extracciones",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'ficha_extracciones' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/fichas/[id]/aplicar/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.fuentes_documento",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'fuentes_documento' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/fichas/[id]/enriquecer/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.ficha_imagenes",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'ficha_imagenes' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/fichas/[id]/estado/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.importaciones_excel",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'importaciones_excel' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/fix-urrea/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.mapa_diccionario",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'mapa_diccionario' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/mapa/salud/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.matching_confirm_jobs",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'matching_confirm_jobs' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/matching/confirm-batch/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.costos_articulo",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'costos_articulo' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/[proveedor]/aplicar/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.importaciones_precios",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'importaciones_precios' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/[proveedor]/aplicar/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.listas_precios_proveedor",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'listas_precios_proveedor' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/flow-state/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.importacion_eventos",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'importacion_eventos' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importaciones/[id]/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.listas_precios_raw_staging",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'listas_precios_raw_staging' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/[id]/iniciar-parser/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.precios_historial_proveedor",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'precios_historial_proveedor' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.precio_import_batches",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'precio_import_batches' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.reglas_precio",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'reglas_precio' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/reglas/list/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.precio_revisiones_manuales",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'precio_revisiones_manuales' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/revision-manual/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.costos_pendientes",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'costos_pendientes' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/vincular-pendiente/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.pricing_rules",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'pricing_rules' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/pricing-rules/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.mapeo_publicacion_articulo",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'mapeo_publicacion_articulo' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/publicaciones/pendientes/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.meli_category_commissions",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'meli_category_commissions' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/settings/pricing/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.webhook_config",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'webhook_config' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/settings/webhook/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.webhook_buffer",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'webhook_buffer' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/settings/webhook/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.ordenes",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'ordenes' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/ventas/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.system_alerts",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'system_alerts' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.orden_items",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'orden_items' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.reservaciones_stock",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'reservaciones_stock' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.inventory_snapshot",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'inventory_snapshot' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/operations/page.tsx",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "app.table.bundle_components",
+      "severity": "warn",
+      "code": "TABLE_NOT_FOUND",
+      "message": "La app hace referencia a una tabla/vista 'bundle_components' que no fue encontrada en la extracción de public.",
+      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/lib/dashboard-service.ts",
+      "evidence": {
+        "runtime": false
+      }
+    },
+    {
+      "scope": "processes.importacion_precios.cannibalization",
+      "severity": "warn",
+      "code": "DATA_CANNIBALIZATION",
+      "message": "Flujo roto: El Paso 2 (public.fn_match_precios_v2) lee de la tabla 'listas_precios_raw_staging', pero un paso anterior ya vació esta tabla. El paso procesará 0 filas.",
+      "hint": "Revisa la secuencia en flow_hints.yaml o quita el DELETE prematuro.",
+      "evidence": {
+        "yaml": true
+      }
+    },
     {
       "scope": "processes.importacion_precios.downstream",
       "severity": "info",
@@ -7741,10 +8236,10 @@
       "evidence": {
         "runtime": false,
         "handler": [
-          "apps/dashboard/src/app/api/worker/process/route.ts"
+          "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts"
         ],
         "producer": [
-          "worker-route",
+          "app-code",
           "recalc_pricing_bundle"
         ],
         "yaml": true
