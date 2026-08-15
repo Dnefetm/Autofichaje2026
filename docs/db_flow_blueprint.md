@@ -1,7 +1,7 @@
 # DB Flow Blueprint & System Diagnostics
 
 - **Schema hash:** `b3541ac003838ce87cca76576e1cb076eb24609f0859cbaf829d2172a7846677`
-- **Processes hash:** `4fe3e8bb659127e0f40278d69392eee84fee5576a718261f98aa841f77dd5eb5`
+- **Processes hash:** `ec64e5483678992db7a14f67b44345b68a51dc6d3d15b08590bed329996bd9ef`
 - **Tables:** 71 | **Triggers:** 32 | **Cron jobs:** 4 | **Edge fns:** 3 | **Queues:** 6
 
 ## 📊 Linaje de Datos (Excel -> BD)
@@ -44,13 +44,13 @@ Columnas extraídas en Frontend / Edge:
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### sync_item
-- **Total:** 7119 (completed=7108, pending=11)
-- **Pendientes:** 11
+- **Total:** 7123 (completed=7105, pending=18)
+- **Pendientes:** 18
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### process_sale
-- **Total:** 2080 (pending=5, completed=2075)
-- **Pendientes:** 5
+- **Total:** 2080 (pending=6, completed=2074)
+- **Pendientes:** 6
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### recalc_pricing_bundle
@@ -364,7 +364,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 80.77 ms (source: pg_stat_statements)
+- **Avg Time:** 80.82 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at

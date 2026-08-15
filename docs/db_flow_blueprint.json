@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-15T05:15:15.112Z",
+  "generated_at": "2026-08-15T05:27:54.461Z",
   "schema_hash": "b3541ac003838ce87cca76576e1cb076eb24609f0859cbaf829d2172a7846677",
-  "processes_hash": "4fe3e8bb659127e0f40278d69392eee84fee5576a718261f98aa841f77dd5eb5",
+  "processes_hash": "ec64e5483678992db7a14f67b44345b68a51dc6d3d15b08590bed329996bd9ef",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -627,7 +627,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 80.7725241700109,
+      "avg_time_ms": 80.8249158519442,
       "p95_time_ms": 2218.99831,
       "timing_source": "pg_stat_statements"
     },
@@ -2148,7 +2148,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 8.63347725583285,
+      "avg_time_ms": 8.62897186879435,
       "p95_time_ms": 543.728639,
       "timing_source": "pg_stat_statements"
     },
@@ -2200,7 +2200,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 17.7182960971212,
+      "avg_time_ms": 17.722714629068,
       "p95_time_ms": 584.448783,
       "timing_source": "pg_stat_statements"
     },
@@ -7579,11 +7579,11 @@
     "sync_item": {
       "type": "sync_item",
       "status_counts": {
-        "completed": 7108,
-        "pending": 11
+        "completed": 7105,
+        "pending": 18
       },
-      "total": 7119,
-      "pending": 11,
+      "total": 7123,
+      "pending": 18,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
@@ -7598,11 +7598,11 @@
     "process_sale": {
       "type": "process_sale",
       "status_counts": {
-        "pending": 5,
-        "completed": 2075
+        "pending": 6,
+        "completed": 2074
       },
       "total": 2080,
-      "pending": 5,
+      "pending": 6,
       "failed": 0,
       "producers": [
         "public.fn_encolar_sync_price",
