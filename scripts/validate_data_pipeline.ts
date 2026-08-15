@@ -160,7 +160,7 @@ export function validateCrossReferences(
 
     // Validar Tablas fantasma
     tsResult.touchedTables.forEach((files, tableName) => {
-        if (!dbTables[tableName] && tableName !== 'storage' && tableName !== 'auth' && !tableName.includes('v_')) {
+        if (!dbTables[tableName] && !dbTables[`public.${tableName}`] && tableName !== 'storage' && tableName !== 'auth' && !tableName.includes('v_')) {
             // storage no es una tabla en public. A veces llaman supabase.storage.from()
             diagnostics.push({
                 scope: `app.table.${tableName}`,
