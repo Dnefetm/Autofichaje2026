@@ -63,8 +63,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
 
         const buf = new Uint8Array(await file.arrayBuffer());
-        // Removing cellFormula: false, cellHTML: false, etc. to ensure we capture everything, including formula evaluations.
-        const wb = XLSX.read(buf, { type: 'buffer', dense: true });
+        // Optimized for large files: disabled formula parsing and formatting strings to prevent Vercel Serverless OOM
+        const wb = XLSX.read(buf, { type: 'buffer', dense: true, cellFormula: false, cellHTML: false, cellStyles: false, cellText: false });
         const sheetName = wb.SheetNames[0];
         const sheet = wb.Sheets[sheetName];
         
