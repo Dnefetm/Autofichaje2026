@@ -18,7 +18,7 @@ export default function SubirPaso1() {
     function handleFile(f: File) {
         const ext = f.name.split('.').pop()?.toLowerCase();
         if (!['xlsx', 'xls'].includes(ext ?? '')) { setError('Solo .xlsx o .xls'); return; }
-        if (f.size > 10 * 1024 * 1024) { setError('Máximo 10 MB'); return; }
+        if (f.size > 50 * 1024 * 1024) { setError('Máximo 50 MB'); return; }
         setFile(f); setError(null);
     }
 

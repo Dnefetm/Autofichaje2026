@@ -107,7 +107,7 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
   function handleFile(f: File) {
     const ext = f.name.split('.').pop()?.toLowerCase();
     if (!['xlsx', 'xls'].includes(ext ?? '')) { setError('Solo .xlsx o .xls'); return; }
-    if (f.size > 10 * 1024 * 1024) { setError('Máximo 10 MB'); return; }
+    if (f.size > 50 * 1024 * 1024) { setError('Máximo 50 MB'); return; }
     setFile(f); setError(null);
   }
 
@@ -194,7 +194,7 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
               <div className="text-left"><p className="font-bold text-sm">{file.name}</p><p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p></div>
             </div>
           ) : (
-            <div><Upload className="mx-auto w-10 h-10 text-slate-300 mb-2" /><p className="text-sm font-semibold text-slate-500">Arrastra tu Excel aquí</p><p className="text-xs text-slate-400 mt-1">o haz clic • .xlsx, .xls • máx. 10 MB</p></div>
+            <div><Upload className="mx-auto w-10 h-10 text-slate-300 mb-2" /><p className="text-sm font-semibold text-slate-500">Arrastra tu Excel aquí</p><p className="text-xs text-slate-400 mt-1">o haz clic • .xlsx, .xls • máx. 50 MB</p></div>
           )}
         </div>
       </div>
