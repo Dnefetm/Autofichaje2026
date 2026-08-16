@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createRouteHandlerClient } from '@/lib/supabase-server';
 import { cookies } from 'next/headers';
 
-export async function PATCH(req: NextRequest, { params }: { params: { alias_id: string } }) {
-  const supabase = createRouteHandlerClient({ cookies });
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ alias_id: string }> }) {
+  const supabase = await createRouteHandlerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { alias_id: 
   const { data, error } = await supabase
     .from('proveedor_articulos_alias')
     .update(updateData)
-    .eq('id', params.alias_id)
+    .eq('id', (await params).alias_id)
     .select()
     .single();
 

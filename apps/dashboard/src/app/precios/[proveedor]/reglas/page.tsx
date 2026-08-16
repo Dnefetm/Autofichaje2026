@@ -27,6 +27,7 @@ export default async function ReglasProveedorPage(props: { params: Promise<{ pro
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-8">
+                {/* @ts-ignore */}
                 <ReglaForm regla={regla} isGlobal={false} />
             </div>
         </div>

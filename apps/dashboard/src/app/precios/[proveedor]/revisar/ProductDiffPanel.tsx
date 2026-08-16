@@ -187,7 +187,7 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                             key={d.articulo_id} 
                             product={d} 
                             decision={decisions[d.articulo_id]}
-                            onDecision={(decision) => handleDecision(d.articulo_id, decision)}
+                            onDecision={(decision) => handleDecision(d.articulo_id, decision as "aprobado" | "rechazado")}
                         />
                     ))}
                     {filteredData.length === 0 && (

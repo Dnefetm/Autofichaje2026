@@ -192,12 +192,12 @@ async function handleSyncStock(job: any) {
     // Para cada publicación mapeada, recalcular el stock del kit completo
     for (const mapping of fuentesStock) {
         const pub = mapping.publicaciones_externas as any;
-        const pubId = pub.id;
+        const pubId = pub?.id;
 
                             // Publicaciones Full: obtener stock real desde MeLi (no usar stock de bodega)
-            if (pub.logistic_type === 'fulfillment') {
-                const mlStock = await meliAdapter.getStock(pub.marketplace_id, pub.external_item_id);
-                logger.info({ sku, pubId, external_id: pub.external_item_id, mlStock }, 'Stock Full obtenido desde MeLi API');
+            if (pub?.logistic_type === 'fulfillment') {
+                const mlStock = await meliAdapter.getStock(pub?.marketplace_id, pub?.external_item_id);
+                logger.info({ sku, pubId, external_id: pub?.external_item_id, mlStock }, 'Stock Full obtenido desde MeLi API');
                 await supabase.from('publicaciones_externas')
                     .update({ stock_publicado: mlStock, actualizado_el: new Date().toISOString() })
                     .eq('id', pubId);
@@ -221,8 +221,8 @@ async function handleSyncStock(job: any) {
             maxKits = availableStock;
         }
 
-        const results = await meliAdapter.updateStock(pub.marketplace_id, [
-            { itemId: pub.external_item_id, quantity: Math.max(0, maxKits) }
+        const results = await meliAdapter.updateStock(pub?.marketplace_id, [
+            { itemId: pub?.external_item_id, quantity: Math.max(0, maxKits) }
         ]);
 
         const errors = results.filter((r: any) => r.status === 'error');
@@ -283,20 +283,20 @@ async function handleRecalcPricingBundle(job: any) {
     if (pubErr || !pub) throw new Error(`Publicación no encontrada post-cálculo: ${publicacion_id}`);
     
     // Si la matemática arrojó un estado de error grave (como costo <= 0), no empujar basura a Meli
-    if (pub.pricing_status === 'error_no_cost') {
+    if (pub?.pricing_status === 'error_no_cost') {
         logger.warn({ publicacion_id }, 'El recálculo abortó por falta de costo base. No se envía a Meli.');
         return;
     }
 
-    if (!pub.sale_price_calculated) {
+    if (!pub?.sale_price_calculated) {
         throw new Error(`El recálculo no generó un precio final válido para la publicación: ${publicacion_id}`);
     }
 
     // 3. Empujar el nuevo precio a Mercado Libre
-    logger.info({ publicacion_id, external_id: pub.external_item_id, price: pub.sale_price_calculated }, 'Sincronizando precio calculado hacia ML (V2)');
+    logger.info({ publicacion_id, external_id: pub?.external_item_id, price: pub?.sale_price_calculated }, 'Sincronizando precio calculado hacia ML (V2)');
     
-    const results = await meliAdapter.updatePrice(pub.marketplace_id, [
-        { itemId: pub.external_item_id, price: pub.sale_price_calculated }
+    const results = await meliAdapter.updatePrice(pub?.marketplace_id, [
+        { itemId: pub?.external_item_id, price: pub?.sale_price_calculated }
     ]);
 
     const errors = results.filter((r: any) => r.status === 'error');
@@ -411,9 +411,9 @@ async function handleSyncStockMapped(job: any) {
 
     if (pubErr || !pub) throw new Error(`Publicación externa no encontrada: ${publicacion_id}`);
     // Publicaciones Full: obtener stock real desde MeLi (no usar stock de bodega)
-    if (pub.logistic_type === 'fulfillment') {
-        const mlStock = await meliAdapter.getStock(pub.marketplace_id, pub.external_item_id);
-        logger.info({ publicacion_id, external_id: pub.external_item_id, mlStock }, 'Stock Full obtenido desde MeLi API');
+    if (pub?.logistic_type === 'fulfillment') {
+        const mlStock = await meliAdapter.getStock(pub?.marketplace_id, pub?.external_item_id);
+        logger.info({ publicacion_id, external_id: pub?.external_item_id, mlStock }, 'Stock Full obtenido desde MeLi API');
         await supabase.from('publicaciones_externas')
             .update({ stock_publicado: mlStock, actualizado_el: new Date().toISOString() })
             .eq('id', publicacion_id);
@@ -421,8 +421,8 @@ async function handleSyncStockMapped(job: any) {
     }
 
 
-    if (false && !pub.es_fuente_stock) { // V30: desactivado — si está mapeada, se sincroniza
-        logger.info({ publicacion_id, tipo: pub.tipo_publicacion }, 'Publicación no es fuente de stock (espejo/derivada). Omitiendo sync.');
+    if (false && !pub?.es_fuente_stock) { // V30: desactivado — si está mapeada, se sincroniza
+        logger.info({ publicacion_id, tipo: pub?.tipo_publicacion }, 'Publicación no es fuente de stock (espejo/derivada). Omitiendo sync.');
         return;
     }
 
@@ -454,11 +454,11 @@ async function handleSyncStockMapped(job: any) {
         }
     }
 
-    logger.info({ publicacion_id, maxKits, external_id: pub.external_item_id }, 'Sincronizando stock calculado hacia ML (Ensamble)');
+    logger.info({ publicacion_id, maxKits, external_id: pub?.external_item_id }, 'Sincronizando stock calculado hacia ML (Ensamble)');
 
     // 3. Emitir petición real a Mercado Libre API
-    const results = await meliAdapter.updateStock(pub.marketplace_id, [
-        { itemId: pub.external_item_id, quantity: maxKits }
+    const results = await meliAdapter.updateStock(pub?.marketplace_id, [
+        { itemId: pub?.external_item_id, quantity: maxKits }
     ]);
 
     const errors = results.filter((r: any) => r.status === 'error');
