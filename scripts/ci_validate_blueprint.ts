@@ -132,8 +132,19 @@ if (hasErrors) {
 console.error("\nValidacion fallida. Hay funciones que superaran los timeouts del rol o Gateway.");
 process.exit(1);
 } else {
-console.log("\nValidacion exitosa. Ningun flujo rompe los limites conocidos.");
-process.exit(0);
+console.log("\nValidacion exitosa de tiempos de ejecucion. Ningun flujo rompe los limites conocidos.");
+}
+
+console.log(`\n[ci-validator] Iniciando validacion de codigo fuente (Frontend y Worker)...`);
+try {
+  const { execSync } = require('child_process');
+  // Use stdio: inherit to print the build logs directly to the console
+  execSync('npm run build --workspaces --if-present', { stdio: 'inherit', cwd: rootDir });
+  console.log(`\n[ci-validator] Compilacion del monorepo EXITOSA. El proyecto esta listo para Vercel.`);
+  process.exit(0);
+} catch (error) {
+  console.error(`\n[ERROR CRITICO] Fallo la compilacion del codigo fuente. Vercel rechazara este build.`);
+  process.exit(1);
 }
 }
 
