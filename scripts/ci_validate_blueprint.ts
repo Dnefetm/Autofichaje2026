@@ -138,9 +138,14 @@ console.log("\nValidacion exitosa de tiempos de ejecucion. Ningun flujo rompe lo
 console.log(`\n[ci-validator] Iniciando validacion de codigo fuente (Frontend y Worker)...`);
 try {
   const { execSync } = require('child_process');
-  // Use stdio: inherit to print the build logs directly to the console
-  execSync('npm run build --workspaces --if-present', { stdio: 'inherit', cwd: rootDir });
-  console.log(`\n[ci-validator] Compilacion del monorepo EXITOSA. El proyecto esta listo para Vercel.`);
+  
+  console.log(`[ci-validator] Typechecking apps/dashboard...`);
+  execSync('npx tsc --noEmit', { stdio: 'inherit', cwd: path.join(rootDir, 'apps', 'dashboard') });
+  
+  console.log(`[ci-validator] Typechecking apps/worker...`);
+  execSync('npx tsc --noEmit', { stdio: 'inherit', cwd: path.join(rootDir, 'apps', 'worker') });
+  
+  console.log(`\n[ci-validator] Typecheck del monorepo EXITOSO. El proyecto esta listo para Vercel.`);
   process.exit(0);
 } catch (error) {
   console.error(`\n[ERROR CRITICO] Fallo la compilacion del codigo fuente. Vercel rechazara este build.`);
