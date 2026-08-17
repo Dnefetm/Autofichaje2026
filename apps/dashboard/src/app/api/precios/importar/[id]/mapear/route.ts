@@ -11,6 +11,8 @@ import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
+
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
     return procesarMapear(req, props);

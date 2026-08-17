@@ -28,6 +28,10 @@ BEGIN
       FROM listas_precios_raw_staging
      WHERE importacion_id = p_importacion_id;
 
+    -- FIX IDEMPOTENCIA: Eliminar registros previos en raw si se está reintentando el mapeo
+    DELETE FROM listas_precios_raw
+     WHERE importacion_id = p_importacion_id;
+
     INSERT INTO listas_precios_raw (importacion_id, proveedor, fila_num, payload, columnas_guardadas)
     SELECT importacion_id, proveedor, fila_num, payload, columnas_guardadas
       FROM listas_precios_raw_staging

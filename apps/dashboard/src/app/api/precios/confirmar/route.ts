@@ -13,7 +13,7 @@ export async function POST(req: Request) {
             .from('costos_articulo')
             .update({ confirmado_por: 'operador_dashboard', actualizado_el: new Date().toISOString() })
             .eq('importacion_id', importacion_id)
-            .eq('estado_match', 'completado');
+            .in('estado_match', ['match_exacto', 'completado', 'confirmado']);
 
         if (modo === 'individual' && ids && ids.length > 0) {
             query = query.in('id', ids);
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
                 .from('costos_articulo')
                 .select('id')
                 .eq('importacion_id', importacion_id)
-                .eq('estado_match', 'completado')
+                .in('estado_match', ['match_exacto', 'completado', 'confirmado'])
                 .is('confirmado_por', null)
                 .limit(200);
             

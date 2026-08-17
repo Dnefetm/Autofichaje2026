@@ -11,7 +11,7 @@ export default async function ConfirmarPageWrapper(props: { params: Promise<{ pr
         .from('costos_articulo')
         .select('*')
         .eq('importacion_id', params.importacion_id)
-        .eq('estado_match', 'completado')
+        .in('estado_match', ['match_exacto', 'completado', 'confirmado'])
         .order('actualizado_el', { ascending: false });
 
     // Fetch previous active costs for comparison

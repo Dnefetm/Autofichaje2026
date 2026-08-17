@@ -69,7 +69,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         
         if (!sheet) throw new Error('No se encontro hoja 1 en el Excel');
 
-        const allRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        // Prevenir OOM (Crash 1073807364) al no materializar millones de celdas vacías si el !ref del excel está corrupto
+        const allRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
         
         if (allRows.length === 0) throw new Error('El excel parece estar vacio');
 
@@ -103,12 +104,15 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         }
         
         for (let i = 1; i < allRows.length; i++) {
-            const vals = allRows[i].map((v: any) => String(v ?? '').trim());       if (vals.filter((s: string) => s !== '').length < 3) continue;
+            const vals = allRows[i] || [];
+            if (vals.filter((s: any) => s !== undefined && s !== null && String(s).trim() !== '').length < 3) continue;
+            
             const payload: Record<string, string> = {};
             const colsUsadas: string[] = [];
             headers.forEach((h, idx) => {
+                const valStr = String(vals[idx] ?? '').trim();
                 if (usaTodas || colGuardarSet.has(h)) {
-                    payload[h] = vals[idx];
+                    payload[h] = valStr;
                     colsUsadas.push(h);
                 }
             });
@@ -122,10 +126,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
             });
             totalProcesadas++;
 
-            if (chunk.length >= 5000) {
+            if (chunk.length >= 1000) {
                 const { error } = await supabaseAdmin.from('listas_precios_raw_staging').insert(chunk);
                 if (error) throw new Error(`Fallo insertando a staging: ${error.message}`);
                 chunk = [];
+                // Liberar memoria y ceder al event loop
+                await new Promise(resolve => setTimeout(resolve, 5));
             }
         }
 
