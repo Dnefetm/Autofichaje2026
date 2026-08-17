@@ -7,11 +7,9 @@
  * 4. Responde 202 Inmediatamente a la UI.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
 
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -88,39 +86,27 @@ async function procesarMapear(req: NextRequest, props: { params: Promise<{ id: s
         return NextResponse.json({ ok: false, error: updateErr.message }, { status: 500 });
     }
 
-    // --- NUEVO BLOQUE AFTER ---
-    // Ejecutamos el motor de forma asíncrona para no bloquear el request HTTP.
-    after(async () => {
-        try {
-            console.log(`[Mapear] Iniciando procesamiento de BD para ${id}`);
-            
-            // 1) Mover de staging a raw (sin el matching lento antiguo)
-            const { data: impData } = await supabaseAdmin.from('importaciones_excel').select('proveedor').eq('id', id).single();
-            if (impData) {
-                const { error: prepErr } = await supabaseAdmin.rpc('fn_preparar_importacion_revision', {
-                    p_importacion_id: id,
-                    p_proveedor: impData.proveedor
-                });
-                if (prepErr) throw new Error("Fallo fn_preparar_importacion_revision: " + prepErr.message);
-                
-                // 2) Ejecutar el motor de matching Set-Based masivo (que ahora lee de raw)
-                const { error: matchErr } = await supabaseAdmin.rpc('fn_match_precios_v2', {
-                    p_importacion_id: id,
-                    p_finalizar: true
-                });
-                if (matchErr) throw new Error("Fallo fn_match_precios_v2: " + matchErr.message);
-                
-                console.log(`[Mapear] Procesamiento completado para ${id}`);
-            }
-        } catch (err: any) {
-            console.error("[Mapear] Error en motor de precios:", err);
-            await supabaseAdmin.from('importaciones_excel').update({ estado: 'error', error_mensaje: err.message, ultima_actividad: new Date().toISOString() }).eq('id', id);
+    // 1) Ejecutar la preparación y el diff de manera síncrona
+    // Como eliminamos el motor pesado de esta función, ahora toma < 1 segundo.
+    try {
+        const { data: impData } = await supabaseAdmin.from('importaciones_excel').select('proveedor').eq('id', id).single();
+        if (impData) {
+            const { error: prepErr } = await supabaseAdmin.rpc('fn_preparar_importacion_revision', {
+                p_importacion_id: id,
+                p_proveedor: impData.proveedor
+            });
+            if (prepErr) throw new Error("Fallo fn_preparar_importacion_revision: " + prepErr.message);
         }
-    });
+    } catch (err: any) {
+        console.error("[Mapear] Error calculando diff:", err);
+        await supabaseAdmin.from('importaciones_excel').update({ estado: 'error', error_mensaje: err.message, ultima_actividad: new Date().toISOString() }).eq('id', id);
+        return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+    }
 
     return NextResponse.json({
         ok: true,
         importacion_id: id,
-        estado: 'procesando'
+        estado: 'en_revision'
     }, { status: 200 });
 }
+

@@ -35,13 +35,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         .single();
 
     if (existingJob) {
-        // Ya hay un job activo o pendiente, si no terminó intentamos empujarlo por si falló la promesa asincrona
+        // Ya hay un job activo o pendiente, dejamos que la Edge Function continúe o termine por pg_net.
+        // Si se quedó 'colgado', podemos reactivarlo pasándolo a pendiente.
         if (existingJob.estado === 'pendiente' || existingJob.estado === 'corriendo') {
-            supabaseAdmin.rpc('fn_match_precios_v2', { p_importacion_id: id }).then(({error}) => {
-                if(error) console.error("Error en reinicio manual de fn_match_precios_v2:", error);
-            });
+            await supabaseAdmin.from('matching_jobs').update({ estado: 'pendiente' }).eq('id', existingJob.id);
         }
-        return NextResponse.json({ ok: true, mensaje: 'El trabajo ya estaba en progreso, se ha reenviado la instrucción' }, { status: 200 });
+        return NextResponse.json({ ok: true, mensaje: 'El trabajo ya estaba en progreso, se ha reenviado la instrucción al Edge Worker' }, { status: 200 });
     }
 
     if (imp.estado === 'completado') {
@@ -80,15 +79,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         return NextResponse.json({ ok: false, error: 'No se pudo crear trabajo de matching: ' + insertJobErr.message }, { status: 500 });
     }
 
-    // 4. Disparar el proceso de forma asíncrona (Fire and Forget) para no bloquear Vercel
+    // 4. El proceso de matching se disparará automáticamente vía pg_net (Database Trigger)
+    // al haber insertado el job con estado='pendiente'.
     // Esto asegura que el frontend reciba el 202 inmediatamente y comience el polling.
-    supabaseAdmin.rpc('fn_match_precios_v2', { p_importacion_id: id }).then(({error}) => {
-        if (error) {
-            console.error("Fallo de background en fn_match_precios_v2:", error);
-            // Marcar error en el job
-            supabaseAdmin.from('matching_jobs').update({ estado: 'error', finalizado_el: new Date().toISOString() }).eq('importacion_id', id);
-        }
-    });
-
+    
     return NextResponse.json({ ok: true, mensaje: 'Trabajo de matching encolado e iniciado' }, { status: 202 });
 }
