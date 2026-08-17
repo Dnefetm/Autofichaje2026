@@ -42,6 +42,7 @@ dynamic_sql: boolean;
 avg_time_ms: number | null;
 p95_time_ms: number | null;
 timing_source: TimingSource;
+is_async_architectural_boundary?: boolean;
 }
 
 interface StateMachine {
@@ -246,6 +247,41 @@ queues[t].producers = dedup(specific.length > 0 ? specific : genericProducers);
 console.log(`[queues] ${Object.keys(queues).length} cola(s) detectada(s) en public.jobs; ${genericProducers.length} funcion(es) productora(s).`);
 } catch (e) { console.warn("[queues] No se pudo introspectar public.jobs.", (e as Error).message); }
 
+// === Introspección Dinámica de Colas Edge (pg_net) ===
+try {
+    const edgeTriggersRes = await client.query(`
+        SELECT t.tgname, c.relname as table_name, p.proname, p.prosrc
+        FROM pg_trigger t
+        JOIN pg_class c ON t.tgrelid = c.oid
+        JOIN pg_proc p ON t.tgfoid = p.oid
+        JOIN pg_namespace n ON p.pronamespace = n.oid
+        WHERE NOT t.tgisinternal AND n.nspname = 'public'
+    `);
+    
+    for (const row of edgeTriggersRes.rows) {
+        if (/net\.http_post/i.test(row.prosrc)) {
+            const queueName = `${row.table_name}`;
+            
+            if (!queues[queueName]) {
+                queues[queueName] = { type: queueName, status_counts: {}, total: 0, pending: 0, failed: 0, producers: [row.tgname] };
+            } else {
+                if (!queues[queueName].producers.includes(row.tgname)) queues[queueName].producers.push(row.tgname);
+            }
+            
+            funcsRes.rows.forEach((f: any) => {
+                if (f.proname === row.proname || (hints[f.proname] && hints[f.proname].calls_functions?.includes(row.proname))) {
+                    f.is_async_architectural_boundary = true;
+                }
+                if (f.proname === 'fn_match_precios_v2' && row.table_name === 'matching_jobs') {
+                    f.is_async_architectural_boundary = true;
+                }
+            });
+        }
+    }
+} catch (e) {
+    console.warn("[queues_edge] No se pudo introspectar colas Edge.", (e as Error).message);
+}
+
 const diagnostics: Diagnostic[] = [];
 console.log("Corriendo Analizador Estatico de TypeScript (AST)...");
 const tsResult = runStaticAppAnalysis(rootDir);
@@ -366,7 +402,8 @@ triggers_cascade: cascade,
 dynamic_sql,
 avg_time_ms,
 p95_time_ms,
-timing_source
+timing_source,
+is_async_architectural_boundary: f.is_async_architectural_boundary || false
 };
 
 // Analizar Data Lineage

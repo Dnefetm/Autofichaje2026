@@ -10,8 +10,14 @@ export interface AppDiagnostic {
     file?: string;
 }
 
+export interface RpcCallContext {
+    filePath: string;
+    isNextApiRoute: boolean;
+    clientType: 'admin' | 'anon' | 'unknown';
+}
+
 export interface TsAnalysisResult {
-    calledRpcs: Map<string, string[]>; // rpc -> files[]
+    calledRpcs: Map<string, RpcCallContext[]>; // rpc -> context[]
     touchedTables: Map<string, string[]>; // table -> files[]
     enqueuedJobs: Map<string, string[]>; // job_type -> files[]
     diagnostics: AppDiagnostic[];
@@ -46,9 +52,15 @@ function analyzeTsFile(filePath: string, result: TsAnalysisResult) {
                             const arg0 = node.arguments[0];
                             if (ts.isStringLiteral(arg0)) {
                                 const rpcName = arg0.text;
+                                const callerText = text.toLowerCase();
+                                const clientType = (callerText.includes('admin') || callerText.includes('service')) ? 'admin' : 'anon';
+                                const isNextApiRoute = filePath.includes(path.join('app', 'api')) || filePath.includes(path.join('pages', 'api'));
+
                                 if (!result.calledRpcs.has(rpcName)) result.calledRpcs.set(rpcName, []);
-                                if (!result.calledRpcs.get(rpcName)!.includes(filePath)) {
-                                    result.calledRpcs.get(rpcName)!.push(filePath);
+                                
+                                const existing = result.calledRpcs.get(rpcName)!;
+                                if (!existing.some(c => c.filePath === filePath)) {
+                                    existing.push({ filePath, isNextApiRoute, clientType });
                                 }
                             }
                         }
@@ -145,15 +157,40 @@ export function validateCrossReferences(
 ): AppDiagnostic[] {
     const diagnostics: AppDiagnostic[] = [];
 
-    // Validar RPCs fantasma
-    tsResult.calledRpcs.forEach((files, rpcName) => {
-        if (!dbFunctions[rpcName] && !dbFunctions[`public.${rpcName}`]) {
+    // Validar RPCs y Timeouts
+    tsResult.calledRpcs.forEach((calls, rpcName) => {
+        const dbFunc = dbFunctions[rpcName] || dbFunctions[`public.${rpcName}`];
+        if (!dbFunc) {
             diagnostics.push({
                 scope: `app.rpc.${rpcName}`,
                 severity: 'error',
                 code: 'RPC_NOT_FOUND',
-                message: `La aplicación llama a un RPC inexistente '${rpcName}' en ${files.length} archivo(s).`,
-                file: files[0]
+                message: `La aplicación llama a un RPC inexistente '${rpcName}' en ${calls.length} archivo(s).`,
+                file: calls[0].filePath
+            });
+        } else {
+            calls.forEach(call => {
+                // Regla 2: [TIMEOUT_RISK]
+                if (call.isNextApiRoute && dbFunc.avg_time_ms && dbFunc.avg_time_ms > 10000) {
+                    diagnostics.push({
+                        scope: `app.rpc.${rpcName}`,
+                        severity: 'error',
+                        code: 'TIMEOUT_RISK',
+                        message: `Riesgo de Timeout: La ruta Next.js llama sincrónicamente a '${rpcName}' con tiempo estimado de ${dbFunc.avg_time_ms}ms (excede límite de 10s de Vercel/Kong).`,
+                        file: call.filePath
+                    });
+                }
+
+                // Regla 3: [ARCH_VIOLATION]
+                if (dbFunc.is_async_architectural_boundary && call.isNextApiRoute) {
+                    diagnostics.push({
+                        scope: `app.rpc.${rpcName}`,
+                        severity: 'error',
+                        code: 'ARCH_VIOLATION',
+                        message: `Violación de Arquitectura: '${rpcName}' debe ser procesado asíncronamente mediante una cola, pero se invoca directamente de forma síncrona en Next.js.`,
+                        file: call.filePath
+                    });
+                }
             });
         }
     });
