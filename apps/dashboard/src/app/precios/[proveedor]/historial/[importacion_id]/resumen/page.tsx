@@ -166,15 +166,24 @@ export default async function ResumenLotePage(props: {
                         <ActivarListaButton importacionId={importacionId} proveedor={proveedorDecoded} />
                     )}
                     {imp?.estado === 'completado' && (
-                        <Link
-                            href={`/precios/${encodeURIComponent(proveedorDecoded)}`}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors"
-                        >
-                            Ver Catálogo Completo →
-                        </Link>
+                        <div className="flex items-center gap-2">
+                            <Link
+                                href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial/${importacionId}/vinculacion`}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors shadow-sm"
+                            >
+                                Ver Vinculación con Catálogo →
+                            </Link>
+                            <Link
+                                href={`/precios/${encodeURIComponent(proveedorDecoded)}`}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors"
+                            >
+                                Ver Catálogo Completo
+                            </Link>
+                        </div>
                     )}
                 </div>
             </header>
+
 
 
             {/* Tarjetas de Resumen */}
