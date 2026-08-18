@@ -14,7 +14,6 @@ interface MatchItem {
     // Artículo del catálogo interno
     articulo_id: string;
     nombre_catalogo: string;
-    sku_catalogo: string;
     marca_catalogo: string;
     modelo_catalogo: string;
     codigo_universal: string;
@@ -127,84 +126,103 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
                 )}
             </div>
 
-            {/* Tabla */}
+            {/* Tabla con diseño de filas apiladas (Top/Bottom) por ítem */}
             {expandido && (
-                <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                     <table className="w-full text-xs">
-                        <thead className="bg-slate-50 sticky top-0 z-10">
+                        <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                             <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-200">
-                                <th className="py-2.5 px-4 text-left" colSpan={2}>← Proveedor (Urrea)</th>
-                                <th className="py-2.5 px-4 text-right">Dist.</th>
-                                <th className="py-2.5 px-4 text-right">Menudeo</th>
-                                <th className="py-2.5 px-2 text-center text-slate-200">|</th>
-                                <th className="py-2.5 px-4 text-left" colSpan={2}>Tu Catálogo Interno →</th>
-                                <th className="py-2.5 px-4 text-center">Acción</th>
-                            </tr>
-                            <tr className="text-[10px] font-semibold text-slate-400 border-b border-slate-100 bg-slate-50">
-                                <th className="pb-2 px-4 text-left">Clave / Descripción</th>
-                                <th className="pb-2 px-4 text-left">Marca · Código de Barras</th>
-                                <th className="pb-2 px-4 text-right"></th>
-                                <th className="pb-2 px-4 text-right"></th>
-                                <th className="pb-2 px-2"></th>
-                                <th className="pb-2 px-4 text-left">Nombre / SKU</th>
-                                <th className="pb-2 px-4 text-left">Marca · Modelo · Cód.Universal</th>
-                                <th className="pb-2 px-4"></th>
+                                <th className="py-3 px-4 w-[120px] text-center bg-slate-100">Origen</th>
+                                <th className="py-3 px-4 text-left w-[40%]">Descripción / Nombre</th>
+                                <th className="py-3 px-4 text-left w-[15%]">Marca</th>
+                                <th className="py-3 px-4 text-left w-[15%]">Modelo / Clave</th>
+                                <th className="py-3 px-4 text-left w-[15%]">Cód. Barras</th>
+                                <th className="py-3 px-4 text-center w-[150px]">Acción</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 bg-white">
+                        <tbody className="divide-y-2 divide-slate-200 bg-white">
                             {items.map((item) => {
                                 const isAceptado = aceptados.has(item.fila_num);
                                 const isRechazado = rechazados.has(item.fila_num);
+                                
+                                const highlightDiff = (val1: string, val2: string) => {
+                                    if (!val1 || !val2) return false;
+                                    return val1.trim().toLowerCase() !== val2.trim().toLowerCase();
+                                };
+
+                                const diffMarca = highlightDiff(item.marca_catalogo, item.marca_proveedor);
+                                const diffModelo = highlightDiff(item.modelo_catalogo, item.sku_proveedor);
+                                const diffCodigo = highlightDiff(item.codigo_universal, item.codigo_barra);
+
                                 return (
-                                    <tr key={item.fila_num} className={`${isAceptado ? 'bg-emerald-50/40' : isRechazado ? 'bg-slate-50 opacity-50' : 'hover:bg-slate-50/50'}`}>
-                                        {/* Lado Proveedor */}
-                                        <td className="py-2.5 px-4 max-w-[200px]">
-                                            <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">{item.sku_proveedor}</span>
-                                            <p className="text-slate-500 mt-0.5 line-clamp-2 text-[11px]">{item.descripcion_proveedor}</p>
-                                        </td>
-                                        <td className="py-2.5 px-4">
-                                            <p className="font-semibold text-slate-700">{item.marca_proveedor}</p>
-                                            <p className="font-mono text-slate-400 text-[10px]">{item.codigo_barra || '—'}</p>
-                                        </td>
-                                        <td className="py-2.5 px-4 text-right font-bold text-slate-800">{fmtMx(item.dist)}</td>
-                                        <td className="py-2.5 px-4 text-right text-slate-600">{fmtMx(item.menudeo)}</td>
-
-                                        {/* Divisor */}
-                                        <td className="py-2.5 px-2 text-center text-slate-200 font-light text-lg">│</td>
-
-                                        {/* Lado Catálogo */}
-                                        <td className="py-2.5 px-4 max-w-[200px]">
-                                            <p className="font-semibold text-slate-800 line-clamp-2 text-[11px]">{item.nombre_catalogo}</p>
-                                            <p className="font-mono text-slate-400 text-[10px]">SKU: {item.sku_catalogo || '—'}</p>
-                                        </td>
-                                        <td className="py-2.5 px-4">
-                                            <p className="font-semibold text-slate-700">{item.marca_catalogo}</p>
-                                            <p className="text-slate-500 text-[10px]">Modelo: {item.modelo_catalogo || '—'}</p>
-                                            <p className="font-mono text-slate-400 text-[10px]">{item.codigo_universal}</p>
-                                        </td>
-
-                                        {/* Acción */}
-                                        <td className="py-2.5 px-4 text-center">
-                                            {isAceptado ? (
-                                                <span className="text-emerald-600 font-bold text-[10px] flex items-center justify-center gap-1"><Check className="w-3 h-3" /> Vinculado</span>
-                                            ) : isRechazado ? (
-                                                <span className="text-slate-400 text-[10px] flex items-center justify-center gap-1"><X className="w-3 h-3" /> Ignorado</span>
-                                            ) : (
-                                                <div className="flex items-center justify-center gap-1">
-                                                    <button
-                                                        onClick={() => handleAceptarUno(item)}
-                                                        className="px-2 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg font-bold text-[10px] transition-colors flex items-center gap-0.5"
-                                                    >
-                                                        <Check className="w-2.5 h-2.5" /> Aceptar
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setRechazados(prev => new Set([...prev, item.fila_num]))}
-                                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold text-[10px] transition-colors flex items-center gap-0.5"
-                                                    >
-                                                        <X className="w-2.5 h-2.5" /> Ignorar
-                                                    </button>
+                                    <tr key={item.fila_num} className={`${isAceptado ? 'bg-emerald-50/40' : isRechazado ? 'bg-slate-50 opacity-40' : 'hover:bg-slate-50/30'}`}>
+                                        <td colSpan={6} className="p-0">
+                                            <div className="grid grid-cols-[120px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_150px] items-stretch">
+                                                
+                                                {/* ---- FILA 1: TU CATÁLOGO ---- */}
+                                                <div className="py-2.5 px-4 flex items-center justify-center bg-slate-50 border-b border-r border-slate-100">
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Catálogo</span>
                                                 </div>
-                                            )}
+                                                <div className="py-2.5 px-4 border-b border-slate-100 flex items-center">
+                                                    <p className="font-semibold text-slate-800 line-clamp-1" title={item.nombre_catalogo}>{item.nombre_catalogo}</p>
+                                                </div>
+                                                <div className="py-2.5 px-4 border-b border-slate-100 flex items-center">
+                                                    <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_catalogo || '—'}</p>
+                                                </div>
+                                                <div className="py-2.5 px-4 border-b border-slate-100 flex items-center">
+                                                    <p className={`font-mono text-[11px] ${diffModelo ? 'text-amber-600' : 'text-slate-600'}`}>{item.modelo_catalogo || '—'}</p>
+                                                </div>
+                                                <div className="py-2.5 px-4 border-b border-slate-100 flex items-center">
+                                                    <p className={`font-mono text-[11px] ${diffCodigo ? 'text-amber-600' : 'text-slate-600'}`}>{item.codigo_universal || '—'}</p>
+                                                </div>
+                                                
+                                                {/* BOTONES DE ACCIÓN (Ocupan ambas filas visualmente con row-span o flex vertical) */}
+                                                <div className="px-4 py-3 flex flex-col justify-center items-center border-l border-slate-100" style={{ gridRow: 'span 2' }}>
+                                                    {isAceptado ? (
+                                                        <span className="text-emerald-600 font-bold text-[11px] flex items-center gap-1 bg-emerald-50 px-2.5 py-1.5 rounded-lg"><Check className="w-3.5 h-3.5" /> Vinculado</span>
+                                                    ) : isRechazado ? (
+                                                        <span className="text-slate-500 font-bold text-[11px] flex items-center gap-1 bg-slate-100 px-2.5 py-1.5 rounded-lg"><X className="w-3.5 h-3.5" /> Ignorado</span>
+                                                    ) : (
+                                                        <div className="flex flex-col gap-1.5 w-full">
+                                                            <button
+                                                                onClick={() => handleAceptarUno(item)}
+                                                                className="w-full py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1"
+                                                            >
+                                                                <Check className="w-3 h-3" /> Aceptar
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setRechazados(prev => new Set([...prev, item.fila_num]))}
+                                                                className="w-full py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1"
+                                                            >
+                                                                <X className="w-3 h-3" /> Ignorar
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* ---- FILA 2: PROVEEDOR ---- */}
+                                                <div className="py-2.5 px-4 flex flex-col items-center justify-center bg-indigo-50/50 border-r border-slate-100">
+                                                    <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">{proveedor}</span>
+                                                    <span className="text-[9px] text-indigo-400 mt-0.5">NUEVO LOTE</span>
+                                                </div>
+                                                <div className="py-2.5 px-4 flex items-center justify-between">
+                                                    <p className="text-slate-600 line-clamp-1 mr-2" title={item.descripcion_proveedor}>{item.descripcion_proveedor}</p>
+                                                    <div className="shrink-0 text-[10px] text-slate-400 flex items-center gap-2 font-mono">
+                                                        <span>Dist: <b className="text-slate-600">{fmtMx(item.dist)}</b></span>
+                                                        <span>Men: <b className="text-slate-600">{fmtMx(item.menudeo)}</b></span>
+                                                    </div>
+                                                </div>
+                                                <div className="py-2.5 px-4 flex items-center">
+                                                    <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_proveedor || '—'}</p>
+                                                </div>
+                                                <div className="py-2.5 px-4 flex items-center">
+                                                    <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-[11px] ${diffModelo ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>{item.sku_proveedor || '—'}</span>
+                                                </div>
+                                                <div className="py-2.5 px-4 flex items-center">
+                                                    <p className={`font-mono text-[11px] ${diffCodigo ? 'font-bold text-amber-600' : 'text-slate-600'}`}>{item.codigo_barra || '—'}</p>
+                                                </div>
+
+                                            </div>
                                         </td>
                                     </tr>
                                 );
