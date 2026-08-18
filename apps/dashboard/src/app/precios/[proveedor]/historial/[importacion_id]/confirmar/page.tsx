@@ -7,20 +7,41 @@ export default async function ConfirmarPageWrapper(props: { params: Promise<{ pr
     const params = await props.params;
     const proveedorDecoded = decodeURIComponent(params.proveedor);
 
-    const { data: costos, error } = await supabaseAdmin
-        .from('costos_articulo')
-        .select('*')
-        .eq('importacion_id', params.importacion_id)
-        .in('estado_match', ['match_exacto', 'completado', 'confirmado'])
-        .order('actualizado_el', { ascending: false });
+    let allCostos: any[] = [];
+    let from = 0;
+    while (true) {
+        const { data: chunk, error } = await supabaseAdmin
+            .from('costos_articulo')
+            .select('*')
+            .eq('importacion_id', params.importacion_id)
+            .in('estado_match', ['match_exacto', 'completado', 'confirmado'])
+            .range(from, from + 999);
+
+        if (error || !chunk || chunk.length === 0) break;
+        allCostos = allCostos.concat(chunk);
+        if (chunk.length < 1000) break;
+        from += 1000;
+    }
+    const costos = allCostos;
 
     // Fetch previous active costs for comparison
-    const { data: costosAnteriores } = await supabaseAdmin
-        .from('costos_articulo')
-        .select('*')
-        .eq('proveedor', proveedorDecoded)
-        .eq('vigente', true)
-        .neq('importacion_id', params.importacion_id);
+    let allAnteriores: any[] = [];
+    let fromAnt = 0;
+    while (true) {
+        const { data: chunkAnt } = await supabaseAdmin
+            .from('costos_articulo')
+            .select('*')
+            .eq('proveedor', proveedorDecoded)
+            .eq('vigente', true)
+            .neq('importacion_id', params.importacion_id)
+            .range(fromAnt, fromAnt + 999);
+
+        if (!chunkAnt || chunkAnt.length === 0) break;
+        allAnteriores = allAnteriores.concat(chunkAnt);
+        if (chunkAnt.length < 1000) break;
+        fromAnt += 1000;
+    }
+    const costosAnteriores = allAnteriores;
 
     // Map by articulo_id + tipo_costo
     const anterioresMap = new Map();
