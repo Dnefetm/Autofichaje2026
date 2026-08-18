@@ -1,17 +1,23 @@
 # Project Master Blueprint (Frontend & DB Flow)
 
-Este documento es el **plano unificado** del proyecto Autofichaje2026. Integra las directrices de interfaz humana (Frontend/UI) con los diagnósticos y flujos duros de la base de datos (Backend/Supabase).
+Este documento es el **plano unificado** del proyecto Autofichaje2026. Integra las directrices de interfaz humana (basadas en las 10 Heurísticas de Jakob Nielsen) con los diagnósticos y flujos duros de la base de datos (Backend/Supabase).
 
-## 1. Filosofía Core y Frontend (Orientación al Operador Humano)
-El sistema gestiona operaciones masivas, pero su fin último es ser operado por humanos de forma intuitiva, rápida y sin fricción. Todo flujo técnico (BD) debe subordinarse a estas reglas de interfaz:
+## 1. UX/UI Core: Basado en las 10 Heurísticas de Usabilidad de Nielsen
+El sistema gestiona operaciones masivas, pero su fin último es ser operado por humanos de forma rápida y sin fricción. Todo flujo debe subordinarse a estas reglas:
 
-- **Transparencia y Cero Bloqueos:** El sistema nunca ejecuta vínculos destructivos sin confirmación visual del operador. La interfaz nunca debe congelarse; cargas de >10k filas deben ser procesadas en memoria en el servidor (Node.js) con paginación obligatoria en el cliente.
-- **Simplicidad Visual (Patrón Top/Bottom):** En pantallas de comparación masiva, los datos comparables se alinean verticalmente en una tabla HTML (Fila Superior: Catálogo / Fila Inferior: Proveedor). Prohibido el uso de vistas horizontales comprimidas ("lado a lado").
-- **Resaltado Semántico Inteligente:**
-  - **Emerald (Verde):** Éxito, vinculado, completado.
-  - **Amber (Naranja/Negritas):** Advertencia, discrepancia exacta detectada entre orígenes. Único color para dirigir el ojo humano.
-  - **Indigo (Azul):** Origen externo (proveedor).
-- **In-Memory Joins vs URL Limits:** Las consultas Supabase `.in()` fallan por límites de URL con arreglos gigantes. Para cruzar >1000 filas, descargar catálogo filtrado y hacer *matching* en memoria.
+- **H1. Visibilidad del Estado (Cero Bloqueos):** Feedback asíncrono e inmediato. Botones con `Loader2`, mutaciones locales optimistas (estado `Set` en memoria) sin recargar la página entera.
+- **H3. Control de Usuario:** Siempre debe existir una salida (ej. Desvincular, Revertir, Cancelar Importación) funcional y libre de fallas técnicas.
+- **H4. Consistencia y Estándares (Colores):**
+  - **Emerald:** Éxito, vinculado.
+  - **Amber / Negritas:** Discrepancia, advertencia (Guía visual exclusiva para dirigir el ojo).
+  - **Indigo:** Datos del proveedor/externos.
+  - **Slate:** Datos neutros/ignorados.
+- **H5. Prevención de Errores:** Las acciones de "Aceptar Todos" deben requerir doble confirmación y las filas procesadas deben bloquearse contra clics dobles. Paginación y memorización obligatoria en lotes >500 filas para evitar bloqueos del navegador.
+- **H6. Reconocimiento vs Recuerdo (El Patrón Top/Bottom):** Prohibidas las vistas de comparación masiva horizontales o "lado a lado". Todo cruce de datos debe alinear columnas idénticas usando tablas HTML nativas (Fila Superior: Catálogo | Fila Inferior: Proveedor) para que el humano escanee verticalmente.
+- **H9. Diagnóstico de Errores Legible:** Prohibido mostrar errores crudos SQL (ej. `42P10 Constraint Violation`). Traducirlos en los `catch` a mensajes humanos (ej. "Código ya vinculado").
+
+## 2. Coherencia DB/Backend para la UI
+- **In-Memory Joins vs URL Limits:** Las consultas Supabase `.in()` fallan por límites de URL con arreglos gigantes. Para cruzar >1000 filas, descargar catálogo filtrado y hacer *matching* en la capa Node.js del servidor antes de pasarlo al cliente.
 - **Tolerancia a Índices Parciales:** En inserciones masivas complejas (ej. `proveedor_articulos_alias`), usar condicionales `SELECT` -> `INSERT/UPDATE` en lugar de `UPSERT ON CONFLICT`, ya que Postgres bloquea los UPSERTs sobre índices con `WHERE`.
 
 ---
