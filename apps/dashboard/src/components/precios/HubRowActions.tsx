@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 
 export function HubRowActions({ articuloId, proveedor, estadoActualizacion }: { articuloId: string, proveedor: string, estadoActualizacion: string }) {
+    const router = useRouter();
     const [loading, setLoading] = useState(false);
 
     const handleAction = async (accion: 'confirmado_vigente' | 'marcado_descontinuado') => {
@@ -23,7 +25,7 @@ export function HubRowActions({ articuloId, proveedor, estadoActualizacion }: { 
                 alert(data.error || 'Error al guardar revisión');
             } else {
                 // Ideally refresh the data, or just show a success toast.
-                window.location.reload();
+                router.refresh();
             }
         } catch (e: any) {
             alert('Error de red');

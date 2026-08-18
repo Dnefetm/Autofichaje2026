@@ -1,8 +1,10 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AutocompleteArticulo } from '@/components/AutocompleteArticulo';
 
 export function PendienteVincularRow({ pendiente }: { pendiente: any }) {
+    const router = useRouter();
     const [articuloId, setArticuloId] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -23,7 +25,7 @@ export function PendienteVincularRow({ pendiente }: { pendiente: any }) {
                 })
             });
             if (res.ok) {
-                window.location.reload();
+                router.refresh();
             } else {
                 alert('Error al vincular');
             }

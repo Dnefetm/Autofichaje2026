@@ -1,7 +1,9 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export function ReglaForm() {
+    const router = useRouter();
     const [nombre, setNombre] = useState('');
     const [prioridad, setPrioridad] = useState(1);
     
@@ -39,7 +41,7 @@ export function ReglaForm() {
             })
         });
         setLoading(false);
-        if(res.ok) window.location.reload();
+        if(res.ok) router.refresh();
         else alert('Error guardando la regla');
     };
 
