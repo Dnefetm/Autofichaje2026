@@ -128,14 +128,14 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
             {/* Tabla nativa con doble fila (<tr>) para alinear perfectamente con los <th> */}
             {expandido && (
                 <div className="overflow-x-auto max-h-[700px] overflow-y-auto">
-                    <table className="w-full text-xs text-left whitespace-nowrap">
+                    <table className="w-full text-xs text-left table-fixed min-w-[900px]">
                         <thead className="bg-slate-100 sticky top-0 z-10 shadow-sm border-b border-slate-200">
                             <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                                <th className="py-3.5 px-4 w-[100px] text-center border-r border-slate-200">Origen</th>
-                                <th className="py-3.5 px-4 min-w-[300px]">Descripción / Nombre</th>
-                                <th className="py-3.5 px-4 w-[15%]">Marca</th>
+                                <th className="py-3.5 px-4 w-[90px] text-center border-r border-slate-200">Origen</th>
+                                <th className="py-3.5 px-4 w-auto">Descripción / Nombre</th>
+                                <th className="py-3.5 px-4 w-[12%]">Marca</th>
                                 <th className="py-3.5 px-4 w-[15%]">Modelo / Clave</th>
-                                <th className="py-3.5 px-4 w-[15%]">Cód. Barras</th>
+                                <th className="py-3.5 px-4 w-[18%]">Cód. Barras</th>
                                 <th className="py-3.5 px-4 w-[120px] text-center bg-white">Acción</th>
                             </tr>
                         </thead>
