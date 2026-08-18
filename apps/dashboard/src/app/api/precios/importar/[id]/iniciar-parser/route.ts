@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     // Instead of invoking Edge Function, parse it here in Next.js Serverless (has 1024MB Memory)
     try {
         const m = imp.mapeo_columnas || {};
-        const path = m._storage_path || imp.archivo_path;
+        const path = m._storage_path || imp.nombre_archivo;
         const bucket = m._bucket ?? 'excel-precios';
         const proveedor = imp.proveedor;
 
@@ -140,10 +140,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
             if (error) throw new Error(`Fallo final staging: ${error.message}`);
         }
 
-        // SET TOTAL FILAS!
+        // SET TOTAL FILAS AND STATE!
         await supabaseAdmin.from('importaciones_excel').update({
              total_filas: totalProcesadas,
              filas_procesadas: totalProcesadas,
+             estado: 'pendiente_mapeo',
              heartbeat_at: new Date().toISOString()
         }).eq('id', id);
 
@@ -156,5 +157,5 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         return NextResponse.json({ ok: false, error: "Parser Falló: " + msg }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, estado: 'mapeando' }, { status: 202 });
+    return NextResponse.json({ ok: true, estado: 'pendiente_mapeo' }, { status: 200 });
 }
