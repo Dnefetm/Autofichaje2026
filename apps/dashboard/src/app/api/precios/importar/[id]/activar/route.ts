@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 export async function POST(
     req: NextRequest,
@@ -18,6 +19,37 @@ export async function POST(
 
     if (fetchErr || !imp) {
         return NextResponse.json({ ok: false, error: 'Importación no encontrada' }, { status: 404 });
+    }
+
+    // GUARD: Si el matching nunca corrió (costos vacíos), correrlo ahora antes de activar.
+    // Esto ocurre cuando el usuario navega directo al resumen sin pasar por el paso de matching.
+    const { count: costosCount } = await supabaseAdmin
+        .from('costos_articulo')
+        .select('*', { count: 'exact', head: true })
+        .eq('importacion_id', id);
+
+    const { count: pendientesCount } = await supabaseAdmin
+        .from('costos_pendientes')
+        .select('*', { count: 'exact', head: true })
+        .eq('importacion_id', id);
+
+    if ((costosCount ?? 0) === 0 && (pendientesCount ?? 0) === 0) {
+        // Verificar que haya datos en listas_precios_raw para procesar
+        const { count: rawCount } = await supabaseAdmin
+            .from('listas_precios_raw')
+            .select('*', { count: 'exact', head: true })
+            .eq('importacion_id', id);
+
+        if ((rawCount ?? 0) > 0) {
+            // Correr matching completo. p_finalizar: false porque nosotros ponemos el estado.
+            const { error: matchErr } = await supabaseAdmin.rpc('fn_match_precios_v2', {
+                p_importacion_id: id,
+                p_finalizar: false
+            });
+            if (matchErr) {
+                return NextResponse.json({ ok: false, error: `Error en matching previo a activación: ${matchErr.message}` }, { status: 500 });
+            }
+        }
     }
 
     // 1. Desactivar todas las listas vigentes anteriores del mismo proveedor
