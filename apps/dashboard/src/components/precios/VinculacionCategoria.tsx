@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Loader2, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -11,7 +11,6 @@ interface MatchItem {
     descripcion_proveedor: string;
     dist: number;
     menudeo: number;
-    // Artículo del catálogo interno
     articulo_id: string;
     nombre_catalogo: string;
     marca_catalogo: string;
@@ -99,18 +98,18 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
     };
 
     return (
-        <div className={`rounded-2xl border ${c.border} overflow-hidden shadow-sm mb-6`}>
+        <div className={`rounded-2xl border ${c.border} overflow-hidden shadow-sm mb-8`}>
             {/* Header de categoría */}
             <div className={`${c.bg} px-6 py-4 flex items-center justify-between`}>
                 <div className="flex items-center gap-3">
-                    <button onClick={() => setExpandido(!expandido)} className="text-slate-500 hover:text-slate-700">
-                        {expandido ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    <button onClick={() => setExpandido(!expandido)} className="text-slate-500 hover:text-slate-700 bg-white/50 rounded p-1">
+                        {expandido ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                     </button>
                     <div>
-                        <h3 className={`font-bold text-base ${c.title}`}>{titulo}</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">{descripcion}</p>
+                        <h3 className={`font-bold text-lg ${c.title}`}>{titulo}</h3>
+                        <p className="text-sm text-slate-600 mt-0.5">{descripcion}</p>
                     </div>
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${c.badge}`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ml-4 ${c.badge}`}>
                         {pendientes.length} pendientes · {aceptados.size} aceptados · {rechazados.size} ignorados
                     </span>
                 </div>
@@ -118,29 +117,29 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
                     <button
                         onClick={handleAceptarTodos}
                         disabled={aceptando}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm ${c.btn} disabled:opacity-50`}
+                        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md ${c.btn} disabled:opacity-50`}
                     >
-                        {aceptando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                        {aceptando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                         Aceptar todos ({pendientes.length})
                     </button>
                 )}
             </div>
 
-            {/* Tabla con diseño de filas apiladas (Top/Bottom) por ítem */}
+            {/* Tabla nativa con doble fila (<tr>) para alinear perfectamente con los <th> */}
             {expandido && (
-                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                    <table className="w-full text-xs">
-                        <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
-                            <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-200">
-                                <th className="py-3 px-4 w-[120px] text-center bg-slate-100">Origen</th>
-                                <th className="py-3 px-4 text-left w-[40%]">Descripción / Nombre</th>
-                                <th className="py-3 px-4 text-left w-[15%]">Marca</th>
-                                <th className="py-3 px-4 text-left w-[15%]">Modelo / Clave</th>
-                                <th className="py-3 px-4 text-left w-[15%]">Cód. Barras</th>
-                                <th className="py-3 px-4 text-center w-[150px]">Acción</th>
+                <div className="overflow-x-auto max-h-[700px] overflow-y-auto">
+                    <table className="w-full text-xs text-left whitespace-nowrap">
+                        <thead className="bg-slate-100 sticky top-0 z-10 shadow-sm border-b border-slate-200">
+                            <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                <th className="py-3.5 px-4 w-[100px] text-center border-r border-slate-200">Origen</th>
+                                <th className="py-3.5 px-4 min-w-[300px]">Descripción / Nombre</th>
+                                <th className="py-3.5 px-4 w-[15%]">Marca</th>
+                                <th className="py-3.5 px-4 w-[15%]">Modelo / Clave</th>
+                                <th className="py-3.5 px-4 w-[15%]">Cód. Barras</th>
+                                <th className="py-3.5 px-4 w-[120px] text-center bg-white">Acción</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y-2 divide-slate-200 bg-white">
+                        <tbody className="bg-white">
                             {items.map((item) => {
                                 const isAceptado = aceptados.has(item.fila_num);
                                 const isRechazado = rechazados.has(item.fila_num);
@@ -154,77 +153,79 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
                                 const diffModelo = highlightDiff(item.modelo_catalogo, item.sku_proveedor);
                                 const diffCodigo = highlightDiff(item.codigo_universal, item.codigo_barra);
 
+                                const bgRow1 = isAceptado ? 'bg-emerald-50/40' : isRechazado ? 'bg-slate-50 opacity-40' : 'bg-slate-50/40 hover:bg-slate-100/50';
+                                const bgRow2 = isAceptado ? 'bg-emerald-100/40' : isRechazado ? 'bg-slate-100 opacity-40' : 'bg-indigo-50/20 hover:bg-indigo-50/40';
+
                                 return (
-                                    <tr key={item.fila_num} className={`${isAceptado ? 'bg-emerald-50/40' : isRechazado ? 'bg-slate-50 opacity-40' : 'hover:bg-slate-50/30'}`}>
-                                        <td colSpan={6} className="p-0">
-                                            <div className="grid grid-cols-[120px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_150px] items-stretch">
-                                                
-                                                {/* ---- FILA 1: TU CATÁLOGO ---- */}
-                                                <div className="py-2.5 px-4 flex items-center justify-center bg-slate-50 border-b border-r border-slate-100">
-                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Catálogo</span>
-                                                </div>
-                                                <div className="py-2.5 px-4 border-b border-slate-100 flex items-center">
-                                                    <p className="font-semibold text-slate-800 line-clamp-1" title={item.nombre_catalogo}>{item.nombre_catalogo}</p>
-                                                </div>
-                                                <div className="py-2.5 px-4 border-b border-slate-100 flex items-center">
-                                                    <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_catalogo || '—'}</p>
-                                                </div>
-                                                <div className="py-2.5 px-4 border-b border-slate-100 flex items-center">
-                                                    <p className={`font-mono text-[11px] ${diffModelo ? 'text-amber-600' : 'text-slate-600'}`}>{item.modelo_catalogo || '—'}</p>
-                                                </div>
-                                                <div className="py-2.5 px-4 border-b border-slate-100 flex items-center">
-                                                    <p className={`font-mono text-[11px] ${diffCodigo ? 'text-amber-600' : 'text-slate-600'}`}>{item.codigo_universal || '—'}</p>
-                                                </div>
-                                                
-                                                {/* BOTONES DE ACCIÓN (Ocupan ambas filas visualmente con row-span o flex vertical) */}
-                                                <div className="px-4 py-3 flex flex-col justify-center items-center border-l border-slate-100" style={{ gridRow: 'span 2' }}>
+                                    <React.Fragment key={item.fila_num}>
+                                        {/* FILA 1: CATÁLOGO */}
+                                        <tr className={`${bgRow1} border-t-2 border-slate-200 transition-colors`}>
+                                            <td className="py-3 px-4 border-r border-slate-100 text-center align-middle">
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-slate-100">Catálogo</span>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className="font-bold text-slate-800 whitespace-normal line-clamp-2" title={item.nombre_catalogo}>{item.nombre_catalogo}</p>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_catalogo || '—'}</p>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className={`font-mono text-xs ${diffModelo ? 'text-amber-600 font-bold' : 'text-slate-600'}`}>{item.modelo_catalogo || '—'}</p>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className={`font-mono text-xs ${diffCodigo ? 'text-amber-600 font-bold' : 'text-slate-600'}`}>{item.codigo_universal || '—'}</p>
+                                            </td>
+                                            
+                                            {/* BOTONES: Hacen rowSpan=2 para abarcar ambas filas */}
+                                            <td rowSpan={2} className="py-3 px-4 align-middle bg-white border-l border-slate-100">
+                                                <div className="flex flex-col gap-2 justify-center w-full">
                                                     {isAceptado ? (
-                                                        <span className="text-emerald-600 font-bold text-[11px] flex items-center gap-1 bg-emerald-50 px-2.5 py-1.5 rounded-lg"><Check className="w-3.5 h-3.5" /> Vinculado</span>
+                                                        <span className="text-emerald-700 font-bold text-[11px] flex items-center justify-center gap-1.5 bg-emerald-100 border border-emerald-200 py-2 rounded-lg"><Check className="w-4 h-4" /> Vinculado</span>
                                                     ) : isRechazado ? (
-                                                        <span className="text-slate-500 font-bold text-[11px] flex items-center gap-1 bg-slate-100 px-2.5 py-1.5 rounded-lg"><X className="w-3.5 h-3.5" /> Ignorado</span>
+                                                        <span className="text-slate-500 font-bold text-[11px] flex items-center justify-center gap-1.5 bg-slate-100 border border-slate-200 py-2 rounded-lg"><X className="w-4 h-4" /> Ignorado</span>
                                                     ) : (
-                                                        <div className="flex flex-col gap-1.5 w-full">
+                                                        <>
                                                             <button
                                                                 onClick={() => handleAceptarUno(item)}
-                                                                className="w-full py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1"
+                                                                className="w-full py-2 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 text-emerald-800 rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
                                                             >
-                                                                <Check className="w-3 h-3" /> Aceptar
+                                                                <Check className="w-3.5 h-3.5" /> Aceptar
                                                             </button>
                                                             <button
                                                                 onClick={() => setRechazados(prev => new Set([...prev, item.fila_num]))}
-                                                                className="w-full py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1"
+                                                                className="w-full py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
                                                             >
-                                                                <X className="w-3 h-3" /> Ignorar
+                                                                <X className="w-3.5 h-3.5" /> Ignorar
                                                             </button>
-                                                        </div>
+                                                        </>
                                                     )}
                                                 </div>
+                                            </td>
+                                        </tr>
 
-                                                {/* ---- FILA 2: PROVEEDOR ---- */}
-                                                <div className="py-2.5 px-4 flex flex-col items-center justify-center bg-indigo-50/50 border-r border-slate-100">
-                                                    <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">{proveedor}</span>
-                                                    <span className="text-[9px] text-indigo-400 mt-0.5">NUEVO LOTE</span>
+                                        {/* FILA 2: PROVEEDOR */}
+                                        <tr className={`${bgRow2} transition-colors`}>
+                                            <td className="py-3 px-4 border-r border-slate-100 text-center align-middle">
+                                                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-indigo-100">{proveedor}</span>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className="font-medium text-slate-600 whitespace-normal line-clamp-2" title={item.descripcion_proveedor}>{item.descripcion_proveedor}</p>
+                                                <div className="mt-1.5 flex items-center gap-3">
+                                                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-600 shadow-sm">Dist: <b>{fmtMx(item.dist)}</b></span>
+                                                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-600 shadow-sm">Men: <b>{fmtMx(item.menudeo)}</b></span>
                                                 </div>
-                                                <div className="py-2.5 px-4 flex items-center justify-between">
-                                                    <p className="text-slate-600 line-clamp-1 mr-2" title={item.descripcion_proveedor}>{item.descripcion_proveedor}</p>
-                                                    <div className="shrink-0 text-[10px] text-slate-400 flex items-center gap-2 font-mono">
-                                                        <span>Dist: <b className="text-slate-600">{fmtMx(item.dist)}</b></span>
-                                                        <span>Men: <b className="text-slate-600">{fmtMx(item.menudeo)}</b></span>
-                                                    </div>
-                                                </div>
-                                                <div className="py-2.5 px-4 flex items-center">
-                                                    <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_proveedor || '—'}</p>
-                                                </div>
-                                                <div className="py-2.5 px-4 flex items-center">
-                                                    <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-[11px] ${diffModelo ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>{item.sku_proveedor || '—'}</span>
-                                                </div>
-                                                <div className="py-2.5 px-4 flex items-center">
-                                                    <p className={`font-mono text-[11px] ${diffCodigo ? 'font-bold text-amber-600' : 'text-slate-600'}`}>{item.codigo_barra || '—'}</p>
-                                                </div>
-
-                                            </div>
-                                        </td>
-                                    </tr>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_proveedor || '—'}</p>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <span className={`font-mono text-xs px-1.5 py-0.5 rounded ${diffModelo ? 'bg-amber-100 text-amber-800 font-bold' : 'bg-slate-100 text-slate-800'}`}>{item.sku_proveedor || '—'}</span>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className={`font-mono text-xs ${diffCodigo ? 'font-bold text-amber-600' : 'text-slate-600'}`}>{item.codigo_barra || '—'}</p>
+                                            </td>
+                                        </tr>
+                                    </React.Fragment>
                                 );
                             })}
                         </tbody>
