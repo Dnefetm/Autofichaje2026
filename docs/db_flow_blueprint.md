@@ -1,4 +1,22 @@
-# DB Flow Blueprint & System Diagnostics
+# Project Master Blueprint (Frontend & DB Flow)
+
+Este documento es el **plano unificado** del proyecto Autofichaje2026. Integra las directrices de interfaz humana (Frontend/UI) con los diagnósticos y flujos duros de la base de datos (Backend/Supabase).
+
+## 1. Filosofía Core y Frontend (Orientación al Operador Humano)
+El sistema gestiona operaciones masivas, pero su fin último es ser operado por humanos de forma intuitiva, rápida y sin fricción. Todo flujo técnico (BD) debe subordinarse a estas reglas de interfaz:
+
+- **Transparencia y Cero Bloqueos:** El sistema nunca ejecuta vínculos destructivos sin confirmación visual del operador. La interfaz nunca debe congelarse; cargas de >10k filas deben ser procesadas en memoria en el servidor (Node.js) con paginación obligatoria en el cliente.
+- **Simplicidad Visual (Patrón Top/Bottom):** En pantallas de comparación masiva, los datos comparables se alinean verticalmente en una tabla HTML (Fila Superior: Catálogo / Fila Inferior: Proveedor). Prohibido el uso de vistas horizontales comprimidas ("lado a lado").
+- **Resaltado Semántico Inteligente:**
+  - **Emerald (Verde):** Éxito, vinculado, completado.
+  - **Amber (Naranja/Negritas):** Advertencia, discrepancia exacta detectada entre orígenes. Único color para dirigir el ojo humano.
+  - **Indigo (Azul):** Origen externo (proveedor).
+- **In-Memory Joins vs URL Limits:** Las consultas Supabase `.in()` fallan por límites de URL con arreglos gigantes. Para cruzar >1000 filas, descargar catálogo filtrado y hacer *matching* en memoria.
+- **Tolerancia a Índices Parciales:** En inserciones masivas complejas (ej. `proveedor_articulos_alias`), usar condicionales `SELECT` -> `INSERT/UPDATE` en lugar de `UPSERT ON CONFLICT`, ya que Postgres bloquea los UPSERTs sobre índices con `WHERE`.
+
+---
+
+## 2. DB Flow & System Diagnostics
 
 - **Schema hash:** `a59936423214477ddb240c5276e0ac8022f41381b474fbc2e54bce4deb9114e0`
 - **Processes hash:** `2b9b9626ce5fbf7b21c17d9f3710f9b374805695443a8862d51bdfc9f4375bb5`
