@@ -1,198 +1,312 @@
 'use client';
+
 import { useState } from 'react';
-import { AlertTriangle, Check, Loader2, ListChecks, CheckSquare } from 'lucide-react';
+import { CheckSquare, ArrowUpRight, ArrowDownRight, Check, Loader2, Sparkles, Filter } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-export function PriceConfirmationPanelClient({ importacionId, proveedor, costos, ausentes = [] }: { importacionId: string, proveedor: string, costos: any[], ausentes?: any[] }) {
-    const [tab, setTab] = useState<'individual' | 'lote' | 'todos' | 'ausentes'>('individual');
-    const [loading, setLoading] = useState(false);
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+export interface CostoItem {
+    id: string;
+    articulo_id: string;
+    modelo_excel: string;
+    marca_excel: string;
+    codigo_universal_excel: string;
+    descripcion_excel: string;
+    tipo_costo: string;
+    valor: number;
+    moneda: string;
+    valor_anterior: number | null;
+    delta_pct: number | null;
+    delta_val: number | null;
+}
+
+export interface ProductoAgrupado {
+    key: string;
+    articulo_id: string;
+    modelo: string;
+    marca: string;
+    codigo: string;
+    descripcion: string;
+    precios: {
+        tipo_costo: string;
+        valor: number;
+        valor_anterior: number | null;
+        delta_pct: number | null;
+        delta_val: number | null;
+        id: string;
+    }[];
+    tiene_cambio: boolean;
+}
+
+export function PriceConfirmationPanelClient({
+    importacionId,
+    proveedor,
+    costos = [],
+    ausentes = []
+}: {
+    importacionId: string;
+    proveedor: string;
+    costos: CostoItem[];
+    ausentes?: any[];
+}) {
     const router = useRouter();
+    const [loading, setLoading] = useState(false);
+    const [filtro, setFiltro] = useState<'todos' | 'con_cambio' | 'nuevos'>('todos');
+    const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+
+    // Agrupar los 4 tipos de costo en 1 sola fila por producto
+    const productosMap = new Map<string, ProductoAgrupado>();
+
+    (costos || []).forEach(c => {
+        const prodKey = `${c.articulo_id || ''}-${c.modelo_excel || ''}-${c.codigo_universal_excel || ''}`;
+        if (!productosMap.has(prodKey)) {
+            productosMap.set(prodKey, {
+                key: prodKey,
+                articulo_id: c.articulo_id,
+                modelo: c.modelo_excel,
+                marca: c.marca_excel,
+                codigo: c.codigo_universal_excel,
+                descripcion: c.descripcion_excel,
+                precios: [],
+                tiene_cambio: false
+            });
+        }
+
+        const prod = productosMap.get(prodKey)!;
+        const tieneVariacion = c.valor_anterior !== null && c.valor !== c.valor_anterior;
+        if (tieneVariacion) prod.tiene_cambio = true;
+
+        prod.precios.push({
+            tipo_costo: c.tipo_costo,
+            valor: c.valor,
+            valor_anterior: c.valor_anterior,
+            delta_pct: c.delta_pct,
+            delta_val: c.delta_val,
+            id: c.id
+        });
+    });
+
+    const productos = Array.from(productosMap.values());
+
+    const productosFiltrados = productos.filter(p => {
+        if (filtro === 'con_cambio') return p.tiene_cambio;
+        if (filtro === 'nuevos') return p.precios.some(pr => pr.valor_anterior === null);
+        return true;
+    });
+
+    const fmtMx = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            setSelectedIds(new Set(costos.map(c => c.id)));
+            setSelectedKeys(new Set(productosFiltrados.map(p => p.key)));
         } else {
-            setSelectedIds(new Set());
+            setSelectedKeys(new Set());
         }
     };
 
-    const handleSelectOne = (id: string, checked: boolean) => {
-        const newSet = new Set(selectedIds);
-        if (checked) newSet.add(id);
-        else newSet.delete(id);
-        setSelectedIds(newSet);
+    const handleSelectOne = (key: string, checked: boolean) => {
+        const next = new Set(selectedKeys);
+        if (checked) next.add(key);
+        else next.delete(key);
+        setSelectedKeys(next);
     };
 
-    const handleConfirm = async () => {
+    const handleConfirmar = async (soloSeleccionados: boolean = false) => {
         setLoading(true);
         try {
-            const body = {
-                importacion_id: importacionId,
-                proveedor,
-                modo: tab,
-                ids: tab === 'individual' ? Array.from(selectedIds) : null
-            };
+            // Extraer todos los IDs de costos que se van a confirmar
+            let idsToConfirm: string[] = [];
+            if (soloSeleccionados) {
+                productos
+                    .filter(p => selectedKeys.has(p.key))
+                    .forEach(p => p.precios.forEach(pr => idsToConfirm.push(pr.id)));
+            } else {
+                costos.forEach(c => idsToConfirm.push(c.id));
+            }
 
             const res = await fetch('/api/precios/confirmar', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                body: JSON.stringify({
+                    importacion_id: importacionId,
+                    proveedor,
+                    modo: soloSeleccionados ? 'individual' : 'todos',
+                    ids: soloSeleccionados ? idsToConfirm : null
+                })
             });
 
-            if (res.ok) {
-                alert(`¡Precios confirmados con éxito!`);
-                router.push(`/precios/${encodeURIComponent(proveedor)}/historial`);
-            } else {
-                alert('Error al confirmar precios');
-            }
-        } catch (e) {
-            alert('Error de red');
+            if (!res.ok) throw new Error('Error al confirmar precios');
+
+            alert('¡Precios actualizados y vigentes con éxito!');
+            router.push(`/precios/${encodeURIComponent(proveedor)}`);
+        } catch (e: any) {
+            alert(e.message || 'Error al confirmar');
         } finally {
             setLoading(false);
         }
     };
 
+    const tiposCostoOrden = ['distribuidor', 'subdistribuidor', 'mayoreo', 'menudeo'];
+
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200">
-            <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between bg-slate-50">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            {/* Header del Panel */}
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-xl font-bold text-slate-900 flex items-center">
-                        <CheckSquare className="w-5 h-5 mr-2 text-indigo-600" /> Confirmar Costos
+                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <CheckSquare className="w-5 h-5 text-indigo-600" />
+                        Revisión de Precios: {proveedor}
                     </h2>
-                    <p className="text-sm text-slate-500 mt-1">Lote: <span className="font-mono bg-slate-200 px-1 py-0.5 rounded text-xs">{importacionId}</span></p>
+                    <p className="text-xs text-slate-500 mt-1">
+                        {productos.length} productos coincidentes · {costos.length} costos calculados
+                    </p>
                 </div>
-                <div className="flex bg-slate-200 p-1 rounded-lg">
-                    <button onClick={() => setTab('individual')} className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'individual' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:text-slate-900'}`}>Individual</button>
-                    <button onClick={() => setTab('lote')} className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'lote' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:text-slate-900'}`}>Lote de 200</button>
-                    <button onClick={() => setTab('todos')} className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'todos' ? 'bg-white shadow-sm text-indigo-700' : 'text-slate-600 hover:text-slate-900'}`}>Confirmar Todos</button>
-                    <button onClick={() => setTab('ausentes')} className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'ausentes' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-600 hover:text-amber-700'}`}>
-                        Ausentes {ausentes.length > 0 && <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-xs ml-1">{ausentes.length}</span>}
+
+                {/* Acciones principales */}
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => handleConfirmar(false)}
+                        disabled={loading || productos.length === 0}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        Aprobar Todos ({productos.length})
                     </button>
+                    {selectedKeys.size > 0 && (
+                        <button
+                            onClick={() => handleConfirmar(true)}
+                            disabled={loading}
+                            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2"
+                        >
+                            Aprobar Selección ({selectedKeys.size})
+                        </button>
+                    )}
                 </div>
-            </div>
-            
-            <div className="p-0">
-                {tab === 'individual' && (
-                    <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-                        <table className="min-w-full divide-y divide-slate-200">
-                            <thead className="bg-slate-50 sticky top-0 shadow-sm">
-                                <tr>
-                                    <th className="px-4 py-3 text-left w-10">
-                                        <input 
-                                            type="checkbox" 
-                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                            onChange={e => handleSelectAll(e.target.checked)}
-                                            checked={selectedIds.size === costos.length && costos.length > 0}
-                                        />
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Artículo ID</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Modelo</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Valor Anterior</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Nuevo Valor</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Δ $ / %</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-slate-200">
-                                {costos.map(c => (
-                                    <tr key={c.id} className="hover:bg-indigo-50/30 transition-colors">
-                                        <td className="px-4 py-3">
-                                            <input 
-                                                type="checkbox" 
-                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                                checked={selectedIds.has(c.id)}
-                                                onChange={e => handleSelectOne(c.id, e.target.checked)}
-                                            />
-                                        </td>
-                                        <td className="px-4 py-3 text-sm font-mono text-slate-500">{c.articulo_id?.substring(0,8)}...</td>
-                                        <td className="px-4 py-3 text-sm font-medium text-slate-900">{c.modelo_excel} <span className="bg-slate-100 px-2 py-0.5 ml-1 rounded text-xs font-normal text-slate-500">{c.tipo_costo}</span></td>
-                                        <td className="px-4 py-3 text-sm text-slate-500">{c.valor_anterior ? `${Number(c.valor_anterior).toLocaleString()} ${c.moneda}` : <span className="text-slate-400 italic">Nuevo</span>}</td>
-                                        <td className="px-4 py-3 text-sm font-medium text-slate-900">{Number(c.valor).toLocaleString()} {c.moneda}</td>
-                                        <td className="px-4 py-3 text-sm font-medium">
-                                            {c.delta_val !== null ? (
-                                                <div className={`flex items-center space-x-2 ${c.delta_val > 0 ? 'text-red-600' : c.delta_val < 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
-                                                    <span>{c.delta_val > 0 ? '+' : ''}{Number(c.delta_val).toLocaleString()} {c.moneda}</span>
-                                                    <span className="text-xs px-1.5 py-0.5 rounded bg-opacity-10 bg-current">
-                                                        {c.delta_pct > 0 ? '+' : ''}{Number(c.delta_pct).toFixed(1)}%
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-slate-400">-</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                                {costos.length === 0 && (
-                                    <tr>
-                                        <td colSpan={6} className="px-4 py-12 text-center text-slate-500">No hay costos listos para confirmar.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-                {tab === 'lote' && (
-                    <div className="text-center py-20 px-6 text-slate-600">
-                        <ListChecks className="w-12 h-12 mx-auto text-indigo-200 mb-4" />
-                        <h3 className="text-lg font-medium text-slate-900 mb-2">Confirmación por Lotes</h3>
-                        <p>Al confirmar, se procesarán automáticamente los próximos <strong>200 artículos</strong> con matching exacto que estén pendientes de publicación.</p>
-                    </div>
-                )}
-                {tab === 'todos' && (
-                    <div className="text-center py-20 px-6 text-slate-600">
-                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <CheckSquare className="w-8 h-8 text-red-600" />
-                        </div>
-                        <h3 className="text-lg font-medium text-slate-900 mb-2">Confirmación Total</h3>
-                        <p className="max-w-md mx-auto">Esta acción marcará como confirmados <strong>todos ({costos.length})</strong> los costos resueltos de esta importación.</p>
-                    </div>
-                )}
-                {tab === 'ausentes' && (
-                    <div className="overflow-x-auto max-h-[500px] overflow-y-auto bg-amber-50/30">
-                        <table className="min-w-full divide-y divide-amber-200">
-                            <thead className="bg-amber-100/50 sticky top-0 shadow-sm">
-                                <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-amber-700 uppercase">Artículo ID</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-amber-700 uppercase">Modelo</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-amber-700 uppercase">Tipo Costo</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-amber-700 uppercase">Último Valor Conocido</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-amber-100">
-                                {ausentes.map(c => (
-                                    <tr key={c.id} className="hover:bg-amber-50 transition-colors">
-                                        <td className="px-4 py-3 text-sm font-mono text-slate-500">{c.articulo_id?.substring(0,8)}...</td>
-                                        <td className="px-4 py-3 text-sm font-medium text-slate-900">{c.modelo_excel}</td>
-                                        <td className="px-4 py-3 text-sm text-slate-500"><span className="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs">{c.tipo_costo}</span></td>
-                                        <td className="px-4 py-3 text-sm font-medium text-amber-600">{Number(c.valor).toLocaleString()} {c.moneda}</td>
-                                    </tr>
-                                ))}
-                                {ausentes.length === 0 && (
-                                    <tr>
-                                        <td colSpan={4} className="px-4 py-12 text-center text-slate-500">
-                                            <AlertTriangle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                                            No hay artículos ausentes. Todos los artículos vigentes están en esta importación.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
             </div>
 
-            <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex justify-between items-center">
-                <div className="text-sm text-slate-500">
-                    {tab === 'individual' ? `${selectedIds.size} seleccionados de ${costos.length}` : ''}
+            {/* Barra de Filtros */}
+            <div className="px-6 py-3 border-b border-slate-100 bg-white flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                    <Filter className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="font-bold text-slate-600">Filtrar:</span>
+                    <button
+                        onClick={() => setFiltro('todos')}
+                        className={`px-3 py-1 rounded-lg font-medium transition-colors ${filtro === 'todos' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                        Todos ({productos.length})
+                    </button>
+                    <button
+                        onClick={() => setFiltro('con_cambio')}
+                        className={`px-3 py-1 rounded-lg font-medium transition-colors ${filtro === 'con_cambio' ? 'bg-amber-50 text-amber-700 font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                        Con Variación de Precio
+                    </button>
+                    <button
+                        onClick={() => setFiltro('nuevos')}
+                        className={`px-3 py-1 rounded-lg font-medium transition-colors ${filtro === 'nuevos' ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                        Nuevos
+                    </button>
                 </div>
-                <button 
-                    onClick={handleConfirm}
-                    disabled={loading || (tab === 'individual' && selectedIds.size === 0)}
-                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium shadow-sm hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                    {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
-                    {tab === 'lote' ? 'Confirmar Lote 200' : tab === 'todos' ? 'Confirmar Todos' : tab === 'ausentes' ? 'Ignorar Ausentes' : `Confirmar (${selectedIds.size})`}
-                </button>
+
+                <span className="text-slate-400">
+                    Mostrando {productosFiltrados.length} productos
+                </span>
+            </div>
+
+            {/* Tabla: 1 FILA POR PRODUCTO CON COMPARATIVA EN 2 RENGLONES */}
+            <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            <th className="py-3 px-4 w-10">
+                                <input
+                                    type="checkbox"
+                                    onChange={e => handleSelectAll(e.target.checked)}
+                                    checked={selectedKeys.size === productosFiltrados.length && productosFiltrados.length > 0}
+                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                            </th>
+                            <th className="py-3 px-4 min-w-[220px]">Producto / Catálogo</th>
+                            <th className="py-3 px-4 text-right">Distribuidor</th>
+                            <th className="py-3 px-4 text-right">Subdistribuidor</th>
+                            <th className="py-3 px-4 text-right">Mayoreo</th>
+                            <th className="py-3 px-4 text-right">Menudeo</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs">
+                        {productosFiltrados.map(prod => (
+                            <tr key={prod.key} className="hover:bg-slate-50/60 transition-colors group">
+                                {/* Checkbox */}
+                                <td className="py-3.5 px-4 align-top pt-4">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedKeys.has(prod.key)}
+                                        onChange={e => handleSelectOne(prod.key, e.target.checked)}
+                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                    />
+                                </td>
+
+                                {/* Producto y Detalles */}
+                                <td className="py-3.5 px-4 align-top">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                                            {prod.modelo || prod.codigo}
+                                        </span>
+                                        <span className="text-slate-500 font-semibold">{prod.marca}</span>
+                                    </div>
+                                    <p className="text-slate-600 mt-1 line-clamp-1 text-xs" title={prod.descripcion}>
+                                        {prod.descripcion}
+                                    </p>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                        ID Catálogo: {prod.articulo_id}
+                                    </span>
+                                </td>
+
+                                {/* 4 Columnas de Precios (Distribuidor, Subdist, Mayoreo, Menudeo) */}
+                                {tiposCostoOrden.map(tipo => {
+                                    const pInfo = prod.precios.find(pr => pr.tipo_costo?.toLowerCase() === tipo);
+                                    if (!pInfo) {
+                                        return (
+                                            <td key={tipo} className="py-3.5 px-4 text-right align-top text-slate-300">
+                                                —
+                                            </td>
+                                        );
+                                    }
+
+                                    const tienePrevio = pInfo.valor_anterior !== null;
+                                    const subio = pInfo.delta_val !== null && pInfo.delta_val > 0;
+                                    const bajo = pInfo.delta_val !== null && pInfo.delta_val < 0;
+
+                                    return (
+                                        <td key={tipo} className="py-3 px-4 text-right align-top">
+                                            {/* Renglón 1: Precio Previo */}
+                                            <div className="text-[11px] text-slate-400">
+                                                {tienePrevio ? fmtMx.format(pInfo.valor_anterior!) : <span className="italic text-slate-300">Previo: —</span>}
+                                            </div>
+
+                                            {/* Renglón 2: Precio Nuevo + Variación */}
+                                            <div className="font-bold text-slate-900 text-sm mt-0.5 flex items-center justify-end gap-1">
+                                                {fmtMx.format(pInfo.valor)}
+                                                {subio && (
+                                                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1 py-0.5 rounded flex items-center">
+                                                        <ArrowUpRight className="w-3 h-3" />
+                                                        +{pInfo.delta_pct?.toFixed(1)}%
+                                                    </span>
+                                                )}
+                                                {bajo && (
+                                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded flex items-center">
+                                                        <ArrowDownRight className="w-3 h-3" />
+                                                        {pInfo.delta_pct?.toFixed(1)}%
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
