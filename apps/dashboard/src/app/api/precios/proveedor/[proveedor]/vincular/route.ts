@@ -18,19 +18,41 @@ export async function POST(
         }
 
         // 1. Guardar o actualizar en proveedor_articulos_alias (persistente de por vida)
-        const { error: aliasErr } = await supabaseAdmin
+        const { data: existingAlias } = await supabaseAdmin
             .from('proveedor_articulos_alias')
-            .upsert({
-                proveedor,
-                codigo_excel: codigo_excel || '',
-                marca_excel: marca_excel || '',
-                modelo_excel: modelo_excel || '',
-                articulo_id,
-                estado_proveedor: 'activo',
-                ultima_vez_visto: new Date().toISOString()
-            }, {
-                onConflict: 'proveedor,codigo_excel,marca_excel,modelo_excel'
-            });
+            .select('id')
+            .eq('proveedor', proveedor)
+            .eq('codigo_excel', codigo_excel || '')
+            .limit(1)
+            .maybeSingle();
+
+        let aliasErr;
+        if (existingAlias) {
+            const { error: updErr } = await supabaseAdmin
+                .from('proveedor_articulos_alias')
+                .update({
+                    articulo_id,
+                    marca_excel: marca_excel || '',
+                    modelo_excel: modelo_excel || '',
+                    estado_proveedor: 'activo',
+                    ultima_vez_visto: new Date().toISOString()
+                })
+                .eq('id', existingAlias.id);
+            aliasErr = updErr;
+        } else {
+            const { error: insErr } = await supabaseAdmin
+                .from('proveedor_articulos_alias')
+                .insert({
+                    proveedor,
+                    codigo_excel: codigo_excel || '',
+                    marca_excel: marca_excel || '',
+                    modelo_excel: modelo_excel || '',
+                    articulo_id,
+                    estado_proveedor: 'activo',
+                    ultima_vez_visto: new Date().toISOString()
+                });
+            aliasErr = insErr;
+        }
 
         if (aliasErr) {
             return NextResponse.json({ ok: false, error: `Error guardando alias: ${aliasErr.message}` }, { status: 500 });
