@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
-import { ArrowLeft, TrendingUp, TrendingDown, Plus, Minus, Minus as Equal } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, Plus, Minus } from 'lucide-react';
+import { ActivarListaButton } from '@/components/precios/ActivarListaButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -140,19 +141,41 @@ export default async function ResumenLotePage(props: {
                 >
                     <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Historial
                 </Link>
-                <h1 className="text-2xl font-bold text-slate-900">
-                    Resumen del Lote
-                </h1>
-                <p className="text-sm text-slate-500 mt-1">
-                    {imp?.nombre_archivo} · {imp?.total_filas?.toLocaleString()} productos ·{' '}
-                    {imp?.creado_el ? new Date(imp.creado_el).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
-                </p>
-                {!hasPrevious && (
-                    <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg inline-block">
-                        No hay lista anterior confirmada de este proveedor para comparar. Se muestra el catálogo completo como nuevo.
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-900">
+                            Resumen del Lote
+                        </h1>
+                        <p className="text-sm text-slate-500 mt-1">
+                            {imp?.nombre_archivo} · {imp?.total_filas?.toLocaleString()} productos ·{' '}
+                            {imp?.creado_el ? new Date(imp.creado_el).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+                        </p>
+                        {imp?.estado === 'completado' && (
+                            <span className="mt-2 inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                                ● Lista Activa y Vigente
+                            </span>
+                        )}
+                        {!hasPrevious && (
+                            <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg inline-block">
+                                Sin lista anterior para comparar. Todo aparece como Nuevo.
+                            </div>
+                        )}
                     </div>
-                )}
+                    {/* Botón de acción principal: Activar lista */}
+                    {imp?.estado !== 'completado' && (
+                        <ActivarListaButton importacionId={importacionId} proveedor={proveedorDecoded} />
+                    )}
+                    {imp?.estado === 'completado' && (
+                        <Link
+                            href={`/precios/${encodeURIComponent(proveedorDecoded)}`}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors"
+                        >
+                            Ver Catálogo Completo →
+                        </Link>
+                    )}
+                </div>
             </header>
+
 
             {/* Tarjetas de Resumen */}
             <div className="px-8 py-6 grid grid-cols-2 md:grid-cols-4 gap-4">
