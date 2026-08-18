@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 interface PricingAuditCardProps {
     publicacionId: string;
     salePriceCalculated: number | null;
+    currentPrice?: number | null;
+    draftPrice?: number | null;
     pricingStatus: string | null;
     lastCalcAt: string | null;
     onOverrideUpdated: () => void;
@@ -15,6 +17,8 @@ interface PricingAuditCardProps {
 export default function PricingAuditCard({ 
     publicacionId, 
     salePriceCalculated, 
+    currentPrice,
+    draftPrice,
     pricingStatus, 
     lastCalcAt,
     onOverrideUpdated 
@@ -143,7 +147,7 @@ export default function PricingAuditCard({
     const handleApply = async (force = false) => {
         setApplying(true);
         try {
-            const finalPrice = editablePrice ? parseFloat(editablePrice) : (salePriceCalculated || 0);
+            const finalPrice = editablePrice ? parseFloat(editablePrice) : (draftPrice || salePriceCalculated || 0);
             const res = await fetch(`/api/catalog/external/${publicacionId}/pricing/apply`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -153,6 +157,17 @@ export default function PricingAuditCard({
             if (data.requires_confirmation) {
                 setConfirmingDelta({ delta: data.delta_percent, price: finalPrice });
             } else if (data.success) {
+                
+                // Si aprobamos un draft exitosamente usando el apply nativo, llamamos al nuevo batch approve por si acaso
+                if (draftPrice && !editablePrice) {
+                    await fetch(`/api/pricing/approve-drafts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ publicaciones: [publicacionId] })
+                    });
+                }
+
+                setEditablePrice('');
                 onOverrideUpdated();
             } else if (data.error) {
                 alert('Error: ' + data.error);
@@ -208,49 +223,67 @@ export default function PricingAuditCard({
             </div>
             
             <div className="p-5 flex-1 flex flex-col">
-                <div className="flex items-end justify-between mb-4">
-                    <div>
-                        <p className="text-xs text-slate-500 uppercase font-semibold mb-1">Precio Calculado (Sistema)</p>
-                        <p className="text-2xl font-bold text-slate-900">{fmt(salePriceCalculated)}</p>
+                <div className="flex flex-col gap-4 mb-4">
+                    {/* Fila 1: Precio Actual ML */}
+                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                        <p className="text-xs text-slate-500 uppercase font-semibold mb-1">Precio Actual Mercado Libre</p>
+                        <p className="text-2xl font-bold text-slate-700">{fmt(currentPrice)}</p>
                         <p className="text-[10px] text-slate-400 mt-1">
-                            Actualizado: {lastCalcAt ? formatDate(lastCalcAt) : 'Nunca'}
+                            El precio vigente en la plataforma.
                         </p>
-                        {history[0]?.details?.rule_name && (
-                            <p className="text-[10px] text-indigo-600 mt-1 font-semibold bg-indigo-50 inline-block px-1.5 py-0.5 rounded">
-                                Regla aplicada: {history[0].details.rule_name}
-                            </p>
-                        )}
                     </div>
+
+                    {/* Fila 2: Precio Draft (Si existe) */}
+                    {draftPrice && draftPrice !== currentPrice && (
+                        <div className="bg-amber-50 rounded-lg p-3 border border-amber-200 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-16 h-16 bg-amber-100 rounded-bl-full -z-10" />
+                            <p className="text-xs text-amber-700 uppercase font-bold mb-1 flex items-center gap-1.5">
+                                <AlertCircle className="w-3.5 h-3.5" /> Precio Sugerido (Draft)
+                            </p>
+                            <div className="flex items-end gap-3">
+                                <p className="text-2xl font-bold text-amber-900">{fmt(draftPrice)}</p>
+                                {currentPrice && (
+                                    <span className={cn("text-xs font-bold mb-1 px-1.5 py-0.5 rounded", 
+                                        draftPrice > currentPrice ? "text-green-700 bg-green-100" : "text-red-700 bg-red-100")}>
+                                        {draftPrice > currentPrice ? '↑' : '↓'} {Math.abs(((draftPrice - currentPrice) / currentPrice) * 100).toFixed(1)}%
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-[10px] text-amber-600 mt-1.5 font-medium">
+                                Cambios en componentes o bundles generaron esta sugerencia. Pendiente de aprobación.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Apply section */}
-                <div className="mb-4 border-t border-slate-100 pt-3">
-                    <label className="text-xs text-slate-500 font-semibold mb-1 block">Editar antes de aplicar</label>
+                <div className="mb-4 border-t border-slate-100 pt-4">
+                    <label className="text-xs text-slate-500 font-semibold mb-2 block">Acción / Sobreescritura</label>
                     <div className="flex gap-2 items-center">
                         <input
                             type="number"
-                            placeholder={String(salePriceCalculated ?? '')}
+                            placeholder={String(draftPrice || currentPrice || salePriceCalculated || '')}
                             value={editablePrice}
                             onChange={(e) => setEditablePrice(e.target.value)}
-                            className="border border-slate-200 rounded px-2 py-1.5 w-32 text-sm outline-none focus:border-indigo-400"
+                            className="border border-slate-200 rounded px-3 py-2 w-32 text-sm outline-none focus:border-indigo-400"
                         />
                         <button
-                            disabled={applying || (pricingStatus !== 'valid' && pricingStatus !== 'estimated_params' && pricingStatus !== 'override')}
+                            disabled={applying || (pricingStatus !== 'valid' && pricingStatus !== 'estimated_params' && pricingStatus !== 'override_active')}
                             onClick={() => handleApply(false)}
-                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded flex items-center gap-1.5 text-xs font-bold transition-colors disabled:opacity-50"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded flex items-center gap-1.5 text-xs font-bold transition-colors disabled:opacity-50"
                         >
-                            {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
-                            Aplicar a precio actual
+                            {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                            {draftPrice && !editablePrice ? 'Aprobar Borrador' : 'Aplicar Precio'}
                         </button>
                     </div>
                     {pricingStatus === 'estimated_params' && (
-                        <p className="text-amber-600 text-[10px] mt-1.5">
-                            ⚠️ Comisión y retenciones son estimadas. El precio se ajustará automáticamente cuando Meli reporte valores reales.
+                        <p className="text-amber-600 text-[10px] mt-2">
+                            ⚠️ Comisión y retenciones son estimadas.
                         </p>
                     )}
                     {pricingStatus === 'missing_cost' && (
-                        <p className="text-rose-600 text-[10px] mt-1.5">
-                            ❌ Sin costo menudeo vigente para este artículo. Carga el costo antes de aplicar.
+                        <p className="text-rose-600 text-[10px] mt-2">
+                            ❌ Sin costo menudeo vigente.
                         </p>
                     )}
                 </div>

@@ -657,9 +657,16 @@ const { data: allDupes } = await supabaseAdmin
 (allDupes ?? []).forEach((a: any) => affectedArticulos.add(a.articulo_id));
 
 // 4) Encolar recalc_pricing_bundle
-const recalcRows = [...affectedArticulos].map(articulo_id => ({
+const { data: mappings } = await supabaseAdmin
+  .from('mapeo_publicacion_articulo')
+  .select('publicacion_id')
+  .in('articulo_id', [...affectedArticulos]);
+
+const affectedPublicaciones = new Set(mappings?.map(m => m.publicacion_id));
+
+const recalcRows = [...affectedPublicaciones].map(publicacion_id => ({
 type: 'recalc_pricing_bundle',
-payload: { articulo_id },
+payload: { publicacion_id },
 priority: 3,
 status: 'pending'
 }));
