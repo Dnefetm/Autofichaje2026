@@ -78,30 +78,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         let chunk: any[] = [];
         let totalProcesadas = 0;
 
-        // Limpieza Idempotente para prevenir duplicados si reintenta
-        await supabaseAdmin.from('listas_precios_raw_staging').delete().eq('importacion_id', id);
+        // Limpieza Idempotente en listas_precios_raw
+        await supabaseAdmin.from('listas_precios_raw').delete().eq('importacion_id', id);
 
         const rawCols = m.columnas_a_guardar ?? m.columnasAGuardar ?? [];
         const usaTodas = !rawCols || rawCols.length === 0;
         const colGuardarSet = new Set(Array.isArray(rawCols) ? rawCols : []);
-        
-        // Candado Anti "0 filas": validar columnas mapeadas
-        const missingCols: string[] = [];
-        if (m.columna_modelo && !headers.includes(m.columna_modelo)) missingCols.push(m.columna_modelo);
-        if (m.columna_codigo && !headers.includes(m.columna_codigo)) missingCols.push(m.columna_codigo);
-        if (Array.isArray(m.precios)) {
-            m.precios.forEach((p: any) => {
-                if (p.columna && !headers.includes(p.columna)) missingCols.push(p.columna);
-            });
-        }
-        
-        if (missingCols.length > 0) {
-            const errStr = `Faltan columnas mapeadas en el Excel: ${missingCols.join(', ')}`;
-            await logEvento(supabaseAdmin, id, 'ERROR', errStr);
-            // Revertir a pendiente_mapeo para permitir que el usuario vuelva a guardar
-            await supabaseAdmin.from('importaciones_excel').update({ estado: 'pendiente_mapeo' }).eq('id', id);
-            return NextResponse.json({ ok: false, error: errStr }, { status: 400 });
-        }
         
         for (let i = 1; i < allRows.length; i++) {
             const vals = allRows[i] || [];
@@ -126,19 +108,38 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
             });
             totalProcesadas++;
 
-            if (chunk.length >= 1000) {
-                const { error } = await supabaseAdmin.from('listas_precios_raw_staging').insert(chunk);
-                if (error) throw new Error(`Fallo insertando a staging: ${error.message}`);
+            if (chunk.length >= 2000) {
+                const { error } = await supabaseAdmin.from('listas_precios_raw').insert(chunk);
+                if (error) throw new Error(`Fallo insertando a raw: ${error.message}`);
                 chunk = [];
-                // Liberar memoria y ceder al event loop
                 await new Promise(resolve => setTimeout(resolve, 5));
             }
         }
 
         if (chunk.length > 0) {
-            const { error } = await supabaseAdmin.from('listas_precios_raw_staging').insert(chunk);
-            if (error) throw new Error(`Fallo final staging: ${error.message}`);
+            const { error } = await supabaseAdmin.from('listas_precios_raw').insert(chunk);
+            if (error) throw new Error(`Fallo final raw: ${error.message}`);
         }
+
+        // Marcar la lista como vigente en listas_precios_proveedor para que v_lista_precios_proveedor la muestre
+        await supabaseAdmin
+            .from('listas_precios_proveedor')
+            .update({ vigente: false, fecha_vigor_hasta: new Date().toISOString().split('T')[0] })
+            .eq('proveedor', proveedor)
+            .eq('vigente', true)
+            .neq('importacion_id', id);
+
+        await supabaseAdmin
+            .from('listas_precios_proveedor')
+            .upsert({
+                proveedor,
+                importacion_id: id,
+                vigente: true,
+                fecha_vigor_desde: new Date().toISOString().split('T')[0],
+                total_filas: totalProcesadas
+            }, {
+                onConflict: 'importacion_id'
+            });
 
         // SET TOTAL FILAS AND STATE!
         await supabaseAdmin.from('importaciones_excel').update({
@@ -148,7 +149,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
              heartbeat_at: new Date().toISOString()
         }).eq('id', id);
 
-        await logEvento(supabaseAdmin, id, 'STAGING_COMPLETO', `Se volcaron ${totalProcesadas} filas planas en cuarentena. Calculando diferencias DB.`);
+        await logEvento(supabaseAdmin, id, 'RAW_COMPLETO', `Se guardaron ${totalProcesadas} filas en el catálogo crudo del proveedor.`);
 
     } catch (e: any) {
         console.error("Error Parseando:", e);

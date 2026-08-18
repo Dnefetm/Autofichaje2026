@@ -98,53 +98,23 @@ async function procesarMapear(req: NextRequest, props: { params: Promise<{ id: s
     // while processing the heavy SQL operations in the background.
     
         try {
-            const { data: impData } = await supabaseAdmin.from('importaciones_excel').select('proveedor').eq('id', id).single();
+            const { data: impData } = await supabaseAdmin.from('importaciones_excel').select('proveedor, total_filas').eq('id', id).single();
             if (impData) {
-                // Mover filas de staging a raw en chunks para evitar timeouts
-                let moved = 0;
-                while (true) {
-                    const { data: chunk, error: fetchErr } = await supabaseAdmin
-                        .from('listas_precios_raw_staging')
-                        .select('id, importacion_id, proveedor, fila_num, payload, columnas_guardadas')
-                        .eq('importacion_id', id)
-                        .range(0, 999);
-                        
-                    if (fetchErr) throw fetchErr;
-                    if (!chunk || chunk.length === 0) break;
-                    
-                    const ids = chunk.map(c => c.id);
-                    const insertData = chunk.map(c => ({
-                        importacion_id: c.importacion_id,
-                        proveedor: c.proveedor,
-                        fila_num: c.fila_num,
-                        payload: c.payload,
-                        columnas_guardadas: c.columnas_guardadas
-                    }));
-                    
-                    const { error: insErr } = await supabaseAdmin.from('listas_precios_raw').insert(insertData);
-                    if (insErr) throw insErr;
-                    
-                    const { error: delErr } = await supabaseAdmin.from('listas_precios_raw_staging').delete().in('id', ids);
-                    if (delErr) throw delErr;
-                    
-                    moved += chunk.length;
-                }
-                
-                // Actualizar resumen_diff con valores dummy para la UI
-                await supabaseAdmin.from('importaciones_excel').update({
-                    resumen_diff: { totales: moved, nuevos: moved, modificados: 0, eliminados: 0 }
-                }).eq('id', id);
-
+                // Ejecutar matching directamente sobre listas_precios_raw
                 const { error: matchErr } = await supabaseAdmin.rpc('fn_match_precios_v2', {
                     p_importacion_id: id,
                     p_finalizar: false
                 });
                 if (matchErr) throw new Error("Fallo fn_match_precios_v2: " + matchErr.message);
                 
-                await supabaseAdmin.from('importaciones_excel').update({ estado: 'en_revision' }).eq('id', id);
+                await supabaseAdmin.from('importaciones_excel').update({
+                    resumen_diff: { totales: impData.total_filas || 0, nuevos: impData.total_filas || 0, modificados: 0, eliminados: 0 },
+                    estado: 'en_revision',
+                    ultima_actividad: new Date().toISOString()
+                }).eq('id', id);
             }
         } catch (err: any) {
-            console.error("[Mapear] Error calculando diff:", err);
+            console.error("[Mapear] Error en matching:", err);
             await supabaseAdmin.from('importaciones_excel').update({ estado: 'error', error_mensaje: err.message, ultima_actividad: new Date().toISOString() }).eq('id', id);
             return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
         }
