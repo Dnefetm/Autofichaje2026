@@ -1,12 +1,16 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Trash2, RotateCcw, BarChart2 } from 'lucide-react';
 import Link from 'next/link';
 
 export function LoteActions({ importacion, proveedor }: { importacion: any, proveedor: string }) {
     const [restoring, setRestoring] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const router = useRouter();
+
+    const estadosEliminables = ['en_revision', 'pendiente_mapeo', 'error', 'cancelado', 'pendiente'];
+    const puedeEliminar = estadosEliminables.includes(importacion.estado);
 
     const handleRestore = async () => {
         setRestoring(true);
@@ -17,7 +21,6 @@ export function LoteActions({ importacion, proveedor }: { importacion: any, prov
                 body: JSON.stringify({ importacion_id: importacion.id })
             });
             if (res.ok) {
-                alert('Lote restaurado como vigente.');
                 router.refresh();
             } else {
                 const data = await res.json();
@@ -30,25 +33,61 @@ export function LoteActions({ importacion, proveedor }: { importacion: any, prov
         }
     };
 
+    const handleEliminar = async () => {
+        if (!confirm(`¿Seguro que deseas eliminar esta importación?\n\nArchivo: ${importacion.nombre_archivo || importacion.id}\nEsto eliminará también los costos calculados asociados a este lote.`)) return;
+
+        setDeleting(true);
+        try {
+            const res = await fetch(`/api/precios/importar/${importacion.id}/eliminar`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (res.ok && data.ok) {
+                router.refresh();
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        } catch (e) {
+            alert('Error de red');
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     return (
-        <div className="flex space-x-2">
-            {!importacion.vigente && importacion.estado !== 'pendiente' && (
-                <button 
+        <div className="flex items-center gap-2">
+            {/* Ver Resumen del Lote */}
+            <Link
+                href={`/precios/${encodeURIComponent(proveedor)}/historial/${importacion.id}/resumen`}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+            >
+                <BarChart2 className="w-3.5 h-3.5" />
+                Ver Resumen
+            </Link>
+
+            {/* Restaurar lote anterior */}
+            {!importacion.vigente && importacion.estado === 'completado' && (
+                <button
                     onClick={handleRestore}
                     disabled={restoring}
-                    className="inline-flex items-center px-4 py-2 bg-white border border-indigo-200 rounded-md font-medium text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 shadow-sm text-sm transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-indigo-200 rounded-lg text-sm font-medium text-indigo-700 hover:bg-indigo-50 transition-colors shadow-sm disabled:opacity-50"
                 >
-                    {restoring ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Restaurar lote anterior
+                    {restoring ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                    Restaurar
                 </button>
             )}
-            
-            <Link 
-                href={`/precios/${encodeURIComponent(proveedor)}/historial/${importacion.id}/confirmar`}
-                className="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-medium text-white hover:bg-indigo-700 shadow-sm text-sm transition-colors"
-            >
-                Confirmar Precios
-            </Link>
+
+            {/* Eliminar importación */}
+            {puedeEliminar && (
+                <button
+                    onClick={handleEliminar}
+                    disabled={deleting}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-rose-200 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors shadow-sm disabled:opacity-50"
+                >
+                    {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    Eliminar
+                </button>
+            )}
         </div>
     );
 }
