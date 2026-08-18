@@ -57,7 +57,7 @@ async function procesarImportacion(importacionId: string) {
 
   async function flushChunk() {
     if (chunk.length === 0) return;
-    const { error } = await sb.from('listas_precios_raw_staging').insert(chunk);
+    const { error } = await sb.from('listas_precios_raw_staging').upsert(chunk, { onConflict: 'importacion_id,fila_num' });
     if (error) throw new Error(`Fallo insertando a staging: ${error.message}`);
     
     // Heartbeat
