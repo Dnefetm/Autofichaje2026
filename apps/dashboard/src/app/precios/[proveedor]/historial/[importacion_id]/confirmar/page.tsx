@@ -9,15 +9,20 @@ export default async function ConfirmarPageWrapper(props: { params: Promise<{ pr
 
     let allCostos: any[] = [];
     let from = 0;
+    let fetchError: any = null;
     while (true) {
-        const { data: chunk, error } = await supabaseAdmin
+        const { data: chunk, error: err } = await supabaseAdmin
             .from('costos_articulo')
             .select('*')
             .eq('importacion_id', params.importacion_id)
             .in('estado_match', ['match_exacto', 'completado', 'confirmado'])
             .range(from, from + 999);
 
-        if (error || !chunk || chunk.length === 0) break;
+        if (err) {
+            fetchError = err;
+            break;
+        }
+        if (!chunk || chunk.length === 0) break;
         allCostos = allCostos.concat(chunk);
         if (chunk.length < 1000) break;
         from += 1000;
@@ -72,8 +77,8 @@ export default async function ConfirmarPageWrapper(props: { params: Promise<{ pr
                 <ArrowLeft className="w-4 h-4 mr-1" /> Volver al historial
             </Link>
             
-            {error ? (
-                <div className="text-red-500">Error: {error.message}</div>
+            {fetchError ? (
+                <div className="text-red-500">Error: {fetchError.message}</div>
             ) : (
                 <PriceConfirmationPanelClient 
                     importacionId={params.importacion_id} 
