@@ -58,9 +58,8 @@ async function runTest() {
         .from('importaciones_excel')
         .insert({
             proveedor: DUMMY_PROVEEDOR,
-            archivo_path: filePath,
-            estado: 'pendiente_mapeo',
-            usuario_id: null // Se asume puede ser nulo o usar service role
+            nombre_archivo: filePath,
+            estado: 'pendiente_mapeo'
         })
         .select()
         .single();
