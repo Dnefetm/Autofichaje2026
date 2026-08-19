@@ -18,13 +18,7 @@ export default function AuditoriaPricingPage() {
         setLoading(true);
         const { data } = await supabase
             .from('publication_pricing_drafts')
-            .select(
-                *,
-                publicacion:publicaciones_externas(
-                    id, titulo, precio_venta, sku_fabricante, category_id,
-                    marketplace:marketplace_configs(account_name)
-                )
-            )
+            .select('*, publicacion:publicaciones_externas(id, titulo, precio_venta, sku_fabricante, category_id, marketplace:marketplace_configs(account_name))')
             .eq('pricing_review_status', 'pending');
         setDrafts(data || []);
         setSelected(new Set());
@@ -148,3 +142,4 @@ export default function AuditoriaPricingPage() {
         </div>
     );
 }
+

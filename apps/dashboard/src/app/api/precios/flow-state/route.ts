@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+ï»¿import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -70,11 +70,11 @@ export async function GET(req: Request) {
 
         const step1 = { 
             state: ultimaImportacion ? 'done' : 'pending',
-            subtitle: ultimaImportacion ? \Lote #\\ : 'Sin lote'
+            subtitle: ultimaImportacion ? 'Lote #' : 'Sin lote'
         };
         const step2 = { 
             state: totalPendientes > 0 ? 'attention' : (ultimaImportacion ? 'skip' : 'pending'),
-            subtitle: totalPendientes > 0 ? \\ sin confirmar\ : (ultimaImportacion ? '0 cambios' : '')
+            subtitle: totalPendientes > 0 ? 'sin confirmar' : (ultimaImportacion ? '0 cambios' : '')
         };
         const step3 = { 
             state: isAplicada ? 'done' : 'pending',
@@ -84,9 +84,9 @@ export async function GET(req: Request) {
         if (!ultimaImportacion || isAplicada) {
             return NextResponse.json({
                 importacion: ultimaImportacion,
-                step1: { state: 'skip', subtitle: 'Lote al día' },
+                step1: { state: 'skip', subtitle: 'Lote al dia' },
                 step2: { state: 'skip', subtitle: '0 cambios' },
-                step3: { state: 'skip', subtitle: 'Todo al día' }
+                step3: { state: 'skip', subtitle: 'Todo al dia' }
             });
         }
 
@@ -98,3 +98,4 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: e.message }, { status: 500 });
     }
 }
+

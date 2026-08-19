@@ -18,9 +18,10 @@ export async function POST(req: Request) {
             throw error;
         }
 
-        return NextResponse.json({ success: true, message: ${publicaciones.length} publicaciones aprobadas y encoladas para sincronización. });
+        return NextResponse.json({ success: true, message: ` publicaciones aprobadas y encoladas para sincronización.` });
     } catch (err: any) {
         console.error('[POST /api/pricing/approve-drafts]', err);
         return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 });
     }
 }
+
