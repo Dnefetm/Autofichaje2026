@@ -115,10 +115,10 @@ export default async function VinculacionPage(props: {
     for (const r of allRaw) {
         const p = r.payload || {};
         const fila_num = r.fila_num;
-        const clave = p['CLAVE'] || p['CÓDIGO'] || '';
-        const codigo_barra = p['CÓDIGO DE BARRA SIN CERO'] || '';
+        const clave = p['CLAVE'] || p['C�DIGO'] || '';
+        const codigo_barra = p['C�DIGO DE BARRA SIN CERO'] || '';
         const marca = p['MARCA'] || '';
-        const descripcion = p['DESCRIPCIÓN LARGA'] || p['DESCRIPCION'] || '';
+        const descripcion = p['DESCRIPCI�N LARGA'] || p['DESCRIPCION'] || '';
         const dist = parseFloat(p['P.DIST (CON IVA)'] || '0') || 0;
         const menudeo = parseFloat(p['PRECIO MENUDEO (CON IVA)'] || '0') || 0;
 

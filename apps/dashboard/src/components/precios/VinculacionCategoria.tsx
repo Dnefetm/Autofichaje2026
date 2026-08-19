@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import React, { useState } from 'react';
 import { Loader2, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -27,7 +27,7 @@ interface Props {
     proveedor: string;
 }
 
-const fmtMx = (n: number) => n > 0 ? n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) : '—';
+const fmtMx = (n: number) => n > 0 ? n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) : 'â€”';
 
 export function VinculacionCategoria({ categoria, titulo, descripcion, color, items, proveedor }: Props) {
     const [expandido, setExpandido] = useState(true);
@@ -46,7 +46,7 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
     const pendientes = items.filter(i => !aceptados.has(i.fila_num) && !rechazados.has(i.fila_num));
 
     const handleAceptarTodos = async () => {
-        if (!confirm(`¿Confirmas vincular los ${pendientes.length} artículos de la categoría "${titulo}"?`)) return;
+        if (!confirm(`Â¿Confirmas vincular los ${pendientes.length} artÃ­culos de la categorÃ­a "${titulo}"?`)) return;
         setAceptando(true);
         try {
             const res = await fetch(`/api/precios/proveedor/${encodeURIComponent(proveedor)}/vincular-lote`, {
@@ -64,7 +64,7 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
             const data = await res.json();
             if (res.ok && data.ok) {
                 setAceptados(new Set(items.map(i => i.fila_num)));
-                router.refresh();
+                window.location.reload();
             } else {
                 alert(`Error: ${data.error}`);
             }
@@ -99,7 +99,7 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
 
     return (
         <div className={`rounded-2xl border ${c.border} overflow-hidden shadow-sm mb-8`}>
-            {/* Header de categoría */}
+            {/* Header de categorÃ­a */}
             <div className={`${c.bg} px-6 py-4 flex items-center justify-between`}>
                 <div className="flex items-center gap-3">
                     <button onClick={() => setExpandido(!expandido)} className="text-slate-500 hover:text-slate-700 bg-white/50 rounded p-1">
@@ -110,7 +110,7 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
                         <p className="text-sm text-slate-600 mt-0.5">{descripcion}</p>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ml-4 ${c.badge}`}>
-                        {pendientes.length} pendientes · {aceptados.size} aceptados · {rechazados.size} ignorados
+                        {pendientes.length} pendientes Â· {aceptados.size} aceptados Â· {rechazados.size} ignorados
                     </span>
                 </div>
                 {pendientes.length > 0 && (
@@ -132,11 +132,11 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
                         <thead className="bg-slate-100 sticky top-0 z-10 shadow-sm border-b border-slate-200">
                             <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                                 <th className="py-3.5 px-4 w-[90px] text-center border-r border-slate-200">Origen</th>
-                                <th className="py-3.5 px-4 w-auto">Descripción / Nombre</th>
+                                <th className="py-3.5 px-4 w-auto">DescripciÃ³n / Nombre</th>
                                 <th className="py-3.5 px-4 w-[12%]">Marca</th>
                                 <th className="py-3.5 px-4 w-[15%]">Modelo / Clave</th>
-                                <th className="py-3.5 px-4 w-[18%]">Cód. Barras</th>
-                                <th className="py-3.5 px-4 w-[120px] text-center bg-white">Acción</th>
+                                <th className="py-3.5 px-4 w-[18%]">CÃ³d. Barras</th>
+                                <th className="py-3.5 px-4 w-[120px] text-center bg-white">AcciÃ³n</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white">
@@ -158,22 +158,22 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
 
                                 return (
                                     <React.Fragment key={item.fila_num}>
-                                        {/* FILA 1: CATÁLOGO */}
+                                        {/* FILA 1: CATÃLOGO */}
                                         <tr className={`${bgRow1} border-t-2 border-slate-200 transition-colors`}>
                                             <td className="py-3 px-4 border-r border-slate-100 text-center align-middle">
-                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-slate-100">Catálogo</span>
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-slate-100">CatÃ¡logo</span>
                                             </td>
                                             <td className="py-3 px-4 align-middle">
                                                 <p className="font-bold text-slate-800 whitespace-normal line-clamp-2" title={item.nombre_catalogo}>{item.nombre_catalogo}</p>
                                             </td>
                                             <td className="py-3 px-4 align-middle">
-                                                <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_catalogo || '—'}</p>
+                                                <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_catalogo || 'â€”'}</p>
                                             </td>
                                             <td className="py-3 px-4 align-middle">
-                                                <p className={`font-mono text-xs ${diffModelo ? 'text-amber-600 font-bold' : 'text-slate-600'}`}>{item.modelo_catalogo || '—'}</p>
+                                                <p className={`font-mono text-xs ${diffModelo ? 'text-amber-600 font-bold' : 'text-slate-600'}`}>{item.modelo_catalogo || 'â€”'}</p>
                                             </td>
                                             <td className="py-3 px-4 align-middle">
-                                                <p className={`font-mono text-xs ${diffCodigo ? 'text-amber-600 font-bold' : 'text-slate-600'}`}>{item.codigo_universal || '—'}</p>
+                                                <p className={`font-mono text-xs ${diffCodigo ? 'text-amber-600 font-bold' : 'text-slate-600'}`}>{item.codigo_universal || 'â€”'}</p>
                                             </td>
                                             
                                             {/* BOTONES: Hacen rowSpan=2 para abarcar ambas filas */}
@@ -216,13 +216,13 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4 align-middle">
-                                                <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_proveedor || '—'}</p>
+                                                <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_proveedor || 'â€”'}</p>
                                             </td>
                                             <td className="py-3 px-4 align-middle">
-                                                <span className={`font-mono text-xs px-1.5 py-0.5 rounded ${diffModelo ? 'bg-amber-100 text-amber-800 font-bold' : 'bg-slate-100 text-slate-800'}`}>{item.sku_proveedor || '—'}</span>
+                                                <span className={`font-mono text-xs px-1.5 py-0.5 rounded ${diffModelo ? 'bg-amber-100 text-amber-800 font-bold' : 'bg-slate-100 text-slate-800'}`}>{item.sku_proveedor || 'â€”'}</span>
                                             </td>
                                             <td className="py-3 px-4 align-middle">
-                                                <p className={`font-mono text-xs ${diffCodigo ? 'font-bold text-amber-600' : 'text-slate-600'}`}>{item.codigo_barra || '—'}</p>
+                                                <p className={`font-mono text-xs ${diffCodigo ? 'font-bold text-amber-600' : 'text-slate-600'}`}>{item.codigo_barra || 'â€”'}</p>
                                             </td>
                                         </tr>
                                     </React.Fragment>
@@ -235,3 +235,4 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
         </div>
     );
 }
+
