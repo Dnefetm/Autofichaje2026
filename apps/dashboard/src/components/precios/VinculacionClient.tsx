@@ -1,22 +1,13 @@
-'use client';
+﻿'use client';
 import { useState } from 'react';
 import { VinculacionCategoria } from './VinculacionCategoria';
 import { AlertCircle, FileX } from 'lucide-react';
+import { MatchItem } from '@/types/precios';
 
-interface MatchItem {
-    fila_num: number;
-    sku_proveedor: string;
-    codigo_barra: string;
-    marca_proveedor: string;
-    descripcion_proveedor: string;
-    dist: number;
-    menudeo: number;
-    articulo_id: string;
-    nombre_catalogo: string;
-    marca_catalogo: string;
-    modelo_catalogo: string;
-    codigo_universal: string;
-}
+const fmtMx = (num: any) => {
+    if (typeof num !== 'number') return '—';
+    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(num);
+};
 
 interface Props {
     proveedor: string;
@@ -29,83 +20,100 @@ interface Props {
 
 export function VinculacionClient({
     proveedor,
-    catTriple,
-    catSoloCodigo,
-    catMarcaModelo,
-    yaVinculados,
+    catTriple: initCatTriple,
+    catSoloCodigo: initCatSoloCodigo,
+    catMarcaModelo: initCatMarcaModelo,
+    yaVinculados: initYaVinculados,
     sinMatch
 }: Props) {
     const [tab, setTab] = useState<'propuestas' | 'vinculados' | 'sin_match'>('propuestas');
     const [page, setPage] = useState(0);
     const pageSize = 100;
 
+    const [catTriple, setCatTriple] = useState(initCatTriple);
+    const [catSoloCodigo, setCatSoloCodigo] = useState(initCatSoloCodigo);
+    const [catMarcaModelo, setCatMarcaModelo] = useState(initCatMarcaModelo);
+    const [yaVinculados, setYaVinculados] = useState(initYaVinculados);
+
     const totalPropuestas = catTriple.length + catSoloCodigo.length + catMarcaModelo.length;
+
+    const handleVinculados = (items: MatchItem[], category: string) => {
+        const itemIds = new Set(items.map(i => i.fila_num));
+        setYaVinculados(prev => [...prev, ...items]);
+        if (category === 'triple') setCatTriple(prev => prev.filter(i => !itemIds.has(i.fila_num)));
+        if (category === 'solo_codigo') setCatSoloCodigo(prev => prev.filter(i => !itemIds.has(i.fila_num)));
+        if (category === 'marca_modelo') setCatMarcaModelo(prev => prev.filter(i => !itemIds.has(i.fila_num)));
+    };
 
     // Paginación solo para sin match y vinculados
     const paginatedSinMatch = sinMatch.slice(page * pageSize, page * pageSize + pageSize);
     const paginatedVinculados = yaVinculados.slice(page * pageSize, page * pageSize + pageSize);
 
-    const fmtMx = (n: number) => n > 0 ? n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) : '—';
-
     return (
-        <div>
-            {/* Tabs */}
-            <div className="bg-white border-b border-slate-200 px-8 flex gap-1 py-2">
-                <button
-                    onClick={() => { setTab('propuestas'); setPage(0); }}
-                    className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${tab === 'propuestas' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-                >
-                    Propuestas ({totalPropuestas.toLocaleString()})
-                </button>
-                <button
-                    onClick={() => { setTab('vinculados'); setPage(0); }}
-                    className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${tab === 'vinculados' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-                >
-                    Ya Vinculados ({yaVinculados.length.toLocaleString()})
-                </button>
-                <button
-                    onClick={() => { setTab('sin_match'); setPage(0); }}
-                    className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${tab === 'sin_match' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-                >
-                    Sin Coincidencia ({sinMatch.length.toLocaleString()})
-                </button>
+        <div className="flex flex-col flex-1">
+            {/* TABS */}
+            <div className="px-8 border-b border-slate-200 bg-white">
+                <div className="flex gap-6 mt-2">
+                    <button
+                        onClick={() => { setTab('propuestas'); setPage(0); }}
+                        className={\pb-4 pt-2 text-sm font-bold border-b-2 transition-colors \\}
+                    >
+                        Propuestas ({totalPropuestas.toLocaleString()})
+                    </button>
+                    <button
+                        onClick={() => { setTab('vinculados'); setPage(0); }}
+                        className={\pb-4 pt-2 text-sm font-bold border-b-2 transition-colors \\}
+                    >
+                        Ya Vinculados ({yaVinculados.length.toLocaleString()})
+                    </button>
+                    <button
+                        onClick={() => { setTab('sin_match'); setPage(0); }}
+                        className={\pb-4 pt-2 text-sm font-bold border-b-2 transition-colors \\}
+                    >
+                        Sin Coincidencia ({sinMatch.length.toLocaleString()})
+                    </button>
+                </div>
             </div>
 
-            <div className="px-8 py-6">
+            {/* CONTENIDO */}
+            <div className="flex-1 p-8">
                 {/* Tab: Propuestas */}
                 {tab === 'propuestas' && (
-                    <>
+                    <div className="space-y-6">
                         {catTriple.length > 0 && (
-                            <VinculacionCategoria categoria="triple" titulo="Código de Barras + Marca + Modelo coinciden" descripcion="El EAN/código universal, la marca y el modelo son idénticos en ambos lados. Confianza máxima." color="emerald" items={catTriple} proveedor={proveedor} />
+                            <VinculacionCategoria categoria="triple" titulo="Código de Barras + Marca + Modelo coinciden" descripcion="El EAN/código universal, la marca y el modelo son idénticos en ambos lados. Confianza máxima." color="emerald" items={catTriple} proveedor={proveedor} onAccepted={(items) => handleVinculados(items, 'triple')} />
                         )}
                         {catSoloCodigo.length > 0 && (
-                            <VinculacionCategoria categoria="solo_codigo" titulo="Solo Código de Barras coincide" descripcion="El EAN/código universal coincide pero la marca o el modelo difieren. Revisa antes de aceptar." color="amber" items={catSoloCodigo} proveedor={proveedor} />
+                            <VinculacionCategoria categoria="solo_codigo" titulo="Solo Código de Barras coincide" descripcion="El EAN/código universal coincide pero la marca o el modelo difieren. Revisa antes de aceptar." color="amber" items={catSoloCodigo} proveedor={proveedor} onAccepted={(items) => handleVinculados(items, 'solo_codigo')} />
                         )}
                         {catMarcaModelo.length > 0 && (
-                            <VinculacionCategoria categoria="marca_modelo" titulo="Solo Marca + Modelo coinciden (sin código de barras)" descripcion="No hay código de barras en el Excel para comparar. La coincidencia es solo por clave/modelo. Verifica." color="blue" items={catMarcaModelo} proveedor={proveedor} />
+                            <VinculacionCategoria categoria="marca_modelo" titulo="Solo Marca + Modelo coinciden (sin código de barras)" descripcion="No hay código de barras en el Excel para comparar. La coincidencia es solo por clave/modelo. Verifica." color="blue" items={catMarcaModelo} proveedor={proveedor} onAccepted={(items) => handleVinculados(items, 'marca_modelo')} />
                         )}
                         {totalPropuestas === 0 && (
                             <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
                                 No hay propuestas de vinculación pendientes para este lote.
                             </div>
                         )}
-                    </>
+                    </div>
                 )}
 
                 {/* Tab: Ya Vinculados */}
                 {tab === 'vinculados' && (
-                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 bg-emerald-50 border-b border-emerald-200 flex items-center justify-between">
-                            <div>
-                                <h3 className="font-bold text-emerald-800">Artículos ya vinculados</h3>
-                                <p className="text-xs text-emerald-600 mt-0.5">Fueron confirmados en sesiones anteriores.</p>
+                    <div className="bg-white rounded-2xl border border-emerald-200 overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 bg-emerald-50/50 border-b border-emerald-100 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <AlertCircle className="text-emerald-500 w-5 h-5" />
+                                <div>
+                                    <h3 className="font-bold text-emerald-800">Artículos ya vinculados ({yaVinculados.length.toLocaleString()})</h3>
+                                    <p className="text-xs text-emerald-600 mt-0.5">Fueron confirmados en sesiones anteriores o recién aceptados.</p>
+                                </div>
                             </div>
                         </div>
                         {yaVinculados.length === 0 ? (
                             <div className="p-8 text-center text-slate-400">No hay artículos vinculados.</div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-xs">
+                                <table className="w-full text-xs text-left">
                                     <thead className="bg-slate-50">
                                         <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-200">
                                             <th className="py-2.5 px-4 text-left">SKU / Descripción Proveedor</th>
@@ -133,7 +141,7 @@ export function VinculacionClient({
                         )}
                         {yaVinculados.length > pageSize && (
                             <div className="px-4 py-3 border-t border-slate-200 flex justify-between items-center bg-slate-50">
-                                <span className="text-xs text-slate-500">Mostrando {page * pageSize + 1}–{Math.min((page + 1) * pageSize, yaVinculados.length)} de {yaVinculados.length}</span>
+                                <span className="text-xs text-slate-500">Mostrando {page * pageSize + 1}—{Math.min((page + 1) * pageSize, yaVinculados.length)} de {yaVinculados.length}</span>
                                 <div className="flex gap-2">
                                     <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-3 py-1 bg-white border border-slate-200 rounded text-xs disabled:opacity-50">Anterior</button>
                                     <button disabled={(page + 1) * pageSize >= yaVinculados.length} onClick={() => setPage(p => p + 1)} className="px-3 py-1 bg-white border border-slate-200 rounded text-xs disabled:opacity-50">Siguiente</button>
@@ -185,7 +193,7 @@ export function VinculacionClient({
                         )}
                         {sinMatch.length > pageSize && (
                             <div className="px-4 py-3 border-t border-slate-200 flex justify-between items-center bg-slate-50">
-                                <span className="text-xs text-slate-500">Mostrando {page * pageSize + 1}–{Math.min((page + 1) * pageSize, sinMatch.length)} de {sinMatch.length}</span>
+                                <span className="text-xs text-slate-500">Mostrando {page * pageSize + 1}—{Math.min((page + 1) * pageSize, sinMatch.length)} de {sinMatch.length}</span>
                                 <div className="flex gap-2">
                                     <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-3 py-1 bg-white border border-slate-200 rounded text-xs disabled:opacity-50">Anterior</button>
                                     <button disabled={(page + 1) * pageSize >= sinMatch.length} onClick={() => setPage(p => p + 1)} className="px-3 py-1 bg-white border border-slate-200 rounded text-xs disabled:opacity-50">Siguiente</button>

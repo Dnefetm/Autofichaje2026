@@ -6,9 +6,12 @@ import { useRouter } from 'next/navigation';
 interface MatchItem {
     fila_num: number;
     sku_proveedor: string;
+    onAccepted?: (items: MatchItem[]) => void;
     codigo_barra: string;
     marca_proveedor: string;
+    onAccepted?: (items: MatchItem[]) => void;
     descripcion_proveedor: string;
+    onAccepted?: (items: MatchItem[]) => void;
     dist: number;
     menudeo: number;
     articulo_id: string;
@@ -25,11 +28,12 @@ interface Props {
     color: 'emerald' | 'amber' | 'blue';
     items: MatchItem[];
     proveedor: string;
+    onAccepted?: (items: MatchItem[]) => void;
 }
 
 const fmtMx = (n: number) => n > 0 ? n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) : 'â€”';
 
-export function VinculacionCategoria({ categoria, titulo, descripcion, color, items, proveedor }: Props) {
+export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcion, color, items, proveedor }: Props) {
     const [expandido, setExpandido] = useState(true);
     const [aceptando, setAceptando] = useState(false);
     const [aceptados, setAceptados] = useState<Set<number>>(new Set());
@@ -64,7 +68,7 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
             const data = await res.json();
             if (res.ok && data.ok) {
                 setAceptados(new Set(items.map(i => i.fila_num)));
-                window.location.reload();
+                if (onAccepted) onAccepted(pendientes);
             } else {
                 alert(`Error: ${data.error}`);
             }
@@ -91,6 +95,7 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
             });
             if (res.ok) {
                 setAceptados(prev => new Set([...prev, item.fila_num]));
+                if (onAccepted) onAccepted([item]);
             }
         } catch {
             alert('Error de red');
@@ -152,6 +157,7 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
                                 const diffMarca = highlightDiff(item.marca_catalogo, item.marca_proveedor);
                                 const diffModelo = highlightDiff(item.modelo_catalogo, item.sku_proveedor);
                                 const diffCodigo = highlightDiff(item.codigo_universal, item.codigo_barra);
+                                const diffNombre = highlightDiff(item.nombre_catalogo, item.descripcion_proveedor);
 
                                 const bgRow1 = isAceptado ? 'bg-emerald-50/40' : isRechazado ? 'bg-slate-50 opacity-40' : 'bg-slate-50/40 hover:bg-slate-100/50';
                                 const bgRow2 = isAceptado ? 'bg-emerald-100/40' : isRechazado ? 'bg-slate-100 opacity-40' : 'bg-indigo-50/20 hover:bg-indigo-50/40';
@@ -209,7 +215,7 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
                                                 <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-indigo-100">{proveedor}</span>
                                             </td>
                                             <td className="py-3 px-4 align-middle">
-                                                <p className="font-medium text-slate-600 whitespace-normal line-clamp-2" title={item.descripcion_proveedor}>{item.descripcion_proveedor}</p>
+                                                <p className={ont-medium whitespace-normal line-clamp-2 \} title={item.descripcion_proveedor}>{item.descripcion_proveedor}</p>
                                                 <div className="mt-1.5 flex items-center gap-3">
                                                     <span className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-600 shadow-sm">Dist: <b>{fmtMx(item.dist)}</b></span>
                                                     <span className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-600 shadow-sm">Men: <b>{fmtMx(item.menudeo)}</b></span>
@@ -235,4 +241,7 @@ export function VinculacionCategoria({ categoria, titulo, descripcion, color, it
         </div>
     );
 }
+
+
+
 

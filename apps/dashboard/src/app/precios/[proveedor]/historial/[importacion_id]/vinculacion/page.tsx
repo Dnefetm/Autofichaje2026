@@ -1,9 +1,11 @@
-import { supabaseAdmin } from '@/lib/supabase';
+﻿import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
 import { ArrowLeft, Info } from 'lucide-react';
 import { VinculacionClient } from '@/components/precios/VinculacionClient';
 
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
 
 export default async function VinculacionPage(props: {
     params: Promise<{ proveedor: string; importacion_id: string }>;
@@ -18,7 +20,7 @@ export default async function VinculacionPage(props: {
         .eq('id', importacionId)
         .single();
 
-    // ── 1. Cargar todas las filas raw del lote ────────────────────────────────
+    // â”€â”€ 1. Cargar todas las filas raw del lote â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let allRaw: any[] = [];
     let from = 0;
     while (true) {
@@ -33,7 +35,7 @@ export default async function VinculacionPage(props: {
         from += 1000;
     }
 
-    // ── 2. Cargar todos los artículos activos ─────────────────────────────────
+    // â”€â”€ 2. Cargar todos los artÃ­culos activos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let allArts: any[] = [];
     from = 0;
     while (true) {
@@ -48,7 +50,7 @@ export default async function VinculacionPage(props: {
         from += 1000;
     }
 
-    // Mapas de artículos para búsqueda rápida
+    // Mapas de artÃ­culos para bÃºsqueda rÃ¡pida
     const articulosPorCodigo = new Map<string, any>();
     const articulosPorModelo = new Map<string, any>();
     
@@ -66,7 +68,7 @@ export default async function VinculacionPage(props: {
         }
     }
 
-    // ── 3. Alias ya aprobados manualmente (locked=true) ───────────────────────
+    // â”€â”€ 3. Alias ya aprobados manualmente (locked=true) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let aliasExistentes: any[] = [];
     let aliasFrom = 0;
     while (true) {
@@ -90,7 +92,7 @@ export default async function VinculacionPage(props: {
             aliasLockedPorModelo.set(`${(a.marca_excel||'').toLowerCase()}|||${a.modelo_excel.toLowerCase()}`, a.articulo_id);
     });
 
-    // ── 4. Clasificar cada fila ───────────────────────────────────────────────
+    // â”€â”€ 4. Clasificar cada fila â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     type ItemMatch = {
         fila_num: number;
         sku_proveedor: string;
@@ -115,17 +117,17 @@ export default async function VinculacionPage(props: {
     for (const r of allRaw) {
         const p = r.payload || {};
         const fila_num = r.fila_num;
-        const clave = p['CLAVE'] || p['C�DIGO'] || '';
-        const codigo_barra = p['C�DIGO DE BARRA SIN CERO'] || '';
+        const clave = p['CLAVE'] || p['Cï¿½DIGO'] || '';
+        const codigo_barra = p['Cï¿½DIGO DE BARRA SIN CERO'] || '';
         const marca = p['MARCA'] || '';
-        const descripcion = p['DESCRIPCI�N LARGA'] || p['DESCRIPCION'] || '';
+        const descripcion = p['DESCRIPCIï¿½N LARGA'] || p['DESCRIPCION'] || '';
         const dist = parseFloat(p['P.DIST (CON IVA)'] || '0') || 0;
         const menudeo = parseFloat(p['PRECIO MENUDEO (CON IVA)'] || '0') || 0;
 
         const claveLower = clave.toLowerCase();
         const marcaLower = marca.toLowerCase();
 
-        // 1. Verificar si ya está vinculado manualmente (locked)
+        // 1. Verificar si ya estÃ¡ vinculado manualmente (locked)
         const lockedId = aliasLockedPorCodigo.get(codigo_barra) || aliasLockedPorModelo.get(`${marcaLower}|||${claveLower}`);
         
         if (lockedId) {
@@ -135,7 +137,7 @@ export default async function VinculacionPage(props: {
                 fila_num, sku_proveedor: clave, codigo_barra, marca_proveedor: marca,
                 descripcion_proveedor: descripcion, dist, menudeo,
                 articulo_id: lockedId,
-                nombre_catalogo: art?.nombre || '(Artículo no encontrado)',
+                nombre_catalogo: art?.nombre || '(ArtÃ­culo no encontrado)',
                 marca_catalogo: art?.marca || '',
                 modelo_catalogo: art?.modelo || '',
                 codigo_universal: art?.codigo_universal || ''
@@ -195,15 +197,15 @@ export default async function VinculacionPage(props: {
                 >
                     <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Resumen del Lote
                 </Link>
-                <h1 className="text-2xl font-bold text-slate-900">Vinculación con Catálogo Interno</h1>
+                <h1 className="text-2xl font-bold text-slate-900">VinculaciÃ³n con CatÃ¡logo Interno</h1>
                 <p className="text-sm text-slate-500 mt-1">
-                    {imp?.nombre_archivo} · {imp?.total_filas?.toLocaleString()} SKUs del proveedor
+                    {imp?.nombre_archivo} Â· {imp?.total_filas?.toLocaleString()} SKUs del proveedor
                 </p>
 
                 <div className="mt-4 flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5">
                     <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
                     <span>
-                        Navega entre las pestañas para revisar las propuestas de vinculación, ver los artículos ya confirmados, o explorar los que no tuvieron coincidencia.
+                        Navega entre las pestaÃ±as para revisar las propuestas de vinculaciÃ³n, ver los artÃ­culos ya confirmados, o explorar los que no tuvieron coincidencia.
                     </span>
                 </div>
             </header>
@@ -220,4 +222,5 @@ export default async function VinculacionPage(props: {
         </div>
     );
 }
+
 
