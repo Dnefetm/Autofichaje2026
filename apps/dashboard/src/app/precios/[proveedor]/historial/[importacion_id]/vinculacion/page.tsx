@@ -21,34 +21,36 @@ export default async function VinculacionPage(props: {
         .single();
 
     // â”€â”€ 1. Cargar todas las filas raw del lote â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    let allRaw: any[] = [];
-    let from = 0;
-    while (true) {
-        const { data: chunk } = await supabaseAdmin
-            .from('listas_precios_raw')
-            .select('fila_num, payload')
-            .eq('importacion_id', importacionId)
-            .range(from, from + 999);
-        if (!chunk || chunk.length === 0) break;
-        allRaw = allRaw.concat(chunk);
-        if (chunk.length < 1000) break;
-        from += 1000;
+    
+    async function fetchAll(table: string, select: string, eqColumn?: string, eqValue?: any) {
+        const page = 1000;
+        let from = 0;
+        const rows = [];
+        while (true) {
+            let query = supabaseAdmin.from(table).select(select, { count: 'exact' });
+            if (eqColumn && eqValue !== undefined) {
+                query = query.eq(eqColumn, eqValue);
+            }
+            if (table === 'proveedor_articulos_alias') {
+                query = query.eq('proveedor', proveedorDecoded).eq('locked', true);
+            }
+            const { data, error, count } = await query.range(from, from + page - 1);
+            if (error) {
+                console.error('[DIAG] PAGINATION ERROR:', error);
+                throw error;
+            }
+            if (data) rows.push(...data);
+            if (rows.length >= (count || 0) || !data || data.length < page) break;
+            from += page;
+        }
+        return rows;
     }
 
+    const allRaw = await fetchAll('listas_precios_raw', 'fila_num, payload', 'importacion_id', importacionId);
+
+
     // â”€â”€ 2. Cargar todos los artÃ­culos activos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    let allArts: any[] = [];
-    from = 0;
-    while (true) {
-        const { data: chunk } = await supabaseAdmin
-            .from('articulos')
-            .select('articulo_id, nombre, modelo, marca, codigo_universal')
-            .eq('activo', true)
-            .range(from, from + 999);
-        if (!chunk || chunk.length === 0) break;
-        allArts = allArts.concat(chunk);
-        if (chunk.length < 1000) break;
-        from += 1000;
-    }
+    const allArts = await fetchAll('articulos', 'articulo_id, nombre, modelo, marca, codigo_universal', 'activo', true);
 
     // Mapas de artÃ­culos para bÃºsqueda rÃ¡pida
     const articulosPorCodigo = new Map<string, any>();
@@ -69,20 +71,10 @@ export default async function VinculacionPage(props: {
     }
 
     // â”€â”€ 3. Alias ya aprobados manualmente (locked=true) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    let aliasExistentes: any[] = [];
-    let aliasFrom = 0;
-    while (true) {
-        const { data: chunk } = await supabaseAdmin
-            .from('proveedor_articulos_alias')
-            .select('codigo_excel, modelo_excel, marca_excel, articulo_id, locked')
-            .eq('proveedor', proveedorDecoded)
-            .eq('locked', true)
-            .range(aliasFrom, aliasFrom + 999);
-        if (!chunk || chunk.length === 0) break;
-        aliasExistentes = aliasExistentes.concat(chunk);
-        if (chunk.length < 1000) break;
-        aliasFrom += 1000;
-    }
+    
+    const aliasExistentes = await fetchAll('proveedor_articulos_alias', 'codigo_excel, modelo_excel, marca_excel, articulo_id, locked');
+    console.log('[DIAG] alias:', aliasExistentes.length, 'raw:', allRaw.length, 'articulos:', allArts.length, 'key:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.slice(0,12) : 'none');
+
 
     const aliasLockedPorCodigo = new Map<string, string>();
     const aliasLockedPorModelo = new Map<string, string>();

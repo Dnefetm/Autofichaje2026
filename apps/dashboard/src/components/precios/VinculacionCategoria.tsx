@@ -215,7 +215,7 @@ export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcio
                                                 <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-indigo-100">{proveedor}</span>
                                             </td>
                                             <td className="py-3 px-4 align-middle">
-                                                <p className={ont-medium whitespace-normal line-clamp-2 \} title={item.descripcion_proveedor}>{item.descripcion_proveedor}</p>
+                                                <p className="font-medium whitespace-normal line-clamp-2" title={item.descripcion_proveedor}>{item.descripcion_proveedor}</p>
                                                 <div className="mt-1.5 flex items-center gap-3">
                                                     <span className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-600 shadow-sm">Dist: <b>{fmtMx(item.dist)}</b></span>
                                                     <span className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-600 shadow-sm">Men: <b>{fmtMx(item.menudeo)}</b></span>
