@@ -67,11 +67,20 @@ export default async function VinculacionPage(props: {
     }
 
     // ── 3. Alias ya aprobados manualmente (locked=true) ───────────────────────
-    const { data: aliasExistentes } = await supabaseAdmin
-        .from('proveedor_articulos_alias')
-        .select('codigo_excel, modelo_excel, marca_excel, articulo_id, locked')
-        .eq('proveedor', proveedorDecoded)
-        .eq('locked', true);
+    let aliasExistentes: any[] = [];
+    let aliasFrom = 0;
+    while (true) {
+        const { data: chunk } = await supabaseAdmin
+            .from('proveedor_articulos_alias')
+            .select('codigo_excel, modelo_excel, marca_excel, articulo_id, locked')
+            .eq('proveedor', proveedorDecoded)
+            .eq('locked', true)
+            .range(aliasFrom, aliasFrom + 999);
+        if (!chunk || chunk.length === 0) break;
+        aliasExistentes = aliasExistentes.concat(chunk);
+        if (chunk.length < 1000) break;
+        aliasFrom += 1000;
+    }
 
     const aliasLockedPorCodigo = new Map<string, string>();
     const aliasLockedPorModelo = new Map<string, string>();
@@ -211,3 +220,4 @@ export default async function VinculacionPage(props: {
         </div>
     );
 }
+
