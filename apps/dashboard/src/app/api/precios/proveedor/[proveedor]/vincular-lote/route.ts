@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Extend duration for large batches
@@ -35,5 +36,7 @@ export async function POST(
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
+    revalidatePath('/precios', 'layout');
     return NextResponse.json({ ok: true, insertados: items.length });
 }
+
