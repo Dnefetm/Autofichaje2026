@@ -17,6 +17,10 @@ El sistema gestiona operaciones masivas, pero su fin último es ser operado por 
 - **H9. Diagnóstico de Errores Legible:** Prohibido mostrar errores crudos SQL (ej. `42P10 Constraint Violation`). Traducirlos en los `catch` a mensajes humanos (ej. "Código ya vinculado").
 
 ## 2. Coherencia DB/Backend para la UI
+
+- **Protección contra Referencias Nulas (Runtime Crashes):** Todo payload extraído de Supabase debe ser normalizado/saneado de forma centralizada en su carga (ej. `loadAll`). El renderizado JSX no debe confiar ciegamente en las propiedades. El acceso a diccionarios o longitudes de arreglos debe estar protegido con optional chaining (`?.`) y `??` para prevenir `TypeError` (ej. acceso a `pub.deal_ids?.length` o `listingTypeConfig[id]?.label`).
+- **Codificación Segura y Cero Mojibake:** Está estrictamente prohibido usar caracteres de dibujo Unicode (como `─` U+2500) o guardar archivos con codificaciones locales. Los archivos de código deben usar codificación UTF-8 pura (con política enforce en `.gitattributes`) y comentarios ASCII estándar (`// ---`), para evitar corrupciones de compilación en Vercel que obliguen a hacer reverts destructivos.
+
 - **In-Memory Joins vs URL Limits:** Las consultas Supabase `.in()` fallan por límites de URL con arreglos gigantes. Para cruzar >1000 filas, descargar catálogo filtrado y hacer *matching* en la capa Node.js del servidor antes de pasarlo al cliente.
 - **Tolerancia a Índices Parciales:** En inserciones masivas complejas (ej. `proveedor_articulos_alias`), usar condicionales `SELECT` -> `INSERT/UPDATE` en lugar de `UPSERT ON CONFLICT`, ya que Postgres bloquea los UPSERTs sobre índices con `WHERE`.
 
