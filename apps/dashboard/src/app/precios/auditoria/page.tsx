@@ -125,7 +125,7 @@ export default function AuditoriaPricingPage() {
                                         <td className="px-4 py-3 font-bold text-amber-700"></td>
                                         <td className="px-4 py-3">
                                             {cur > 0 && pct !== 0 ? (
-                                                <span className={inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold }>
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold">
                                                     {isUp ? '↑' : '↓'} {Math.abs(pct).toFixed(1)}%
                                                 </span>
                                             ) : (
