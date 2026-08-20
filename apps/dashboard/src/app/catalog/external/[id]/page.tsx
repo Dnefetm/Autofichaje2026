@@ -480,7 +480,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                             ? <p className="text-xl font-bold text-slate-300 animate-pulse">⋯</p>
                                             : <p className="text-xl font-bold text-indigo-600">
                                                 {enrichData?.visits?.total_visits != null
-                                                    ? enrichData.visits.total_visits.toLocaleString()
+                                                    ? (enrichData?.visits?.total_visits?.toLocaleString() ?? '—')
                                                     : '—'
                                                 }
                                               </p>
