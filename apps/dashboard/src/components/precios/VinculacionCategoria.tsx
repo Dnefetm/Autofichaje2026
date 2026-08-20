@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
-import { Check, X, ChevronDown, ChevronUp, CheckSquare, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Loader2, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface MatchItem {
@@ -16,18 +16,16 @@ interface MatchItem {
     marca_catalogo: string;
     modelo_catalogo: string;
     codigo_universal: string;
-    sub: number;
-    mayoreo: number;
 }
 
 interface Props {
+    onAccepted?: (items: MatchItem[]) => void;
     categoria: string;
     titulo: string;
     descripcion: string;
     color: 'emerald' | 'amber' | 'blue';
     items: MatchItem[];
     proveedor: string;
-    onAccepted?: (items: MatchItem[]) => void;
 }
 
 const fmtMx = (n: number) => n > 0 ? n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) : '—';
@@ -39,20 +37,14 @@ export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcio
     const [rechazados, setRechazados] = useState<Set<number>>(new Set());
     const router = useRouter();
 
-    const pendientes = items.filter(i => !aceptados.has(i.fila_num) && !rechazados.has(i.fila_num));
-    if (pendientes.length === 0) return null;
+    const colorMap = {
+        emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-700', btn: 'bg-emerald-600 hover:bg-emerald-700 text-white', title: 'text-emerald-800' },
+        amber: { bg: 'bg-amber-50', border: 'border-amber-200', badge: 'bg-amber-100 text-amber-700', btn: 'bg-amber-500 hover:bg-amber-600 text-white', title: 'text-amber-800' },
+        blue: { bg: 'bg-blue-50', border: 'border-blue-200', badge: 'bg-blue-100 text-blue-700', btn: 'bg-blue-600 hover:bg-blue-700 text-white', title: 'text-blue-800' },
+    };
+    const c = colorMap[color];
 
-    const colorClasses = {
-        emerald: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-        amber: 'bg-amber-50 border-amber-200 text-amber-800',
-        blue: 'bg-blue-50 border-blue-200 text-blue-800'
-    };
-    
-    const iconColor = {
-        emerald: 'text-emerald-500',
-        amber: 'text-amber-500',
-        blue: 'text-blue-500'
-    };
+    const pendientes = items.filter(i => !aceptados.has(i.fila_num) && !rechazados.has(i.fila_num));
 
     const handleAceptarTodos = async () => {
         if (!confirm(`¿Confirmas vincular los ${pendientes.length} artículos de la categoría "${titulo}"?`)) return;
@@ -107,96 +99,139 @@ export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcio
         }
     };
 
-    const handleRechazarUno = (item: MatchItem) => {
-        setRechazados(prev => new Set([...prev, item.fila_num]));
-    };
-
     return (
-        <div className={`rounded-2xl border overflow-hidden shadow-sm transition-all ${colorClasses[color]}`}>
-            <div className="px-6 py-4 border-b flex items-center justify-between bg-white/50 backdrop-blur-sm">
-                <div>
-                    <h3 className="font-bold flex items-center gap-2 text-[15px]">
-                        <span className="bg-white px-2 py-0.5 rounded shadow-sm border border-slate-100 text-xs tabular-nums">
-                            {pendientes.length}
-                        </span> 
-                        {titulo}
-                    </h3>
-                    <p className="text-xs opacity-75 mt-1">{descripcion}</p>
-                </div>
+        <div className={`rounded-2xl border ${c.border} overflow-hidden shadow-sm mb-8`}>
+            {/* Header de categoría */}
+            <div className={`${c.bg} px-6 py-4 flex items-center justify-between`}>
                 <div className="flex items-center gap-3">
+                    <button onClick={() => setExpandido(!expandido)} className="text-slate-500 hover:text-slate-700 bg-white/50 rounded p-1">
+                        {expandido ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                    </button>
+                    <div>
+                        <h3 className={`font-bold text-lg ${c.title}`}>{titulo}</h3>
+                        <p className="text-sm text-slate-600 mt-0.5">{descripcion}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ml-4 ${c.badge}`}>
+                        {pendientes.length} pendientes · {aceptados.size} aceptados · {rechazados.size} ignorados
+                    </span>
+                </div>
+                {pendientes.length > 0 && (
                     <button
                         onClick={handleAceptarTodos}
                         disabled={aceptando}
-                        className="px-4 py-2 bg-white rounded-lg shadow-sm border border-slate-200 text-xs font-bold flex items-center gap-2 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md ${c.btn} disabled:opacity-50`}
                     >
-                        {aceptando ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckSquare className={`w-4 h-4 ${iconColor[color]}`} />}
-                        Aceptar Todos
+                        {aceptando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        Aceptar todos ({pendientes.length})
                     </button>
-                    <button onClick={() => setExpandido(!expandido)} className="p-2 hover:bg-white/50 rounded-lg transition-colors">
-                        {expandido ? <ChevronUp className="w-5 h-5 opacity-50" /> : <ChevronDown className="w-5 h-5 opacity-50" />}
-                    </button>
-                </div>
+                )}
             </div>
 
+            {/* Tabla nativa con doble fila (<tr>) para alinear perfectamente con los <th> */}
             {expandido && (
-                <div className="bg-white">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-xs text-left">
-                            <thead className="bg-slate-50 border-b border-slate-100">
-                                <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                    <th className="py-3 px-4">Acción</th>
-                                    <th className="py-3 px-4">Art. Catálogo Interno</th>
-                                    <th className="py-3 px-4">Info Proveedor Excel</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {pendientes.map(item => (
-                                    <tr key={item.fila_num} className="hover:bg-slate-50/50 group transition-colors">
-                                        <td className="py-3 px-4 align-middle w-24">
-                                            <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => handleAceptarUno(item)} title="Vincular" className="p-1.5 rounded-md hover:bg-emerald-100 text-emerald-600 transition-colors border border-transparent hover:border-emerald-200">
-                                                    <Check className="w-4 h-4" />
-                                                </button>
-                                                <button onClick={() => handleRechazarUno(item)} title="Rechazar coincidencia" className="p-1.5 rounded-md hover:bg-red-100 text-red-600 transition-colors border border-transparent hover:border-red-200">
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </td>
-                                        <td className="py-3 px-4 align-middle">
-                                            <div className="flex gap-3 items-center">
-                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-[10px] shadow-sm border ${colorClasses[color]}`}>
-                                                    {item.marca_catalogo?.slice(0, 2).toUpperCase()}
+                <div className="overflow-x-auto max-h-[700px] overflow-y-auto">
+                    <table className="w-full text-xs text-left table-fixed min-w-[900px]">
+                        <thead className="bg-slate-100 sticky top-0 z-10 shadow-sm border-b border-slate-200">
+                            <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                <th className="py-3.5 px-4 w-[90px] text-center border-r border-slate-200">Origen</th>
+                                <th className="py-3.5 px-4 w-auto">Descripción / Nombre</th>
+                                <th className="py-3.5 px-4 w-[12%]">Marca</th>
+                                <th className="py-3.5 px-4 w-[15%]">Modelo / Clave</th>
+                                <th className="py-3.5 px-4 w-[18%]">Cód. Barras</th>
+                                <th className="py-3.5 px-4 w-[120px] text-center bg-white">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white">
+                            {items.map((item) => {
+                                const isAceptado = aceptados.has(item.fila_num);
+                                const isRechazado = rechazados.has(item.fila_num);
+                                
+                                const highlightDiff = (val1: string, val2: string) => {
+                                    if (!val1 || !val2) return false;
+                                    return val1.trim().toLowerCase() !== val2.trim().toLowerCase();
+                                };
+
+                                const diffMarca = highlightDiff(item.marca_catalogo, item.marca_proveedor);
+                                const diffModelo = highlightDiff(item.modelo_catalogo, item.sku_proveedor);
+                                const diffCodigo = highlightDiff(item.codigo_universal, item.codigo_barra);
+
+                                const bgRow1 = isAceptado ? 'bg-emerald-50/40' : isRechazado ? 'bg-slate-50 opacity-40' : 'bg-slate-50/40 hover:bg-slate-100/50';
+                                const bgRow2 = isAceptado ? 'bg-emerald-100/40' : isRechazado ? 'bg-slate-100 opacity-40' : 'bg-indigo-50/20 hover:bg-indigo-50/40';
+
+                                return (
+                                    <React.Fragment key={item.fila_num}>
+                                        {/* FILA 1: CATÁLOGO */}
+                                        <tr className={`${bgRow1} border-t-2 border-slate-200 transition-colors`}>
+                                            <td className="py-3 px-4 border-r border-slate-100 text-center align-middle">
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-slate-100">Catálogo</span>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className="font-bold text-slate-800 whitespace-normal line-clamp-2" title={item.nombre_catalogo}>{item.nombre_catalogo}</p>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_catalogo || '—'}</p>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className={`font-mono text-xs ${diffModelo ? 'text-amber-600 font-bold' : 'text-slate-600'}`}>{item.modelo_catalogo || '—'}</p>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className={`font-mono text-xs ${diffCodigo ? 'text-amber-600 font-bold' : 'text-slate-600'}`}>{item.codigo_universal || '—'}</p>
+                                            </td>
+                                            
+                                            {/* BOTONES: Hacen rowSpan=2 para abarcar ambas filas */}
+                                            <td rowSpan={2} className="py-3 px-4 align-middle bg-white border-l border-slate-100">
+                                                <div className="flex flex-col gap-2 justify-center w-full">
+                                                    {isAceptado ? (
+                                                        <span className="text-emerald-700 font-bold text-[11px] flex items-center justify-center gap-1.5 bg-emerald-100 border border-emerald-200 py-2 rounded-lg"><Check className="w-4 h-4" /> Vinculado</span>
+                                                    ) : isRechazado ? (
+                                                        <span className="text-slate-500 font-bold text-[11px] flex items-center justify-center gap-1.5 bg-slate-100 border border-slate-200 py-2 rounded-lg"><X className="w-4 h-4" /> Ignorado</span>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleAceptarUno(item)}
+                                                                className="w-full py-2 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 text-emerald-800 rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                                                            >
+                                                                <Check className="w-3.5 h-3.5" /> Aceptar
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setRechazados(prev => new Set([...prev, item.fila_num]))}
+                                                                className="w-full py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                                                            >
+                                                                <X className="w-3.5 h-3.5" /> Ignorar
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
-                                                <div>
-                                                    <p className="font-bold text-slate-800 line-clamp-1" title={item.nombre_catalogo}>{item.nombre_catalogo}</p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-slate-500 font-medium">Mod: {item.modelo_catalogo || '—'}</span>
-                                                        <span className="text-slate-300">•</span>
-                                                        <span className="text-slate-500 font-mono">EAN: {item.codigo_universal || '—'}</span>
-                                                    </div>
+                                            </td>
+                                        </tr>
+
+                                        {/* FILA 2: PROVEEDOR */}
+                                        <tr className={`${bgRow2} transition-colors`}>
+                                            <td className="py-3 px-4 border-r border-slate-100 text-center align-middle">
+                                                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-indigo-100">{proveedor}</span>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className="font-medium text-slate-600 whitespace-normal line-clamp-2" title={item.descripcion_proveedor}>{item.descripcion_proveedor}</p>
+                                                <div className="mt-1.5 flex items-center gap-3">
+                                                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-600 shadow-sm">Dist: <b>{fmtMx(item.dist)}</b></span>
+                                                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-600 shadow-sm">Men: <b>{fmtMx(item.menudeo)}</b></span>
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-3 px-4 align-middle border-l border-slate-50 bg-slate-50/30">
-                                            <div className="flex flex-col gap-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-mono font-bold text-slate-700 bg-white px-1.5 py-0.5 rounded shadow-sm border border-slate-200">
-                                                        {item.sku_proveedor}
-                                                    </span>
-                                                    <span className="font-mono text-slate-500 text-[10px]">EAN Excel: {item.codigo_barra || '—'}</span>
-                                                </div>
-                                                <p className="font-medium whitespace-normal line-clamp-2 text-slate-600" title={item.descripcion_proveedor}>{item.descripcion_proveedor}</p>
-                                                <div className="mt-1 flex items-center gap-3">
-                                                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-500 shadow-sm">Dist: <b className="text-slate-700">{fmtMx(item.dist)}</b></span>
-                                                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-500 shadow-sm">Men: <b className="text-slate-700">{fmtMx(item.menudeo)}</b></span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className={`font-semibold ${diffMarca ? 'text-amber-600' : 'text-slate-700'}`}>{item.marca_proveedor || '—'}</p>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <span className={`font-mono text-xs px-1.5 py-0.5 rounded ${diffModelo ? 'bg-amber-100 text-amber-800 font-bold' : 'bg-slate-100 text-slate-800'}`}>{item.sku_proveedor || '—'}</span>
+                                            </td>
+                                            <td className="py-3 px-4 align-middle">
+                                                <p className={`font-mono text-xs ${diffCodigo ? 'font-bold text-amber-600' : 'text-slate-600'}`}>{item.codigo_barra || '—'}</p>
+                                            </td>
+                                        </tr>
+                                    </React.Fragment>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             )}
         </div>
