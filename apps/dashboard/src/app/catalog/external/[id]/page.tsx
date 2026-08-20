@@ -268,7 +268,7 @@ function StatusToggle({ id, current, disabled }: { id: string; current: string; 
 
 // ─── Página ──────────────────────────────────────────────────────────────────
 export default function PublicacionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = use(params);
+    const { id } = React.use(params);
 
     const [pub, setPub] = useState<any>(null);
     const [mapeos, setMapeos] = useState<any[]>([]);
