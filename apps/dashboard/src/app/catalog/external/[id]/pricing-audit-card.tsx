@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { DollarSign, ShieldCheck, AlertCircle, Clock, Save, X, Edit2, Loader2, ArrowRight, RefreshCw } from 'lucide-react';
+import { DollarSign, ShieldCheck, AlertCircle, Clock, Save, X, Edit2, Loader2, ArrowRight, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PricingAuditCardProps {
