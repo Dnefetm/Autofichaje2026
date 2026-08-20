@@ -533,7 +533,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <div className="py-2 border-b border-slate-100">
                                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Acciones recomendadas</p>
                                     <div className="space-y-1.5">
-                                        {enrichData!.health.actions.slice(0, 4).map((action: any, i: number) => {
+                                        {(enrichData?.health?.actions || []).slice(0, 4).map((action: any, i: number) => {
                                             const isCritical = action.severity === 'critical' || action.impact === 'high';
                                             return (
                                                 <div key={i} className={`text-[11px] px-2 py-1.5 rounded flex items-start gap-2 ${isCritical ? 'bg-rose-50 text-rose-700 border border-rose-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>
@@ -564,8 +564,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <div className="py-2 border-b border-slate-100">
                                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Tags de Visibilidad</p>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {pub.tags
-                                            .filter((t: string) => [
+                                        {(pub.tags || []).filter((t: string) => [
                                                 'good_quality_picture', 'good_quality_thumbnail', 'cart_eligible',
                                                 'dragged_bids', 'dragged_visits', 'poor_quality_picture', 'poor_quality_thumbnail'
                                             ].includes(t))
@@ -642,7 +641,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     : <span className="inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded font-semibold"><AlertCircle className="w-3 h-3" />Sin SKU de ítem</span>
                                 }
                             />
-                            {(isVariant || variantes.length > 0) && (
+                            {(isVariant || (variantes || []).length > 0) && (
                                 <InfoRow
                                     label="SKU Variante"
                                     value={
@@ -717,7 +716,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             <InfoRow
                                 label="Deals"
                                 value={pub.deal_ids?.length > 0
-                                    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-semibold">★ En campaña ({pub.deal_ids.length})</span>
+                                    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-semibold">★ En campaña ({(pub.deal_ids || []).length})</span>
                                     : null
                                 }
                             />
@@ -758,8 +757,8 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         )}
 
                         {/* Variantes — tabla mejorada */}
-                        {variantes.length > 0 && (
-                            <Section title={`Variantes (${variantes.length + 1} totales)`} icon={<Package className="w-4 h-4" />}>
+                        {(variantes || []).length > 0 && (
+                            <Section title={`Variantes (${(variantes || []).length + 1} totales)`} icon={<Package className="w-4 h-4" />}>
                                 <div className="-mx-5 overflow-x-auto">
                                     <table className="w-full text-xs">
                                         <thead className="bg-slate-50">
@@ -794,7 +793,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                 <td className="px-3 py-2 text-right text-slate-700">{pub.stock_publicado ?? '—'}</td>
                                             </tr>
                                             {/* Filas hermanas */}
-                                            {variantes.map(v => (
+                                            {(variantes || []).map(v => (
                                                 <tr key={v.id} className="hover:bg-slate-50 transition-colors">
                                                     <td className="px-4 py-2">
                                                         {v.variation_attributes?.length > 0 ? (
@@ -828,8 +827,8 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         )}
 
                         {/* Publicaciones Asociadas */}
-                        {asociadas.length > 0 && (
-                            <Section title={`Publicaciones Asociadas (${asociadas.length + 1})`} icon={<Layers className="w-4 h-4" />}>
+                        {(asociadas || []).length > 0 && (
+                            <Section title={`Publicaciones Asociadas (${(asociadas || []).length + 1})`} icon={<Layers className="w-4 h-4" />}>
                                 <div className="-mx-5 overflow-x-auto">
                                     <table className="w-full text-xs">
                                         <thead className="bg-slate-50">
@@ -857,7 +856,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                 <td className="px-3 py-2 text-right"><span className="text-[10px] text-indigo-500 font-semibold">actual</span></td>
                                             </tr>
                                             {/* Hermanas */}
-                                            {asociadas.map(a => {
+                                            {(asociadas || []).map(a => {
                                                 const tipoCfg = a.tipo_publicacion ? tipoPubConfig[a.tipo_publicacion] : null;
                                                 const ltCfg = a.listing_type_id ? listingTypeConfig[a.listing_type_id] : null;
                                                 return (
@@ -906,7 +905,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
 
                         {/* Mapeo a bodega */}
                         <Section title="Mapeo a Bodega" icon={<Link2 className="w-4 h-4" />}>
-                            {mapeos.length === 0 ? (
+                            {(mapeos || []).length === 0 ? (
                                 <div className="py-4 text-center">
                                     <AlertCircle className="w-8 h-8 text-rose-300 mx-auto mb-2" />
                                     <p className="text-sm text-slate-500">Sin mapeo</p>
@@ -919,7 +918,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 </div>
                             ) : (
                                 <div className="divide-y divide-slate-100">
-                                    {mapeos.map(m => (
+                                    {(mapeos || []).map(m => (
                                         <div key={m.id} className="py-3">
                                             <div className="flex items-start justify-between gap-2">
                                                 <div>
