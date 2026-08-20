@@ -1,578 +1,532 @@
 "use client";
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dispatchWorker } from '@/lib/dispatch-worker';
 import { X, Search, Package, Save, RefreshCw, Plus, Trash2, Tag, Barcode, Info } from 'lucide-react';
-
 interface MappingModalProps {
-    listing: any;
-    onClose: () => void;
-    onSuccess: () => void;
+listing: any;
+onClose: () => void;
+onSuccess: () => void;
 }
-
 function stringSimilarity(a: string, b: string): number {
-    if (!a || !b) return 0;
-    const al = a.toLowerCase().trim();
-    const bl = b.toLowerCase().trim();
-    if (al === bl) return 1;
-    if (al.length < 2 || bl.length < 2) return 0;
-    const bigrams = new Map<string, number>();
-    for (let i = 0; i < al.length - 1; i++) {
-        const bi = al.substring(i, i + 2);
-        bigrams.set(bi, (bigrams.get(bi) || 0) + 1);
-    }
-    let intersect = 0;
-    for (let i = 0; i < bl.length - 1; i++) {
-        const bi = bl.substring(i, i + 2);
-        const count = bigrams.get(bi) || 0;
-        if (count > 0) { bigrams.set(bi, count - 1); intersect++; }
-    }
-    return (2 * intersect) / ((al.length - 1) + (bl.length - 1));
+if (!a || !b) return 0;
+const al = a.toLowerCase().trim();
+const bl = b.toLowerCase().trim();
+if (al === bl) return 1;
+if (al.length < 2 || bl.length < 2) return 0;
+const bigrams = new Map<string, number>();
+for (let i = 0; i < al.length - 1; i++) {
+const bi = al.substring(i, i + 2);
+bigrams.set(bi, (bigrams.get(bi) || 0) + 1);
 }
-
+let intersect = 0;
+for (let i = 0; i < bl.length - 1; i++) {
+const bi = bl.substring(i, i + 2);
+const count = bigrams.get(bi) || 0;
+if (count > 0) { bigrams.set(bi, count - 1); intersect++; }
+}
+return (2 * intersect) / ((al.length - 1) + (bl.length - 1));
+}
 export default function MappingModal({ listing, onClose, onSuccess }: MappingModalProps) {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [searchResults, setSearchResults] = useState<any[]>([]);
-    const [selectedSkus, setSelectedSkus] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [smartSuggestions, setSmartSuggestions] = useState<any[]>([]);
-    const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-    // Punto 5: hermanas para propagación en cascada
-    const [siblings, setSiblings] = useState<any[]>([]);
-    const [siblingsLoading, setSiblingsLoading] = useState(false);
-    // NUEVO: costo vigente por articulo_id (para badges en sugerencias)
-    const [costMap, setCostMap] = useState<Map<string, boolean>>(new Map());
-
-    const pubSku = listing?.seller_custom_field || listing?.seller_sku || '';
-    const pubEan = listing?.ean || '';
-    const pubGtin = listing?.gtin || '';
-    const pubUpc = listing?.upc || '';
-    const pubModel = listing?.model || '';
-    const pubBrand = listing?.brand || '';
-    const pubTitle = listing?.titulo || '';
-
-    // Punto 2: bloquear si es catálogo derivado con par_item_id
-    const isBlockedCatalog = listing?.tipo_publicacion === 'catalogo' && !!listing?.par_item_id;
-
-    useEffect(() => {
-        if (listing && !isBlockedCatalog) {
-            loadExistingMappings();
-            loadSmartSuggestions();
-            loadSiblings();
-        }
-    }, [listing]);
-
-    async function loadExistingMappings() {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('mapeo_publicacion_articulo')
-                .select(`
-                    id,
-                    cantidad_requerida,
-                    articulo_id,
-                    articulos (nombre, articulo_id, marca, modelo, variante, codigo_universal, caja_madre)
-                `)
-                .eq('publicacion_id', listing.id);
-            if (error) throw error;
-            if (data) {
-                const mapped = data.map((d: any) => ({
-                    mapping_id: d.id,
-                    sku: d.articulo_id,
-                    name: d.articulos?.nombre || 'Producto Desconocido',
-                    marca: d.articulos?.marca || '',
-                    modelo: d.articulos?.modelo || '',
-                    variante: d.articulos?.variante || '',
-                    codigo_universal: d.articulos?.codigo_universal || '',
-                    caja_madre: d.articulos?.caja_madre || '',
-                    quantity: d.cantidad_requerida
-                }));
-                setSelectedSkus(mapped);
-            }
-        } catch (error) {
-            console.error('Error cargando mapeos previos:', error);
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    async function loadSmartSuggestions() {
-        setSuggestionsLoading(true);
-        try {
-            const allSkus    = [listing?.seller_custom_field, listing?.seller_sku].filter(Boolean);
-            const allGtins   = [listing?.gtin, listing?.ean, listing?.upc].filter(Boolean);
-            const allModels  = [listing?.model].filter(Boolean);
-            const brand      = listing?.brand || '';
-            const title      = listing?.titulo || '';
-
-            // Enriquecer con variaciones
-            const { data: varData } = await supabase
-                .from('publicaciones_externas')
-                .select('seller_sku, model, gtin, ean, upc')
-                .eq('external_item_id', listing.external_item_id)
-                .neq('external_variation_id', '0');
-
-            const varSkus   = (varData || []).map((v: any) => v.seller_sku).filter(Boolean);
-            const varGtins  = (varData || []).flatMap((v: any) => [v.gtin, v.ean, v.upc]).filter(Boolean);
-            const varModels = (varData || []).map((v: any) => v.model).filter(Boolean);
-
-            const combinedSkus   = [...new Set([...allSkus, ...varSkus])];
-            const combinedGtins  = [...new Set([...allGtins, ...varGtins])];
-            const combinedModels = [...new Set([...allModels, ...varModels])];
-
-            // === CAPA 1: Búsqueda EXACTA por SKU/modelo/GTIN (máx prioridad) ===
-            const exactParts: string[] = [];
-            for (const s of combinedSkus) {
-                exactParts.push(`articulo_id.eq.${s}`);
-                exactParts.push(`modelo.eq.${s}`);
-                // Normalización: "890 104 153" → "890104153" para match sin espacios
-                const sNorm = s.replace(/\s+/g, '');
-                if (sNorm !== s) {
-                    exactParts.push(`articulo_id.eq.${sNorm}`);
-                    exactParts.push(`modelo.eq.${sNorm}`);
-                }
-            }
-            for (const m of combinedModels) {
-                exactParts.push(`modelo.eq.${m}`);
-                exactParts.push(`articulo_id.eq.${m}`);
-                const mNorm = m.replace(/\s+/g, '');
-                if (mNorm !== m) {
-                    exactParts.push(`modelo.eq.${mNorm}`);
-                    exactParts.push(`articulo_id.eq.${mNorm}`);
-                }
-            }
-            for (const g of combinedGtins) {
-                exactParts.push(`codigo_universal.eq.${g}`);
-            }
-
-            let exactResults: any[] = [];
-            if (exactParts.length > 0) {
-                const { data } = await supabase
-                    .from('articulos')
-                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
-                    .not('nombre', 'like', '%PLACEHOLDER%')
-                    .or(exactParts.join(','))
-                    .limit(20);
-                exactResults = data || [];
-            }
-
-            // === CAPA 2: Búsqueda PARCIAL por SKU/modelo/GTIN (ilike) ===
-            const partialParts: string[] = [];
-            for (const s of combinedSkus) {
-                partialParts.push(`articulo_id.ilike.%${s}%`);            
-                partialParts.push(`modelo.ilike.%${s}%`);
-                partialParts.push(`codigo_universal.ilike.%${s}%`);
-            }
-            for (const m of combinedModels) {
-                partialParts.push(`modelo.ilike.%${m}%`);
-                partialParts.push(`articulo_id.ilike.%${m}%`);            
-            }
-            for (const g of combinedGtins) {
-                partialParts.push(`codigo_universal.ilike.%${g}%`);
-            }
-
-            let partialResults: any[] = [];
-            if (partialParts.length > 0) {
-                const { data } = await supabase
-                    .from('articulos')
-                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
-                    .not('nombre', 'like', '%PLACEHOLDER%')
-                    .or(partialParts.join(','))
-                    .limit(30);
-                partialResults = data || [];
-            }
-
-            // === CAPA 3: Búsqueda por marca (solo complemento) ===
-            let brandResults: any[] = [];
-            if (brand) {
-                const { data } = await supabase
-                    .from('articulos')
-                    .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
-                    .not('nombre', 'like', '%PLACEHOLDER%')
-                    .ilike('marca', `%${brand}%`)
-                    .limit(20);
-                brandResults = data || [];
-            }
-
-            // === MERGE: deduplicar por articulo_id (exactos primero) ===
-            const mergedMap = new Map<string, any>();
-            for (const item of [...exactResults, ...partialResults, ...brandResults]) {
-                if (!mergedMap.has(item.articulo_id)) {
-                    mergedMap.set(item.articulo_id, item);
-                }
-            }
-
-            const allItems = Array.from(mergedMap.values());
-
-            if (allItems.length > 0) {
-                // === RE-SCORING detallado ===
-                const scored = allItems.map(item => {
-                    let score = 0;
-                    const iId    = (item.articulo_id || '').toLowerCase();
-                    const iMod   = (item.modelo || '').toLowerCase();
-                    const iCod   = (item.codigo_universal || '').toLowerCase();
-                    const iMarca = (item.marca || '').toLowerCase();
-
-                    // PRIORIDAD 1: SKU exacto (+5) o parcial (+3)
-                    for (const s of combinedSkus) {
-                        const sl = s.toLowerCase();
-                        if (iId === sl || iMod === sl) { score += 5; break; }
-                        if (iId.includes(sl) || iMod.includes(sl)) { score += 3; break; }
-                    }
-                    // PRIORIDAD 2: Modelo exacto (+4) o parcial (+2)
-                    for (const m of combinedModels) {
-                        const ml = m.toLowerCase();
-                        if (iMod === ml) { score += 4; break; }
-                        if (iMod.includes(ml) || iId.includes(ml)) { score += 2; break; }
-                    }
-                    // PRIORIDAD 3: GTIN/EAN match (+3 o +2)
-                    for (const g of combinedGtins) {
-                        const gl       = g.toLowerCase().replace(/^0+/, '');
-                        const iCodClean = iCod.replace(/^0+/, '');
-                        if (iCodClean === gl || iCod === g.toLowerCase()) { score += 3; break; }
-                        if (iCodClean.includes(gl) || gl.includes(iCodClean)) { score += 2; break; }
-                    }
-                    // PRIORIDAD 4: Marca exacta (+1)
-                    if (brand && iMarca === brand.toLowerCase()) score += 1;
-                    // PRIORIDAD 5: Similitud de nombre (+0 a +0.5)
-                    score += stringSimilarity(title, item.nombre || '') * 0.5;
-
-                    return { ...item, _score: score };
-                });
-
-                scored.sort((a, b) => b._score - a._score);
-                const finalScored = scored.filter(s => s._score > 0.5);
-                setSmartSuggestions(finalScored);
-
-                // NUEVO: enriquecer con estado de costo vigente en batch
-                const artIds = finalScored.map((s: any) => s.articulo_id);
-                if (artIds.length) {
-                    const { data: costs } = await supabase
-                        .from('costos_articulo')
-                        .select('articulo_id')
-                        .in('articulo_id', artIds)
-                        .eq('vigente', true);
-                    const m = new Map<string, boolean>();
-                    (costs || []).forEach((c: any) => m.set(c.articulo_id, true));
-                    setCostMap(m);
-                }
-            }
-        } catch (error) {
-            console.error('Error cargando sugerencias:', error);
-        } finally {
-            setSuggestionsLoading(false);
-        }
-    }
-    useEffect(() => {
-        const debounce = setTimeout(() => {
-            if (searchTerm.length >= 2) { searchPhysicalCatalog(); } else { setSearchResults([]); }
-        }, 300);
-        return () => clearTimeout(debounce);
-    }, [searchTerm]);
-
-    async function searchPhysicalCatalog() {
-        try {
-            const { data, error } = await supabase
-                .from('articulos')
-                .select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
-                .not('nombre', 'like', '%PLACEHOLDER%')
-                .or(`articulo_id.ilike.%${searchTerm}%,nombre.ilike.%${searchTerm}%,marca.ilike.%${searchTerm}%,modelo.ilike.%${searchTerm}%,codigo_universal.ilike.%${searchTerm}%`)
-                .limit(10);
-            if (error) { console.error('Error buscando articulos:', error.message); setSearchResults([]); return; }
-            const ref = pubSku || pubEan || '';
-            if (ref && data) {
-                const scored = data.map(item => ({ ...item, _score: Math.max(stringSimilarity(ref, item.articulo_id || ''),  stringSimilarity(ref, item.codigo_universal || '')) }));
-                scored.sort((a, b) => b._score - a._score);
-                setSearchResults(scored);
-            } else { setSearchResults(data || []); }
-        } catch (error) { console.error('Error buscando articulos fisicos:', error); setSearchResults([]); }
-    }
-
-    function handleAddSku(product: any) {
-        if (selectedSkus.find(s => s.sku === product.articulo_id)) return;
-        setSelectedSkus([...selectedSkus, { sku: product.articulo_id, name: product.nombre, marca: product.marca || '', modelo: product.modelo || '', variante: product.variante || '', codigo_universal: product.codigo_universal || '', caja_madre: product.caja_madre || '', quantity: 1, mapping_id: null }]);
-        setSearchTerm('');
-    }
-    function handleRemoveSku(sku: string) { setSelectedSkus(selectedSkus.filter(s => s.sku !== sku)); }
-    function handleQuantityChange(sku: string, qty: number) { if (qty < 1) return; setSelectedSkus(selectedSkus.map(s => s.sku === sku ? { ...s, quantity: qty } : s)); }
-
-    // Punto 5: cargar hermanas — por id_producto_catalogo Y por par_item_id children
-    async function loadSiblings() {
-        setSiblingsLoading(true);
-        try {
-            // Caso 1: hermanas con mismo id_producto_catalogo
-            let sibData: any[] = [];
-            if (listing?.id_producto_catalogo) {
-                const { data } = await supabase
-                    .from('publicaciones_externas')
-                    .select('id, titulo, external_item_id, tipo_publicacion')
-                    .eq('id_producto_catalogo', listing.id_producto_catalogo)
-                    .neq('id', listing.id)
-                    .eq('external_variation_id', '0');
-                sibData = data || [];
-            }
-            // Caso 2: catálogos derivados directos (par_item_id = este item)
-            const { data: catData } = await supabase
-                .from('publicaciones_externas')
-                .select('id, titulo, external_item_id, tipo_publicacion')
-                .eq('par_item_id', listing.external_item_id)
-                .in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
-                .eq('external_variation_id', '0');
-            // Combinar sin duplicados
-            const ids = new Set(sibData.map((s: any) => s.id));
-            const combined = [
-                ...sibData,
-                ...(catData || []).filter((c: any) => !ids.has(c.id)),
-            ];
-            setSiblings(combined);
-        } finally {
-            setSiblingsLoading(false);
-        }
-    }
-
-    async function handleSave() {
-        if (selectedSkus.length === 0) { alert('Debes seleccionar al menos un articulo del catalogo real.'); return; }
-        setSaving(true);
-        try {
-            // Punto 1: mapear publicación principal
-            const { error: delError } = await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', listing.id);
-            if (delError) throw delError;
-            const snapshotUpserts = selectedSkus.map(s => ({ sku: s.sku, physical_stock: 0, updated_at: new Date().toISOString() }));
-            await supabase.from('inventory_snapshot').upsert(snapshotUpserts, { onConflict: 'sku', ignoreDuplicates: true });
-            const inserts = selectedSkus.map(s => ({ publicacion_id: listing.id, articulo_id: s.sku, cantidad_requerida: s.quantity }));
-            const { error: insError } = await supabase.from('mapeo_publicacion_articulo').insert(inserts);
-            if (insError) throw insError;
-            // Punto 1: actualizar esta_mapeado en la publicación principal
-            await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', listing.id);
-
-            // NUEVO: liberar sync si fue pausado por falta de mapeo
-            await supabase
-                .from('publicaciones_externas')
-                .update({ sync_disabled: false, sync_disabled_reason: null })
-                .eq('id', listing.id)
-                .eq('sync_disabled_reason', 'pricing_needs_manual_mapping');
-
-            // NUEVO: encolar recálculo de precio
-            await supabase.from('jobs').insert({
-                type: 'recalc_pricing_bundle',
-                payload: { publicacion_id: listing.id },
-                status: 'pending',
-                scheduled_at: new Date().toISOString(),
-            });
-
-            // Encolar job para la pub principal
-            await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: listing.id }, status: 'pending', scheduled_at: new Date().toISOString() });
-
-            // Punto 5: propagación a hermanas — con confirmación explícita
-            const propagableSimlings = siblings.filter(s => s.id !== listing.id);
-            if (propagableSimlings.length > 0) {
-                const confirmed = window.confirm(
-                    `¿Propagar este mapeo a ${propagableSimlings.length} publicación${propagableSimlings.length !== 1 ? 'es' : ''} hermana${propagableSimlings.length !== 1 ? 's' : ''} con el mismo producto de catálogo?\n\n` +
-                    propagableSimlings.map(s => `• ${s.external_item_id} — ${s.titulo?.slice(0, 50)}`).join('\n')
-                );
-                if (confirmed) {
-                    for (const sib of propagableSimlings) {
-                        await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', sib.id);
-                        const sibInserts = selectedSkus.map(s => ({ publicacion_id: sib.id, articulo_id: s.sku, cantidad_requerida: s.quantity }));
-                        await supabase.from('mapeo_publicacion_articulo').insert(sibInserts);
-                        await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', sib.id);
-
-                        // NUEVO: liberar sync y encolar recalc también para hermanas
-                        await supabase
-                            .from('publicaciones_externas')
-                            .update({ sync_disabled: false, sync_disabled_reason: null })
-                            .eq('id', sib.id)
-                            .eq('sync_disabled_reason', 'pricing_needs_manual_mapping');
-
-                        await supabase.from('jobs').insert({
-                            type: 'recalc_pricing_bundle',
-                            payload: { publicacion_id: sib.id },
-                            status: 'pending',
-                            scheduled_at: new Date().toISOString(),
-                        });
-
-                        await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: sib.id }, status: 'pending', scheduled_at: new Date().toISOString() });
-                    }
-                }
-            }
-
-            await dispatchWorker();
-            onSuccess();
-            onClose();
-        } catch (error) { console.error('Error guardando el mapeo:', error); alert('Ocurrio un error al guardar el mapeo.'); }
-        finally { setSaving(false); }
-    }
-
-    const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel => sel.sku === s.articulo_id));
-
-    return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-white">
-                    <div>
-                        <h2 className="text-lg font-bold text-slate-800">Mapear a Bodega Fisica</h2>
-                        <p className="text-xs text-slate-500">Vincula esta vitrina con 1 o mas productos reales.</p>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors"><X size={20} /></button>
-                </div>
-                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-                    <div className="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl p-4 border border-slate-200">
-                        <div className="flex gap-4">
-                            {listing.url_imagen && (<img src={listing.url_imagen} alt="Producto" className="w-20 h-20 object-contain rounded-lg bg-white border border-slate-200 flex-shrink-0" />)}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">Publicacion Venta</span>
-                                    {listing.condition && <span className="text-[10px] text-slate-500 bg-white px-1.5 py-0.5 rounded border">{listing.condition === 'new' ? 'Nuevo' : 'Usado'}</span>}
-                                </div>
-                                <h3 className="font-semibold text-sm text-slate-800 leading-tight truncate">{listing.titulo}</h3>
-                                <p className="text-xs text-slate-500 mt-0.5">{listing.external_item_id} &bull; ${listing.precio_venta}</p>
-                                <div className="flex flex-wrap gap-1.5 mt-2">
-                                    {pubSku && (<span className="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md font-mono"><Tag size={10} /> SKU: {pubSku}</span>)}
-                                    {pubEan && (<span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono"><Barcode size={10} /> EAN: {pubEan}</span>)}
-                                    {pubGtin && pubGtin !== pubEan && (<span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono"><Barcode size={10} /> GTIN: {pubGtin}</span>)}
-                                    {pubUpc && pubUpc !== pubEan && pubUpc !== pubGtin && (<span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono">UPC: {pubUpc}</span>)}
-                                    {pubBrand && (<span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">Marca: {pubBrand}</span>)}
-                                    {pubModel && (<span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">Modelo: {pubModel}</span>)}
-                                    {listing.domain_id && (<span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">{listing.domain_id}</span>)}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Punto 2: bloqueo para catálogos con par_item_id */}
-                    {isBlockedCatalog && (
-                        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex gap-3">
-                            <Info size={18} className="text-amber-600 shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-sm font-bold text-amber-800">Este catálogo hereda el stock de su publicación tradicional</p>
-                                <p className="text-xs text-amber-700 mt-1">
-                                    Para que el stock se sincronice correctamente, mapea la publicación <strong>tradicional hermana</strong>
-                                    {listing.par_item_id ? ` (${listing.par_item_id})` : ''} — este catálogo se actualizará automáticamente.
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Punto 5: indicador de hermanas */}
-                    {!isBlockedCatalog && siblings.length > 0 && (
-                        <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-indigo-700">
-                            <Info size={12} className="shrink-0" />
-                            Al guardar, podrás propagar el mapeo a <strong className="mx-1">{siblings.length}</strong> publicación{siblings.length !== 1 ? 'es' : ''} hermana{siblings.length !== 1 ? 's' : ''} con el mismo producto de catálogo.
-                        </div>
-                    )}
-
-                    {(suggestionsLoading || filteredSuggestions.length > 0) && (
-                        <div className="bg-green-50 border border-green-200 rounded-xl p-3">
-                            <h4 className="text-xs font-bold text-green-800 flex items-center gap-1.5 mb-2">
-                                <RefreshCw size={12} className={suggestionsLoading ? 'animate-spin' : ''} />
-                                {suggestionsLoading ? 'Buscando coincidencias...' : `${filteredSuggestions.length} sugerencia${filteredSuggestions.length !== 1 ? 's' : ''} por similitud`}
-                            </h4>
-                            {!suggestionsLoading && filteredSuggestions.slice(0, 15).map(res => (
-                                <button key={res.articulo_id} onClick={() => handleAddSku(res)} className="w-full text-left p-2 mb-1 rounded-lg hover:bg-green-100 border border-transparent hover:border-green-300 transition-all flex items-center justify-between group">
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-slate-800 truncate">{res.nombre}</p>
-                                        <div className="flex flex-wrap gap-1 mt-0.5">
-                                            {res.marca && <span className="text-[10px] text-slate-500">{res.marca}</span>}
-                                            {res.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {res.codigo_universal}</span>}
-                                                                        {res.modelo && <span className="text-[10px] text-slate-400">Mod: {res.modelo}</span>}
-                                                                        {res.variante && <span className="text-[10px] text-slate-400">Var: {res.variante}</span>}
-                                                                        {res.caja_madre && <span className="text-[10px] text-slate-400">Caja: {res.caja_madre}</span>}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {res._score >= 3 && <span className="text-[9px] bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full font-bold">Alta</span>}
-                                        {res._score >= 1.5 && res._score < 3 && <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Media</span>}
-                                        {res._score < 1.5 && <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">Baja</span>}
-                                        {costMap.get(res.articulo_id) ? (
-                                            <span className="inline-block px-1.5 py-0.5 text-[10px] rounded bg-emerald-100 text-emerald-700 font-semibold ml-1">
-                                                ✓ costo vigente
-                                            </span>
-                                        ) : (
-                                            <span
-                                                className="inline-block px-1.5 py-0.5 text-[10px] rounded bg-rose-100 text-rose-700 font-semibold ml-1"
-                                                title="El artículo no tiene costo vigente. Importa la lista de precios del proveedor."
-                                            >
-                                                ⚠ sin costo
-                                            </span>
-                                        )}
-                                        <span className="text-[10px] font-mono text-slate-400">{res.articulo_id}</span>
-                                        <Plus size={14} className="text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    <div>
-                        <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Buscar en tu Bodega (Catalogo Real)</label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                            <input type="text" className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" placeholder="Busca por nombre, marca, modelo, SKU, codigo universal..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                        </div>
-                        {searchResults.length > 0 && (
-                            <div className="mt-2 border border-slate-200 rounded-lg bg-white shadow-lg max-h-48 overflow-y-auto">
-                                {searchResults.map(res => (
-                                    <button key={res.articulo_id} className="w-full text-left px-3 py-2.5 hover:bg-indigo-50 border-b border-slate-100 last:border-0 transition-colors flex items-center justify-between" onClick={() => handleAddSku(res)}>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-medium text-slate-800 truncate">{res.nombre}</p>
-                                            <div className="flex flex-wrap gap-1 mt-0.5">
-                                                {res.marca && <span className="text-[10px] text-slate-500">{res.marca}</span>}
-                                                {res.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {res.codigo_universal}</span>}
-                                                                                                {res.modelo && <span className="text-[10px] text-slate-400">Mod: {res.modelo}</span>}
-                                                {res.variante && <span className="text-[10px] text-slate-400">Var: {res.variante}</span>}
-                                                {res.caja_madre && <span className="text-[10px] text-slate-400">Caja: {res.caja_madre}</span>}
-                                            </div>
-                                        </div>
-                                        <span className="text-[10px] font-mono text-slate-400 ml-2 flex-shrink-0">{res.articulo_id}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div>
-                        <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-2"><Package size={14} /> Articulos que se descontaran por cada venta (Ensamble)</h4>
-                        {loading ? (
-                            <div className="text-center py-4 text-sm text-slate-400"><RefreshCw size={16} className="inline animate-spin mr-2" />Cargando mapeos previos...</div>
-                        ) : selectedSkus.length === 0 ? (
-                            <div className="text-center py-6 text-sm text-slate-400 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200">No has agregado articulos reales. Usa el buscador o las sugerencias.</div>
-                        ) : (
-                            selectedSkus.map(s => (
-                                <div key={s.sku} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg mb-2 hover:shadow-sm transition-shadow">
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-semibold text-slate-800 truncate">{s.name}</p>
-                                        <div className="flex flex-wrap gap-1 mt-0.5">
-                                            {s.marca && <span className="text-[10px] text-slate-500">{s.marca}</span>}
-                                                                                        {s.modelo && <span className="text-[10px] text-slate-400">Mod: {s.modelo}</span>}
-                                            {s.variante && <span className="text-[10px] text-slate-400">Var: {s.variante}</span>}
-                                            {s.caja_madre && <span className="text-[10px] text-slate-400">Caja: {s.caja_madre}</span>}
-                                            {s.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {s.codigo_universal}</span>}
-                                        </div>
-                                        <span className="text-[10px] font-mono text-slate-400 mt-0.5 block">{s.sku}</span>
-                                    </div>
-                                    <button onClick={() => handleRemoveSku(s.sku)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
-                                    <div className="text-center">
-                                        <span className="text-[10px] text-slate-400 block mb-1">Cantidad</span>
-                                        <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
-                                            <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="px-2 py-1 text-slate-500 hover:bg-slate-200 font-bold">-</button>
-                                            <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, parseInt(e.target.value) || 1)} className="w-12 text-center text-sm font-semibold bg-transparent border-none appearance-none p-0 focus:ring-0" />
-                                            <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="px-2 py-1 text-slate-500 hover:bg-slate-200 font-bold">+</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50">
-                    <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>
-                    <button onClick={handleSave} disabled={saving || selectedSkus.length === 0} className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40 flex items-center gap-2">
-                        {saving ? (<><RefreshCw size={14} className="animate-spin" />Guardando...</>) : <><Save size={14} />Guardar y Enlazar</>}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
+const [searchTerm, setSearchTerm] = useState('');
+const [searchResults, setSearchResults] = useState<any[]>([]);
+const [selectedSkus, setSelectedSkus] = useState<any[]>([]);
+const [loading, setLoading] = useState(false);
+const [saving, setSaving] = useState(false);
+const [smartSuggestions, setSmartSuggestions] = useState<any[]>([]);
+const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+const [siblings, setSiblings] = useState<any[]>([]);
+const [siblingsLoading, setSiblingsLoading] = useState(false);
+const [costMap, setCostMap] = useState<Map<string, boolean>>(new Map());
+const pubSku = listing?.seller_custom_field || listing?.seller_sku || '';
+const pubEan = listing?.ean || '';
+const pubGtin = listing?.gtin || '';
+const pubUpc = listing?.upc || '';
+const pubModel = listing?.model || '';
+const pubBrand = listing?.brand || '';
+const pubTitle = listing?.titulo || '';
+const isBlockedCatalog = listing?.tipo_publicacion === 'catalogo' && !!listing?.par_item_id;
+useEffect(() => {
+if (listing && !isBlockedCatalog) {
+loadExistingMappings();
+loadSmartSuggestions();
+loadSiblings();
+}
+}, [listing]);
+async function loadExistingMappings() {
+setLoading(true);
+try {
+const { data, error } = await supabase
+.from('mapeo_publicacion_articulo')
+.select(`
+id,
+cantidad_requerida,
+articulo_id,
+articulos (nombre, articulo_id, marca, modelo, variante, codigo_universal, caja_madre)
+`)
+.eq('publicacion_id', listing.id);
+if (error) throw error;
+if (data) {
+const mapped = data.map((d: any) => ({
+mapping_id: d.id,
+sku: d.articulo_id,
+name: d.articulos?.nombre || 'Producto Desconocido',
+marca: d.articulos?.marca || '',
+modelo: d.articulos?.modelo || '',
+variante: d.articulos?.variante || '',
+codigo_universal: d.articulos?.codigo_universal || '',
+caja_madre: d.articulos?.caja_madre || '',
+quantity: d.cantidad_requerida
+}));
+setSelectedSkus(mapped);
+}
+} catch (error) {
+console.error('Error cargando mapeos previos:', error);
+} finally {
+setLoading(false);
+}
+}
+async function loadSmartSuggestions() {
+setSuggestionsLoading(true);
+try {
+const allSkus = [listing?.seller_custom_field, listing?.seller_sku].filter(Boolean);
+const allGtins = [listing?.gtin, listing?.ean, listing?.upc].filter(Boolean);
+const allModels = [listing?.model].filter(Boolean);
+const brand = listing?.brand || '';
+const title = listing?.titulo || '';
+const { data: varData } = await supabase
+.from('publicaciones_externas')
+.select('seller_sku, model, gtin, ean, upc')
+.eq('external_item_id', listing.external_item_id)
+.neq('external_variation_id', '0');
+const varSkus = (varData || []).map((v: any) => v.seller_sku).filter(Boolean);
+const varGtins = (varData || []).flatMap((v: any) => [v.gtin, v.ean, v.upc]).filter(Boolean);
+const varModels = (varData || []).map((v: any) => v.model).filter(Boolean);
+const combinedSkus = [...new Set([...allSkus, ...varSkus])];
+const combinedGtins = [...new Set([...allGtins, ...varGtins])];
+const combinedModels = [...new Set([...allModels, ...varModels])];
+const exactParts: string[] = [];
+for (const s of combinedSkus) {
+exactParts.push(`articulo_id.eq.${s}`);
+exactParts.push(`modelo.eq.${s}`);
+const sNorm = s.replace(/\s+/g, '');
+if (sNorm !== s) {
+exactParts.push(`articulo_id.eq.${sNorm}`);
+exactParts.push(`modelo.eq.${sNorm}`);
+}
+}
+for (const m of combinedModels) {
+exactParts.push(`modelo.eq.${m}`);
+exactParts.push(`articulo_id.eq.${m}`);
+const mNorm = m.replace(/\s+/g, '');
+if (mNorm !== m) {
+exactParts.push(`modelo.eq.${mNorm}`);
+exactParts.push(`articulo_id.eq.${mNorm}`);
+}
+}
+for (const g of combinedGtins) {
+exactParts.push(`codigo_universal.eq.${g}`);
+}
+let exactResults: any[] = [];
+if (exactParts.length > 0) {
+const { data } = await supabase
+.from('articulos')
+.select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
+.not('nombre', 'like', '%PLACEHOLDER%')
+.or(exactParts.join(','))
+.limit(20);
+exactResults = data || [];
+}
+const partialParts: string[] = [];
+for (const s of combinedSkus) {
+partialParts.push(`articulo_id.ilike.%${s}%`);
+partialParts.push(`modelo.ilike.%${s}%`);
+partialParts.push(`codigo_universal.ilike.%${s}%`);
+}
+for (const m of combinedModels) {
+partialParts.push(`modelo.ilike.%${m}%`);
+partialParts.push(`articulo_id.ilike.%${m}%`);
+}
+for (const g of combinedGtins) {
+partialParts.push(`codigo_universal.ilike.%${g}%`);
+}
+let partialResults: any[] = [];
+if (partialParts.length > 0) {
+const { data } = await supabase
+.from('articulos')
+.select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
+.not('nombre', 'like', '%PLACEHOLDER%')
+.or(partialParts.join(','))
+.limit(30);
+partialResults = data || [];
+}
+let brandResults: any[] = [];
+if (brand) {
+const { data } = await supabase
+.from('articulos')
+.select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
+.not('nombre', 'like', '%PLACEHOLDER%')
+.ilike('marca', `%${brand}%`)
+.limit(20);
+brandResults = data || [];
+}
+// === CAPA 4 (NUEVO): fallback por titulo tokenizado ===
+// Cuando la publicacion no tiene sku/modelo/gtin/marca, el buscador de
+// sugerencias quedaba vacio. Derivamos keywords limpias del titulo para
+// mantener la busqueda util. Se ejecuta solo si las capas previas no dieron nada.
+let titleResults: any[] = [];
+const noStructuredData = combinedSkus.length === 0 && combinedModels.length === 0 && combinedGtins.length === 0 && !brand;
+const hadResults = exactResults.length > 0 || partialResults.length > 0 || brandResults.length > 0;
+if (title && (noStructuredData || !hadResults)) {
+const stop = new Set(['de','del','la','el','los','las','para','con','por','y','a','un','una','cuadro','puntas','punta','pulg','pza','pzs','pieza','piezas','uso','pesado']);
+const tokens = title
+.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+.toLowerCase()
+.replace(/[^\p{L}\p{N}\s]/gu, ' ')
+.split(/\s+/)
+.filter((t: string) => t.length >= 3 && !stop.has(t) && !/^\d+$/.test(t))
+.slice(0, 3);
+if (tokens.length > 0) {
+const titleParts = tokens.map((t: string) => `nombre.ilike.%${t}%`);
+const { data } = await supabase
+.from('articulos')
+.select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
+.not('nombre', 'like', '%PLACEHOLDER%')
+.or(titleParts.join(','))
+.limit(30);
+titleResults = data || [];
+}
+}
+const mergedMap = new Map<string, any>();
+for (const item of [...exactResults, ...partialResults, ...brandResults, ...titleResults]) {
+if (!mergedMap.has(item.articulo_id)) {
+mergedMap.set(item.articulo_id, item);
+}
+}
+const allItems = Array.from(mergedMap.values());
+if (allItems.length > 0) {
+const scored = allItems.map(item => {
+let score = 0;
+const iId = (item.articulo_id || '').toLowerCase();
+const iMod = (item.modelo || '').toLowerCase();
+const iCod = (item.codigo_universal || '').toLowerCase();
+const iMarca = (item.marca || '').toLowerCase();
+for (const s of combinedSkus) {
+const sl = s.toLowerCase();
+if (iId === sl || iMod === sl) { score += 5; break; }
+if (iId.includes(sl) || iMod.includes(sl)) { score += 3; break; }
+}
+for (const m of combinedModels) {
+const ml = m.toLowerCase();
+if (iMod === ml) { score += 4; break; }
+if (iMod.includes(ml) || iId.includes(ml)) { score += 2; break; }
+}
+for (const g of combinedGtins) {
+const gl = g.toLowerCase().replace(/^0+/, '');
+const iCodClean = iCod.replace(/^0+/, '');
+if (iCodClean === gl || iCod === g.toLowerCase()) { score += 3; break; }
+if (iCodClean.includes(gl) || gl.includes(iCodClean)) { score += 2; break; }
+}
+if (brand && iMarca === brand.toLowerCase()) score += 1;
+score += stringSimilarity(title, item.nombre || '') * 0.5;
+return { ...item, _score: score };
+});
+scored.sort((a, b) => b._score - a._score);
+// Umbral relajado cuando no hay datos estructurados: apoyarse en similitud de nombre.
+const minScore = noStructuredData ? 0.15 : 0.5;
+const finalScored = scored.filter(s => s._score > minScore);
+setSmartSuggestions(finalScored);
+const artIds = finalScored.map((s: any) => s.articulo_id);
+if (artIds.length) {
+const { data: costs } = await supabase
+.from('costos_articulo')
+.select('articulo_id')
+.in('articulo_id', artIds)
+.eq('vigente', true);
+const m = new Map<string, boolean>();
+(costs || []).forEach((c: any) => m.set(c.articulo_id, true));
+setCostMap(m);
+}
+}
+} catch (error) {
+console.error('Error cargando sugerencias:', error);
+} finally {
+setSuggestionsLoading(false);
+}
+}
+useEffect(() => {
+const debounce = setTimeout(() => {
+if (searchTerm.length >= 2) { searchPhysicalCatalog(); } else { setSearchResults([]); }
+}, 300);
+return () => clearTimeout(debounce);
+}, [searchTerm]);
+async function searchPhysicalCatalog() {
+try {
+const { data, error } = await supabase
+.from('articulos')
+.select('articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre')
+.not('nombre', 'like', '%PLACEHOLDER%')
+.or(`articulo_id.ilike.%${searchTerm}%,nombre.ilike.%${searchTerm}%,marca.ilike.%${searchTerm}%,modelo.ilike.%${searchTerm}%,codigo_universal.ilike.%${searchTerm}%`)
+.limit(10);
+if (error) { console.error('Error buscando articulos:', error.message); setSearchResults([]); return; }
+const ref = pubSku || pubEan || '';
+if (ref && data) {
+const scored = data.map(item => ({ ...item, _score: Math.max(stringSimilarity(ref, item.articulo_id || ''), stringSimilarity(ref, item.codigo_universal || '')) }));
+scored.sort((a, b) => b._score - a._score);
+setSearchResults(scored);
+} else { setSearchResults(data || []); }
+} catch (error) { console.error('Error buscando articulos fisicos:', error); setSearchResults([]); }
+}
+function handleAddSku(product: any) {
+if (selectedSkus.find(s => s.sku === product.articulo_id)) return;
+setSelectedSkus([...selectedSkus, { sku: product.articulo_id, name: product.nombre, marca: product.marca || '', modelo: product.modelo || '', variante: product.variante || '', codigo_universal: product.codigo_universal || '', caja_madre: product.caja_madre || '', quantity: 1, mapping_id: null }]);
+setSearchTerm('');
+}
+function handleRemoveSku(sku: string) { setSelectedSkus(selectedSkus.filter(s => s.sku !== sku)); }
+function handleQuantityChange(sku: string, qty: number) { if (qty < 1) return; setSelectedSkus(selectedSkus.map(s => s.sku === sku ? { ...s, quantity: qty } : s)); }
+async function loadSiblings() {
+setSiblingsLoading(true);
+try {
+let sibData: any[] = [];
+if (listing?.id_producto_catalogo) {
+const { data } = await supabase
+.from('publicaciones_externas')
+.select('id, titulo, external_item_id, tipo_publicacion')
+.eq('id_producto_catalogo', listing.id_producto_catalogo)
+.neq('id', listing.id)
+.eq('external_variation_id', '0');
+sibData = data || [];
+}
+const { data: catData } = await supabase
+.from('publicaciones_externas')
+.select('id, titulo, external_item_id, tipo_publicacion')
+.eq('par_item_id', listing.external_item_id)
+.in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
+.eq('external_variation_id', '0');
+const ids = new Set(sibData.map((s: any) => s.id));
+const combined = [
+...sibData,
+...(catData || []).filter((c: any) => !ids.has(c.id)),
+];
+setSiblings(combined);
+} finally {
+setSiblingsLoading(false);
+}
+}
+async function handleSave() {
+if (selectedSkus.length === 0) { alert('Debes seleccionar al menos un articulo del catalogo real.'); return; }
+setSaving(true);
+try {
+const { error: delError } = await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', listing.id);
+if (delError) throw delError;
+const snapshotUpserts = selectedSkus.map(s => ({ sku: s.sku, physical_stock: 0, updated_at: new Date().toISOString() }));
+await supabase.from('inventory_snapshot').upsert(snapshotUpserts, { onConflict: 'sku', ignoreDuplicates: true });
+const inserts = selectedSkus.map(s => ({ publicacion_id: listing.id, articulo_id: s.sku, cantidad_requerida: s.quantity }));
+const { error: insError } = await supabase.from('mapeo_publicacion_articulo').insert(inserts);
+if (insError) throw insError;
+await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', listing.id);
+await supabase
+.from('publicaciones_externas')
+.update({ sync_disabled: false, sync_disabled_reason: null })
+.eq('id', listing.id)
+.eq('sync_disabled_reason', 'pricing_needs_manual_mapping');
+await supabase.from('jobs').insert({
+type: 'recalc_pricing_bundle',
+payload: { publicacion_id: listing.id },
+status: 'pending',
+scheduled_at: new Date().toISOString(),
+});
+await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: listing.id }, status: 'pending', scheduled_at: new Date().toISOString() });
+const propagableSimlings = siblings.filter(s => s.id !== listing.id);
+if (propagableSimlings.length > 0) {
+const confirmed = window.confirm(
+`Propagar este mapeo a ${propagableSimlings.length} publicacion(es) hermana(s) con el mismo producto de catalogo?\n\n` +
+propagableSimlings.map(s => `- ${s.external_item_id} - ${s.titulo?.slice(0, 50)}`).join('\n')
+);
+if (confirmed) {
+for (const sib of propagableSimlings) {
+await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', sib.id);
+const sibInserts = selectedSkus.map(s => ({ publicacion_id: sib.id, articulo_id: s.sku, cantidad_requerida: s.quantity }));
+await supabase.from('mapeo_publicacion_articulo').insert(sibInserts);
+await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', sib.id);
+await supabase
+.from('publicaciones_externas')
+.update({ sync_disabled: false, sync_disabled_reason: null })
+.eq('id', sib.id)
+.eq('sync_disabled_reason', 'pricing_needs_manual_mapping');
+await supabase.from('jobs').insert({
+type: 'recalc_pricing_bundle',
+payload: { publicacion_id: sib.id },
+status: 'pending',
+scheduled_at: new Date().toISOString(),
+});
+await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: sib.id }, status: 'pending', scheduled_at: new Date().toISOString() });
+}
+}
+}
+await dispatchWorker();
+onSuccess();
+onClose();
+} catch (error) { console.error('Error guardando el mapeo:', error); alert('Ocurrio un error al guardar el mapeo.'); }
+finally { setSaving(false); }
+}
+const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel => sel.sku === s.articulo_id));
+return (
+<div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+<div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+<div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-white">
+<div>
+<h2 className="text-lg font-bold text-slate-800">Mapear a Bodega Fisica</h2>
+<p className="text-xs text-slate-500">Vincula esta vitrina con 1 o mas productos reales.</p>
+</div>
+<button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors"><X size={20} /></button>
+</div>
+<div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+<div className="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl p-4 border border-slate-200">
+<div className="flex gap-4">
+{listing.url_imagen && (<img src={listing.url_imagen} alt="Producto" className="w-20 h-20 object-contain rounded-lg bg-white border border-slate-200 flex-shrink-0" />)}
+<div className="flex-1 min-w-0">
+<div className="flex items-center gap-2 mb-1">
+<span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">Publicacion Venta</span>
+{listing.condition && <span className="text-[10px] text-slate-500 bg-white px-1.5 py-0.5 rounded border">{listing.condition === 'new' ? 'Nuevo' : 'Usado'}</span>}
+</div>
+<h3 className="font-semibold text-sm text-slate-800 leading-tight truncate">{listing.titulo}</h3>
+<p className="text-xs text-slate-500 mt-0.5">{listing.external_item_id} - ${listing.precio_venta}</p>
+<div className="flex flex-wrap gap-1.5 mt-2">
+{pubSku && (<span className="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md font-mono"><Tag size={10} /> SKU: {pubSku}</span>)}
+{pubEan && (<span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono"><Barcode size={10} /> EAN: {pubEan}</span>)}
+{pubGtin && pubGtin !== pubEan && (<span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono"><Barcode size={10} /> GTIN: {pubGtin}</span>)}
+{pubUpc && pubUpc !== pubEan && pubUpc !== pubGtin && (<span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono">UPC: {pubUpc}</span>)}
+{pubBrand && (<span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">Marca: {pubBrand}</span>)}
+{pubModel && (<span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">Modelo: {pubModel}</span>)}
+{listing.domain_id && (<span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">{listing.domain_id}</span>)}
+</div>
+</div>
+</div>
+</div>
+{isBlockedCatalog && (
+<div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex gap-3">
+<Info size={18} className="text-amber-600 shrink-0 mt-0.5" />
+<div>
+<p className="text-sm font-bold text-amber-800">Este catalogo hereda el stock de su publicacion tradicional</p>
+<p className="text-xs text-amber-700 mt-1">
+Para que el stock se sincronice correctamente, mapea la publicacion <strong>tradicional hermana</strong>
+{listing.par_item_id ? ` (${listing.par_item_id})` : ''} - este catalogo se actualizara automaticamente.
+</p>
+</div>
+</div>
+)}
+{!isBlockedCatalog && siblings.length > 0 && (
+<div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-indigo-700">
+<Info size={12} className="shrink-0" />
+Al guardar, podras propagar el mapeo a <strong className="mx-1">{siblings.length}</strong> publicacion{siblings.length !== 1 ? 'es' : ''} hermana{siblings.length !== 1 ? 's' : ''} con el mismo producto de catalogo.
+</div>
+)}
+{(suggestionsLoading || filteredSuggestions.length > 0) && (
+<div className="bg-green-50 border border-green-200 rounded-xl p-3">
+<h4 className="text-xs font-bold text-green-800 flex items-center gap-1.5 mb-2">
+<RefreshCw size={12} className={suggestionsLoading ? 'animate-spin' : ''} />
+{suggestionsLoading ? 'Buscando coincidencias...' : `${filteredSuggestions.length} sugerencia${filteredSuggestions.length !== 1 ? 's' : ''} por similitud`}
+</h4>
+{!suggestionsLoading && filteredSuggestions.slice(0, 15).map(res => (
+<button key={res.articulo_id} onClick={() => handleAddSku(res)} className="w-full text-left p-2 mb-1 rounded-lg hover:bg-green-100 border border-transparent hover:border-green-300 transition-all flex items-center justify-between group">
+<div className="flex-1 min-w-0">
+<p className="text-xs font-medium text-slate-800 truncate">{res.nombre}</p>
+<div className="flex flex-wrap gap-1 mt-0.5">
+{res.marca && <span className="text-[10px] text-slate-500">{res.marca}</span>}
+{res.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {res.codigo_universal}</span>}
+{res.modelo && <span className="text-[10px] text-slate-400">Mod: {res.modelo}</span>}
+{res.variante && <span className="text-[10px] text-slate-400">Var: {res.variante}</span>}
+{res.caja_madre && <span className="text-[10px] text-slate-400">Caja: {res.caja_madre}</span>}
+</div>
+</div>
+<div className="flex items-center gap-2">
+{res._score >= 3 && <span className="text-[9px] bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full font-bold">Alta</span>}
+{res._score >= 1.5 && res._score < 3 && <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Media</span>}
+{res._score < 1.5 && <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">Baja</span>}
+{costMap.get(res.articulo_id) ? (
+<span className="inline-block px-1.5 py-0.5 text-[10px] rounded bg-emerald-100 text-emerald-700 font-semibold ml-1">
+costo vigente
+</span>
+) : (
+<span className="inline-block px-1.5 py-0.5 text-[10px] rounded bg-rose-100 text-rose-700 font-semibold ml-1" title="El articulo no tiene costo vigente. Importa la lista de precios del proveedor.">
+sin costo
+</span>
+)}
+<span className="text-[10px] font-mono text-slate-400">{res.articulo_id}</span>
+<Plus size={14} className="text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+</div>
+</button>
+))}
+</div>
+)}
+<div>
+<label className="text-xs font-semibold text-slate-700 mb-1.5 block">Buscar en tu Bodega (Catalogo Real)</label>
+<div className="relative">
+<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+<input type="text" className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" placeholder="Busca por nombre, marca, modelo, SKU, codigo universal..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+</div>
+{searchResults.length > 0 && (
+<div className="mt-2 border border-slate-200 rounded-lg bg-white shadow-lg max-h-48 overflow-y-auto">
+{searchResults.map(res => (
+<button key={res.articulo_id} className="w-full text-left px-3 py-2.5 hover:bg-indigo-50 border-b border-slate-100 last:border-0 transition-colors flex items-center justify-between" onClick={() => handleAddSku(res)}>
+<div className="flex-1 min-w-0">
+<p className="text-xs font-medium text-slate-800 truncate">{res.nombre}</p>
+<div className="flex flex-wrap gap-1 mt-0.5">
+{res.marca && <span className="text-[10px] text-slate-500">{res.marca}</span>}
+{res.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {res.codigo_universal}</span>}
+{res.modelo && <span className="text-[10px] text-slate-400">Mod: {res.modelo}</span>}
+{res.variante && <span className="text-[10px] text-slate-400">Var: {res.variante}</span>}
+{res.caja_madre && <span className="text-[10px] text-slate-400">Caja: {res.caja_madre}</span>}
+</div>
+</div>
+<span className="text-[10px] font-mono text-slate-400 ml-2 flex-shrink-0">{res.articulo_id}</span>
+</button>
+))}
+</div>
+)}
+</div>
+<div>
+<h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-2"><Package size={14} /> Articulos que se descontaran por cada venta (Ensamble)</h4>
+{loading ? (
+<div className="text-center py-4 text-sm text-slate-400"><RefreshCw size={16} className="inline animate-spin mr-2" />Cargando mapeos previos...</div>
+) : selectedSkus.length === 0 ? (
+<div className="text-center py-6 text-sm text-slate-400 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200">No has agregado articulos reales. Usa el buscador o las sugerencias.</div>
+) : (
+selectedSkus.map(s => (
+<div key={s.sku} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg mb-2 hover:shadow-sm transition-shadow">
+<div className="flex-1 min-w-0">
+<p className="text-xs font-semibold text-slate-800 truncate">{s.name}</p>
+<div className="flex flex-wrap gap-1 mt-0.5">
+{s.marca && <span className="text-[10px] text-slate-500">{s.marca}</span>}
+{s.modelo && <span className="text-[10px] text-slate-400">Mod: {s.modelo}</span>}
+{s.variante && <span className="text-[10px] text-slate-400">Var: {s.variante}</span>}
+{s.caja_madre && <span className="text-[10px] text-slate-400">Caja: {s.caja_madre}</span>}
+{s.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {s.codigo_universal}</span>}
+</div>
+<span className="text-[10px] font-mono text-slate-400 mt-0.5 block">{s.sku}</span>
+</div>
+<button onClick={() => handleRemoveSku(s.sku)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+<div className="text-center">
+<span className="text-[10px] text-slate-400 block mb-1">Cantidad</span>
+<div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
+<button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="px-2 py-1 text-slate-500 hover:bg-slate-200 font-bold">-</button>
+<input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, parseInt(e.target.value) || 1)} className="w-12 text-center text-sm font-semibold bg-transparent border-none appearance-none p-0 focus:ring-0" />
+<button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="px-2 py-1 text-slate-500 hover:bg-slate-200 font-bold">+</button>
+</div>
+</div>
+</div>
+))
+)}
+</div>
+</div>
+<div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50">
+<button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>
+<button onClick={handleSave} disabled={saving || selectedSkus.length === 0} className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40 flex items-center gap-2">
+{saving ? (<><RefreshCw size={14} className="animate-spin" />Guardando...</>) : <><Save size={14} />Guardar y Enlazar</>}
+</button>
+</div>
+</div>
+</div>
+);
 }
