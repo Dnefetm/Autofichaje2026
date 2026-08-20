@@ -405,14 +405,14 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <StatusToggle id={id} current={pub.status_externo} disabled={pub.sync_disabled || false} />
                                 {/* Tipo de publicación */}
                                 {pub.tipo_publicacion && tipoPubConfig[pub.tipo_publicacion] && (
-                                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', tipoPubConfig[pub.tipo_publicacion]?.color)}>
-                                        {tipoPubConfig[pub.tipo_publicacion]?.label ?? pub.tipo_publicacion}
+                                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', tipoPubConfig[pub.tipo_publicacion].color)}>
+                                        {tipoPubConfig[pub.tipo_publicacion].label}
                                     </span>
                                 )}
                                 {/* Comisión */}
                                 {pub.listing_type_id && listingTypeConfig[pub.listing_type_id] && (
-                                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', listingTypeConfig[pub.listing_type_id]?.color)}>
-                                        {listingTypeConfig[pub.listing_type_id]?.label ?? pub.listing_type_id}
+                                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', listingTypeConfig[pub.listing_type_id].color)}>
+                                        {listingTypeConfig[pub.listing_type_id].label}
                                     </span>
                                 )}
                                 {pub.esta_mapeado ? (
@@ -602,14 +602,14 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             <InfoRow
                                 label="Tipo"
                                 value={pub.tipo_publicacion && tipoPubConfig[pub.tipo_publicacion]
-                                    ? <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold', tipoPubConfig[pub.tipo_publicacion]?.color)}>{tipoPubConfig[pub.tipo_publicacion]?.label ?? pub.tipo_publicacion]?.color)}>{tipoPubConfig[pub.tipo_publicacion}</span>
+                                    ? <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold', tipoPubConfig[pub.tipo_publicacion].color)}>{tipoPubConfig[pub.tipo_publicacion].label}</span>
                                     : pub.tipo_publicacion
                                 }
                             />
                             <InfoRow
                                 label="Comisión"
                                 value={pub.listing_type_id && listingTypeConfig[pub.listing_type_id]
-                                    ? <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold', listingTypeConfig[pub.listing_type_id]?.color)}>{listingTypeConfig[pub.listing_type_id]?.label ?? pub.listing_type_id]?.color)}>{listingTypeConfig[pub.listing_type_id}</span>
+                                    ? <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold', listingTypeConfig[pub.listing_type_id].color)}>{listingTypeConfig[pub.listing_type_id].label}</span>
                                     : pub.listing_type_id
                                 }
                             />
@@ -692,10 +692,10 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                 {pub.comision_monto != null && (
                                                     <span className="text-slate-400 text-xs">(${pub.comision_monto.toLocaleString('es-MX', { minimumFractionDigits: 0 })})</span>
                                                 )}
-                                                <span className="text-slate-300 text-[10px]">{pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id]?.label ?? pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id : ''}</span>
+                                                <span className="text-slate-300 text-[10px]">{pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id].label : ''}</span>
                                             </span>
                                         )
-                                        : (pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id]?.label ?? pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id : pub.listing_type_id)
+                                        : (pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id].label : pub.listing_type_id)
                                 }
                             />
                             {pub.base_price != null && pub.base_price !== pub.precio_venta && (
@@ -847,8 +847,8 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                 <td className="px-4 py-2 font-mono text-[10px] font-bold text-indigo-700">{pub.external_item_id}</td>
                                                 <td className="px-3 py-2">
                                                     {pub.tipo_publicacion && tipoPubConfig[pub.tipo_publicacion] && (
-                                                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-semibold', tipoPubConfig[pub.tipo_publicacion]?.color)}>
-                                                            {tipoPubConfig[pub.tipo_publicacion]?.label ?? pub.tipo_publicacion}
+                                                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-semibold', tipoPubConfig[pub.tipo_publicacion].color)}>
+                                                            {tipoPubConfig[pub.tipo_publicacion].label}
                                                         </span>
                                                     )}
                                                 </td>
