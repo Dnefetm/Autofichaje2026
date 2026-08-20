@@ -923,3 +923,13 @@ Columnas extraídas en Frontend / Edge:
  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
 
+
+
+## Políticas de Seguridad Frontend y Runtime (Agregadas por Validación de QA)
+
+1. **Normalización Obligatoria en Borde:** Todo payload de DB/API debe pasar por una función de normalización antes del setState o renderizado.
+2. **Acceso Defensivo a Diccionarios:** Prohibido acceder a diccionarios sin opcionalidad. Se exige `config[key]?.label ?? fallback`.
+3. **Primitivas Render-Safe:** Todo método (`.toLocaleString`, `.map`, `.toFixed`, etc.) llamado sobre un campo de payload externo debe usar `?.` y `??` fallback.
+4. **Validación Estricta TypeScript:** Validación estricta garantizando que los objetos indexados dinámicamente (`noUncheckedIndexedAccess`) se traten como posibles `undefined`.
+5. **Smoke Tests E2E:** Validación en runtime real. Un build exitoso no descarta crashes de cliente.
+6. **Erradicación de Mojibake Segura:** Prohibido usar regex o índices para reemplazar caracteres Unicode. Usar exclusivamente `.split('─').join('-')` y verificar con build local.
