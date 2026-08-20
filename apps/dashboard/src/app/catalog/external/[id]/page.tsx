@@ -434,7 +434,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             {/* Atributos de variante (si aplica) */}
                             {isVariant && pub.variation_attributes?.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5 mt-2">
-                                    {pub.variation_attributes.map((a: any) => (
+                                    {(pub.variation_attributes || []).map((a: any) => (
                                         <span key={a.name} className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded font-medium">
                                             {a.name}: <strong>{a.value_name}</strong>
                                         </span>
@@ -542,14 +542,14 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <div className="py-2 border-b border-slate-100">
                                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Sub-status</p>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {pub.sub_status.map((s: string) => (
+                                        {(pub.sub_status || []).map((s: string) => (
                                             <span key={s} className="text-[10px] font-mono bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded">{s}</span>
                                         ))}
                                     </div>
                                 </div>
                             )}
                             {/* Tags relevantes (filtrados) */}
-                            {pub.tags?.some((t: string) => [
+                            {(pub.tags || [])?.some((t: string) => [
                                 'good_quality_picture', 'good_quality_thumbnail', 'cart_eligible',
                                 'dragged_bids', 'dragged_visits', 'poor_quality_picture', 'poor_quality_thumbnail'
                             ].includes(t)) && (
@@ -579,7 +579,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <div className="py-2">
                                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Canales</p>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {pub.channels.map((c: string) => (
+                                        {(pub.channels || []).map((c: string) => (
                                             <span key={c} className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">{c}</span>
                                         ))}
                                     </div>
@@ -680,7 +680,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     pub.comision_porcentaje != null
                                         ? (
                                             <span className="inline-flex items-center gap-1.5">
-                                                <span className="font-semibold text-xs">{pub.comision_porcentaje.toFixed(1)}%</span>
+                                                <span className="font-semibold text-xs">{Number(pub.comision_porcentaje || 0).toFixed(1)}%</span>
                                                 {pub.comision_monto != null && (
                                                     <span className="text-slate-400 text-xs">(${pub.comision_monto.toLocaleString('es-MX', { minimumFractionDigits: 0 })})</span>
                                                 )}
@@ -733,7 +733,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             {pub.shipping_tags?.length > 0 && (
                                 <InfoRow label="Tags envío" value={
                                     <div className="flex flex-wrap gap-1 justify-end">
-                                        {pub.shipping_tags.map((t: string) => (
+                                        {(pub.shipping_tags || []).map((t: string) => (
                                             <span key={t} className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded font-mono">{t}</span>
                                         ))}
                                     </div>
@@ -768,7 +768,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                 <td className="px-4 py-2">
                                                     {pub.variation_attributes?.length > 0 ? (
                                                         <div className="flex flex-wrap gap-1">
-                                                            {pub.variation_attributes.map((a: any) => (
+                                                            {(pub.variation_attributes || []).map((a: any) => (
                                                                 <span key={a.name} className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-semibold">
                                                                     {a.name}: {a.value_name}
                                                                 </span>
@@ -791,7 +791,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                     <td className="px-4 py-2">
                                                         {v.variation_attributes?.length > 0 ? (
                                                             <div className="flex flex-wrap gap-1">
-                                                                {v.variation_attributes.map((a: any) => (
+                                                                {(v.variation_attributes || []).map((a: any) => (
                                                                     <span key={a.name} className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium">
                                                                         {a.name}: {a.value_name}
                                                                     </span>
@@ -944,7 +944,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         ].includes(t)).length > 0 && (
                             <Section title="Tags (todos)" icon={<Globe className="w-4 h-4" />}>
                                 <div className="py-2 flex flex-wrap gap-1.5">
-                                    {pub.tags.map((t: string) => (
+                                    {(pub.tags || []).map((t: string) => (
                                         <span key={t} className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{t}</span>
                                     ))}
                                 </div>
