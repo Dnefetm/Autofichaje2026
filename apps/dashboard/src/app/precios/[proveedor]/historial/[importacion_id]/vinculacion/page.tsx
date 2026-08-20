@@ -22,7 +22,7 @@ export default async function VinculacionPage(props: {
         .eq('id', importacionId)
         .single();
 
-    // ── 1. Cargar todas las filas raw del lote ────────────────────────────────
+    // -- 1. Cargar todas las filas raw del lote --------------------------------
     
     async function fetchAll(table: string, select: string, eqColumn?: string, eqValue?: any) {
         const page = 1000;
@@ -50,7 +50,7 @@ export default async function VinculacionPage(props: {
 
     const allRaw = await fetchAll('listas_precios_raw', 'fila_num, payload', 'importacion_id', importacionId);
 
-    // ── 2. Cargar todos los artículos activos ─────────────────────────────────
+    // -- 2. Cargar todos los artículos activos ---------------------------------
     const allArts = await fetchAll('articulos', 'articulo_id, nombre, modelo, marca, codigo_universal', 'activo', true);
 
     // Mapas de artículos para búsqueda rápida
@@ -71,7 +71,7 @@ export default async function VinculacionPage(props: {
         }
     }
 
-    // ── 3. Alias ya aprobados manualmente (locked=true) ───────────────────────
+    // -- 3. Alias ya aprobados manualmente (locked=true) -----------------------
     
     const aliasExistentes = await fetchAll('proveedor_articulos_alias', 'codigo_excel, modelo_excel, marca_excel, articulo_id, locked');
 
@@ -82,7 +82,7 @@ export default async function VinculacionPage(props: {
         if (a.marca_excel && a.modelo_excel) aliasLockedPorModelo.set(`${norm(a.marca_excel)}|||${norm(a.modelo_excel)}`, a.articulo_id);
     }
 
-    // ── 4. Clasificar cada fila ───────────────────────────────────────────────
+    // -- 4. Clasificar cada fila -----------------------------------------------
     type ItemMatch = {
         fila_num: number;
         sku_proveedor: string;
