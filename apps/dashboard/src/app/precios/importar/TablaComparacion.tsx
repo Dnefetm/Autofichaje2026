@@ -40,7 +40,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
         return (
           <div key={g.clave} className="flex bg-white border border-slate-200 rounded-xl shadow-sm text-sm ring-1 ring-slate-100 hover:ring-indigo-100 transition-shadow">
             
-            {/* ── Left Content Block (Lines 1-4) ── */}
+            {/* -- Left Content Block (Lines 1-4) -- */}
             <div className="flex-1 flex flex-col min-w-0">
               
               {/* L1: Excel */}
@@ -122,7 +122,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
               )}
             </div>
 
-            {/* ── Right Action Block ── */}
+            {/* -- Right Action Block -- */}
             <div className="w-[300px] bg-slate-50/30 border-l border-slate-200 p-4 shrink-0 flex flex-col justify-center gap-3">
                
                <div className="flex justify-between items-start">

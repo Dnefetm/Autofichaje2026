@@ -47,7 +47,7 @@ export async function POST(
     const { id: fichaId } = await params;
     const supabase = getSupabaseAdmin();
 
-    // ── Leer ficha completa ──────────────────────────────────────────────────
+    // -- Leer ficha completa --------------------------------------------------
     const { data: ficha, error } = await supabase
         .from('fichas_tecnicas')
         .select(`
@@ -66,7 +66,7 @@ export async function POST(
         return NextResponse.json({ ok: false, error: 'Ficha no encontrada' }, { status: 404 });
     }
 
-    // ── Construir texto base disponible ──────────────────────────────────────
+    // -- Construir texto base disponible --------------------------------------
     const textoBase = [
         ficha.nombre_producto ? `NOMBRE: ${ficha.nombre_producto}` : '',
         ficha.descripcion_larga ? `DESCRIPCIÓN LARGA: ${ficha.descripcion_larga}` : '',
@@ -85,7 +85,7 @@ export async function POST(
         }, { status: 400 });
     }
 
-    // ── Identificar campos vacíos que pueden completarse ────────────────────
+    // -- Identificar campos vacíos que pueden completarse --------------------
     const camposVacios: string[] = [];
     if (isEmpty(ficha.descripcion))                  camposVacios.push('descripcion');
     if (isEmpty(ficha.materiales))                   camposVacios.push('materiales');
@@ -103,7 +103,7 @@ export async function POST(
         });
     }
 
-    // ── Prompt GPT-4o-mini ───────────────────────────────────────────────────
+    // -- Prompt GPT-4o-mini ---------------------------------------------------
     const prompt = `Analiza el siguiente texto de una ficha técnica de producto industrial o herramienta.
 Extrae SOLO los campos que puedas identificar con CERTEZA ALTA basándote en la información disponible.
 Si no hay suficiente información para un campo, NO lo incluyas en el JSON.

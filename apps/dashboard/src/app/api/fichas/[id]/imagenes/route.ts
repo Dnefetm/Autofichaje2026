@@ -25,7 +25,7 @@ function getSupabaseAdmin() {
     );
 }
 
-// ── GET — Listar imágenes ────────────────────────────────────────────────────
+// -- GET — Listar imágenes ----------------------------------------------------
 export async function GET(
     _req: NextRequest,
     { params }: { params: Promise<{ id: string }> },
@@ -44,7 +44,7 @@ export async function GET(
     return NextResponse.json({ ok: true, imagenes: data ?? [] });
 }
 
-// ── POST — Guardar imagen ────────────────────────────────────────────────────
+// -- POST — Guardar imagen ----------------------------------------------------
 export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> },
@@ -61,7 +61,7 @@ export async function POST(
         .single();
     if (fichaErr || !ficha) return NextResponse.json({ ok: false, error: 'Ficha no encontrada' }, { status: 404 });
 
-    // ── Determinar orden (siguiente disponible) ──────────────────────────────
+    // -- Determinar orden (siguiente disponible) ------------------------------
     const { data: existentes } = await supabase
         .from('ficha_imagenes')
         .select('orden')
@@ -70,7 +70,7 @@ export async function POST(
         .limit(1);
     const nextOrden = existentes?.[0] ? (existentes[0].orden + 1) : 0;
 
-    // ── Caso 1: JSON con URL directa (sin Sharp, guardar referencia) ─────────
+    // -- Caso 1: JSON con URL directa (sin Sharp, guardar referencia) ---------
     if (contentType.includes('application/json')) {
         const body = await req.json().catch(() => null);
         if (!body?.url) return NextResponse.json({ ok: false, error: 'Se requiere "url" en el body' }, { status: 400 });
@@ -79,7 +79,7 @@ export async function POST(
         return NextResponse.json({ ok: true, imagen });
     }
 
-    // ── Caso 2: multipart/form-data con archivo ──────────────────────────────
+    // -- Caso 2: multipart/form-data con archivo ------------------------------
     if (contentType.includes('multipart/form-data')) {
         const form = await req.formData();
         const file = form.get('file') as File | null;
@@ -98,7 +98,7 @@ export async function POST(
     return NextResponse.json({ ok: false, error: 'Content-Type no soportado. Usa application/json (URL) o multipart/form-data (archivo)' }, { status: 400 });
 }
 
-// ── DELETE — Eliminar imagen ─────────────────────────────────────────────────
+// -- DELETE — Eliminar imagen -------------------------------------------------
 export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> },
@@ -127,7 +127,7 @@ export async function DELETE(
     return NextResponse.json({ ok: true });
 }
 
-// ── PATCH — Reordenar imágenes ───────────────────────────────────────────────
+// -- PATCH — Reordenar imágenes -----------------------------------------------
 export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> },
@@ -145,7 +145,7 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
 }
 
-// ── Helper: procesar imagen desde URL ────────────────────────────────────────
+// -- Helper: procesar imagen desde URL ----------------------------------------
 async function processImageUrl(
     url: string,
     fichaId: string,
@@ -173,7 +173,7 @@ async function processImageUrl(
     return processImageBuffer(buffer, url.split('/').pop()?.split('?')[0] || 'imagen', fichaId, articuloId, orden, tipo, supabase, fuente, url);
 }
 
-// ── Helper: procesar buffer → WebP → Storage ─────────────────────────────────
+// -- Helper: procesar buffer → WebP → Storage ---------------------------------
 async function processImageBuffer(
     buffer: Buffer,
     originalName: string,

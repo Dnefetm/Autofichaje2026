@@ -24,7 +24,7 @@ import { TablaComparacion } from './TablaComparacion';
 import { Costo, Stats, GrupoCostoFila, EstadoMatch, Candidato, clasificarEstado } from './types';
 import { BannerImportacionActiva } from './BannerImportacionActiva';
 
-// ── Tipos ─────────────────────────────────────────────────────────────────────
+// -- Tipos ---------------------------------------------------------------------
 interface PreviewData {
   importacion_id: string;
   nombre_archivo: string;
@@ -47,7 +47,7 @@ const TIPOS_COSTO = [
   { value: 'otro', label: 'Otro' },
 ];
 
-// ── Utilidades ────────────────────────────────────────────────────────────────
+// -- Utilidades ----------------------------------------------------------------
 function cn(...classes: (string | boolean | undefined | null)[]) {
   return classes.filter(Boolean).join(' ');
 }
@@ -66,7 +66,7 @@ function scoreBg(s: number | null) {
   return 'bg-rose-50 border-rose-200';
 }
 
-// ── StepIndicator ─────────────────────────────────────────────────────────────
+// -- StepIndicator -------------------------------------------------------------
 function StepIndicator({ step, current }: { step: number; current: number }) {
   const done = current > step;
   const active = current === step;
@@ -80,7 +80,7 @@ function StepIndicator({ step, current }: { step: number; current: number }) {
   );
 }
 
-// ── Paso 1 ──────────────────────────────────────────────────────────────────
+// -- Paso 1 ------------------------------------------------------------------
 function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; onDone: (d: { id: string; proveedor: string; nombre: string }) => void }) {  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [proveedor, setProveedor] = useState(proveedorInicial ?? '');
@@ -230,7 +230,7 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
   );
 }
 
-// ── Paso 2 ──────────────────────────────────────────────────────────────────
+// -- Paso 2 ------------------------------------------------------------------
 export function PasoMapear({ importacionId, onDone, onBack }: {
   importacionId: string;
   onDone: (stats: { total: number; con_match: number }) => void;
@@ -585,7 +585,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
   );
 }
 
-// ── RemapModal (Ticket 2) ────────────────────────────────────────────────────
+// -- RemapModal (Ticket 2) ----------------------------------------------------
 interface ArticuloBusqueda {
   articulo_id: string;
   nombre: string;
@@ -677,7 +677,7 @@ function RemapModal({ costoId, onSelect, onClose }: {
   );
 }
 
-// ── Paso 3 ──────────────────────────────────────────────────────────────────
+// -- Paso 3 ------------------------------------------------------------------
 export function PasoRevisar({ importacionId, onFinish, onBack }: {
   importacionId: string;
   statsInit?: { total: number; con_match: number };

@@ -98,7 +98,7 @@ function SettingsContent() {
 
     return (
         <div className="max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* ── Tiendas ── */}
+            {/* -- Tiendas -- */}
             <div className="flex justify-between items-start md:items-end flex-col md:flex-row gap-4">
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight text-slate-900">Tiendas Conectadas</h2>
@@ -156,7 +156,7 @@ function SettingsContent() {
                 </div>
             </div>
 
-            {/* ── Panel de control de Webhooks ── */}
+            {/* -- Panel de control de Webhooks -- */}
             <WebhookControlPanel />
         </div>
     );
@@ -219,7 +219,7 @@ function StatusItem({ label, status }: { label: string, status: 'online' | 'offl
     );
 }
 
-// ─── Webhook Control Panel ────────────────────────────────────────────────────
+// --- Webhook Control Panel ----------------------------------------------------
 
 type WebhookConfigRow = {
     topic: string;

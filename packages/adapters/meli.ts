@@ -344,7 +344,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 }
             }
 
-            // ── Cambio 2: Leer logistic_type anterior ANTES del upsert ──────────
+            // -- Cambio 2: Leer logistic_type anterior ANTES del upsert ----------
             // Costo: +1 SELECT por sync_item. Solo se dispara cuando se procesa un item.
             const { data: existing } = await supabase
                 .from('publicaciones_externas')
@@ -357,7 +357,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             const wasFullfillment = existing?.logistic_type === 'fulfillment';
             const isNoLongerFulfillment = newLogisticType !== 'fulfillment';
 
-            // ── Cambio 1: upsert con logistic_type incluido ──────────────────────
+            // -- Cambio 1: upsert con logistic_type incluido ----------------------
             // ANTES: logistic_type nunca se guardaba en syncCatalogItem → BD desfasada
             const { error: pubError } = await supabase.from('publicaciones_externas').upsert({
                 marketplace_id: accountId,
@@ -380,7 +380,7 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             logger.info({ itemId: item.id, tipo: clasificacion.tipo_publicacion, logistic_type: newLogisticType }, 'Publicación de MeLi almacenada en el Catálogo Virtual');
 
-            // ── Cambio 2: Encolar sync_stock si cambió de fulfillment → otro tipo ──
+            // -- Cambio 2: Encolar sync_stock si cambió de fulfillment → otro tipo --
             // Cuando MeLi mueve una publicación de fulfillment a xd_drop_off (u otro),
             // el gestor la seguía ignorando porque la BD decía 'fulfillment'.
             // Ahora detectamos la transición y encolamos sync_stock para forzar la actualización.
@@ -631,7 +631,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                     }));
                 }
             }
-            // ── Detección de transición fulfillment→otro (portada de b39de85) ──
+            // -- Detección de transición fulfillment→otro (portada de b39de85) --
             // Leer logistic_type previo para todos los items del batch en 1 sola query.
             // Solo filas padre (external_variation_id='0') — son las únicas con logistic_type relevante.
             const batchItemIds = [...new Set(itemsPayload.map((p: any) => p.external_item_id))];
@@ -646,7 +646,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 (existingPubs || []).map((p: any) => [p.external_item_id, { id: p.id, logistic_type: p.logistic_type }])
             );
 
-            // ── Upsert batch ──────────────────────────────────────────────────
+            // -- Upsert batch --------------------------------------------------
             const { error: pubError } = await supabase.from('publicaciones_externas').upsert(
                 itemsPayload,
                 { onConflict: 'marketplace_id,external_item_id,external_variation_id' }
@@ -654,7 +654,7 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             if (pubError) throw pubError;
 
-            // ── Post-upsert: detectar transiciones fulfillment→otro ───────────
+            // -- Post-upsert: detectar transiciones fulfillment→otro -----------
             // Solo encola sync_stock si algún item cambió de fulfillment a otro tipo.
             const transitionedPubIds: string[] = [];
             for (const payload of itemsPayload) {
@@ -766,7 +766,7 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // -------------------------------------------------------------------------
     // reconcileClosedItems — Detecta publicaciones en BD con status aparentemente
     // activo que MeLi ya cerró/desactivó. El sync normal no las detecta porque
     // getAccountItems solo devuelve items que MeLi indexa activamente.
@@ -777,7 +777,7 @@ export class MeliAdapter implements MarketplaceAdapter {
     // - Como job programado 1 vez/día (futuro)
     //
     // Costo: 1 request por cada 20 items con status activo en BD. Negligible.
-    // ─────────────────────────────────────────────────────────────────────────
+    // -------------------------------------------------------------------------
     async reconcileClosedItems(accountId: string): Promise<{
         checked: number;
         updated: number;
@@ -851,14 +851,14 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // -------------------------------------------------------------------------
     // V27 — enrichCatalogBatch: comisiones + visitas + descripciones (separado del sync)
     // Se llama desde /api/sync/enrich — NO desde syncCatalogBatchFast
-    // ─────────────────────────────────────────────────────────────────────────
+    // -------------------------------------------------------------------------
     async enrichCatalogBatch(accountId: string, accessToken: string, itemIds: string[]): Promise<void> {
         const CONCURRENCY = 10;
 
-        // ── Comisiones (paralelas, cacheadas por combinación) ────────────────
+        // -- Comisiones (paralelas, cacheadas por combinación) ----------------
         try {
             // Obtener datos necesarios para calcular comisión
             const { data: rows } = await supabase
@@ -931,7 +931,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             logger.warn({ accountId, error: feeErr.message }, 'V27: error en enriquecimiento de comisiones');
         }
 
-        // ── Visitas 30d (/items/{id}/visits/time_window?last=30&unit=day) ───
+        // -- Visitas 30d (/items/{id}/visits/time_window?last=30&unit=day) ---
         try {
             for (let i = 0; i < itemIds.length; i += CONCURRENCY) {
                 const chunk = itemIds.slice(i, i + CONCURRENCY);
@@ -955,7 +955,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             logger.warn({ accountId, error: visitErr.message }, 'V27: error en enriquecimiento de visitas');
         }
 
-        // ── Descripciones (solo items sin descripción previa, máx 20) ────────
+        // -- Descripciones (solo items sin descripción previa, máx 20) --------
         try {
             const { data: withoutDesc } = await supabase
                 .from('publicaciones_externas')
@@ -1041,10 +1041,10 @@ export class MeliAdapter implements MarketplaceAdapter {
         return orders;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // -------------------------------------------------------------------------
     // PUBLICADOR — Métodos para crear publicaciones nuevas en MeLi
     // Agregados en v_publish_01
-    // ─────────────────────────────────────────────────────────────────────────
+    // -------------------------------------------------------------------------
 
     /**
      * detectSellerModel — Verifica si la cuenta opera en modelo User Products (UP) o legacy.

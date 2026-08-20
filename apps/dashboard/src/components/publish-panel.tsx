@@ -19,7 +19,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
-// ── Tipos ────────────────────────────────────────────────────────────────────
+// -- Tipos --------------------------------------------------------------------
 interface Account { id: string; account_name: string; }
 
 type Stage = 'config' | 'preview' | 'result';
@@ -35,7 +35,7 @@ interface PublishPanelProps {
     modalMode?: boolean;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// -- Helpers ------------------------------------------------------------------
 function TraceBlock({ trace }: { trace: Record<string, any> }) {
     const [open, setOpen] = useState(false);
     return (
@@ -56,7 +56,7 @@ function TraceBlock({ trace }: { trace: Record<string, any> }) {
     );
 }
 
-// ── Componente principal ──────────────────────────────────────────────────────
+// -- Componente principal ------------------------------------------------------
 export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBase = [], modalMode = false }: PublishPanelProps) {
     // Cuentas
     const [accounts, setAccounts] = useState<Account[]>([]);
@@ -100,7 +100,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     // Panel abierto/cerrado
     const [panelOpen, setPanelOpen] = useState(false);
 
-    // ── Cargar cuentas ──────────────────────────────────────────────────────
+    // -- Cargar cuentas ------------------------------------------------------
     useEffect(() => {
         supabase
             .from('marketplace_configs')
@@ -186,7 +186,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             .finally(() => setLoadingAttrs(false));
     }, [categoryOverride, selectedAccount, stage]);
 
-    // ── Gestión de imágenes ──────────────────────────────────────────────────
+    // -- Gestión de imágenes --------------------------------------------------
     function addImage() {
         const url = newImageUrl.trim();
         if (!url) return;
@@ -221,7 +221,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         if (!images.includes(url)) setImages(prev => [...prev, url]);
     }
 
-    // ── Preview (dry_run) ────────────────────────────────────────────────────
+    // -- Preview (dry_run) ----------------------------------------------------
     async function handlePreview() {
         if (!selectedAccount) { setErrorMsg('Selecciona una cuenta MeLi'); return; }
         if (images.length === 0) { setErrorMsg('Agrega al menos 1 imagen'); return; }
@@ -252,7 +252,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         }
     }
 
-    // ── Re-preview con categoría forzada ───────────────────────────────────────
+    // -- Re-preview con categoría forzada ---------------------------------------
     // Relanza el dry_run completo con category_id forzado. Reemplaza el trace entero.
     async function handleRePreview(forcedCategoryId: string) {
         if (!selectedAccount || !forcedCategoryId) return;
@@ -284,7 +284,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         }
     }
 
-    // ── Publicar real ──────────────────────────────────────────────────────
+    // -- Publicar real ------------------------------------------------------
     async function handlePublish() {
         setLoading(true);
         setErrorMsg(null);
@@ -337,7 +337,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
     const accountName = accounts.find(a => a.id === selectedAccount)?.account_name || selectedAccount;
 
-    // ── Render ───────────────────────────────────────────────────────
+    // -- Render -------------------------------------------------------
     // En modalMode (desde fichas), el panel arranca abierto directamente
     const isOpen = modalMode ? true : panelOpen;
 
@@ -379,7 +379,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                         </div>
                     )}
 
-                    {/* ── ETAPA 1: CONFIGURACIÓN ──────────────────────── */}
+                    {/* -- ETAPA 1: CONFIGURACIÓN ------------------------ */}
                     {stage === 'config' && (
                         <>
                             {/* Cuenta */}
@@ -543,7 +543,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                         </>
                     )}
 
-                    {/* ── ETAPA 2: PREVIEW (dry_run) ──────────────────────── */}
+                    {/* -- ETAPA 2: PREVIEW (dry_run) ------------------------ */}
                     {stage === 'preview' && previewResult && (
                         <>
                             {/* 404 — artículo no encontrado */}
@@ -837,7 +837,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                         </>
                     )}
 
-                    {/* ── ETAPA 3: RESULTADO FINAL ─────────────────────────── */}
+                    {/* -- ETAPA 3: RESULTADO FINAL --------------------------- */}
                     {stage === 'result' && publishResult && (
                         <div className="space-y-3">
                             {/* Éxito */}

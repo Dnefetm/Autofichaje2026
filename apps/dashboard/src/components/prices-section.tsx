@@ -12,7 +12,7 @@ import { useState, useEffect } from 'react';
 import { Store, DollarSign, Save, Loader2, PlusCircle, CheckCircle, Settings, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// ── Tipos ────────────────────────────────────────────────────────────────────
+// -- Tipos --------------------------------------------------------------------
 
 interface PriceRowProps {
     articulo_id: string;
@@ -27,7 +27,7 @@ export interface PricesSectionProps {
     modeloDefault: string | null;
 }
 
-// ── PricingRuleModal ─────────────────────────────────────────────────────────
+// -- PricingRuleModal ---------------------------------------------------------
 
 function PricingRuleModal({
     open,
@@ -154,7 +154,7 @@ function PricingRuleModal({
     );
 }
 
-// ── PriceRow ─────────────────────────────────────────────────────────────────
+// -- PriceRow -----------------------------------------------------------------
 
 function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps) {
     const isNew = !price.sale_price;
@@ -329,7 +329,7 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
     );
 }
 
-// ── PricesSection ─────────────────────────────────────────────────────────────
+// -- PricesSection -------------------------------------------------------------
 
 export function PricesSection({ articulo_id, modeloDefault }: PricesSectionProps) {
     const [prices, setPrices] = useState<any[]>([]);

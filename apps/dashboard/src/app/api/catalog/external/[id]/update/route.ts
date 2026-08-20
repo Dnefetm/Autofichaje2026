@@ -45,7 +45,7 @@ export async function PUT(
         const meli = new MeliAdapter();
         const hasVariation = pub.external_variation_id && pub.external_variation_id !== '0';
 
-        // ───── EJECUTAR ACCIÓN EN MELI ─────────────────────────────────────
+        // ----- EJECUTAR ACCIÓN EN MELI -------------------------------------
         let dbUpdate: Record<string, any> = {};
 
         if (field === 'price') {
@@ -95,7 +95,7 @@ export async function PUT(
             dbUpdate = { status_externo: value };
         }
 
-        // ───── ACTUALIZAR DB LOCAL ──────────────────────────────────────────
+        // ----- ACTUALIZAR DB LOCAL ------------------------------------------
         const { error: updateErr } = await supabaseAdmin
             .from('publicaciones_externas')
             .update({ ...dbUpdate, actualizado_el: new Date().toISOString() })

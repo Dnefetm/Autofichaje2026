@@ -6,7 +6,7 @@
 
 import { OpenAI } from 'openai';
 
-// ─── Taxonomía de ferretería ──────────────────────────────────────────────────
+// --- Taxonomía de ferretería --------------------------------------------------
 
 export const TAXONOMY: Record<string, string[]> = {
     'Herramientas Manuales':        ['Abrasivos', 'Corte', 'Destornilladores', 'Llaves', 'Alicates', 'Golpe', 'Medición'],
@@ -23,7 +23,7 @@ export const TAXONOMY: Record<string, string[]> = {
 
 export const CATEGORIES = Object.keys(TAXONOMY);
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// --- Tipos --------------------------------------------------------------------
 
 export interface ClassificationResult {
     category: string;
@@ -31,7 +31,7 @@ export interface ClassificationResult {
     confidence_category: number;  // 0-1
 }
 
-// ─── Prompt del clasificador ──────────────────────────────────────────────────
+// --- Prompt del clasificador --------------------------------------------------
 
 function buildClassifyPrompt(): string {
     const cats = CATEGORIES.map((cat) => {
@@ -55,7 +55,7 @@ Responde SOLO con JSON sin markdown:
 Si el producto no encaja claramente en ninguna categoría, usa la más cercana con confidence_category bajo.`;
 }
 
-// ─── Función principal ────────────────────────────────────────────────────────
+// --- Función principal --------------------------------------------------------
 
 /**
  * Clasifica un producto de ferretería dado su texto OCR o descripción.
@@ -102,7 +102,7 @@ export async function classifyProduct(text: string): Promise<ClassificationResul
     }
 }
 
-// ─── Prompts especializados por categoría ─────────────────────────────────────
+// --- Prompts especializados por categoría -------------------------------------
 
 /**
  * Retorna los campos adicionales a extraer según la categoría detectada.

@@ -17,6 +17,82 @@ function analyzeTsFile(filePath, result) {
         return;
     var sourceCode = fs.readFileSync(filePath, 'utf8');
     var sourceFile = ts.createSourceFile(filePath, sourceCode, ts.ScriptTarget.Latest, true);
+    // Detectar caracteres raros (mojibake)
+    if (sourceCode.includes('─') || sourceCode.includes('\u2500') || sourceCode.includes('â€')) {
+        result.diagnostics.push({
+            scope: 'app.encoding',
+            severity: 'error',
+            code: 'BAD_ENCODING',
+            message: 'Se detectó carácter no ASCII (mojibake) U+2500 o similar, causando corrupciones de compilación en Vercel.',
+            file: filePath
+        });
+    }
+    // Detectar faltas de Optional Chaining
+    if (sourceCode.includes('pub.deal_ids.length')) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .length en pub.deal_ids sin optional chaining.',
+            file: filePath
+        });
+    }
+    if (sourceCode.match(/listingTypeConfig\[.*?\]\.label/)) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .label en diccionario listingTypeConfig sin verificación previa.',
+            file: filePath
+        });
+    }
+    if (sourceCode.match(/tipoPubConfig\[.*?\]\.label/)) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .label en diccionario tipoPubConfig sin verificación previa.',
+            file: filePath
+        });
+    }
+    // Detectar caracteres raros (mojibake)
+    if (sourceCode.includes('─') || sourceCode.includes('\u2500') || sourceCode.includes('â€')) {
+        result.diagnostics.push({
+            scope: 'app.encoding',
+            severity: 'error',
+            code: 'BAD_ENCODING',
+            message: 'Se detectó carácter no ASCII (mojibake) U+2500 o similar, causando corrupciones de compilación en Vercel.',
+            file: filePath
+        });
+    }
+    // Detectar faltas de Optional Chaining
+    if (sourceCode.includes('pub.deal_ids.length')) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .length en pub.deal_ids sin optional chaining.',
+            file: filePath
+        });
+    }
+    if (sourceCode.match(/listingTypeConfig\[.*?\]\.label/)) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .label en diccionario listingTypeConfig sin verificación previa.',
+            file: filePath
+        });
+    }
+    if (sourceCode.match(/tipoPubConfig\[.*?\]\.label/)) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .label en diccionario tipoPubConfig sin verificación previa.',
+            file: filePath
+        });
+    }
     walkAst(sourceFile, function (node) {
         if (ts.isCallExpression(node)) {
             var exp = node.expression;
@@ -31,10 +107,14 @@ function analyzeTsFile(filePath, result) {
                             var arg0 = node.arguments[0];
                             if (ts.isStringLiteral(arg0)) {
                                 var rpcName = arg0.text;
+                                var callerText = text.toLowerCase();
+                                var clientType = (callerText.includes('admin') || callerText.includes('service')) ? 'admin' : 'anon';
+                                var isNextApiRoute = filePath.includes(path.join('app', 'api')) || filePath.includes(path.join('pages', 'api'));
                                 if (!result.calledRpcs.has(rpcName))
                                     result.calledRpcs.set(rpcName, []);
-                                if (!result.calledRpcs.get(rpcName).includes(filePath)) {
-                                    result.calledRpcs.get(rpcName).push(filePath);
+                                var existing = result.calledRpcs.get(rpcName);
+                                if (!existing.some(function (c) { return c.filePath === filePath; })) {
+                                    existing.push({ filePath: filePath, isNextApiRoute: isNextApiRoute, clientType: clientType });
                                 }
                             }
                         }
@@ -123,21 +203,46 @@ function runStaticAppAnalysis(rootDir) {
 }
 function validateCrossReferences(tsResult, dbFunctions, dbTables, workerHandlers) {
     var diagnostics = [];
-    // Validar RPCs fantasma
-    tsResult.calledRpcs.forEach(function (files, rpcName) {
-        if (!dbFunctions[rpcName]) {
+    // Validar RPCs y Timeouts
+    tsResult.calledRpcs.forEach(function (calls, rpcName) {
+        var dbFunc = dbFunctions[rpcName] || dbFunctions["public.".concat(rpcName)];
+        if (!dbFunc) {
             diagnostics.push({
                 scope: "app.rpc.".concat(rpcName),
                 severity: 'error',
                 code: 'RPC_NOT_FOUND',
-                message: "La aplicaci\u00F3n llama a un RPC inexistente '".concat(rpcName, "' en ").concat(files.length, " archivo(s)."),
-                file: files[0]
+                message: "La aplicaci\u00F3n llama a un RPC inexistente '".concat(rpcName, "' en ").concat(calls.length, " archivo(s)."),
+                file: calls[0].filePath
+            });
+        }
+        else {
+            calls.forEach(function (call) {
+                // Regla 2: [TIMEOUT_RISK]
+                if (call.isNextApiRoute && dbFunc.avg_time_ms && dbFunc.avg_time_ms > 10000) {
+                    diagnostics.push({
+                        scope: "app.rpc.".concat(rpcName),
+                        severity: 'error',
+                        code: 'TIMEOUT_RISK',
+                        message: "Riesgo de Timeout: La ruta Next.js llama sincr\u00F3nicamente a '".concat(rpcName, "' con tiempo estimado de ").concat(dbFunc.avg_time_ms, "ms (excede l\u00EDmite de 10s de Vercel/Kong)."),
+                        file: call.filePath
+                    });
+                }
+                // Regla 3: [ARCH_VIOLATION]
+                if (dbFunc.is_async_architectural_boundary && call.isNextApiRoute) {
+                    diagnostics.push({
+                        scope: "app.rpc.".concat(rpcName),
+                        severity: 'error',
+                        code: 'ARCH_VIOLATION',
+                        message: "Violaci\u00F3n de Arquitectura: '".concat(rpcName, "' debe ser procesado as\u00EDncronamente mediante una cola, pero se invoca directamente de forma s\u00EDncrona en Next.js."),
+                        file: call.filePath
+                    });
+                }
             });
         }
     });
     // Validar Tablas fantasma
     tsResult.touchedTables.forEach(function (files, tableName) {
-        if (!dbTables[tableName] && tableName !== 'storage' && tableName !== 'auth' && !tableName.includes('v_')) {
+        if (!dbTables[tableName] && !dbTables["public.".concat(tableName)] && tableName !== 'storage' && tableName !== 'auth' && !tableName.includes('v_')) {
             // storage no es una tabla en public. A veces llaman supabase.storage.from()
             diagnostics.push({
                 scope: "app.table.".concat(tableName),

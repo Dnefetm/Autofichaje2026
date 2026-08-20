@@ -13,7 +13,7 @@ import { PublishPanel } from '@/components/publish-panel';
 import { PricesSection } from '@/components/prices-section';
 import { FichaPublicadaView } from './FichaPublicadaView';
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// --- Tipos --------------------------------------------------------------------
 
 type Estado = 'borrador' | 'revision' | 'publicado';
 
@@ -78,7 +78,7 @@ interface Discrepancia {
     keys_conflicto?: Record<string, { actual: any; nuevo: any }>;
 }
 
-// ─── Helpers de UI ────────────────────────────────────────────────────────────
+// --- Helpers de UI ------------------------------------------------------------
 
 function EstadoBadge({ estado }: { estado: string }) {
     const MAP: Record<string, string> = {
@@ -156,7 +156,7 @@ function EditField({ label, value, onChange, type = 'text' }: {
     );
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
+// --- Componente principal -----------------------------------------------------
 
 const ESTADOS: Estado[] = ['borrador', 'revision', 'publicado'];
 
@@ -489,7 +489,7 @@ export default function FichaDetallePage() {
         setImgExtractUrl('');
     }
 
-    // ── Autocompletar ────────────────────────────────────────────────────────
+    // -- Autocompletar --------------------------------------------------------
     async function lanzarAutocompletar() {
         if (!ficha) return;
         setAutocompletarLoading(true); setAutocompletarSugerencias(null); setAutocompletarMsg('');
@@ -534,7 +534,7 @@ export default function FichaDetallePage() {
     }
 
 
-    // ── Cambiar estado ────────────────────────────────────────────────────────
+    // -- Cambiar estado --------------------------------------------------------
 
     async function cambiarEstado(e: Estado) {
         if (!ficha) return;
@@ -559,7 +559,7 @@ export default function FichaDetallePage() {
         setSaving(false);
     }
 
-    // ── Eliminar ──────────────────────────────────────────────────────────────
+    // -- Eliminar --------------------------------------------------------------
 
     async function eliminarFicha() {
         if (!ficha) return;
@@ -571,7 +571,7 @@ export default function FichaDetallePage() {
         router.push('/fichas');
     }
 
-    // ── Vincular / Desvincular artículo ───────────────────────────────────────
+    // -- Vincular / Desvincular artículo ---------------------------------------
 
     async function desvincularArticulo() {
         if (!ficha) return;
@@ -628,7 +628,7 @@ export default function FichaDetallePage() {
         setVinculandoModal(false); setVinculandoQ(''); setVinculandoResults([]);
     }
 
-    // ── Edición ───────────────────────────────────────────────────────────────
+    // -- Edición ---------------------------------------------------------------
 
     function startEdit() {
         if (!ficha) return;
@@ -682,7 +682,7 @@ export default function FichaDetallePage() {
         setEditMode(false); setDraft({}); setPatchSaving(false);
     }
 
-    // ── Enriquecimiento ───────────────────────────────────────────────────────
+    // -- Enriquecimiento -------------------------------------------------------
 
     async function lanzarEnriquecimiento() {
         if (!ficha) return;
@@ -690,7 +690,7 @@ export default function FichaDetallePage() {
         if (enrichMode === 'url' && !enrichUrl.startsWith('http')) { setEnrichError('URL inválida.'); return; }
         if (enrichCampos.size === 0) { setEnrichError('Selecciona al menos un campo para enriquecer.'); return; }
 
-        // ── Flujo de 2 etapas: solo cuando el usuario especificó un producto objetivo ────
+        // -- Flujo de 2 etapas: solo cuando el usuario especificó un producto objetivo ----
         if (enrichProductoObjetivo.trim() && enrichMode === 'file' && enrichFile) {
             setEnrichError('');
             setEnrichStep('discovering');
@@ -718,7 +718,7 @@ export default function FichaDetallePage() {
             return;
         }
 
-        // ── Flujo de URL con producto objetivo ──────────────────────────────────────────
+        // -- Flujo de URL con producto objetivo ------------------------------------------
         if (enrichProductoObjetivo.trim() && enrichMode === 'url') {
             setEnrichError('');
             setEnrichStep('discovering');
@@ -744,7 +744,7 @@ export default function FichaDetallePage() {
             return;
         }
 
-        // ── Sin producto objetivo: ir directo ──────────────────────────────────────────
+        // -- Sin producto objetivo: ir directo ------------------------------------------
         await lanzarExtraccionConProducto(undefined);
     }
 
@@ -1008,7 +1008,7 @@ export default function FichaDetallePage() {
         return v != null && v !== '' ? String(v) : '(vacío)';
     }
 
-    // ─── Guards ───────────────────────────────────────────────────────────────
+    // --- Guards ---------------------------------------------------------------
 
     if (loading) return <div className="flex items-center justify-center h-64 text-slate-400"><Loader2 className="w-6 h-6 animate-spin mr-2" />Cargando…</div>;
     if (error)   return <div className="flex gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700"><AlertCircle className="w-5 h-5 shrink-0" />{error}</div>;
@@ -1034,7 +1034,7 @@ export default function FichaDetallePage() {
     const completitud = Math.round((filled / totalEval) * 100);
     const completitudColor = completitud >= 80 ? 'bg-emerald-500' : completitud >= 50 ? 'bg-amber-400' : 'bg-rose-400';
 
-    // ─── JSX ─────────────────────────────────────────────────────────────────
+    // --- JSX -----------------------------------------------------------------
 
     if (!editMode && ficha.estado === 'publicado') {
         return (
@@ -1050,7 +1050,7 @@ export default function FichaDetallePage() {
     return (
         <div className="max-w-5xl mx-auto space-y-5 pb-12">
 
-            {/* ── Header ── */}
+            {/* -- Header -- */}
             <div className="flex items-center gap-3 flex-wrap">
                 <button type="button" onClick={() => router.back()} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
                     <ArrowLeft className="w-5 h-5" />
@@ -1097,7 +1097,7 @@ export default function FichaDetallePage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-                {/* ── Columna principal ── */}
+                {/* -- Columna principal -- */}
                 <div className="lg:col-span-2 space-y-4">
 
                     {/* NIVEL 1 — Identidad del producto */}
@@ -1437,7 +1437,7 @@ export default function FichaDetallePage() {
                         </details>
                     )}
 
-                    {/* ── Imágenes del producto ───────────────────────────────── */}
+                    {/* -- Imágenes del producto --------------------------------- */}
                     <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
                         <div className="flex items-center justify-between">
                             <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Imágenes del producto</h2>
@@ -1586,7 +1586,7 @@ export default function FichaDetallePage() {
 
                 </div>{/* fin columna principal */}
 
-                {/* ── Sidebar ── */}
+                {/* -- Sidebar -- */}
                 <div className="space-y-4">
 
                     {/* Enriquecer */}
@@ -1613,7 +1613,7 @@ export default function FichaDetallePage() {
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {/* ─── Campo: Producto objetivo ─── */}
+                                {/* --- Campo: Producto objetivo --- */}
                                 <div className="bg-white/10 rounded-xl p-3 space-y-1.5">
                                     <label className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest flex items-center gap-1">
                                         🎯 Producto a extraer
@@ -1631,7 +1631,7 @@ export default function FichaDetallePage() {
                                     </p>
                                 </div>
 
-                                {/* ─── PASO 1: Selector de campos ─── */}
+                                {/* --- PASO 1: Selector de campos --- */}
                                 <div className="bg-indigo-800/60 rounded-xl p-3 space-y-2">
                                     <div className="flex items-center justify-between">
                                         <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Campos a extraer</p>
@@ -1681,7 +1681,7 @@ export default function FichaDetallePage() {
                                     )}
                                 </div>
 
-                                {/* ─── PASO 2: Fuente del documento ─── */}
+                                {/* --- PASO 2: Fuente del documento --- */}
                                 <div className="flex gap-1">
                                     {(['file', 'url'] as const).map(m => (
                                         <button key={m} type="button" onClick={() => setEnrichMode(m)}
@@ -1793,7 +1793,7 @@ export default function FichaDetallePage() {
                 </div>
             </div>
 
-            {/* ── Overlay: Descubriendo productos (Etapa 1) ── */}
+            {/* -- Overlay: Descubriendo productos (Etapa 1) -- */}
             {enrichStep === 'discovering' && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4 max-w-sm w-full">
@@ -1806,7 +1806,7 @@ export default function FichaDetallePage() {
                 </div>
             )}
 
-            {/* ── Modal: Elegir producto (Etapa 1.5) ── */}
+            {/* -- Modal: Elegir producto (Etapa 1.5) -- */}
             {enrichStep === 'picking' && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
@@ -1881,7 +1881,7 @@ export default function FichaDetallePage() {
                 </div>
             )}
 
-            {/* ── Modal enriquecimiento v2 ── */}
+            {/* -- Modal enriquecimiento v2 -- */}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
@@ -2056,7 +2056,7 @@ export default function FichaDetallePage() {
                 </div>
             )}
 
-            {/* ── Modal Vincular / Cambiar artículo ── */}
+            {/* -- Modal Vincular / Cambiar artículo -- */}
             {vinculandoModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
@@ -2116,7 +2116,7 @@ export default function FichaDetallePage() {
                 </div>
             )}
 
-            {/* ── Modal: Imágenes extraídas por IA ──────────────────────── */}
+            {/* -- Modal: Imágenes extraídas por IA ------------------------ */}
             {imgExtractOpen && imgExtractResults.length > 0 && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
@@ -2169,7 +2169,7 @@ export default function FichaDetallePage() {
                 </div>
             )}
 
-            {/* ── Modal: Autocompletar — aprobar sugerencias ─────────── */}
+            {/* -- Modal: Autocompletar — aprobar sugerencias ----------- */}
             {autocompletarSugerencias && Object.keys(autocompletarSugerencias).length > 0 && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">

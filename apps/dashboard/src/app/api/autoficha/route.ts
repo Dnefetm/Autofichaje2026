@@ -22,7 +22,7 @@ function getSupabaseAdmin() {
     );
 }
 
-// ─── Helper v4: separar atributos_tecnicos en 2 cubetas ──────────────────────
+// --- Helper v4: separar atributos_tecnicos en 2 cubetas ----------------------
 // Consulta la plantilla de la categoría y clasifica cada atributo extraído por la IA
 // como "de plantilla" (campos definidos) o "extra" (detectados pero no en plantilla).
 
@@ -87,13 +87,13 @@ async function urlToBuffer(url: string): Promise<{ buffer: Buffer; mimeType: str
     return { buffer, mimeType, fileName };
 }
 
-// ─── POST handler ─────────────────────────────────────────────────────────────
+// --- POST handler -------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
     try {
         const contentType = req.headers.get('content-type') || '';
 
-        // ── MODO MULTIPART: archivo único pequeño (<4MB) — fallback legacy ────
+        // -- MODO MULTIPART: archivo único pequeño (<4MB) — fallback legacy ----
         if (contentType.includes('multipart/form-data')) {
             const form = await req.formData();
             const file = form.get('file') as File | null;
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ...result, atributos_categoria, atributos_extras });
         }
 
-        // ── MODO JSON: URL única o array de URLs (flujo principal) ───────────
+        // -- MODO JSON: URL única o array de URLs (flujo principal) -----------
         if (contentType.includes('application/json')) {
             const body = await req.json();
 
@@ -201,7 +201,7 @@ export async function POST(req: NextRequest) {
         const code: string = error?.code       || '';
         const status: number = error?.statusCode || error?.status || 500;
 
-        // ── Errores específicos de Azure Document Intelligence ─────────────────
+        // -- Errores específicos de Azure Document Intelligence -----------------
         if (msg.includes('Credenciales Azure') || msg.includes('AZURE_DI')) {
             return NextResponse.json({
                 error: 'Las credenciales de Azure no están configuradas. Contacta al administrador.'

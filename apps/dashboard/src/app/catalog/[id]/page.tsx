@@ -26,7 +26,7 @@ function getPublicImageUrl(rawPath: string | null | undefined): string | null {
 
 
 
-// ── Página principal ──────────────────────────────────────────────────────────
+// -- Página principal ----------------------------------------------------------
 export default function ArticuloDetailPage() {
     const params = useParams();
     const id = decodeURIComponent(params.id as string);
@@ -214,7 +214,7 @@ export default function ArticuloDetailPage() {
                 </div>
             </div>
 
-            {/* ── Aviso Transición a Motor V2 ─────────────────────────────────── */}
+            {/* -- Aviso Transición a Motor V2 ----------------------------------- */}
             <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6">
                 <div className="flex gap-3">
                     <AlertCircle className="w-6 h-6 text-indigo-500 shrink-0" />
@@ -233,7 +233,7 @@ export default function ArticuloDetailPage() {
                 </div>
             </div>
 
-            {/* ── Panel de Publicación ─────────────────────────────────────── */}
+            {/* -- Panel de Publicación --------------------------------------- */}
             <PublishPanel
                 articulo_id={product.articulo_id || id}
                 nombreArticulo={product.nombre || ''}

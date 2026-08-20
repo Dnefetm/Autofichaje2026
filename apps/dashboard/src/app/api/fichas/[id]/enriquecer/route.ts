@@ -15,7 +15,7 @@ function getSupabaseAdmin() {
     );
 }
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// --- Tipos --------------------------------------------------------------------
 
 type AccionCampo = 'agregar' | 'conflicto' | 'identico';
 type TipoCampo   = 'texto' | 'lista' | 'jsonb';
@@ -34,7 +34,7 @@ interface ResultadoCampo {
     keys_conflicto?:  Record<string, { actual: any; nuevo: any }>;
 }
 
-// ─── Definición de campos comparables ────────────────────────────────────────
+// --- Definición de campos comparables ----------------------------------------
 
 const CAMPOS_TEXTO: Array<{ key: string; label: string; llmKey: string }> = [
     { key: 'nombre_producto',   label: 'Nombre del producto',  llmKey: 'nombre' },
@@ -84,7 +84,7 @@ function isEmpty(v: any): boolean {
     return false;
 }
 
-// ─── Clasificar campos ────────────────────────────────────────────────────────
+// --- Clasificar campos --------------------------------------------------------
 
 function clasificarTexto(actual: any, nuevo: any, campo: string, label: string): ResultadoCampo | null {
     if (isEmpty(nuevo)) return null;
@@ -128,7 +128,7 @@ function clasificarJsonb(actual: Record<string, any> | null, nuevo: Record<strin
     return { campo, label, tipo: 'jsonb', accion, valor_actual: act, valor_nuevo: nuevo, keys_nuevas: keysNuevas, keys_conflicto: keysConflicto };
 }
 
-// ─── POST handler ─────────────────────────────────────────────────────────────
+// --- POST handler -------------------------------------------------------------
 
 export async function POST(
     req: NextRequest,

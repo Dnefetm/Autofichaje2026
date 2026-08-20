@@ -29,7 +29,7 @@ import { resolvePublicationAI } from '@gestor/sync/meli-ai-helper';
 
 export const dynamic = 'force-dynamic';
 
-// ── Helper: limpiar título de anotaciones operativas ─────────────────────────
+// -- Helper: limpiar título de anotaciones operativas -------------------------
 // Elimina notas como "publicar y corregir", "revisar", "pendiente" etc.
 // que los usuarios añaden al nombre pero no deben llegar a MeLi.
 function limpiarTitulo(nombre: string | null | undefined): string {
@@ -56,7 +56,7 @@ function limpiarTitulo(nombre: string | null | undefined): string {
     return limpio;
 }
 
-// ── Helper: truncar a ≤N chars respetando palabras ───────────────────────────
+// -- Helper: truncar a ≤N chars respetando palabras ---------------------------
 function truncarTitulo(titulo: string, maxLen: number = 60): string {
     if (titulo.length <= maxLen) return titulo;
     // Cortar en el último espacio antes del límite
@@ -65,7 +65,7 @@ function truncarTitulo(titulo: string, maxLen: number = 60): string {
     return (lastSpace > maxLen * 0.6 ? sub.slice(0, lastSpace) : sub).trim();
 }
 
-// ── Helper: resolver datos con prioridad ficha → artículo ────────────────────
+// -- Helper: resolver datos con prioridad ficha → artículo --------------------
 function resolvePublicationData(articulo: any, ficha: any | null) {
     return {
         nombre:              limpiarTitulo(ficha?.nombre_producto || articulo?.nombre),
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     const trace: Record<string, any> = {}; // "tubo transparente" — cada paso deja su huella aquí
 
     try {
-        // ── 0. Validar body ───────────────────────────────────────────────────
+        // -- 0. Validar body ---------------------------------------------------
         const body = await req.json().catch(() => null);
         if (!body || !body.articulo_id || !body.marketplace_id) {
             return NextResponse.json({
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
 
         trace.input = { articulo_id, marketplace_id, ficha_id, pictures_count: pictures.length, listing_type_id, dry_run };
 
-        // ── 1. Leer artículo de BD ────────────────────────────────────────────
+        // -- 1. Leer artículo de BD --------------------------------------------
         const { data: articulo, error: artErr } = await supabaseAdmin
             .from('articulos')
             .select(`
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
             publicacion_ml_existente: articulo.publicacion_ml,
         };
 
-        // ── 1b. Leer ficha técnica si se proveyó ficha_id ─────────────────────
+        // -- 1b. Leer ficha técnica si se proveyó ficha_id ---------------------
         let fichaData: any = null;
         if (ficha_id) {
             const { data: ficha, error: fichaErr } = await supabaseAdmin
@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
             trace.paso_1_articulo.advertencia = `Ya tiene publicacion_ml: ${articulo.publicacion_ml}. Verificando estado real en BD...`;
         }
 
-        // ── 1.5 Verificar duplicados activos en la misma cuenta ────────────────
+        // -- 1.5 Verificar duplicados activos en la misma cuenta ----------------
         // Fuente de verdad: publicaciones_externas + mapeo_publicacion_articulo
         // (NO articulo.publicacion_ml, que puede apuntar a un item ya cerrado)
         const { data: pubActiva } = await supabaseAdmin
@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
             ? { advertencia: 'force_duplicate=true — publicando pese a existente', item_existente: pubActiva.external_item_id }
             : { ok: true, sin_duplicados: true };
 
-        // ── 2. Detectar modelo del seller ─────────────────────────────────────
+        // -- 2. Detectar modelo del seller -------------------------------------
         // POLÍTICA: este endpoint solo opera en modelo UP (User Products).
         // Si la cuenta es legacy, falla aquí antes de construir el body.
         const meli = new MeliAdapter();
@@ -254,7 +254,7 @@ export async function POST(req: NextRequest) {
             }, { status: 422 });
         }
 
-        // ── 3. Obtener precio de marketplace_prices ───────────────────────────
+        // -- 3. Obtener precio de marketplace_prices ---------------------------
         // marketplace_prices.articulo_id (renombrado desde sku en v47)
         let precio_data: any = null;
         const { data: precio } = await supabaseAdmin
@@ -297,7 +297,7 @@ export async function POST(req: NextRequest) {
             valor: sku_efectivo,
         };
 
-        // ── 4. Calcular stock disponible ──────────────────────────────────────
+        // -- 4. Calcular stock disponible --------------------------------------
         // inventory_snapshot.sku almacena articulo_id (migración V27)
         let stock = 0;
         let stockFailed = false;
@@ -313,7 +313,7 @@ export async function POST(req: NextRequest) {
         }
         trace.paso_4_stock = { ...trace.paso_4_stock, available_quantity: stock, stock_failed: stockFailed };
 
-        // ── 5. Predecir o usar categoría ──────────────────────────────────────
+        // -- 5. Predecir o usar categoría --------------------------------------
         let category_id = category_id_override;
         let category_info: any = null;
 
@@ -355,7 +355,7 @@ export async function POST(req: NextRequest) {
         };
 
 
-        // ── 6. Obtener atributos requeridos de la categoría ───────────────────
+        // -- 6. Obtener atributos requeridos de la categoría -------------------
         const attrInfo = await (meli as any).getCategoryAttributes(marketplace_id, category_id);
         trace.paso_6_atributos = {
             total: attrInfo.raw.length,
@@ -370,7 +370,7 @@ export async function POST(req: NextRequest) {
             })),
         };
 
-        // ── 7. Construir attributes[] usando datos resueltos (ficha → artículo) ─
+        // -- 7. Construir attributes[] usando datos resueltos (ficha → artículo) -
         const attributes: Array<{ id: string; value_name?: string; value_id?: string }> = [];
 
         if (resolved.marca)            attributes.push({ id: 'BRAND',  value_name: resolved.marca });
@@ -437,7 +437,7 @@ export async function POST(req: NextRequest) {
             }));
         trace.paso_7_atributos_faltantes = unresolvedAttrs.map((a: any) => ({ id: a.id, name: a.name }));
 
-        // ── 8. GPT-4o-mini: family_name limpio + resolver atributos faltantes ──
+        // -- 8. GPT-4o-mini: family_name limpio + resolver atributos faltantes --
         const aiResult = await resolvePublicationAI({
             nombre:                 resolved.nombre || '',
             marca:                  resolved.marca  || '',
@@ -510,7 +510,7 @@ export async function POST(req: NextRequest) {
             .map((a: any) => ({ id: a.id, name: a.name }));
         trace.paso_8_atributos_aun_faltantes = stillMissing;
 
-        // ── 9. Construir el body del POST /items (solo modelo UP) ─────────────
+        // -- 9. Construir el body del POST /items (solo modelo UP) -------------
         // Construir descripción enriquecida con bullets (máx 2000 chars)
         const bulletsText = resolved.bullet_points.length > 0
             ? '\n\n' + resolved.bullet_points.map((b: string) => `• ${b}`).join('\n')
@@ -544,7 +544,7 @@ export async function POST(req: NextRequest) {
 
         trace.paso_9_body = itemBody;
 
-        // ── 10. Validaciones DURAS — errores 422 bloqueantes ─────────────────
+        // -- 10. Validaciones DURAS — errores 422 bloqueantes -----------------
         const erroresDuros: string[] = [];
         if (pictures.length === 0) erroresDuros.push('Sin imágenes: MeLi rechaza publicaciones sin pictures[]');
         if (price === 0)           erroresDuros.push('Precio = 0: MeLi rechazará la publicación');
@@ -583,7 +583,7 @@ export async function POST(req: NextRequest) {
             }, { status: 422 });
         }
 
-        // ── 11. DRY RUN — retornar sin publicar ──────────────────────────────
+        // -- 11. DRY RUN — retornar sin publicar ------------------------------
         if (dry_run) {
             return NextResponse.json({
                 ok: true,
@@ -594,7 +594,7 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // ── 12. Publicar en MeLi ──────────────────────────────────────────────
+        // -- 12. Publicar en MeLi ----------------------------------------------
         const created = await (meli as any).createItem(marketplace_id, itemBody);
         trace.paso_12_meli_create = {
             item_id:         created.item_id,
@@ -606,7 +606,7 @@ export async function POST(req: NextRequest) {
         };
         trace.paso_12_meli_raw = created.raw; // respuesta completa de MeLi para inspección
 
-        // ── 13. Agregar descripción (enriquecida con bullets, máx 2000 chars) ──
+        // -- 13. Agregar descripción (enriquecida con bullets, máx 2000 chars) --
         let descResult: any = null;
         if (descripcionCompleta) {
             descResult = await (meli as any).addDescription(marketplace_id, created.item_id, descripcionCompleta);
@@ -615,7 +615,7 @@ export async function POST(req: NextRequest) {
             trace.paso_13_descripcion = { omitido: 'Sin descripción disponible (ni en ficha ni en artículo)' };
         }
 
-        // ── 14. Guardar en BD: publicaciones_externas ─────────────────────────
+        // -- 14. Guardar en BD: publicaciones_externas -------------------------
         const { data: pubInserted, error: pubErr } = await supabaseAdmin
             .from('publicaciones_externas')
             .upsert({
@@ -644,7 +644,7 @@ export async function POST(req: NextRequest) {
             ? { error: pubErr.message }
             : { publicacion_id: pubInserted?.id };
 
-        // ── 15. Guardar en BD: mapeo_publicacion_articulo ─────────────────────
+        // -- 15. Guardar en BD: mapeo_publicacion_articulo ---------------------
         if (pubInserted?.id) {
             const { error: mapErr } = await supabaseAdmin
                 .from('mapeo_publicacion_articulo')
@@ -657,7 +657,7 @@ export async function POST(req: NextRequest) {
             trace.paso_15_mapeo = mapErr ? { error: mapErr.message } : { ok: true };
 
 
-            // ── 16. Actualizar articulos.publicacion_ml ───────────────────────
+            // -- 16. Actualizar articulos.publicacion_ml -----------------------
             const { error: artUpdateErr } = await supabaseAdmin
                 .from('articulos')
                 .update({ publicacion_ml: created.item_id })
@@ -667,7 +667,7 @@ export async function POST(req: NextRequest) {
                 ? { error: artUpdateErr.message }
                 : { publicacion_ml: created.item_id };
 
-            // ── 17. Vincular fichas_tecnicas ← publicación (solo si vino ficha_id) ──
+            // -- 17. Vincular fichas_tecnicas ← publicación (solo si vino ficha_id) --
             if (ficha_id) {
                 const { error: fichaLinkErr } = await supabaseAdmin
                     .from('fichas_tecnicas')
@@ -685,7 +685,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // ── Respuesta final ───────────────────────────────────────────────────
+        // -- Respuesta final ---------------------------------------------------
         return NextResponse.json({
             ok: true,
             item_id:         created.item_id,

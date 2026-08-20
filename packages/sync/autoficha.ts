@@ -47,7 +47,7 @@ export interface AutofichaResult {
     storage_path?: string;      // Ruta en Supabase Storage si fue persistido
 }
 
-// ─── Paso 1: OCR con Azure Document Intelligence ──────────────────────────────
+// --- Paso 1: OCR con Azure Document Intelligence ------------------------------
 
 async function extractTextFromBuffer(
     buffer: Buffer,
@@ -133,7 +133,7 @@ async function extractTextFromBuffer(
     return { text: extractedText, confidence: Math.round(avgConf * 100) / 100 };
 }
 
-// ─── Paso 2: Estructuración con GPT-4o-mini ───────────────────────────────────
+// --- Paso 2: Estructuración con GPT-4o-mini -----------------------------------
 
 const PROMPT_SISTEMA_BASE = `Eres un experto en ferretería industrial (herramientas, fijaciones, seguridad, construcción, plomería, iluminación, automotriz).
 Extrae los datos del producto desde el texto OCR dado y responde SOLO con JSON, sin markdown.
@@ -196,7 +196,7 @@ REGLA CRÍTICA DE SEPARACIÓN:
   Si no hay datos adicionales, retorna objeto vacío {}.
 - confidence: tu nivel de confianza en la extracción (0.0 a 1.0)`;
 
-// ─── Helper: normalización de campos regulatorios ─────────────────────────────
+// --- Helper: normalización de campos regulatorios -----------------------------
 // Acepta CUALQUIER tipo que el LLM o Supabase JSONB pueda devolver:
 //   - string   → trim directo
 //   - array    → join con salto de línea (el LLM a veces devuelve listas)
@@ -296,7 +296,7 @@ async function structureWithAI(
         ingredientes:     raw.ingredientes   || undefined,
         uso_recomendado:  raw.uso_recomendado || undefined,
         precauciones:     raw.precauciones   || undefined,
-        // ── Campos regulatorios — con normalización defensiva ─────────────────
+        // -- Campos regulatorios — con normalización defensiva -----------------
         informacion_normativa:     _normalizeReg(raw.informacion_normativa),
         instrucciones_uso:         _normalizeReg(raw.instrucciones_uso),
         leyendas_precautorias:     _normalizeReg(
@@ -322,7 +322,7 @@ async function structureWithAI(
     };
 }
 
-// ─── Descubrimiento de productos (Etapa 1 del flujo 2-etapas) ─────────────────
+// --- Descubrimiento de productos (Etapa 1 del flujo 2-etapas) -----------------
 // Se usa cuando el usuario indica que el doc tiene varios productos y quiere elegir uno.
 // Costo: ~400 tokens. Latencia: ~1-2 segundos.
 
@@ -379,7 +379,7 @@ export async function discoverProducts(
     }
 }
 
-// ─── Función principal: documento único ────────────────────────────────────────
+// --- Función principal: documento único ----------------------------------------
 
 export async function processProductDocument(
     fileBuffer: Buffer,
@@ -408,7 +408,7 @@ export async function processProductDocument(
     return { ...structured, rawText, storage_path: storagePath };
 }
 
-// ─── Función principal: múltiples documentos (merge inteligente) ───────────────
+// --- Función principal: múltiples documentos (merge inteligente) ---------------
 
 export interface MultiDocInput {
     buffer:   Buffer;

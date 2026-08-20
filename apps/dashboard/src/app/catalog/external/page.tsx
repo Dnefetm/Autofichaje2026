@@ -12,7 +12,7 @@ import MappingModal from '@/components/mapping-modal';
 import { FiltersSidebar, FilterState, defaultFilters } from './filters-sidebar';
 import { cn } from '@/lib/utils';
 
-// ─── Helpers de presentación ───────────────────────────────────────────────
+// --- Helpers de presentación -----------------------------------------------
 // FIX: detectar SKU basura (prefijo UUID de 8 hex chars dejado por migración)
 // No se muestra en la UI ni se considera como SKU válido.
 function esSkuBasuraUI(sku: string | null | undefined): boolean {
@@ -119,7 +119,7 @@ function BundleBadge({ isBundle }: { isBundle: boolean }) {
     );
 }
 
-// ─── Agrupación: solo variaciones del mismo external_item_id ─────────────────────
+// --- Agrupación: solo variaciones del mismo external_item_id ---------------------
 // Los catálogos con par se excluyen de la query principal (server-side).
 // Los hijos de catálogo se cargan lazy cuando el usuario expande la fila.
 interface GroupedListing {
@@ -144,7 +144,7 @@ function groupByItemId(listings: any[]): GroupedListing[] {
     return Array.from(map.values());
 }
 
-// ─── Componente de fila ──────────────────────────────────────────────────────
+// --- Componente de fila ------------------------------------------------------
 function ListingRow({
     listing,
     onMapear,
@@ -314,7 +314,7 @@ function ListingRow({
     );
 }
 
-// ─── Fila de grupo con variantes ────────────────────────────────────────────────
+// --- Fila de grupo con variantes ------------------------------------------------
 function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMapear: (l: any) => void }) {
     const [expanded, setExpanded] = useState(false);
     // Lazy-load unificado de catálogos hijos + asociadas en una sola operación
@@ -654,7 +654,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
 }
 
 
-// ─── Página principal ────────────────────────────────────────────────────────
+// --- Página principal --------------------------------------------------------
 export default function VirtualCatalogPage() {
     const [listings, setListings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -737,7 +737,7 @@ export default function VirtualCatalogPage() {
             const from = page * PAGE_SIZE;
             const to = from + PAGE_SIZE - 1;
 
-            // ─── Búsqueda universal: usa RPC cuando hay término de búsqueda ──────────────────
+            // --- Búsqueda universal: usa RPC cuando hay término de búsqueda ------------------
             // La RPC busca en TODAS las pubs (incluidos catálogos ocultos) y devuelve
             // resultados con score de relevancia (SKU exacto > prefijo > título).
             if (debouncedSearch.trim().length >= 2) {
@@ -762,7 +762,7 @@ export default function VirtualCatalogPage() {
                 .order('external_variation_id', { ascending: true })
                 .range(from, to);
 
-            // ─── Exclusión server-side de catálogos con par ──────────────────────────
+            // --- Exclusión server-side de catálogos con par --------------------------
             // Excluir publicaciones de catálogo que son hijas de una tradicional (tienen par_item_id).
             // Condición: par_item_id IS NULL  →  incluir (huérfanos de catálogo + todas las tradicionales)
             // Solo aplica cuando el usuario NO filtra explícitamente por tipo catálogo.
@@ -876,7 +876,7 @@ export default function VirtualCatalogPage() {
                     }
                 }
 
-                // ── Enriquecimiento post-sync (comisiones + visitas + descripciones) ──
+                // -- Enriquecimiento post-sync (comisiones + visitas + descripciones) --
                 addLog(`⚡ Enriqueciendo datos de ${config.account_name}...`);
                 try {
                     let enrichHasMore = true;

@@ -10,7 +10,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import type { AutofichaResult } from '@gestor/sync/autoficha';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// --- Helpers ------------------------------------------------------------------
 
 function cn(...classes: (string | boolean | undefined | null)[]) {
     return classes.filter(Boolean).join(' ');
@@ -29,7 +29,7 @@ function ScoreBadge({ score, label }: { score: number; label: string }) {
     return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${color}`}>{label} ({score})</span>;
 }
 
-// ─── Campo controlado ─────────────────────────────────────────────────────────
+// --- Campo controlado ---------------------------------------------------------
 
 interface FieldProps {
     label: string; value: string | number | undefined;
@@ -48,7 +48,7 @@ function Field({ label, value, onChange, type = 'text', mono = false }: FieldPro
     );
 }
 
-// ─── Card enriquecida de artículo (BLOQUE 1) ─────────────────────────────────
+// --- Card enriquecida de artículo (BLOQUE 1) ---------------------------------
 
 interface ArticuloMatch {
     articulo_id: string; nombre: string; marca: string;
@@ -89,7 +89,7 @@ function ArticuloCard({ match, onSelect }: { match: ArticuloMatch; onSelect: (m:
     );
 }
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// --- Tipos --------------------------------------------------------------------
 
 type InputMode = 'file' | 'url';
 type Status    = 'idle' | 'uploading' | 'processing' | 'done' | 'saving' | 'saved' | 'error';
@@ -111,7 +111,7 @@ const ALLOWED_MIME = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg',
 const MAX_MB = 50;
 const OPERADOR_ID = 'operador_1';
 
-// ─── Página principal ─────────────────────────────────────────────────────────
+// --- Página principal ---------------------------------------------------------
 
 function AutofichaPageInner() {
     const searchParams = useSearchParams();
@@ -221,7 +221,7 @@ function AutofichaPageInner() {
         }
     }, []);
 
-    // ── Borradores ────────────────────────────────────────────────────────────
+    // -- Borradores ------------------------------------------------------------
 
     async function loadBorradores() {
         try {
@@ -302,14 +302,14 @@ function AutofichaPageInner() {
         }
     }
 
-    // ── Edición de campos ─────────────────────────────────────────────────────
+    // -- Edición de campos -----------------------------------------------------
 
     function updateField<K extends keyof AutofichaResult>(key: K, value: AutofichaResult[K]) {
         setEdited(prev => prev ? { ...prev, [key]: value } : prev);
         scheduleAutoSave();
     }
 
-    // ── Archivos ──────────────────────────────────────────────────────────────
+    // -- Archivos --------------------------------------------------------------
 
     function addFiles(newFiles: FileList | File[]) {
         const entries: FileEntry[] = [];
@@ -327,7 +327,7 @@ function AutofichaPageInner() {
         if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
     }, []);
 
-    // ── Storage upload ────────────────────────────────────────────────────────
+    // -- Storage upload --------------------------------------------------------
 
     async function uploadFilesToStorage(entries: FileEntry[]): Promise<FileEntry[]> {
         const updated = [...entries];
@@ -350,7 +350,7 @@ function AutofichaPageInner() {
         return updated;
     }
 
-    // ── Procesar con IA ───────────────────────────────────────────────────────
+    // -- Procesar con IA -------------------------------------------------------
 
     const handleProcess = useCallback(async () => {
         setStatus('uploading'); setErrorMsg('');
@@ -416,7 +416,7 @@ function AutofichaPageInner() {
         }
     }, [files, url, inputMode]);
 
-    // ── Búsqueda manual ───────────────────────────────────────────────────────
+    // -- Búsqueda manual -------------------------------------------------------
 
     const handleManualSearch = async () => {
         if (!searchQ.trim() || searchQ.trim().length < 2) return;
@@ -433,7 +433,7 @@ function AutofichaPageInner() {
         setSearchResults([]); setSearchQ('');
     }
 
-    // ── Guardar en catálogo ───────────────────────────────────────────────────
+    // -- Guardar en catálogo ---------------------------------------------------
 
     const handleSave = useCallback(async () => {
         if (!edited) return;
@@ -454,7 +454,7 @@ function AutofichaPageInner() {
                 ? 'create'        // SKU manual → crear artículo nuevo
                 : 'draft';        // sin nada → ficha borrador desvinculada
 
-        // ── GUARD CAPA 2: UX ──────────────────────────────────────────────────────
+        // -- GUARD CAPA 2: UX ------------------------------------------------------
         const tieneDocumento = (inputMode === 'url' ? !!url : false) || files.length > 0;
         const sinTecnicos =
             !edited.especificaciones?.trim() &&
@@ -543,7 +543,7 @@ function AutofichaPageInner() {
         }
     }, [edited, linkedArticulo, saveMode, files, url, inputMode, result, currentBorrador, atribCategoria, atribExtras]);
 
-    // ── Reset ─────────────────────────────────────────────────────────────────
+    // -- Reset -----------------------------------------------------------------
 
     function handleReset() {
         setResult(null); setEdited(null); setFiles([]); setUrl('');
@@ -552,7 +552,7 @@ function AutofichaPageInner() {
         setPlantillaCampos([]); setAtribCategoria({}); setAtribExtras({});
     }
 
-    // ── Render ────────────────────────────────────────────────────────────────
+    // -- Render ----------------------------------------------------------------
 
     const isProcessing = status === 'uploading' || status === 'processing';
     const isSaving     = status === 'saving';
@@ -567,7 +567,7 @@ function AutofichaPageInner() {
                 <p className="text-slate-500 text-lg">Digitaliza fichas técnicas y catálogos de proveedores en segundos.</p>
             </div>
 
-            {/* ── Banner de borradores (BLOQUE 3) ─────────────────────────── */}
+            {/* -- Banner de borradores (BLOQUE 3) --------------------------- */}
             {pendingBorradores.length > 0 && !result && (
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
                     <button onClick={() => setShowBorradores(p => !p)}
@@ -966,7 +966,7 @@ function AutofichaPageInner() {
                         </div>
                     </div>
 
-                    {/* ── Panel vinculación manual (BLOQUE 1 cards enriquecidas + BLOQUE 2 buscador) */}
+                    {/* -- Panel vinculación manual (BLOQUE 1 cards enriquecidas + BLOQUE 2 buscador) */}
                     <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5 shadow-sm">
                         <div className="flex items-center justify-between flex-wrap gap-2">
                             <div>

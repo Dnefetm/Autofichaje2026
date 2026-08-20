@@ -11,7 +11,7 @@
 
 import { OpenAI } from 'openai';
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// --- Tipos --------------------------------------------------------------------
 
 export interface MeliAttributeOption {
     id: string;
@@ -42,7 +42,7 @@ export interface MeliAIHelperOutput {
     tokens_used?: number;
 }
 
-// ─── Prompt ──────────────────────────────────────────────────────────────────
+// --- Prompt ------------------------------------------------------------------
 
 function buildPrompt(input: MeliAIHelperInput): { system: string; user: string } {
     const maxChars = input.max_family_name_chars ?? 50;
@@ -90,7 +90,7 @@ ${attrsBlock || 'Ninguno — solo generar el family_name'}`;
     return { system, user };
 }
 
-// ─── Función principal ────────────────────────────────────────────────────────
+// --- Función principal --------------------------------------------------------
 
 
 /**

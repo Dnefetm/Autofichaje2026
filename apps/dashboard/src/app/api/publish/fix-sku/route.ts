@@ -27,7 +27,7 @@ import { decrypt } from '@gestor/shared';
 
 export const dynamic = 'force-dynamic';
 
-// ── Patrón de SKU basura: exactamente 8 caracteres hexadecimales ────────────
+// -- Patrón de SKU basura: exactamente 8 caracteres hexadecimales ------------
 const SKU_BASURA_RE = /^[0-9a-f]{8}$/i;
 
 function esSkuBasura(sku: string | null | undefined): boolean {
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     }> = [];
 
     try {
-        // ── 1. Leer publicaciones con seller_sku basura ───────────────────────
+        // -- 1. Leer publicaciones con seller_sku basura -----------------------
         // Filtramos con SIMILAR TO (Postgres) para el patrón hex de 8 chars.
         // Supabase no expone SIMILAR TO directamente; usamos .filter con operador
         // custom 'similar' no disponible → usamos RPC o traemos y filtramos en JS.
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // ── 2. Para cada publicación, resolver el SKU correcto ────────────────
+        // -- 2. Para cada publicación, resolver el SKU correcto ----------------
         // Agrupar por marketplace_id para reutilizar tokens
         const tokenCache = new Map<string, string>();
 
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
             (precios || []).map((p: any) => [`${p.articulo_id}:${p.marketplace_id}`, p.sku_tienda])
         );
 
-        // ── 3. Procesar cada publicación ──────────────────────────────────────
+        // -- 3. Procesar cada publicación --------------------------------------
         for (const pub of contaminadas) {
             const mkId: string = pub.marketplace_id;
             const itemId: string = pub.external_item_id;

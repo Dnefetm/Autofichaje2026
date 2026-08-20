@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
             }
         };
 
-        // ── Búsqueda automática (desde IA): todos los niveles, sin early-return ──
+        // -- Búsqueda automática (desde IA): todos los niveles, sin early-return --
 
         if (sku) {
             const { data } = await supabase.from('articulos').select(SELECT).eq('articulo_id', sku).limit(1);
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        // ── Búsqueda manual libre (campo q del operador) ──────────────────────
+        // -- Búsqueda manual libre (campo q del operador) ----------------------
         if (q && q.length >= 2) {
             // Busca en articulo_id (SKU), codigo_universal (EAN), nombre, modelo y marca
             const [byId, byEan, byNombre, byModelo, byMarca] = await Promise.all([

@@ -24,7 +24,7 @@ export async function GET(
     const limit  = Math.min(parseInt(searchParams.get('limit') || '200', 10), 500);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    // ── Verificar que la importación existe ──────────────────────────────────
+    // -- Verificar que la importación existe ----------------------------------
     const { data: importacion, error: fetchErr } = await supabaseAdmin
         .from('importaciones_excel')
         .select('id, nombre_archivo, proveedor, total_filas, filas_con_match, estado, tipo_costo_default')
@@ -38,7 +38,7 @@ export async function GET(
         );
     }
 
-    // ── Consultar costos con campos del Excel ──────────────────────────────
+    // -- Consultar costos con campos del Excel ------------------------------
     let query = supabaseAdmin
         .from('costos_articulo')
         .select(`
@@ -91,7 +91,7 @@ export async function GET(
         );
     }
 
-    // ── Enriquecer con datos del artículo sugerido y candidatos (incluyendo caja_madre) ──
+    // -- Enriquecer con datos del artículo sugerido y candidatos (incluyendo caja_madre) --
     const articuloIdsSet = new Set<string>();
     (costos ?? []).forEach(c => {
         if (c.articulo_sugerido_id) articuloIdsSet.add(c.articulo_sugerido_id);
@@ -140,7 +140,7 @@ export async function GET(
         };
     });
 
-    // ── Fetch matching_decisiones IDs for the groups ──────────────────────────
+    // -- Fetch matching_decisiones IDs for the groups --------------------------
     const { data: decisionesData } = await supabaseAdmin
         .from('matching_decisiones')
         .select('id, codigo_universal_excel, marca_excel, modelo_excel')
@@ -152,7 +152,7 @@ export async function GET(
         decisionesMap.set(key, d.id);
     });
 
-    // ── Grouping ──────────────────────────────────────────
+    // -- Grouping ------------------------------------------
     const gruposMap = new Map<string, any>();
     const candidatosTopSet = new Set<string>();
 
@@ -195,7 +195,7 @@ export async function GET(
         }
     });
 
-    // ── Fetch precios_anteriores from costos_articulo (Lista Anterior) ──────────────────────────
+    // -- Fetch precios_anteriores from costos_articulo (Lista Anterior) --------------------------
     let preciosAnterioresRaw: any[] = [];
     
     // 1. Encontrar la importación anterior de este proveedor
@@ -262,7 +262,7 @@ export async function GET(
         return g;
     });
 
-    // ── Conteo general de estados (Optimizando con RPC) ──
+    // -- Conteo general de estados (Optimizando con RPC) --
     const { data: rpcStats } = await supabaseAdmin.rpc('fn_resumen_matching', { p_importacion_id: id });
     const stats = rpcStats || {
         sin_match: 0,

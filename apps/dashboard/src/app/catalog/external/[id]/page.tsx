@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import MappingModal from '@/components/mapping-modal';
 import PricingAuditCard from './pricing-audit-card';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// --- Helpers -----------------------------------------------------------------
 const statusColors: Record<string, string> = {
     active: 'bg-green-100 text-green-800 border-green-200',
     paused: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -114,7 +114,7 @@ function DescriptionSection({ text }: { text: string }) {
     );
 }
 
-// ─── Campo editable inline ────────────────────────────────────────────────────
+// --- Campo editable inline ----------------------------------------------------
 type SaveState = 'idle' | 'saving' | 'ok' | 'error';
 
 function EditableField({
@@ -211,7 +211,7 @@ function EditableField({
     );
 }
 
-// ─── Toggle de status inline ──────────────────────────────────────────────────
+// --- Toggle de status inline --------------------------------------------------
 function StatusToggle({ id, current, disabled }: { id: string; current: string; disabled: boolean }) {
     const [status, setStatus] = useState(current);
     const [saving, setSaving] = useState(false);
@@ -266,7 +266,7 @@ function StatusToggle({ id, current, disabled }: { id: string; current: string; 
     );
 }
 
-// ─── Página ──────────────────────────────────────────────────────────────────
+// --- Página ------------------------------------------------------------------
 export default function PublicacionDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = React.use(params);
 
@@ -405,14 +405,14 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <StatusToggle id={id} current={pub.status_externo} disabled={pub.sync_disabled || false} />
                                 {/* Tipo de publicación */}
                                 {pub.tipo_publicacion && tipoPubConfig[pub.tipo_publicacion] && (
-                                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', tipoPubConfig[pub.tipo_publicacion].color)}>
-                                        {tipoPubConfig[pub.tipo_publicacion].label}
+                                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', (tipoPubConfig[pub.tipo_publicacion]?.color ?? ''))}>
+                                        {(tipoPubConfig[pub.tipo_publicacion]?.label ?? pub.tipo_publicacion)}
                                     </span>
                                 )}
                                 {/* Comisión */}
                                 {pub.listing_type_id && listingTypeConfig[pub.listing_type_id] && (
-                                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', listingTypeConfig[pub.listing_type_id].color)}>
-                                        {listingTypeConfig[pub.listing_type_id].label}
+                                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', (listingTypeConfig[pub.listing_type_id]?.color ?? ''))}>
+                                        {(listingTypeConfig[pub.listing_type_id]?.label ?? pub.listing_type_id)}
                                     </span>
                                 )}
                                 {pub.esta_mapeado ? (
@@ -475,7 +475,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 {/* Visitas 30d — preferir dato de BD, fallback a lazy API */}
                                 <div className="text-center">
                                     {pub.visits_30d != null
-                                        ? <p className="text-xl font-bold text-indigo-600">{pub.visits_30d.toLocaleString()}</p>
+                                        ? <p className="text-xl font-bold text-indigo-600">{pub.visits_30d?.toLocaleString()}</p>
                                         : enrichLoading
                                             ? <p className="text-xl font-bold text-slate-300 animate-pulse">⋯</p>
                                             : <p className="text-xl font-bold text-indigo-600">
@@ -602,14 +602,14 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             <InfoRow
                                 label="Tipo"
                                 value={pub.tipo_publicacion && tipoPubConfig[pub.tipo_publicacion]
-                                    ? <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold', tipoPubConfig[pub.tipo_publicacion].color)}>{tipoPubConfig[pub.tipo_publicacion].label}</span>
+                                    ? <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold', (tipoPubConfig[pub.tipo_publicacion]?.color ?? ''))}>{(tipoPubConfig[pub.tipo_publicacion]?.label ?? pub.tipo_publicacion)}</span>
                                     : pub.tipo_publicacion
                                 }
                             />
                             <InfoRow
                                 label="Comisión"
                                 value={pub.listing_type_id && listingTypeConfig[pub.listing_type_id]
-                                    ? <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold', listingTypeConfig[pub.listing_type_id].color)}>{listingTypeConfig[pub.listing_type_id].label}</span>
+                                    ? <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold', (listingTypeConfig[pub.listing_type_id]?.color ?? ''))}>{(listingTypeConfig[pub.listing_type_id]?.label ?? pub.listing_type_id)}</span>
                                     : pub.listing_type_id
                                 }
                             />
@@ -690,12 +690,12 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                             <span className="inline-flex items-center gap-1.5">
                                                 <span className="font-semibold text-xs">{Number(pub.comision_porcentaje || 0).toFixed(1)}%</span>
                                                 {pub.comision_monto != null && (
-                                                    <span className="text-slate-400 text-xs">(${pub.comision_monto.toLocaleString('es-MX', { minimumFractionDigits: 0 })})</span>
+                                                    <span className="text-slate-400 text-xs">(${pub.comision_monto?.toLocaleString('es-MX', { minimumFractionDigits: 0 })})</span>
                                                 )}
-                                                <span className="text-slate-300 text-[10px]">{pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id].label : ''}</span>
+                                                <span className="text-slate-300 text-[10px]">{pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? (listingTypeConfig[pub.listing_type_id]?.label ?? pub.listing_type_id) : ''}</span>
                                             </span>
                                         )
-                                        : (pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id].label : pub.listing_type_id)
+                                        : (pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? (listingTypeConfig[pub.listing_type_id]?.label ?? pub.listing_type_id) : pub.listing_type_id)
                                 }
                             />
                             {pub.base_price != null && pub.base_price !== pub.precio_venta && (
@@ -847,8 +847,8 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                 <td className="px-4 py-2 font-mono text-[10px] font-bold text-indigo-700">{pub.external_item_id}</td>
                                                 <td className="px-3 py-2">
                                                     {pub.tipo_publicacion && tipoPubConfig[pub.tipo_publicacion] && (
-                                                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-semibold', tipoPubConfig[pub.tipo_publicacion].color)}>
-                                                            {tipoPubConfig[pub.tipo_publicacion].label}
+                                                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-semibold', (tipoPubConfig[pub.tipo_publicacion]?.color ?? ''))}>
+                                                            {(tipoPubConfig[pub.tipo_publicacion]?.label ?? pub.tipo_publicacion)}
                                                         </span>
                                                     )}
                                                 </td>

@@ -16,7 +16,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-// ── GET ─────────────────────────────────────────────────────────────────────
+// -- GET ---------------------------------------------------------------------
 export async function GET(
     _req: NextRequest,
     props: { params: Promise<{ id: string }> }
@@ -51,7 +51,7 @@ export async function GET(
     return NextResponse.json({ ok: true, prices: prices || [], unconfigured });
 }
 
-// ── PATCH ────────────────────────────────────────────────────────────────────
+// -- PATCH --------------------------------------------------------------------
 export async function PATCH(
     req: NextRequest,
     props: { params: Promise<{ id: string }> }

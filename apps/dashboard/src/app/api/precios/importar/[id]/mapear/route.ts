@@ -36,7 +36,7 @@ async function procesarMapear(req: NextRequest, props: { params: Promise<{ id: s
         columnas_a_guardar = [],
     } = body ?? {};
 
-    // ── Validaciones
+    // -- Validaciones
     if (!columna_modelo) return NextResponse.json({ ok: false, error: 'Se requiere columna_modelo' }, { status: 400 });
     if (!columna_marca) return NextResponse.json({ ok: false, error: 'Se requiere columna_marca' }, { status: 400 });
     if (!Array.isArray(precios) || precios.length === 0) {

@@ -36,7 +36,87 @@ function analyzeTsFile(filePath: string, result: TsAnalysisResult) {
     const sourceCode = fs.readFileSync(filePath, 'utf8');
     const sourceFile = ts.createSourceFile(filePath, sourceCode, ts.ScriptTarget.Latest, true);
 
-    walkAst(sourceFile, (node) => {
+    
+    // Detectar caracteres raros (mojibake)
+    if (sourceCode.includes('-') || sourceCode.includes('\u2500') || sourceCode.includes('â€')) {
+        result.diagnostics.push({
+            scope: 'app.encoding',
+            severity: 'error',
+            code: 'BAD_ENCODING',
+            message: 'Se detectó carácter no ASCII (mojibake) U+2500 o similar, causando corrupciones de compilación en Vercel.',
+            file: filePath
+        });
+    }
+
+    // Detectar faltas de Optional Chaining
+    if (sourceCode.includes('pub.deal_ids.length')) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .length en pub.deal_ids sin optional chaining.',
+            file: filePath
+        });
+    }
+    if (sourceCode.match(/listingTypeConfig\[.*?\]\.label/)) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .label en diccionario listingTypeConfig sin verificación previa.',
+            file: filePath
+        });
+    }
+    if (sourceCode.match(/tipoPubConfig\[.*?\]\.label/)) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .label en diccionario tipoPubConfig sin verificación previa.',
+            file: filePath
+        });
+    }
+
+    // Detectar caracteres raros (mojibake)
+    if (sourceCode.includes('-') || sourceCode.includes('\u2500') || sourceCode.includes('â€')) {
+        result.diagnostics.push({
+            scope: 'app.encoding',
+            severity: 'error',
+            code: 'BAD_ENCODING',
+            message: 'Se detectó carácter no ASCII (mojibake) U+2500 o similar, causando corrupciones de compilación en Vercel.',
+            file: filePath
+        });
+    }
+
+    // Detectar faltas de Optional Chaining
+    if (sourceCode.includes('pub.deal_ids.length')) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .length en pub.deal_ids sin optional chaining.',
+            file: filePath
+        });
+    }
+    if (sourceCode.match(/listingTypeConfig\[.*?\]\.label/)) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .label en diccionario listingTypeConfig sin verificación previa.',
+            file: filePath
+        });
+    }
+    if (sourceCode.match(/tipoPubConfig\[.*?\]\.label/)) {
+        result.diagnostics.push({
+            scope: 'app.runtime',
+            severity: 'error',
+            code: 'NULL_REFERENCE_RISK',
+            message: 'Acceso inseguro a .label en diccionario tipoPubConfig sin verificación previa.',
+            file: filePath
+        });
+    }
+walkAst(sourceFile, (node) => {
         if (ts.isCallExpression(node)) {
             const exp = node.expression;
             if (ts.isPropertyAccessExpression(exp)) {

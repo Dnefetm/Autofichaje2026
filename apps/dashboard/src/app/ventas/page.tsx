@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/* ───── Types ───── */
+/* ----- Types ----- */
 interface VariationAttr { id: string; name: string; value_name: string; }
 interface Reservacion { id: string; cantidad: number; estado: "activa" | "consumida" | "liberada"; }
 interface OrdenItem {
@@ -31,7 +31,7 @@ interface Orden {
     store_name: string; orden_items: OrdenItem[];
 }
 
-/* ───── Config maps ───── */
+/* ----- Config maps ----- */
 const STATUS_CFG: Record<string, { label: string; color: string; Icon: any }> = {
     paid:               { label: "Pagada",          color: "bg-emerald-100 text-emerald-700", Icon: CheckCircle2 },
     cancelled:          { label: "Cancelada",       color: "bg-rose-100 text-rose-700",       Icon: XCircle },
@@ -60,7 +60,7 @@ const STATUS_FILTERS = [
     { value: "cancelled", label: "Canceladas" }, { value: "confirmed", label: "Confirmadas" },
 ];
 
-/* ───── Small components ───── */
+/* ----- Small components ----- */
 function Badge({ label, color, Icon }: { label: string; color: string; Icon?: any }) {
     return (
         <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap", color)}>
@@ -87,7 +87,7 @@ function logisticLabel(type: string | null) {
     return LOGISTIC_CFG[type] || { label: type, color: "bg-slate-100 text-slate-600", Icon: Box };
 }
 
-/* ───── Detail Panel (shown when row expanded) ───── */
+/* ----- Detail Panel (shown when row expanded) ----- */
 function DetailPanel({ orden }: { orden: Orden }) {
     const sc = STATUS_CFG[orden.status] || { label: orden.status, color: "bg-slate-100 text-slate-600", Icon: Clock };
     const shc = SHIP_CFG[orden.shipping_status] || { label: orden.shipping_status, color: "bg-slate-100 text-slate-500", Icon: Box };
@@ -147,7 +147,7 @@ function DetailPanel({ orden }: { orden: Orden }) {
     );
 }
 
-/* ───── Main page ───── */
+/* ----- Main page ----- */
 export default function VentasPage() {
     const [ordenes, setOrdenes] = useState<Orden[]>([]);
     const [total, setTotal] = useState(0);
