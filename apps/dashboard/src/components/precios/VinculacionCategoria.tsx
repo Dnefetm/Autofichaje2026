@@ -35,6 +35,116 @@ export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcio
     const [aceptando, setAceptando] = useState(false);
     const [aceptados, setAceptados] = useState<Set<number>>(new Set());
     const [rechazados, setRechazados] = useState<Set<number>>(new Set());
+    const [visibleCount, setVisibleCount] = useState(50);
+    const itemsPaginados = items.slice(0, visibleCount);
+    const router = useRouter();
+
+    const colorMap = {
+        emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-700', btn: 'bg-emerald-600 hover:bg-emerald-700 text-white', title: 'text-emerald-800' },
+        amber: { bg: 'bg-amber-50', border: 'border-amber-200', badge: 'bg-amber-100 text-amber-700', btn: 'bg-amber-500 hover:bg-amber-600 text-white', title: 'text-amber-800' },
+        blue: { bg: 'bg-blue-50', border: 'border-blue-200', badge: 'bg-blue-100 text-blue-700', btn: 'bg-blue-600 hover:bg-blue-700 text-white', title: 'text-blue-800' },
+    };
+    const c = colorMap[color];
+
+    const pendientes = items.filter(i => !aceptados.has(i.fila_num) && !rechazados.has(i.fila_num));
+
+    const handleAceptarTodos = async () => {
+        if (!confirm(`¿Confirmas vincular los ${pendientes.length} artículos de la categoría "${titulo}"?`)) return;
+        setAceptando(true);
+        try {
+            const res = await fetch(`/api/precios/proveedor/${encodeURIComponent(proveedor)}/vincular-lote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    items: pendientes.map(i => ({
+                        codigo_excel: i.codigo_barra,
+                        modelo_excel: i.sku_proveedor,
+                        marca_excel: i.marca_proveedor,
+                        articulo_id: i.articulo_id
+                    }))
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.ok) {
+                setAceptados(new Set(items.map(i => i.fila_num)));
+                if (onAccepted) onAccepted(pendientes);
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        } catch {
+            alert('Error de red');
+        } finally {
+            setAceptando(false);
+        }
+    };
+
+    const [procesandoIds, setProcesandoIds] = useState<Set<number>>(new Set());
+    const handleAceptarUno = async (item: MatchItem) => {
+        if (procesandoIds.has(item.fila_num)) return;
+        setProcesandoIds(prev => new Set([...prev, item.fila_num]));
+        try {
+            const res = await fetch(`/api/precios/proveedor/${encodeURIComponent(proveedor)}/vincular-lote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    items: [{
+                        codigo_excel: item.codigo_barra,
+                        modelo_excel: item.sku_proveedor,
+                        marca_excel: item.marca_proveedor,
+                        articulo_id: item.articulo_id
+                    }]
+                })
+            });
+            if (res.ok) {
+                setAceptados(prev => new Set([...prev, item.fila_num]));
+                if (onAccepted) onAccepted([item]);
+            }
+        } catch {
+            alert('Error de red');
+        } finally {
+            setProcesandoIds(prev => {
+                const next = new Set(prev);
+                next.delete(item.fila_num);
+                return next;
+            });
+        }
+    };ort { Loader2, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+
+interface MatchItem {
+    fila_num: number;
+    sku_proveedor: string;
+    codigo_barra: string;
+    marca_proveedor: string;
+    descripcion_proveedor: string;
+    dist: number;
+    menudeo: number;
+    articulo_id: string;
+    nombre_catalogo: string;
+    marca_catalogo: string;
+    modelo_catalogo: string;
+    codigo_universal: string;
+}
+
+interface Props {
+    onAccepted?: (items: MatchItem[]) => void;
+    categoria: string;
+    titulo: string;
+    descripcion: string;
+    color: 'emerald' | 'amber' | 'blue';
+    items: MatchItem[];
+    proveedor: string;
+}
+
+const fmtMx = (n: number) => n > 0 ? n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) : '—';
+
+export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcion, color, items, proveedor }: Props) {
+    const [expandido, setExpandido] = useState(true);
+    const [aceptando, setAceptando] = useState(false);
+    const [aceptados, setAceptados] = useState<Set<number>>(new Set());
+    const [rechazados, setRechazados] = useState<Set<number>>(new Set());
+    const [visibleCount, setVisibleCount] = useState(50);
+    const itemsPaginados = items.slice(0, visibleCount);
     const router = useRouter();
 
     const colorMap = {
@@ -142,7 +252,7 @@ export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcio
                             </tr>
                         </thead>
                         <tbody className="bg-white">
-                            {items.map((item) => {
+                            {itemsPaginados.map((item) => {
                                 const isAceptado = aceptados.has(item.fila_num);
                                 const isRechazado = rechazados.has(item.fila_num);
                                 
@@ -189,9 +299,10 @@ export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcio
                                                         <>
                                                             <button
                                                                 onClick={() => handleAceptarUno(item)}
-                                                                className="w-full py-2 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 text-emerald-800 rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+    disabled={procesandoIds.has(item.fila_num)}
+    className="w-full py-2 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 text-emerald-800 rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
                                                             >
-                                                                <Check className="w-3.5 h-3.5" /> Aceptar
+                                                                {procesandoIds.has(item.fila_num) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Aceptar
                                                             </button>
                                                             <button
                                                                 onClick={() => setRechazados(prev => new Set([...prev, item.fila_num]))}
