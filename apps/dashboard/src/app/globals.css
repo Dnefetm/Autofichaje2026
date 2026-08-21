@@ -1,21 +1,41 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@layer base {
+  :root {                    /* DARK = tema base */
+    --bg:            #0B0C0E; /* fondo app */
+    --surface:       #121417; /* cards, panel, header de tabla */
+    --surface-2:     #171A1E; /* hover de fila, inputs */
+    --border:        #23272C; /* 1px, apenas visible */
+    --border-strong: #313740; /* foco, separadores de sección */
+
+    --text:          #E8EAED; /* 16.2:1 sobre bg */
+    --text-muted:    #9BA1A9; /* 7.5:1  — labels, unidades */
+    --text-faint:    #6B7178; /* solo iconos/bordes, NO texto pequeño */
+
+    --accent:        #2DD4BF; /* 10.5:1 — links, foco, serie primaria */
+    --accent-ink:    #0B0C0E; /* texto sobre accent sólido */
+
+    --ok:            #34D399; /* vigente / publicado / completado */
+    --warn:          #FBBF24; /* pendiente / en cola / sugerido */
+    --err:           #F87171; /* error / timeout / sin match */
+    --info:          #22D3EE; /* procesando / job corriendo */
+
+    --radius: 8px; --radius-sm: 6px;
+    --row-h-compact: 32px; --row-h-cozy: 40px; --row-h-roomy: 52px;
+  }
+
+  [data-theme="light"] {
+    --bg: #FAFAF9; --surface: #FFFFFF; --surface-2: #F4F4F5;
+    --border: #E4E4E7; --border-strong: #D4D4D8;
+    --text: #18181B; --text-muted: #52525B; --text-faint: #71717A;
+    --accent: #0F766E; --accent-ink: #FFFFFF;
+    --ok: #15803D; --warn: #B45309; --err: #B91C1C; --info: #0E7490;
+  }
 }
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui), Arial, Helvetica, sans-serif;
 }
+

@@ -192,19 +192,19 @@ export default function PricingAuditCard({
     });
 
     const getStatusUI = (status: string | null, dStatus: string | null) => {
-        if (dStatus === 'valid') return { color: 'bg-[var(--warn)]/10 border border-[var(--warn)]/20 text-[var(--warn)] border-transparent', text: '📝 Borrador: Cálculo Exitoso', icon: <ShieldCheck className="w-3.5 h-3.5"/> };
+        if (dStatus === 'valid') return { color: 'bg-[var(--warn)]/10  text-[var(--warn)] ', text: '📝 Borrador: Cálculo Exitoso', icon: <ShieldCheck className="w-3.5 h-3.5"/> };
         if (!status || status === 'pending') return { color: 'bg-[var(--surface-2)]0 text-[var(--text)] border-[var(--border)]', text: 'Pendiente', icon: <Clock className="w-3.5 h-3.5"/> };
-        if (status === 'valid') return { color: 'bg-[var(--ok)]/10 border border-[var(--ok)]/20 text-[var(--ok)] border-transparent', text: 'Cálculo Exitoso', icon: <ShieldCheck className="w-3.5 h-3.5"/> };
-        if (status === 'override_active') return { color: 'bg-[var(--info)]/10 border border-[var(--info)]/20 text-[var(--info)] border-purple-200', text: 'Excepción Manual', icon: <Edit2 className="w-3.5 h-3.5"/> };
-        if (status === 'error_no_cost') return { color: 'bg-[var(--err)]/10 border border-[var(--err)]/20 text-[var(--err)] border-transparent', text: 'Falta Costo Base', icon: <AlertCircle className="w-3.5 h-3.5"/> };
-        if (status === 'error_negative_margin') return { color: 'bg-[var(--warn)]/10 border border-[var(--warn)]/20 text-[var(--warn)] border-transparent', text: 'Riesgo Margen', icon: <AlertCircle className="w-3.5 h-3.5"/> };
+        if (status === 'valid') return { color: 'bg-[var(--ok)]/10  text-[var(--ok)] ', text: 'Cálculo Exitoso', icon: <ShieldCheck className="w-3.5 h-3.5"/> };
+        if (status === 'override_active') return { color: 'bg-[var(--info)]/10  text-[var(--info)] border-purple-200', text: 'Excepción Manual', icon: <Edit2 className="w-3.5 h-3.5"/> };
+        if (status === 'error_no_cost') return { color: 'bg-[var(--err)]/10  text-[var(--err)] ', text: 'Falta Costo Base', icon: <AlertCircle className="w-3.5 h-3.5"/> };
+        if (status === 'error_negative_margin') return { color: 'bg-[var(--warn)]/10  text-[var(--warn)] ', text: 'Riesgo Margen', icon: <AlertCircle className="w-3.5 h-3.5"/> };
         return { color: 'bg-[var(--surface-2)]0 text-[var(--text)] border-[var(--border)]', text: status, icon: null };
     };
 
     const ui = getStatusUI(pricingStatus, draftStatus);
 
     return (
-        <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)]  overflow-hidden flex flex-col h-full">
+        <div className="bg-[var(--surface)] rounded-[var(--radius)]   overflow-hidden flex flex-col h-full">
             <div className="px-5 py-3 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-2)]">
                 <div className="flex items-center gap-2.5">
                     <div className="text-[var(--text-faint)]"><DollarSign className="w-4 h-4" /></div>
@@ -230,7 +230,7 @@ export default function PricingAuditCard({
             <div className="p-5 flex-1 flex flex-col">
                 <div className="flex flex-col gap-4 mb-4">
                     {/* Fila 1: Precio Actual ML */}
-                    <div className="bg-[var(--surface-2)] rounded-[var(--radius)] p-3 border border-[var(--border)]">
+                    <div className="bg-[var(--surface-2)] rounded-[var(--radius)] p-3 ">
                         <p className="text-xs text-[var(--text-muted)] uppercase font-semibold mb-1">Precio Actual Mercado Libre</p>
                         <p className="text-2xl font-bold text-[var(--text)]">{fmt(currentPrice)}</p>
                         <p className="text-[10px] text-[var(--text-faint)] mt-1">
@@ -240,7 +240,7 @@ export default function PricingAuditCard({
 
                     {/* Fila 2: Precio Draft y Fórmula Transparente */}
                     {draftPrice && draftPrice !== currentPrice && (
-                        <div className="bg-[var(--surface)] border border-transparent  rounded-[var(--radius)] p-4">
+                        <div className="bg-[var(--surface)] border   rounded-[var(--radius)] p-4">
                             <div className="flex items-start justify-between mb-3 border-b border-amber-100 pb-3">
                                 <div>
                                     <p className="text-xs text-[var(--warn)] uppercase font-bold mb-1 flex items-center gap-1.5">
@@ -255,7 +255,7 @@ export default function PricingAuditCard({
                                         <p className="text-2xl font-bold text-amber-900 tabular-nums">{fmt(draftPrice)}</p>
                                         {currentPrice && (
                                             <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded-[var(--radius-sm)]", 
-                                                draftPrice > currentPrice ? "text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/20" : "text-[var(--err)] bg-[var(--err)]/10 border border-[var(--err)]/20")}>
+                                                draftPrice > currentPrice ? "text-[var(--ok)] bg-[var(--ok)]/10 " : "text-[var(--err)] bg-[var(--err)]/10 ")}>
                                                 {draftPrice > currentPrice ? '↑' : '↓'} {Math.abs(((draftPrice - currentPrice) / currentPrice) * 100).toFixed(1)}%
                                             </span>
                                         )}
@@ -266,7 +266,7 @@ export default function PricingAuditCard({
                             
                             {/* Fórmula Transparente (Escalable) */}
                             {draftDetails && (
-                                <div className="bg-[var(--surface-2)] rounded-[var(--radius-sm)] border border-[var(--border)] p-3 mt-2">
+                                <div className="bg-[var(--surface-2)] rounded-[var(--radius-sm)]  p-3 mt-2">
                                     <p className="text-[10px] uppercase tracking-wider font-bold text-[var(--text-muted)] mb-2">Desglose de la Fórmula</p>
                                     <table className="w-full text-xs">
                                         <tbody className="divide-y divide-[var(--border)]">
@@ -317,7 +317,7 @@ export default function PricingAuditCard({
                             placeholder={String(draftPrice || currentPrice || salePriceCalculated || '')}
                             value={editablePrice}
                             onChange={(e) => setEditablePrice(e.target.value)}
-                            className="border border-[var(--border)] rounded-[var(--radius-sm)] px-3 py-2 w-32 text-sm outline-none focus:border-[var(--accent)]"
+                            className=" rounded-[var(--radius-sm)] px-3 py-2 w-32 text-sm outline-none focus:border-[var(--accent)]"
                         />
                         <button
                             disabled={applying || (pricingStatus !== 'valid' && pricingStatus !== 'estimated_params' && pricingStatus !== 'override_active')}
@@ -341,7 +341,7 @@ export default function PricingAuditCard({
                 </div>
 
                 {/* Overrides */}
-                <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-[var(--radius)] p-3 mb-4">
+                <div className="bg-[var(--surface-2)]  rounded-[var(--radius)] p-3 mb-4">
                     <div className="flex items-center justify-between mb-2">
                         <p className="text-xs font-bold text-[var(--text)]">Regla Excepcional (Override)</p>
                         {!isEditing && (
@@ -358,7 +358,7 @@ export default function PricingAuditCard({
                         <div className="space-y-2">
                             <div className="flex flex-col gap-2">
                                 <select 
-                                    className="w-full text-xs border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-2 outline-none focus:border-[var(--accent)] bg-[var(--surface)]"
+                                    className="w-full text-xs  rounded-[var(--radius-sm)] px-2 py-2 outline-none focus:border-[var(--accent)] bg-[var(--surface)]"
                                     value={editType}
                                     onChange={e => { setEditType(e.target.value); setEditValue(''); }}
                                 >
@@ -369,7 +369,7 @@ export default function PricingAuditCard({
                                 
                                 {editType === 'force_rule' ? (
                                     <select
-                                        className="w-full text-xs border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-2 outline-none focus:border-[var(--accent)] bg-[var(--surface)]"
+                                        className="w-full text-xs  rounded-[var(--radius-sm)] px-2 py-2 outline-none focus:border-[var(--accent)] bg-[var(--surface)]"
                                         value={editValue}
                                         onChange={e => setEditValue(e.target.value)}
                                     >
@@ -381,7 +381,7 @@ export default function PricingAuditCard({
                                 ) : (
                                     <input 
                                         type="number" 
-                                        className="w-full text-xs border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-2 outline-none focus:border-[var(--accent)]"
+                                        className="w-full text-xs  rounded-[var(--radius-sm)] px-2 py-2 outline-none focus:border-[var(--accent)]"
                                         placeholder="Valor"
                                         value={editValue}
                                         onChange={e => setEditValue(e.target.value)}
@@ -394,7 +394,7 @@ export default function PricingAuditCard({
                                     {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Guardar
                                 </button>
                                 {override && (
-                                    <button onClick={handleDelete} disabled={saving} className="px-3 py-1 bg-[var(--err)]/10 border border-[var(--err)]/20 hover:bg-rose-200 text-[var(--err)] text-[10px] font-bold rounded-[var(--radius-sm)] transition-colors disabled:opacity-50">
+                                    <button onClick={handleDelete} disabled={saving} className="px-3 py-1 bg-[var(--err)]/10  hover:bg-rose-200 text-[var(--err)] text-[10px] font-bold rounded-[var(--radius-sm)] transition-colors disabled:opacity-50">
                                         Eliminar regla
                                     </button>
                                 )}
@@ -404,7 +404,7 @@ export default function PricingAuditCard({
                             </div>
                         </div>
                     ) : override ? (
-                        <div className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-sm)] p-2">
+                        <div className="flex items-center justify-between bg-[var(--surface)]  rounded-[var(--radius-sm)] p-2">
                             <div className="flex items-center gap-2">
                                 <span className="px-1.5 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] text-[10px] font-bold rounded-[var(--radius-sm)] uppercase">
                                     {override.override_type === 'fixed_price' ? 'Precio Fijo' 
@@ -433,13 +433,13 @@ export default function PricingAuditCard({
                     ) : (
                         <div className="overflow-y-auto pr-1 space-y-2 flex-1">
                             {history.map(h => (
-                                <div key={h.id} className="text-[11px] bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-sm)] p-2 ">
+                                <div key={h.id} className="text-[11px] bg-[var(--surface)]  rounded-[var(--radius-sm)] p-2 ">
                                     <div className="flex justify-between items-start mb-1">
                                         <span className="font-semibold text-[var(--text)]">{formatDate(h.created_at)}</span>
                                         <span className={cn('px-1.5 rounded-[var(--radius-sm)] text-[9px] font-bold', 
-                                            h.status === 'valid' ? 'bg-[var(--ok)]/10 border border-[var(--ok)]/20 text-[var(--ok)]' : 
-                                            h.status === 'error_no_cost' ? 'bg-[var(--err)]/10 border border-[var(--err)]/20 text-[var(--err)]' :
-                                            h.status === 'override_active' ? 'bg-[var(--info)]/10 border border-[var(--info)]/20 text-[var(--info)]' : 'bg-[var(--surface-2)]0 text-[var(--text-muted)]'
+                                            h.status === 'valid' ? 'bg-[var(--ok)]/10  text-[var(--ok)]' : 
+                                            h.status === 'error_no_cost' ? 'bg-[var(--err)]/10  text-[var(--err)]' :
+                                            h.status === 'override_active' ? 'bg-[var(--info)]/10  text-[var(--info)]' : 'bg-[var(--surface-2)]0 text-[var(--text-muted)]'
                                         )}>
                                             {h.status}
                                         </span>
@@ -468,7 +468,7 @@ export default function PricingAuditCard({
                         <div className="flex justify-end gap-2">
                             <button 
                                 onClick={() => setConfirmingDelta(null)}
-                                className="px-4 py-2 border border-[var(--border)] rounded-[var(--radius-sm)] text-sm font-semibold text-[var(--text-muted)] hover:bg-[var(--surface-2)]"
+                                className="px-4 py-2  rounded-[var(--radius-sm)] text-sm font-semibold text-[var(--text-muted)] hover:bg-[var(--surface-2)]"
                             >
                                 Cancelar
                             </button>

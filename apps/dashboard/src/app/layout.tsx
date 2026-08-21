@@ -24,11 +24,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-slate-900`}>
+    <html lang="es" data-theme="dark">
+      <head>
+        {/* Toggle de tema sin flash (placeholder for future implementation) */}
+      </head>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[var(--bg)] text-[var(--text)]`}>
         <div className="flex h-screen overflow-hidden">
           <Sidebar />
-          <main className="flex-1 overflow-y-auto bg-slate-50 p-8">
+          <main className="flex-1 overflow-y-auto bg-[var(--bg)] p-8">
             {children}
           </main>
         </div>

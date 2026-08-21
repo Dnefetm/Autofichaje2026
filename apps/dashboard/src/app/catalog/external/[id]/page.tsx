@@ -15,10 +15,10 @@ import PricingAuditCard from './pricing-audit-card';
 
 // --- Helpers -----------------------------------------------------------------
 const statusColors: Record<string, string> = {
-    active: 'bg-[var(--ok)]/10 border border-[var(--ok)]/20 text-[var(--ok)] border-transparent',
-    paused: 'bg-[var(--warn)]/10 border border-[var(--warn)]/20 text-[var(--warn)] border-transparent',
-    closed: 'bg-[var(--err)]/10 border border-[var(--err)]/20 text-[var(--err)] border-transparent',
-    under_review: 'bg-[var(--info)]/10 border border-[var(--info)]/20 text-[var(--info)] border-transparent',
+    active: 'bg-[var(--ok)]/10 border  text-[var(--ok)] ',
+    paused: 'bg-[var(--warn)]/10 border  text-[var(--warn)] ',
+    closed: 'bg-[var(--err)]/10 border  text-[var(--err)] ',
+    under_review: 'bg-[var(--info)]/10 border  text-[var(--info)] ',
 };
 const statusLabels: Record<string, string> = {
     active: 'Activa',
@@ -28,23 +28,23 @@ const statusLabels: Record<string, string> = {
 };
 
 const logisticConfig: Record<string, { label: string; color: string }> = {
-    fulfillment: { label: 'Mercado Envíos Full', color: 'bg-[var(--info)]/10 border border-[var(--info)]/20 text-[var(--info)]' },
-    xd_drop_off: { label: 'XD Drop-off', color: 'bg-[var(--info)]/10 border border-[var(--info)]/20 text-[var(--info)]' },
+    fulfillment: { label: 'Mercado Envíos Full', color: 'bg-[var(--info)]/10 border  text-[var(--info)]' },
+    xd_drop_off: { label: 'XD Drop-off', color: 'bg-[var(--info)]/10 border  text-[var(--info)]' },
     drop_off: { label: 'Drop-off', color: 'bg-[var(--surface-2)] text-[var(--text)]' },
-    cross_docking: { label: 'Cross-Docking', color: 'bg-[var(--info)]/10 border border-[var(--info)]/20 text-[var(--info)]' },
+    cross_docking: { label: 'Cross-Docking', color: 'bg-[var(--info)]/10 border  text-[var(--info)]' },
     self_service: { label: 'Self Service', color: 'bg-orange-100 text-orange-800' },
 };
 
 const listingTypeConfig: Record<string, { label: string; color: string }> = {
     gold_special: { label: 'Clásica (~16%)',  color: 'bg-[var(--surface-2)] text-[var(--text)]' },
-    gold_pro:     { label: 'Premium (~32%)', color: 'bg-[var(--warn)]/10 border border-[var(--warn)]/20 text-[var(--warn)]' },
-    free:         { label: 'Gratuita',        color: 'bg-[var(--ok)]/10 border border-[var(--ok)]/20 text-[var(--ok)]' },
+    gold_pro:     { label: 'Premium (~32%)', color: 'bg-[var(--warn)]/10 border  text-[var(--warn)]' },
+    free:         { label: 'Gratuita',        color: 'bg-[var(--ok)]/10 border  text-[var(--ok)]' },
 };
 
 const tipoPubConfig: Record<string, { label: string; color: string }> = {
-    tradicional:       { label: 'Tradicional',  color: 'bg-[var(--info)]/10 border border-[var(--info)]/20 text-[var(--info)]' },
-    catalogo:          { label: 'Catálogo',     color: 'bg-[var(--info)]/10 border border-[var(--info)]/20 text-[var(--info)]' },
-    catalogo_derivada: { label: 'Cat. Derivada', color: 'bg-[var(--info)]/10 border border-[var(--info)]/20 text-[var(--info)]' },
+    tradicional:       { label: 'Tradicional',  color: 'bg-[var(--info)]/10 border  text-[var(--info)]' },
+    catalogo:          { label: 'Catálogo',     color: 'bg-[var(--info)]/10 border  text-[var(--info)]' },
+    catalogo_derivada: { label: 'Cat. Derivada', color: 'bg-[var(--info)]/10 border  text-[var(--info)]' },
 };
 
 function HealthBar({ value }: { value: number | null }) {
@@ -55,7 +55,7 @@ function HealthBar({ value }: { value: number | null }) {
         </div>
     );
     const pct = Math.round(value * 100);
-    const color = pct > 70 ? 'bg-[var(--ok)]/10 border border-[var(--ok)]/20' : pct > 40 ? 'bg-[var(--warn)]/10 border border-[var(--warn)]/20' : 'bg-[var(--err)]/10 border border-[var(--err)]/20';
+    const color = pct > 70 ? 'bg-[var(--ok)]/10 border ' : pct > 40 ? 'bg-[var(--warn)]/10 border ' : 'bg-[var(--err)]/10 border ';
     return (
         <div className="flex items-center gap-3">
             <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -77,7 +77,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
     return (
-        <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)]  overflow-hidden">
+        <div className="bg-[var(--surface)] rounded-[var(--radius)] border-b border-[var(--border)]  overflow-hidden">
             <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2.5 bg-[var(--surface-2)]">
                 <div className="text-[var(--text-faint)]">{icon}</div>
                 <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">{title}</h2>
@@ -92,7 +92,7 @@ function DescriptionSection({ text }: { text: string }) {
     const preview = text.slice(0, 300);
     const hasMore = text.length > 300;
     return (
-        <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)]  overflow-hidden">
+        <div className="bg-[var(--surface)] rounded-[var(--radius)] border-b border-[var(--border)]  overflow-hidden">
             <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2.5 bg-[var(--surface-2)]">
                 <div className="text-[var(--text-faint)]"><Tag className="w-4 h-4" /></div>
                 <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Descripción</h2>
@@ -390,10 +390,10 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 )}
 
                 {/* Header */}
-                <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)]  p-6">
+                <div className="bg-[var(--surface)] rounded-[var(--radius)] border-b border-[var(--border)]  p-6">
                     <div className="flex items-start gap-5">
                         {pub.url_imagen ? (
-                            <img src={pub.url_imagen} alt={pub.titulo} className="w-28 h-28 rounded-[var(--radius)] object-contain border border-[var(--border)] bg-[var(--surface)] shrink-0" />
+                            <img src={pub.url_imagen} alt={pub.titulo} className="w-28 h-28 rounded-[var(--radius)] object-contain border-b border-[var(--border)] bg-[var(--surface)] shrink-0" />
                         ) : (
                             <div className="w-28 h-28 rounded-[var(--radius)] bg-[var(--surface-2)] flex items-center justify-center shrink-0">
                                 <Package className="w-10 h-10 text-[var(--text-faint)]" />
@@ -416,21 +416,21 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     </span>
                                 )}
                                 {pub.esta_mapeado ? (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--ok)]/10 border border-[var(--ok)]/20 text-[var(--ok)]">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--ok)]/10 border  text-[var(--ok)]">
                                         <CheckCircle2 className="w-3.5 h-3.5" /> Mapeado
                                     </span>
                                 ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--err)]/10 border border-[var(--err)]/20 text-[var(--err)]">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--err)]/10 border  text-[var(--err)]">
                                         <AlertCircle className="w-3.5 h-3.5" /> Sin mapear
                                     </span>
                                 )}
                                 {pub.free_shipping && (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--ok)]/10 border border-[var(--ok)]/20 text-[var(--ok)]">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--ok)]/10 border  text-[var(--ok)]">
                                         <Truck className="w-3.5 h-3.5" /> Envío gratis
                                     </span>
                                 )}
                                 {pub.sync_disabled && (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--err)]/10 border border-[var(--err)]/20 text-[var(--err)]" title={pub.sync_disabled_reason || ''}>
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--err)]/10 border  text-[var(--err)]" title={pub.sync_disabled_reason || ''}>
                                         ⚠ sync off
                                     </span>
                                 )}
@@ -536,7 +536,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                         {(enrichData?.health?.actions || []).slice(0, 4).map((action: any, i: number) => {
                                             const isCritical = action.severity === 'critical' || action.impact === 'high';
                                             return (
-                                                <div key={i} className={`text-[11px] px-2 py-1.5 rounded-[var(--radius-sm)] flex items-start gap-2 ${isCritical ? 'bg-[var(--err)]/10 border border-[var(--err)]/20 text-[var(--err)] border border-rose-100' : 'bg-[var(--warn)]/10 border border-[var(--warn)]/20 text-[var(--warn)] border border-amber-100'}`}>
+                                                <div key={i} className={`text-[11px] px-2 py-1.5 rounded-[var(--radius-sm)] flex items-start gap-2 ${isCritical ? 'bg-[var(--err)]/10 border  text-[var(--err)] border border-rose-100' : 'bg-[var(--warn)]/10 border  text-[var(--warn)] border border-amber-100'}`}>
                                                     <span className="shrink-0 mt-0.5">{isCritical ? '🔴' : '🟡'}</span>
                                                     <span>{action.reason || action.action_id || action.id}</span>
                                                 </div>
@@ -551,7 +551,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Sub-status</p>
                                     <div className="flex flex-wrap gap-1.5">
                                         {(pub.sub_status || []).map((s: string) => (
-                                            <span key={s} className="text-[10px] font-mono bg-[var(--warn)]/10 border border-[var(--warn)]/20 text-[var(--warn)] border border-transparent px-2 py-0.5 rounded-[var(--radius-sm)]">{s}</span>
+                                            <span key={s} className="text-[10px] font-mono bg-[var(--warn)]/10 border  text-[var(--warn)] border  px-2 py-0.5 rounded-[var(--radius-sm)]">{s}</span>
                                         ))}
                                     </div>
                                 </div>
@@ -572,8 +572,8 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                 const good = t.startsWith('good') || t === 'cart_eligible';
                                                 return (
                                                     <span key={t} className={`text-[10px] font-mono px-2 py-0.5 rounded-[var(--radius-sm)] ${
-                                                        good ? 'bg-[var(--ok)]/10 border border-[var(--ok)]/20 text-[var(--ok)] border border-transparent'
-                                                             : 'bg-[var(--err)]/10 border border-[var(--err)]/20 text-[var(--err)] border border-transparent'
+                                                        good ? 'bg-[var(--ok)]/10 border  text-[var(--ok)] border '
+                                                             : 'bg-[var(--err)]/10 border  text-[var(--err)] border '
                                                     }`}>{t}</span>
                                                 );
                                             })
@@ -672,7 +672,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     ? (
                                         <div className="flex items-center gap-2 justify-end">
                                             <span className="line-through text-[var(--text-faint)] text-sm">{fmt(pub.original_price)}</span>
-                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-[var(--radius-sm)] bg-[var(--ok)]/10 border border-[var(--ok)]/20 text-[var(--ok)] text-[10px] font-bold">
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-[var(--radius-sm)] bg-[var(--ok)]/10 border  text-[var(--ok)] text-[10px] font-bold">
                                                 {Math.round((1 - pub.precio_venta / pub.original_price) * 100)}% OFF
                                             </span>
                                         </div>
@@ -716,7 +716,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             <InfoRow
                                 label="Deals"
                                 value={pub.deal_ids?.length > 0
-                                    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--warn)]/10 border border-[var(--warn)]/20 text-[var(--warn)] rounded-[var(--radius-sm)] text-[10px] font-semibold">★ En campaña ({(pub.deal_ids || []).length})</span>
+                                    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--warn)]/10 border  text-[var(--warn)] rounded-[var(--radius-sm)] text-[10px] font-semibold">★ En campaña ({(pub.deal_ids || []).length})</span>
                                     : null
                                 }
                             />
@@ -741,7 +741,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <InfoRow label="Tags envío" value={
                                     <div className="flex flex-wrap gap-1 justify-end">
                                         {(pub.shipping_tags || []).map((t: string) => (
-                                            <span key={t} className="text-[10px] bg-[var(--info)]/10 border border-[var(--info)]/20 text-[var(--info)] border border-blue-100 px-1.5 py-0.5 rounded-[var(--radius-sm)] font-mono">{t}</span>
+                                            <span key={t} className="text-[10px] bg-[var(--info)]/10 border  text-[var(--info)] border border-blue-100 px-1.5 py-0.5 rounded-[var(--radius-sm)] font-mono">{t}</span>
                                         ))}
                                     </div>
                                 } />
@@ -786,7 +786,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                 <td className="px-3 py-2">
                                                     {(pub.seller_custom_field || pub.seller_sku)
                                                         ? <span className="font-mono text-[10px] text-[var(--text-muted)]">{pub.seller_custom_field || pub.seller_sku}</span>
-                                                        : <span className="inline-flex items-center gap-0.5 text-[10px] bg-[var(--err)]/10 border border-[var(--err)]/20 text-[var(--err)] border border-transparent px-1.5 py-0.5 rounded-[var(--radius-sm)]"><AlertCircle className="w-2.5 h-2.5" /> Sin SKU</span>
+                                                        : <span className="inline-flex items-center gap-0.5 text-[10px] bg-[var(--err)]/10 border  text-[var(--err)] border  px-1.5 py-0.5 rounded-[var(--radius-sm)]"><AlertCircle className="w-2.5 h-2.5" /> Sin SKU</span>
                                                     }
                                                 </td>
                                                 <td className="px-3 py-2 text-right font-semibold text-[var(--text)]">{fmt(pub.precio_venta)}</td>
@@ -809,7 +809,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                     <td className="px-3 py-2">
                                                         {(v.seller_custom_field || v.seller_sku)
                                                             ? <span className="font-mono text-[10px] text-[var(--text-muted)]">{v.seller_custom_field || v.seller_sku}</span>
-                                                            : <span className="inline-flex items-center gap-0.5 text-[10px] bg-[var(--err)]/10 border border-[var(--err)]/20 text-[var(--err)] border border-transparent px-1.5 py-0.5 rounded-[var(--radius-sm)]"><AlertCircle className="w-2.5 h-2.5" /> Sin SKU</span>
+                                                            : <span className="inline-flex items-center gap-0.5 text-[10px] bg-[var(--err)]/10 border  text-[var(--err)] border  px-1.5 py-0.5 rounded-[var(--radius-sm)]"><AlertCircle className="w-2.5 h-2.5" /> Sin SKU</span>
                                                         }
                                                     </td>
                                                     <td className="px-3 py-2 text-right font-semibold text-[var(--text)]">{fmt(v.precio_venta)}</td>
