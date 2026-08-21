@@ -965,6 +965,8 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 salePriceCalculated={pub.sale_price_calculated}
                                 currentPrice={pub.precio_venta}
                                 draftPrice={pub.publication_pricing_drafts?.[0]?.pricing_review_status === 'pending' ? pub.publication_pricing_drafts[0].draft_price : null}
+                                draftStatus={pub.publication_pricing_drafts?.[0]?.pricing_status || null}
+                                draftDetails={pub.publication_pricing_drafts?.[0]?.details || null}
                                 pricingStatus={pub.pricing_status}
                                 lastCalcAt={pub.last_calc_at}
                                 onOverrideUpdated={loadAll}

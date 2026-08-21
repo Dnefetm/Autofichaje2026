@@ -9,6 +9,8 @@ interface PricingAuditCardProps {
     salePriceCalculated: number | null;
     currentPrice?: number | null;
     draftPrice?: number | null;
+    draftStatus?: string | null;
+    draftDetails?: any;
     pricingStatus: string | null;
     lastCalcAt: string | null;
     onOverrideUpdated: () => void;
@@ -19,6 +21,8 @@ export default function PricingAuditCard({
     salePriceCalculated, 
     currentPrice,
     draftPrice,
+    draftStatus,
+    draftDetails,
     pricingStatus, 
     lastCalcAt,
     onOverrideUpdated 
@@ -187,16 +191,17 @@ export default function PricingAuditCard({
         day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' 
     });
 
-    const getStatusUI = (status: string | null) => {
+    const getStatusUI = (status: string | null, dStatus: string | null) => {
+        if (dStatus === 'valid') return { color: 'bg-amber-100 text-amber-800 border-amber-200', text: '📝 Borrador: Cálculo Exitoso', icon: <ShieldCheck className="w-3.5 h-3.5"/> };
         if (!status || status === 'pending') return { color: 'bg-slate-100 text-slate-700 border-slate-200', text: 'Pendiente', icon: <Clock className="w-3.5 h-3.5"/> };
         if (status === 'valid') return { color: 'bg-green-100 text-green-700 border-green-200', text: 'Cálculo Exitoso', icon: <ShieldCheck className="w-3.5 h-3.5"/> };
         if (status === 'override_active') return { color: 'bg-purple-100 text-purple-700 border-purple-200', text: 'Excepción Manual', icon: <Edit2 className="w-3.5 h-3.5"/> };
         if (status === 'error_no_cost') return { color: 'bg-rose-100 text-rose-700 border-rose-200', text: 'Falta Costo Base', icon: <AlertCircle className="w-3.5 h-3.5"/> };
         if (status === 'error_negative_margin') return { color: 'bg-amber-100 text-amber-700 border-amber-200', text: 'Riesgo Margen', icon: <AlertCircle className="w-3.5 h-3.5"/> };
-        return { color: 'bg-slate-100 text-slate-700', text: status, icon: null };
+        return { color: 'bg-slate-100 text-slate-700 border-slate-200', text: status, icon: null };
     };
 
-    const ui = getStatusUI(pricingStatus);
+    const ui = getStatusUI(pricingStatus, draftStatus);
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
@@ -233,25 +238,61 @@ export default function PricingAuditCard({
                         </p>
                     </div>
 
-                    {/* Fila 2: Precio Draft (Si existe) */}
+                    {/* Fila 2: Precio Draft y Fórmula Transparente */}
                     {draftPrice && draftPrice !== currentPrice && (
-                        <div className="bg-amber-50 rounded-lg p-3 border border-amber-200 shadow-sm relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-16 h-16 bg-amber-100 rounded-bl-full -z-10" />
-                            <p className="text-xs text-amber-700 uppercase font-bold mb-1 flex items-center gap-1.5">
-                                <AlertCircle className="w-3.5 h-3.5" /> Precio Sugerido (Draft)
-                            </p>
-                            <div className="flex items-end gap-3">
-                                <p className="text-2xl font-bold text-amber-900">{fmt(draftPrice)}</p>
-                                {currentPrice && (
-                                    <span className={cn("text-xs font-bold mb-1 px-1.5 py-0.5 rounded", 
-                                        draftPrice > currentPrice ? "text-green-700 bg-green-100" : "text-red-700 bg-red-100")}>
-                                        {draftPrice > currentPrice ? '↑' : '↓'} {Math.abs(((draftPrice - currentPrice) / currentPrice) * 100).toFixed(1)}%
-                                    </span>
-                                )}
+                        <div className="bg-white border border-amber-200 shadow-sm rounded-lg p-4">
+                            <div className="flex items-start justify-between mb-3 border-b border-amber-100 pb-3">
+                                <div>
+                                    <p className="text-xs text-amber-700 uppercase font-bold mb-1 flex items-center gap-1.5">
+                                        <AlertCircle className="w-3.5 h-3.5" /> Borrador Pendiente de Aprobación
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 font-medium max-w-sm leading-tight mt-1">
+                                        El motor sugiere un nuevo precio basado en cambios de costos o reglas. Revisa el desglose matemático antes de aplicar.
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <div className="flex items-center gap-3 justify-end">
+                                        <p className="text-2xl font-bold text-amber-900 tabular-nums">{fmt(draftPrice)}</p>
+                                        {currentPrice && (
+                                            <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded", 
+                                                draftPrice > currentPrice ? "text-green-700 bg-green-100" : "text-rose-700 bg-rose-100")}>
+                                                {draftPrice > currentPrice ? '↑' : '↓'} {Math.abs(((draftPrice - currentPrice) / currentPrice) * 100).toFixed(1)}%
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-1 uppercase font-semibold">Precio Sugerido</p>
+                                </div>
                             </div>
-                            <p className="text-[10px] text-amber-600 mt-1.5 font-medium">
-                                Cambios en componentes o bundles generaron esta sugerencia. Pendiente de aprobación.
-                            </p>
+                            
+                            {/* Fórmula Transparente (Escalable) */}
+                            {draftDetails && (
+                                <div className="bg-slate-50 rounded border border-slate-100 p-3 mt-2">
+                                    <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 mb-2">Desglose de la Fórmula</p>
+                                    <table className="w-full text-xs">
+                                        <tbody className="divide-y divide-slate-100">
+                                            <tr>
+                                                <td className="py-1.5 text-slate-600 font-medium">Margen Esperado</td>
+                                                <td className="py-1.5 text-right font-mono text-slate-800 tabular-nums">{draftDetails.margen_pct != null ? `${draftDetails.margen_pct}%` : '—'}</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="py-1.5 text-slate-600 font-medium">Comisión ML {draftDetails.comision_pct != null ? `(${draftDetails.comision_pct}%)` : ''}</td>
+                                                <td className="py-1.5 text-right font-mono text-slate-800 tabular-nums">{fmt(draftDetails.comision_fee)}</td>
+                                            </tr>
+                                            {/* Espacio reservado para escalabilidad (Envío, Peso, Volumen, Premium vs Clásica) */}
+                                            <tr>
+                                                <td className="py-1.5 text-slate-400 italic text-[10px]">Cargos de envío / logística (próximamente)</td>
+                                                <td className="py-1.5 text-right font-mono text-slate-400 tabular-nums">N/A</td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot className="border-t border-slate-200 mt-1">
+                                            <tr>
+                                                <td className="pt-2 text-slate-800 font-bold">Precio Final Calculado</td>
+                                                <td className="pt-2 text-right font-bold text-indigo-700 tabular-nums text-sm">{fmt(draftPrice)}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
