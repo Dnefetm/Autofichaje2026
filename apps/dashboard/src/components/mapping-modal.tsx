@@ -397,8 +397,8 @@ return (
 {pubEan && (<span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono"><Barcode size={10} /> EAN: {pubEan}</span>)}
 {pubGtin && pubGtin !== pubEan && (<span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono"><Barcode size={10} /> GTIN: {pubGtin}</span>)}
 {pubUpc && pubUpc !== pubEan && pubUpc !== pubGtin && (<span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono">UPC: {pubUpc}</span>)}
-{pubBrand && (<span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">Marca: {pubBrand}</span>)}
-{pubModel && (<span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">Modelo: {pubModel}</span>)}
+<span className={`text-[10px] px-2 py-0.5 rounded-md ${pubBrand ? 'bg-slate-100 text-slate-600' : 'bg-rose-50 text-rose-500 border border-rose-200'}`}>Marca: {pubBrand || '⚠️ Ausente en ML'}</span>
+<span className={`text-[10px] px-2 py-0.5 rounded-md ${pubModel ? 'bg-slate-100 text-slate-600' : 'bg-rose-50 text-rose-500 border border-rose-200'}`}>Modelo: {pubModel || '⚠️ Ausente en ML'}</span>
 {listing.domain_id && (<span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">{listing.domain_id}</span>)}
 </div>
 </div>

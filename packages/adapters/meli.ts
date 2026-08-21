@@ -372,7 +372,13 @@ export class MeliAdapter implements MarketplaceAdapter {
                 id_publicacion_padre: clasificacion.id_publicacion_padre,
                 es_fuente_stock: clasificacion.es_fuente_stock,
                 id_producto_catalogo: clasificacion.id_producto_catalogo,
-                logistic_type: newLogisticType,   // ← Cambio 1: campo faltante agregado
+                logistic_type: newLogisticType,
+                // --- INGESTA PERFECTA (FASE A) ---
+                brand: item.attributes?.find((a: any) => a.id === 'BRAND')?.value_name || null,
+                model: item.attributes?.find((a: any) => a.id === 'MODEL')?.value_name || null,
+                ean:   item.attributes?.find((a: any) => a.id === 'EAN')?.value_name || null,
+                gtin:  item.attributes?.find((a: any) => a.id === 'GTIN')?.value_name || null,
+                upc:   item.attributes?.find((a: any) => a.id === 'UPC')?.value_name || null,
                 actualizado_el: new Date().toISOString()
             }, { onConflict: 'marketplace_id,external_item_id,external_variation_id' });
 
