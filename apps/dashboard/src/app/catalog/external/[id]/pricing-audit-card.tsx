@@ -272,11 +272,17 @@ export default function PricingAuditCard({
                                         <tbody className="divide-y divide-slate-100">
                                             <tr>
                                                 <td className="py-1.5 text-slate-600 font-medium">Margen Esperado</td>
-                                                <td className="py-1.5 text-right font-mono text-slate-800 tabular-nums">{draftDetails.margen_pct != null ? `${draftDetails.margen_pct}%` : '—'}</td>
+                                                <td className="py-1.5 text-right font-mono text-slate-800 tabular-nums">
+                                                    {draftDetails.margen_pct != null ? `${draftDetails.margen_pct}%` : draftDetails.margin != null ? `${draftDetails.margin}%` : '—'}
+                                                </td>
                                             </tr>
                                             <tr>
-                                                <td className="py-1.5 text-slate-600 font-medium">Comisión ML {draftDetails.comision_pct != null ? `(${draftDetails.comision_pct}%)` : ''}</td>
-                                                <td className="py-1.5 text-right font-mono text-slate-800 tabular-nums">{fmt(draftDetails.comision_fee)}</td>
+                                                <td className="py-1.5 text-slate-600 font-medium">
+                                                    Comisión ML {draftDetails.comision_pct != null ? `(${draftDetails.comision_pct}%)` : ''}
+                                                </td>
+                                                <td className="py-1.5 text-right font-mono text-slate-800 tabular-nums">
+                                                    {draftDetails.comision_fee != null ? fmt(draftDetails.comision_fee) : 'Incluida en Cálculo'}
+                                                </td>
                                             </tr>
                                             {/* Espacio reservado para escalabilidad (Envío, Peso, Volumen, Premium vs Clásica) */}
                                             <tr>
@@ -289,6 +295,11 @@ export default function PricingAuditCard({
                                                 <td className="pt-2 text-slate-800 font-bold">Precio Final Calculado</td>
                                                 <td className="pt-2 text-right font-bold text-indigo-700 tabular-nums text-sm">{fmt(draftPrice)}</td>
                                             </tr>
+                                            {draftDetails.reason && (
+                                                <tr>
+                                                    <td colSpan={2} className="pt-1 text-[9px] text-slate-400 font-mono text-right">Nota: {draftDetails.reason}</td>
+                                                </tr>
+                                            )}
                                         </tfoot>
                                     </table>
                                 </div>
