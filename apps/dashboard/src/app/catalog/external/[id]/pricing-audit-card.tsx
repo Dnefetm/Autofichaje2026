@@ -241,7 +241,7 @@ export default function PricingAuditCard({
                     {/* Fila 2: Precio Draft y Fórmula Transparente */}
                     {draftPrice && draftPrice !== currentPrice && (
                         <div className="bg-[var(--surface)] border   rounded-[var(--radius)] p-4">
-                            <div className="flex items-start justify-between mb-3 border-b border-amber-100 pb-3">
+                            <div className="flex items-start justify-between mb-3 border-b border-[var(--warn)]/30 pb-3">
                                 <div>
                                     <p className="text-xs text-[var(--warn)] uppercase font-bold mb-1 flex items-center gap-1.5">
                                         <AlertCircle className="w-3.5 h-3.5" /> Borrador Pendiente de Aprobación
@@ -252,7 +252,7 @@ export default function PricingAuditCard({
                                 </div>
                                 <div className="text-right">
                                     <div className="flex items-center gap-3 justify-end">
-                                        <p className="text-2xl font-bold text-amber-900 tabular-nums">{fmt(draftPrice)}</p>
+                                        <p className="text-2xl font-bold text-[var(--warn)] tabular-nums">{fmt(draftPrice)}</p>
                                         {currentPrice && (
                                             <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded-[var(--radius-sm)]", 
                                                 draftPrice > currentPrice ? "text-[var(--ok)] bg-[var(--ok)]/10 " : "text-[var(--err)] bg-[var(--err)]/10 ")}>
