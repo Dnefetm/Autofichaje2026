@@ -22,7 +22,7 @@ function esSkuBasuraUI(sku: string | null | undefined): boolean {
 
 const statusColors: Record<string, string> = {
     active: 'bg-green-100 text-green-700 border-green-200',
-    paused: 'bg-amber-100 text-amber-700 border-amber-200',
+    paused: 'bg-amber-100 text-[var(--warn)] border-[var(--warn)]/30',
     closed: 'bg-red-100 text-red-700 border-red-200',
     under_review: 'bg-blue-100 text-blue-700 border-blue-200',
 };
@@ -37,15 +37,15 @@ const statusLabels: Record<string, string> = {
 const logisticConfig: Record<string, { label: string; color: string }> = {
     fulfillment: { label: 'Full', color: 'bg-purple-100 text-purple-700' },
     xd_drop_off: { label: 'XD', color: 'bg-blue-100 text-blue-700' },
-    drop_off: { label: 'Drop-off', color: 'bg-gray-100 text-gray-600' },
+    drop_off: { label: 'Drop-off', color: 'bg-[var(--surface-2)] text-[var(--text-muted)]' },
     cross_docking: { label: 'Cross', color: 'bg-teal-100 text-teal-700' },
     self_service: { label: 'Self', color: 'bg-orange-100 text-orange-700' },
 };
 
 // Correcto según nomenclatura MeLi México
 const listingTypeConfig: Record<string, { label: string; color: string }> = {
-    gold_special: { label: 'Clásica',  color: 'bg-gray-100 text-gray-700' },
-    gold_pro:     { label: 'Premium',  color: 'bg-amber-100 text-amber-700' },
+    gold_special: { label: 'Clásica',  color: 'bg-[var(--surface-2)] text-[var(--text-muted)]' },
+    gold_pro:     { label: 'Premium',  color: 'bg-amber-100 text-[var(--warn)]' },
     free:         { label: 'Gratuita', color: 'bg-green-100 text-green-700' },
 };
 
@@ -53,26 +53,26 @@ const tipoPubConfig: Record<string, { label: string; color: string }> = {
     tradicional:        { label: 'Tradicional',  color: 'bg-blue-100 text-blue-700' },
     catalogo:           { label: 'Catálogo',     color: 'bg-purple-100 text-purple-700' },
     catalogo_derivada:  { label: 'Cat. Derivada',color: 'bg-purple-100 text-purple-600 border border-purple-300' },
-    up:                 { label: 'User Product', color: 'bg-emerald-100 text-emerald-700' },
+    up:                 { label: 'User Product', color: 'bg-emerald-100 text-[var(--ok)]' },
 };
 
 function HealthBar({ value }: { value: number | null }) {
     if (value === null || value === undefined) return <div className="w-16 h-1.5 bg-gray-200 rounded-full" />;
     const pct = Math.round(value * 100);
-    const color = pct > 70 ? 'bg-green-500' : pct > 40 ? 'bg-amber-500' : 'bg-red-500';
+    const color = pct > 70 ? 'bg-green-500' : pct > 40 ? 'bg-[var(--warn)]/100' : 'bg-red-500';
     return (
         <div className="flex items-center gap-1.5">
             <div className="w-14 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                 <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
             </div>
-            <span className="text-[10px] text-gray-400 tabular-nums">{pct}%</span>
+            <span className="text-[10px] text-[var(--text-faint)] tabular-nums">{pct}%</span>
         </div>
     );
 }
 
 function StatusBadge({ status }: { status: string }) {
     return (
-        <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[status] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+        <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[status] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
             {statusLabels[status] || status}
         </span>
     );
@@ -82,7 +82,7 @@ function LogisticBadge({ type }: { type: string | null }) {
     if (!type) return null;
     const cfg = logisticConfig[type];
     return (
-        <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold", cfg?.color || 'bg-gray-100 text-gray-600')}>
+        <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold", cfg?.color || 'bg-[var(--surface-2)] text-[var(--text-muted)]')}>
             {cfg?.label || type}
         </span>
     );
@@ -160,24 +160,24 @@ function ListingRow({
         p != null ? `$${Number(p).toLocaleString('es-MX', { minimumFractionDigits: 0 })}` : '—';
 
     return (
-        <tr className={cn("hover:bg-slate-50/70 transition-colors group", indent && "bg-slate-50/50")}>
+        <tr className={cn("hover:bg-[var(--bg)]/70 transition-colors group", indent && "bg-[var(--bg)]/50")}>
             {/* 1 — ESTADO */}
             <td className={cn("px-4 py-3 align-top", indent && "pl-10")}>
                 <div className="flex flex-col gap-1">
-                    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[listing.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+                    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[listing.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
                         {statusLabels[listing.status_externo] || listing.status_externo}
                     </span>
                     {listing.esta_mapeado ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+                        <span className="inline-flex items-center gap-1 text-[10px] text-[var(--ok)] font-medium">
                             <CheckCircle2 className="w-3 h-3" /> Mapeado
                         </span>
                     ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-rose-500 font-medium">
+                        <span className="inline-flex items-center gap-1 text-[10px] text-[var(--err)] font-medium">
                             <AlertCircle className="w-3 h-3" /> Sin mapear
                         </span>
                     )}
                     {listing.sync_disabled && (
-                        <span className="text-[9px] text-slate-400 italic">sync off</span>
+                        <span className="text-[9px] text-[var(--text-faint)] italic">sync off</span>
                     )}
                     <HealthBar value={listing.health} />
                 </div>
@@ -187,31 +187,31 @@ function ListingRow({
             <td className="px-4 py-3 align-top max-w-xs">
                 <div className="flex items-start gap-3">
                     {listing.url_imagen ? (
-                        <img src={listing.url_imagen} alt="" className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0" />
+                        <img src={listing.url_imagen} alt="" className="w-10 h-10 rounded-lg object-cover border border-[var(--border)] shrink-0" />
                     ) : (
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
                             <Package className="w-4 h-4 text-slate-300" />
                         </div>
                     )}
                     <div className="min-w-0">
                         <Link
                             href={`/catalog/external/${listing.id}`}
-                            className="text-sm font-medium text-slate-800 hover:text-indigo-600 line-clamp-2 leading-tight block"
+                            className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] line-clamp-2 leading-tight block"
                         >
                             {listing.titulo}
                         </Link>
-                        <p className="text-[10px] font-mono text-slate-400 mt-0.5">{listing.external_item_id}</p>
+                        <p className="text-[10px] font-mono text-[var(--text-faint)] mt-0.5">{listing.external_item_id}</p>
                         <div className="flex flex-wrap gap-1 mt-1">
                             {listing.listing_type_id && <ListingTypeBadge type={listing.listing_type_id} />}
                             {listing.tipo_publicacion && <TipoBadge tipo={listing.tipo_publicacion} />}
                             <BundleBadge isBundle={listing.es_bundle || listing.tags?.includes('bundle')} />
                             {listing.condition && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-2)] text-[var(--text-muted)] font-medium">
                                     {listing.condition === 'new' ? 'Nuevo' : 'Usado'}
                                 </span>
                             )}
                             {listing.domain_id && (
-                                <span className="text-[10px] text-slate-400 truncate max-w-[100px]" title={listing.domain_id}>
+                                <span className="text-[10px] text-[var(--text-faint)] truncate max-w-[100px]" title={listing.domain_id}>
                                     {listing.domain_id.split('-').pop()}
                                 </span>
                             )}
@@ -222,39 +222,39 @@ function ListingRow({
 
             {/* 3 — MARCA / SKU */}
             <td className="px-4 py-3 align-top">
-                {listing.brand && <p className="text-xs font-semibold text-slate-700">{listing.brand}</p>}
+                {listing.brand && <p className="text-xs font-semibold text-[var(--text-muted)]">{listing.brand}</p>}
                 {(() => {
                     const sku = !esSkuBasuraUI(listing.seller_custom_field) ? listing.seller_custom_field
                               : !esSkuBasuraUI(listing.seller_sku)          ? listing.seller_sku
                               : null;
-                    return sku ? <p className="text-[10px] font-mono text-slate-400 mt-0.5">{sku}</p> : null;
+                    return sku ? <p className="text-[10px] font-mono text-[var(--text-faint)] mt-0.5">{sku}</p> : null;
                 })()}
                 {listing.model && (
-                    <p className="text-[10px] text-slate-400 mt-0.5 italic truncate max-w-[120px]" title={listing.model}>{listing.model}</p>
+                    <p className="text-[10px] text-[var(--text-faint)] mt-0.5 italic truncate max-w-[120px]" title={listing.model}>{listing.model}</p>
                 )}
                 {!listing.brand && esSkuBasuraUI(listing.seller_custom_field) && esSkuBasuraUI(listing.seller_sku) && <span className="text-[10px] text-slate-300">—</span>}
             </td>
 
             {/* 4 — PRECIO / VENTAS */}
             <td className="px-4 py-3 align-top">
-                <div className="text-sm font-bold text-slate-900">{formatPrice(listing.precio_venta)}</div>
+                <div className="text-sm font-bold text-[var(--text)]">{formatPrice(listing.precio_venta)}</div>
                 {listing.original_price && listing.original_price > listing.precio_venta && (
-                    <div className="text-[10px] text-slate-400 line-through">{formatPrice(listing.original_price)}</div>
+                    <div className="text-[10px] text-[var(--text-faint)] line-through">{formatPrice(listing.original_price)}</div>
                 )}
                 {listing.comision_porcentaje != null && (
-                    <div className="text-[10px] text-slate-400">{listing.comision_porcentaje.toFixed(1)}% com.</div>
+                    <div className="text-[10px] text-[var(--text-faint)]">{listing.comision_porcentaje.toFixed(1)}% com.</div>
                 )}
                 {listing.sold_quantity > 0 && (
-                    <div className="text-[10px] text-slate-500 mt-0.5">{listing.sold_quantity} vendidos</div>
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{listing.sold_quantity} vendidos</div>
                 )}
                 {listing.visits_30d != null && listing.visits_30d > 0 && (
-                    <div className="text-[10px] text-slate-400">&#128065; {listing.visits_30d.toLocaleString()} vis.</div>
+                    <div className="text-[10px] text-[var(--text-faint)]">&#128065; {listing.visits_30d.toLocaleString()} vis.</div>
                 )}
             </td>
 
             {/* 5 — STOCK / LOGÍST. */}
             <td className="px-4 py-3 align-top">
-                <div className="text-sm font-semibold text-slate-800">{listing.stock_publicado ?? '—'}</div>
+                <div className="text-sm font-semibold text-[var(--text)]">{listing.stock_publicado ?? '—'}</div>
                 <div className="flex items-center gap-1 mt-1 flex-wrap">
                     <LogisticBadge type={listing.logistic_type} />
                     {listing.free_shipping && (
@@ -270,27 +270,27 @@ function ListingRow({
                 <div className="flex items-center justify-end gap-1.5">
                     <Link
                         href={`/catalog/external/${listing.id}`}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg transition-colors border border-indigo-200"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 text-indigo-700 text-xs font-semibold rounded-lg transition-colors border border-[var(--accent)]/30"
                     >
                         Abrir Ficha
                     </Link>
                     <div className="relative">
                         <button
                             onClick={() => setMenuOpen(o => !o)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-colors"
                         >
                             <MoreVertical className="w-4 h-4" />
                         </button>
                         {menuOpen && (
                             <div
-                                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl border border-slate-200 shadow-lg z-20 py-1"
+                                className="absolute right-0 top-full mt-1 w-48 bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-lg z-20 py-1"
                                 onMouseLeave={() => setMenuOpen(false)}
                             >
                                 <button
                                     onClick={() => { onMapear(listing); setMenuOpen(false); }}
-                                    className="w-full text-left px-4 py-2 text-xs hover:bg-slate-50 flex items-center gap-2"
+                                    className="w-full text-left px-4 py-2 text-xs hover:bg-[var(--bg)] flex items-center gap-2"
                                 >
-                                    <Link2 className="w-3.5 h-3.5 text-slate-400" />
+                                    <Link2 className="w-3.5 h-3.5 text-[var(--text-faint)]" />
                                     {listing.esta_mapeado ? 'Editar Mapeo' : 'Crear Enlace (Kit)'}
                                 </button>
                                 {listing.permalink && (
@@ -298,10 +298,10 @@ function ListingRow({
                                         href={listing.permalink}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="w-full text-left px-4 py-2 text-xs hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                                        className="w-full text-left px-4 py-2 text-xs hover:bg-[var(--bg)] flex items-center gap-2 text-[var(--text-muted)]"
                                         onClick={() => setMenuOpen(false)}
                                     >
-                                        <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                                        <ExternalLink className="w-3.5 h-3.5 text-[var(--text-faint)]" />
                                         Ver en MeLi
                                     </a>
                                 )}
@@ -379,19 +379,19 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
 
     return (
         <>
-            <tr className="hover:bg-slate-50/70 transition-colors group">
+            <tr className="hover:bg-[var(--bg)]/70 transition-colors group">
                 {/* 1 — ESTADO */}
                 <td className="px-4 py-3 align-top">
                     <div className="flex flex-col gap-1">
-                        <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[parent.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+                        <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[parent.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
                             {statusLabels[parent.status_externo] || parent.status_externo}
                         </span>
                         {parent.esta_mapeado ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+                            <span className="inline-flex items-center gap-1 text-[10px] text-[var(--ok)] font-medium">
                                 <CheckCircle2 className="w-3 h-3" /> Mapeado
                             </span>
                         ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-rose-500 font-medium">
+                            <span className="inline-flex items-center gap-1 text-[10px] text-[var(--err)] font-medium">
                                 <AlertCircle className="w-3 h-3" /> Sin mapear
                             </span>
                         )}
@@ -402,24 +402,24 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                 <td className="px-4 py-3 align-top max-w-xs">
                     <div className="flex items-start gap-3">
                         {parent.url_imagen ? (
-                            <img src={parent.url_imagen} alt="" className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0" />
+                            <img src={parent.url_imagen} alt="" className="w-10 h-10 rounded-lg object-cover border border-[var(--border)] shrink-0" />
                         ) : (
-                            <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                            <div className="w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
                                 <Package className="w-4 h-4 text-slate-300" />
                             </div>
                         )}
                         <div className="min-w-0">
-                            <Link href={`/catalog/external/${parent.id}`} className="text-sm font-medium text-slate-800 hover:text-indigo-600 line-clamp-2 leading-tight block">
+                            <Link href={`/catalog/external/${parent.id}`} className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] line-clamp-2 leading-tight block">
                                 {parent.titulo}
                             </Link>
-                            <p className="text-[10px] font-mono text-slate-400 mt-0.5">{parent.external_item_id}</p>
+                            <p className="text-[10px] font-mono text-[var(--text-faint)] mt-0.5">{parent.external_item_id}</p>
                             <div className="flex flex-wrap gap-1 mt-1">
                                 {parent.listing_type_id && <ListingTypeBadge type={parent.listing_type_id} />}
                                 {parent.tipo_publicacion && <TipoBadge tipo={parent.tipo_publicacion} />}
                                 {variations.length > 0 && (
                                     <button
                                         onClick={() => setExpanded(o => !o)}
-                                        className="inline-flex items-center gap-0.5 text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold transition-colors"
+                                        className="inline-flex items-center gap-0.5 text-[10px] text-[var(--accent)] hover:text-indigo-800 font-semibold transition-colors"
                                     >
                                         {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                                         +{variations.length} variantes
@@ -434,7 +434,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                                 .filter(([, vals]) => vals.size > 1)
                                                 .map(([name, vals]) => `${name}: ${[...vals].join(', ')}`)
                                                 .join(' · ');
-                                            return summary ? <span className="text-slate-500 font-normal"> ({summary})</span> : null;
+                                            return summary ? <span className="text-[var(--text-muted)] font-normal"> ({summary})</span> : null;
                                         })()}
                                     </button>
                                 )}
@@ -451,7 +451,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                         <button
                                             onClick={toggleRelated}
                                             disabled={relatedLoading}
-                                            className="inline-flex items-center gap-0.5 text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold transition-colors disabled:opacity-60"
+                                            className="inline-flex items-center gap-0.5 text-[10px] text-[var(--accent)] hover:text-indigo-800 font-semibold transition-colors disabled:opacity-60"
                                         >
                                             <Layers className="w-3 h-3" />
                                             {relatedExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
@@ -467,38 +467,38 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
 
                 {/* 3 — MARCA / SKU */}
                 <td className="px-4 py-3 align-top">
-                    {parent.brand && <p className="text-xs font-semibold text-slate-700">{parent.brand}</p>}
+                    {parent.brand && <p className="text-xs font-semibold text-[var(--text-muted)]">{parent.brand}</p>}
                     {(() => {
                         const sku = !esSkuBasuraUI(parent.seller_custom_field) ? parent.seller_custom_field
                                   : !esSkuBasuraUI(parent.seller_sku)          ? parent.seller_sku
                                   : null;
-                        return sku ? <p className="text-[10px] font-mono text-slate-400 mt-0.5">{sku}</p> : null;
+                        return sku ? <p className="text-[10px] font-mono text-[var(--text-faint)] mt-0.5">{sku}</p> : null;
                     })()}
                     {parent.model && (
-                        <p className="text-[10px] text-slate-400 mt-0.5 italic truncate max-w-[120px]" title={parent.model}>{parent.model}</p>
+                        <p className="text-[10px] text-[var(--text-faint)] mt-0.5 italic truncate max-w-[120px]" title={parent.model}>{parent.model}</p>
                     )}
                     {!parent.brand && esSkuBasuraUI(parent.seller_custom_field) && esSkuBasuraUI(parent.seller_sku) && <span className="text-[10px] text-slate-300">—</span>}
                 </td>
 
                 {/* 4 — PRECIO / VENTAS */}
                 <td className="px-4 py-3 align-top">
-                    <div className="text-sm font-bold text-slate-900">
+                    <div className="text-sm font-bold text-[var(--text)]">
                         {priceDisplay || (parent.precio_venta ? `$${Number(parent.precio_venta).toLocaleString('es-MX')}` : '—')}
                     </div>
                     {parent.comision_porcentaje != null && (
-                        <div className="text-[10px] text-slate-400">{parent.comision_porcentaje.toFixed(1)}% com.</div>
+                        <div className="text-[10px] text-[var(--text-faint)]">{parent.comision_porcentaje.toFixed(1)}% com.</div>
                     )}
                     {parent.sold_quantity > 0 && (
-                        <div className="text-[10px] text-slate-500 mt-0.5">{parent.sold_quantity} vendidos</div>
+                        <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{parent.sold_quantity} vendidos</div>
                     )}
                     {parent.visits_30d != null && parent.visits_30d > 0 && (
-                        <div className="text-[10px] text-slate-400">&#128065; {parent.visits_30d.toLocaleString()} vis.</div>
+                        <div className="text-[10px] text-[var(--text-faint)]">&#128065; {parent.visits_30d.toLocaleString()} vis.</div>
                     )}
                 </td>
 
                 {/* 5 — STOCK / LOGÍST. */}
                 <td className="px-4 py-3 align-top">
-                    <div className="text-sm font-semibold text-slate-800">{totalStock ?? '—'}</div>
+                    <div className="text-sm font-semibold text-[var(--text)]">{totalStock ?? '—'}</div>
                     <div className="flex items-center gap-1 mt-1">
                         <LogisticBadge type={parent.logistic_type} />
                         {parent.free_shipping && <Truck className="w-3 h-3 text-green-500" />}
@@ -510,13 +510,13 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                     <div className="flex items-center justify-end gap-1.5">
                         <Link
                             href={`/catalog/external/${parent.id}`}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg transition-colors border border-indigo-200"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 text-indigo-700 text-xs font-semibold rounded-lg transition-colors border border-[var(--accent)]/30"
                         >
                             Abrir Ficha
                         </Link>
                         <button
                             onClick={() => onMapear(parent)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-700 hover:bg-indigo-50 transition-colors"
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-indigo-700 hover:bg-[var(--accent)]/10 transition-colors"
                             title={parent.esta_mapeado ? 'Editar Mapeo' : 'Crear Enlace'}
                         >
                             <Link2 className="w-4 h-4" />
@@ -530,10 +530,10 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                 const pricesDiffer = prices.length > 1 && (Math.max(...prices) - Math.min(...prices)) > 0;
                 const stocksDiffer = variations.some(x => x.stock_publicado !== v.stock_publicado);
                 return (
-                    <tr key={v.id} className="bg-indigo-50/30 border-t border-slate-100">
+                    <tr key={v.id} className="bg-[var(--accent)]/10/30 border-t border-[var(--border)]">
                         {/* Estado + ID */}
                         <td className="px-4 py-2 pl-12 align-top">
-                            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[v.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+                            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[v.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
                                 {statusLabels[v.status_externo] || v.status_externo}
                             </span>
                         </td>
@@ -542,27 +542,27 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                             {attrs.length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
                                     {attrs.map(a => (
-                                        <span key={a.name} className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium">
+                                        <span key={a.name} className="text-[10px] bg-[var(--surface-2)] text-[var(--text-muted)] px-1.5 py-0.5 rounded font-medium">
                                             {a.name}: <span className="font-bold">{a.value_name}</span>
                                         </span>
                                     ))}
                                 </div>
                             ) : (
-                                <span className="text-[10px] text-slate-400 font-mono">#{v.external_variation_id}</span>
+                                <span className="text-[10px] text-[var(--text-faint)] font-mono">#{v.external_variation_id}</span>
                             )}
                             {v.seller_custom_field && (
-                                <p className="text-[10px] font-mono text-slate-400 mt-0.5">{v.seller_custom_field}</p>
+                                <p className="text-[10px] font-mono text-[var(--text-faint)] mt-0.5">{v.seller_custom_field}</p>
                             )}
                         </td>
                         {/* Precio (resaltado si difiere) */}
-                        <td className={cn('px-4 py-2 align-top', pricesDiffer && 'bg-amber-50')}>
-                            <span className="text-xs font-semibold text-slate-800">
+                        <td className={cn('px-4 py-2 align-top', pricesDiffer && 'bg-[var(--warn)]/10')}>
+                            <span className="text-xs font-semibold text-[var(--text)]">
                                 {v.precio_venta ? `$${Number(v.precio_venta).toLocaleString('es-MX')}` : '—'}
                             </span>
                         </td>
                         {/* Stock (resaltado si difiere) */}
-                        <td className={cn('px-4 py-2 align-top', stocksDiffer && 'bg-amber-50')}>
-                            <span className="text-xs text-slate-700">{v.stock_publicado ?? '—'}</span>
+                        <td className={cn('px-4 py-2 align-top', stocksDiffer && 'bg-[var(--warn)]/10')}>
+                            <span className="text-xs text-[var(--text-muted)]">{v.stock_publicado ?? '—'}</span>
                         </td>
                         <td colSpan={1} />
                     </tr>
@@ -576,13 +576,13 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                     <tr key={rel.id} className={cn('border-t', isCatalog ? 'bg-purple-50/60 border-purple-100' : 'bg-teal-50/60 border-teal-100')}>
                         <td className="px-4 py-2 pl-10 align-top">
                             <div className="flex flex-col gap-0.5">
-                                <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[rel.status_externo] || 'bg-slate-100 text-slate-600 border-slate-200')}>
+                                <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[rel.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
                                     {statusLabels[rel.status_externo] || rel.status_externo}
                                 </span>
                                 <TipoBadge tipo={rel.tipo_publicacion} />
                                 {rel.esta_mapeado
-                                    ? <span className="text-[9px] text-emerald-600 font-medium">Mapeado</span>
-                                    : <span className="text-[9px] text-rose-500 font-medium">Sin mapear</span>
+                                    ? <span className="text-[9px] text-[var(--ok)] font-medium">Mapeado</span>
+                                    : <span className="text-[9px] text-[var(--err)] font-medium">Sin mapear</span>
                                 }
                             </div>
                         </td>
@@ -595,11 +595,11 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                 <div>
                                     <Link
                                         href={`/catalog/external/${rel.id}`}
-                                        className={cn('text-xs font-medium transition-colors line-clamp-1', isCatalog ? 'text-slate-700 hover:text-purple-700' : 'text-slate-700 hover:text-teal-700')}
+                                        className={cn('text-xs font-medium transition-colors line-clamp-1', isCatalog ? 'text-[var(--text-muted)] hover:text-purple-700' : 'text-[var(--text-muted)] hover:text-teal-700')}
                                     >
                                         {rel.titulo?.slice(0, 55)}{(rel.titulo?.length ?? 0) > 55 ? '…' : ''}
                                     </Link>
-                                    <p className="text-[10px] font-mono text-slate-400">{rel.external_item_id}</p>
+                                    <p className="text-[10px] font-mono text-[var(--text-faint)]">{rel.external_item_id}</p>
                                     <div className="flex flex-wrap gap-1 mt-0.5">
                                         {rel.listing_type_id && <ListingTypeBadge type={rel.listing_type_id} />}
                                         <TipoBadge tipo={rel.tipo_publicacion} />
@@ -610,7 +610,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                                      : null;
                                         if (!rel.brand && !relSku) return null;
                                         return (
-                                            <p className="text-[10px] text-slate-400 mt-0.5">
+                                            <p className="text-[10px] text-[var(--text-faint)] mt-0.5">
                                                 {rel.brand && <span className="font-semibold">{rel.brand} </span>}
                                                 {relSku && <span className="font-mono">{relSku}</span>}
                                             </p>
@@ -620,13 +620,13 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                             </div>
                         </td>
                         <td className="px-4 py-2 align-top">
-                            <span className="text-xs font-semibold text-slate-800">
+                            <span className="text-xs font-semibold text-[var(--text)]">
                                 {rel.precio_venta ? `$${Number(rel.precio_venta).toLocaleString('es-MX')}` : '—'}
                             </span>
-                            {rel.sold_quantity > 0 && <p className="text-[10px] text-slate-400">{rel.sold_quantity} vend.</p>}
+                            {rel.sold_quantity > 0 && <p className="text-[10px] text-[var(--text-faint)]">{rel.sold_quantity} vend.</p>}
                         </td>
                         <td className="px-4 py-2 align-top">
-                            <span className="text-xs text-slate-700">{rel.stock_publicado ?? '—'}</span>
+                            <span className="text-xs text-[var(--text-muted)]">{rel.stock_publicado ?? '—'}</span>
                         </td>
                         <td className="px-4 py-2 align-top text-right">
                             <div className="flex items-center justify-end gap-1.5">
@@ -638,7 +638,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                 </Link>
                                 <button
                                     onClick={() => onMapear(rel)}
-                                    className={cn('p-1.5 rounded-lg text-slate-400 transition-colors', isCatalog ? 'hover:text-purple-700 hover:bg-purple-50' : 'hover:text-teal-700 hover:bg-teal-50')}
+                                    className={cn('p-1.5 rounded-lg text-[var(--text-faint)] transition-colors', isCatalog ? 'hover:text-purple-700 hover:bg-purple-50' : 'hover:text-teal-700 hover:bg-teal-50')}
                                     title="Mapear"
                                 >
                                     <Link2 className="w-3.5 h-3.5" />
@@ -913,21 +913,21 @@ export default function VirtualCatalogPage() {
     const grouped = useMemo(() => groupByItemId(listings), [listings]);
 
     return (
-        <div className="flex-1 overflow-auto bg-slate-50 min-h-screen">
+        <div className="flex-1 overflow-auto bg-[var(--bg)] min-h-screen">
             <div className="p-6 pb-32 max-w-[1600px] mx-auto space-y-5">
 
                 {/* Cabecera */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Vitrinas de Mercado Libre</h1>
-                        <p className="text-slate-500 text-sm mt-0.5">
+                        <h1 className="text-2xl font-bold tracking-tight text-[var(--text)]">Vitrinas de Mercado Libre</h1>
+                        <p className="text-[var(--text-muted)] text-sm mt-0.5">
                             {totalCount.toLocaleString()} publicaciones · {grouped.length} ítems en esta página
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setShowFilters(o => !o)}
-                            className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors", showFilters ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")}
+                            className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors", showFilters ? "bg-[var(--accent)] text-[var(--accent-ink)] border-indigo-600" : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:bg-[var(--bg)]")}
                         >
                             <SlidersHorizontal className="w-4 h-4" />
                             Filtros
@@ -935,12 +935,12 @@ export default function VirtualCatalogPage() {
                         <button
                             onClick={handleForceSync}
                             disabled={syncing}
-                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium shadow-sm"
+                            className="flex items-center gap-2 px-4 py-2 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg hover:brightness-110 disabled:opacity-50 text-sm font-medium shadow-sm"
                         >
                             <RefreshCw className={cn("w-4 h-4", syncing && "animate-spin")} />
                             {syncing ? 'Sincronizando...' : 'Forzar Sync MeLi'}
                         </button>
-                        <button onClick={loadListings} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 text-sm shadow-sm">
+                        <button onClick={loadListings} className="flex items-center gap-2 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] rounded-lg hover:bg-[var(--bg)] text-sm shadow-sm">
                             <RefreshCw className="w-4 h-4" />
                             Refrescar
                         </button>
@@ -949,11 +949,11 @@ export default function VirtualCatalogPage() {
 
                 {/* Buscador */}
                 <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
                     <input
                         type="text"
                         placeholder="Buscar por título, MLM, SKU, marca…"
-                        className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm"
+                        className="w-full pl-9 pr-4 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-[var(--accent)] text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] shadow-sm"
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                     />
@@ -966,10 +966,10 @@ export default function VirtualCatalogPage() {
                     )}
 
                     <div className="flex-1 min-w-0">
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="bg-[var(--surface)] rounded-xl shadow-sm border border-[var(--border)] overflow-hidden">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm">
-                                    <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                                    <thead className="bg-[var(--bg)] text-[var(--text-muted)] border-b border-[var(--border)]">
                                         <tr>
                                             <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Estado</th>
                                             <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Producto</th>
@@ -979,17 +979,17 @@ export default function VirtualCatalogPage() {
                                             <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Acción</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100">
+                                    <tbody className="divide-y divide-[var(--border)]">
                                         {loading ? (
                                             <tr>
-                                                <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                                                <td colSpan={7} className="px-6 py-12 text-center text-[var(--text-faint)]">
                                                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-400" />
                                                     Cargando publicaciones...
                                                 </td>
                                             </tr>
                                         ) : grouped.length === 0 ? (
                                             <tr>
-                                                <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                                                <td colSpan={7} className="px-6 py-12 text-center text-[var(--text-faint)]">
                                                     No se encontraron publicaciones con estos filtros.
                                                 </td>
                                             </tr>
@@ -1010,16 +1010,16 @@ export default function VirtualCatalogPage() {
                         {/* Paginación */}
                         {!loading && totalCount > PAGE_SIZE && (
                             <div className="flex items-center justify-between mt-4">
-                                <p className="text-sm text-slate-500">
+                                <p className="text-sm text-[var(--text-muted)]">
                                     {page * PAGE_SIZE + 1} – {Math.min((page + 1) * PAGE_SIZE, totalCount)} de {totalCount.toLocaleString()}
                                 </p>
                                 <div className="flex gap-2">
                                     <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-                                        className="px-4 py-2 text-sm font-medium bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40">
+                                        className="px-4 py-2 text-sm font-medium bg-[var(--surface)] border border-slate-300 rounded-lg hover:bg-[var(--bg)] disabled:opacity-40">
                                         Anterior
                                     </button>
                                     <button onClick={() => setPage(p => p + 1)} disabled={(page + 1) * PAGE_SIZE >= totalCount}
-                                        className="px-4 py-2 text-sm font-medium bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40">
+                                        className="px-4 py-2 text-sm font-medium bg-[var(--surface)] border border-slate-300 rounded-lg hover:bg-[var(--bg)] disabled:opacity-40">
                                         Siguiente
                                     </button>
                                 </div>
@@ -1031,10 +1031,10 @@ export default function VirtualCatalogPage() {
 
             {/* Consola de Sync */}
             {debugLogs.length > 0 && (
-                <div className="fixed bottom-0 left-64 right-0 bg-slate-900 border-t border-slate-700 p-4 max-h-52 overflow-y-auto z-40">
+                <div className="fixed bottom-0 left-64 right-0 bg-[var(--surface-2)] border-t border-slate-700 p-4 max-h-52 overflow-y-auto z-40">
                     <div className="flex justify-between items-center mb-2">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Consola de Sincronización</h4>
-                        <button onClick={() => setDebugLogs([])} className="text-xs text-slate-500 hover:text-slate-300">Limpiar</button>
+                        <h4 className="text-xs font-bold text-[var(--text-faint)] uppercase tracking-wider">Consola de Sincronización</h4>
+                        <button onClick={() => setDebugLogs([])} className="text-xs text-[var(--text-muted)] hover:text-slate-300">Limpiar</button>
                     </div>
                     <div className="font-mono text-xs space-y-0.5">
                         {debugLogs.map((log, i) => (

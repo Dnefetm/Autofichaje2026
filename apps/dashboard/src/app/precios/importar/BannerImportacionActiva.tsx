@@ -28,14 +28,14 @@ export function BannerImportacionActiva({ activa, onContinuar, onCancelar }: Pro
   };
 
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 sm:p-5 flex flex-col gap-4 shadow-sm relative overflow-hidden">
+    <div className="bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl p-4 sm:p-5 flex flex-col gap-4 shadow-sm relative overflow-hidden">
       <div className="flex gap-3">
         <div className="text-amber-500 mt-0.5 shrink-0">
           <AlertCircle className="w-5 h-5" />
         </div>
         <div>
           <h3 className="text-amber-800 font-bold text-sm">Hay una importación en curso para este proveedor</h3>
-          <p className="text-amber-700 text-sm mt-1">
+          <p className="text-[var(--warn)] text-sm mt-1">
             Archivo: <span className="font-semibold">{activa.nombre_archivo || 'Documento sin nombrar'}</span>
             <br />
             Estado de tabla: <span className="font-semibold uppercase tracking-wide text-xs bg-amber-200/50 px-1 py-0.5 rounded mr-2">{activa.estado}</span>
@@ -46,13 +46,13 @@ export function BannerImportacionActiva({ activa, onContinuar, onCancelar }: Pro
       
       <div className="flex flex-wrap items-center gap-3 pl-8">
         <button
-          className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-sm px-4 py-2 rounded-lg flex items-center gap-2 transition-colors focus:ring-2 ring-amber-400 outline-none"
+          className="bg-amber-600 hover:bg-amber-700 text-[var(--accent-ink)] font-semibold text-sm px-4 py-2 rounded-lg flex items-center gap-2 transition-colors focus:ring-2 ring-amber-400 outline-none"
           onClick={() => onContinuar(activa.id)}
         >
           Retomar Importación Central <ArrowRight className="w-4 h-4" />
         </button>
         <button
-          className="bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 font-semibold text-sm px-4 py-2 rounded-lg transition-colors flex items-center gap-2 focus:ring-2 outline-none"
+          className="bg-[var(--surface)] hover:bg-amber-100 text-amber-800 border border-amber-300 font-semibold text-sm px-4 py-2 rounded-lg transition-colors flex items-center gap-2 focus:ring-2 outline-none"
           onClick={handleCancelar}
           disabled={loadingCancelar}
         >

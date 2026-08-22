@@ -5,7 +5,7 @@ export default async function ProveedorLayout(props: { children: React.ReactNode
     const proveedor = decodeURIComponent(params.proveedor);
 
     return (
-        <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden bg-slate-50">
+        <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden bg-[var(--bg)]">
             <PricingTimeline proveedor={proveedor} />
             <div className="flex-1 overflow-auto">
                 {props.children}

@@ -21,21 +21,21 @@ export default function SimuladorPage() {
     };
 
     return (
-        <div className="p-8 h-screen bg-slate-50">
-            <h1 className="text-2xl font-bold mb-6 text-slate-900">Simulador de Precio Final</h1>
+        <div className="p-8 h-screen bg-[var(--bg)]">
+            <h1 className="text-2xl font-bold mb-6 text-[var(--text)]">Simulador de Precio Final</h1>
             
-            <div className="bg-white p-6 rounded-lg shadow max-w-2xl">
+            <div className="bg-[var(--surface)] p-6 rounded-lg shadow max-w-2xl">
                 <div className="flex flex-col space-y-4 mb-6">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Artículo</label>
+                        <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Artículo</label>
                         <AutocompleteArticulo value={articuloId} onChange={setArticuloId} />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Regla de Pricing</label>
+                        <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Regla de Pricing</label>
                         <AutocompleteRegla value={reglaId} onChange={setReglaId} />
                     </div>
                     <button 
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded font-medium shadow-sm transition-colors disabled:opacity-50" 
+                        className="bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] p-2 rounded font-medium shadow-sm transition-colors disabled:opacity-50" 
                         onClick={simular}
                         disabled={loading || !articuloId || !reglaId}
                     >
@@ -44,7 +44,7 @@ export default function SimuladorPage() {
                 </div>
 
                 {resultado && (
-                    <div className="bg-slate-900 p-4 rounded-lg text-green-400 overflow-x-auto shadow-inner">
+                    <div className="bg-[var(--surface-2)] p-4 rounded-lg text-green-400 overflow-x-auto shadow-inner">
                         <pre className="text-sm font-mono">{JSON.stringify(resultado, null, 2)}</pre>
                     </div>
                 )}

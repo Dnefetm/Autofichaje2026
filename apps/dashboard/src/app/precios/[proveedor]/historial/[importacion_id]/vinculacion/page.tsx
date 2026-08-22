@@ -177,22 +177,22 @@ export default async function VinculacionPage(props: {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50">
+        <div className="min-h-screen bg-[var(--bg)]">
             {/* Header */}
-            <header className="bg-white border-b border-slate-200 px-8 py-5">
+            <header className="bg-[var(--surface)] border-b border-[var(--border)] px-8 py-5">
                 <Link
                     href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial/${importacionId}/resumen`}
-                    className="inline-flex items-center text-sm text-slate-500 hover:text-indigo-600 mb-3"
+                    className="inline-flex items-center text-sm text-[var(--text-muted)] hover:text-[var(--accent)] mb-3"
                 >
                     <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Resumen del Lote
                 </Link>
-                <h1 className="text-2xl font-bold text-slate-900">Vinculación con Catálogo Interno</h1>
-                <p className="text-sm text-slate-500 mt-1">
+                <h1 className="text-2xl font-bold text-[var(--text)]">Vinculación con Catálogo Interno</h1>
+                <p className="text-sm text-[var(--text-muted)] mt-1">
                     {imp?.nombre_archivo} · {imp?.total_filas?.toLocaleString()} SKUs del proveedor
                 </p>
 
-                <div className="mt-4 flex items-start gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5">
-                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
+                <div className="mt-4 flex items-start gap-2 text-xs text-[var(--text-muted)] bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5">
+                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[var(--text-faint)]" />
                     <span>
                         Navega entre las pestañas para revisar las propuestas de vinculación, ver los artículos ya confirmados, o explorar los que no tuvieron coincidencia.
                     </span>

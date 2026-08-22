@@ -104,7 +104,7 @@ export default function PendientesPage() {
         );
       default:
         return (
-          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
+          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[var(--surface-2)] text-[var(--text-muted)]">
             sin mapeo
           </span>
         );
@@ -115,10 +115,10 @@ export default function PendientesPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-[var(--text)] flex items-center gap-2">
             <Package className="w-6 h-6" /> Cola de mapeo pendiente
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-[var(--text-muted)] mt-1">
             {total.toLocaleString()} publicaciones sin vincular con bodega física. Prioriza por{' '}
             <select
               className="ml-1 border border-slate-300 rounded px-2 py-0.5 text-sm"
@@ -136,25 +136,25 @@ export default function PendientesPage() {
         </div>
         <button
           onClick={load}
-          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-2 text-sm"
+          className="px-3 py-2 bg-[var(--surface-2)] hover:bg-slate-200 rounded-lg flex items-center gap-2 text-sm"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refrescar
         </button>
       </div>
 
       <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
         <input
-          className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+          className="w-full pl-10 pr-4 py-2 bg-[var(--surface)] border border-slate-300 rounded-lg focus:ring-2 focus:ring-[var(--accent)]"
           placeholder="Filtrar por título, MLM, marca, modelo, SKU o EAN/GTIN..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+          <thead className="bg-[var(--bg)] text-[var(--text-muted)]">
             <tr>
               <th className="p-2 text-left">Publicación</th>
               <th className="p-2 text-left">Marca / Modelo</th>
@@ -167,23 +167,23 @@ export default function PendientesPage() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50">
+              <tr key={r.id} className="border-t border-[var(--border)] hover:bg-[var(--bg)]">
                 <td className="p-2">
                   <div className="flex items-center gap-2">
                     {r.url_imagen && (
                       <img src={r.url_imagen} alt="" className="w-10 h-10 rounded object-cover" />
                     )}
                     <div>
-                      <div className="font-medium text-slate-800 line-clamp-2 max-w-md">
+                      <div className="font-medium text-[var(--text)] line-clamp-2 max-w-md">
                         {r.titulo}
                       </div>
-                      <div className="text-xs text-slate-500">{r.external_item_id}</div>
+                      <div className="text-xs text-[var(--text-muted)]">{r.external_item_id}</div>
                     </div>
                   </div>
                 </td>
-                <td className="p-2 text-slate-700">
+                <td className="p-2 text-[var(--text-muted)]">
                   {r.brand && <div>{r.brand}</div>}
-                  {r.model && <div className="text-xs text-slate-500">Mod: {r.model}</div>}
+                  {r.model && <div className="text-xs text-[var(--text-muted)]">Mod: {r.model}</div>}
                 </td>
                 <td className="p-2 text-right font-mono">
                   ${r.precio_venta?.toLocaleString() ?? '—'}
@@ -199,7 +199,7 @@ export default function PendientesPage() {
                       pausado
                     </span>
                   ) : (
-                    <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[var(--surface-2)] text-[var(--text-muted)]">
                       activo
                     </span>
                   )}
@@ -207,13 +207,13 @@ export default function PendientesPage() {
                 <td className="p-2">
                   <button
                     onClick={() => setSelected(r)}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium"
+                    className="px-3 py-1.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg text-xs font-medium"
                   >
                     Mapear
                   </button>
                   <Link
                     href={`/catalog/external/${r.id}`}
-                    className="ml-2 inline-flex items-center gap-1 px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs"
+                    className="ml-2 inline-flex items-center gap-1 px-2 py-1.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-lg text-xs"
                   >
                     <Eye className="w-3 h-3" /> Ver
                   </Link>
@@ -222,7 +222,7 @@ export default function PendientesPage() {
             ))}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-slate-500">
+                <td colSpan={7} className="p-6 text-center text-[var(--text-muted)]">
                   Sin resultados.
                 </td>
               </tr>
@@ -231,7 +231,7 @@ export default function PendientesPage() {
         </table>
       </div>
 
-      <div className="flex items-center justify-between mt-3 text-sm text-slate-600">
+      <div className="flex items-center justify-between mt-3 text-sm text-[var(--text-muted)]">
         <div>
           Página {page + 1} de {Math.max(1, Math.ceil(total / PAGE_SIZE))}
         </div>
@@ -239,14 +239,14 @@ export default function PendientesPage() {
           <button
             disabled={page === 0}
             onClick={() => setPage((p) => Math.max(0, p - 1))}
-            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg disabled:opacity-40"
+            className="px-3 py-1.5 bg-[var(--surface-2)] hover:bg-slate-200 rounded-lg disabled:opacity-40"
           >
             Anterior
           </button>
           <button
             disabled={(page + 1) * PAGE_SIZE >= total}
             onClick={() => setPage((p) => p + 1)}
-            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg disabled:opacity-40"
+            className="px-3 py-1.5 bg-[var(--surface-2)] hover:bg-slate-200 rounded-lg disabled:opacity-40"
           >
             Siguiente
           </button>

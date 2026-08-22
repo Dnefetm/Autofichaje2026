@@ -52,7 +52,7 @@ export function ReviewClient({ importacionId, rows }: { importacionId: string; r
       <h1 className="text-2xl font-bold mb-4">Revisión de matching</h1>
 
       {jobStatus && (
-        <div className="mb-4 p-3 rounded bg-slate-50 border">
+        <div className="mb-4 p-3 rounded bg-[var(--bg)] border">
           Job <code>{jobStatus.id?.slice(0,8)}</code> — <b>{jobStatus.status}</b>
           {' '}({jobStatus.processed}/{jobStatus.total} — {jobStatus.alias_aprendidos} alias nuevos)
           {jobStatus.error && <span className="text-red-600"> · {jobStatus.error}</span>}
@@ -63,7 +63,7 @@ export function ReviewClient({ importacionId, rows }: { importacionId: string; r
         {(['A','B','C','D'] as const).map(k => (
           <button key={k}
             onClick={() => setTab(k)}
-            className={`px-3 py-1 rounded ${tab===k?'bg-black text-white':'bg-slate-100'}`}>
+            className={`px-3 py-1 rounded ${tab===k?'bg-black text-[var(--accent-ink)]':'bg-[var(--surface-2)]'}`}>
             {k} · {k==='A'?'GTIN exacto':k==='B'?'Candidatos':k==='C'?'Ambigüedad':'Sin candidato'}
             {' '}({buckets[k].length})
           </button>
@@ -92,7 +92,7 @@ function SectionA({ rows, sel, setSel, onSubmit }: any) {
         <button
           disabled={!toConfirm.length}
           onClick={() => onSubmit(toConfirm)}
-          className="px-4 py-2 bg-emerald-600 text-white rounded disabled:opacity-50">
+          className="px-4 py-2 bg-emerald-600 text-[var(--accent-ink)] rounded disabled:opacity-50">
           Confirmar {toConfirm.length} seleccionadas
         </button>
       </div>
@@ -103,7 +103,7 @@ function SectionA({ rows, sel, setSel, onSubmit }: any) {
         </tr></thead>
         <tbody>
           {rows.map((r: Row) => (
-            <tr key={r.md_id} className="border-b hover:bg-slate-50">
+            <tr key={r.md_id} className="border-b hover:bg-[var(--bg)]">
               <td><input type="checkbox" checked={!!checked[r.md_id]}
                    onChange={e => setChecked(s => ({...s, [r.md_id]: e.target.checked}))} /></td>
               <td className="font-mono">{r.gtin}</td>
@@ -125,7 +125,7 @@ function SectionBC({ rows, sel, setSel, onSubmit, multi }: any) {
       {rows.map((r: Row) => (
         <div key={r.md_id} className="p-3 border rounded">
           <div className="font-semibold">{r.marca_excel} / {r.modelo_excel}
-            <span className="text-xs text-slate-500 ml-2">({r.proveedor})</span></div>
+            <span className="text-xs text-[var(--text-muted)] ml-2">({r.proveedor})</span></div>
           <div className="mt-2 space-y-1">
             {(r.candidatos || []).map((c: any) => (
               <label key={c.articulo_id} className="flex gap-2">
@@ -134,14 +134,14 @@ function SectionBC({ rows, sel, setSel, onSubmit, multi }: any) {
                   onChange={() => setSel((s: any) => ({...s, [r.md_id]: c.articulo_id}))} />
                 <span className="font-mono text-xs">{c.articulo_id}</span>
                 <span className="flex-1">{c.nombre}</span>
-                <span className="text-slate-500">score {c.score.toFixed(2)}</span>
+                <span className="text-[var(--text-muted)]">score {c.score.toFixed(2)}</span>
               </label>
             ))}
           </div>
           <button
             disabled={!sel[r.md_id]}
             onClick={() => onSubmit([r])}
-            className="mt-2 px-3 py-1 bg-emerald-600 text-white rounded disabled:opacity-50 text-sm">
+            className="mt-2 px-3 py-1 bg-emerald-600 text-[var(--accent-ink)] rounded disabled:opacity-50 text-sm">
             Confirmar
           </button>
         </div>
@@ -149,7 +149,7 @@ function SectionBC({ rows, sel, setSel, onSubmit, multi }: any) {
       {multi && rows.length > 1 && (
         <button
           onClick={() => onSubmit(rows.filter((r: Row) => sel[r.md_id]))}
-          className="px-4 py-2 bg-emerald-700 text-white rounded">
+          className="px-4 py-2 bg-emerald-700 text-[var(--accent-ink)] rounded">
           Confirmar todas las seleccionadas
         </button>
       )}
@@ -160,11 +160,11 @@ function SectionBC({ rows, sel, setSel, onSubmit, multi }: any) {
 function SectionD({ rows }: { rows: Row[] }) {
   return (
     <div>
-      <p className="mb-3 text-slate-600">
+      <p className="mb-3 text-[var(--text-muted)]">
         {rows.length} filas sin candidato — requieren acción manual (nuevo artículo o mapping manual).
       </p>
       <a href={`/api/matching/export?nivel=5&importacion_id=${rows[0]?.md_id?.split('-')[0] ?? ''}`}
-         className="px-3 py-1 bg-slate-800 text-white rounded">Exportar CSV</a>
+         className="px-3 py-1 bg-[var(--surface)] text-[var(--accent-ink)] rounded">Exportar CSV</a>
     </div>
   );
 }

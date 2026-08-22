@@ -76,13 +76,13 @@ export default function ArticuloDetailPage() {
     if (error || !product) {
         return (
             <div className="space-y-6">
-                <Link href="/catalog" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-indigo-600 transition-colors">
+                <Link href="/catalog" className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors">
                     <ArrowLeft className="w-4 h-4" /> Volver al catálogo
                 </Link>
-                <div className="py-20 text-center bg-rose-50 rounded-xl border border-rose-200">
+                <div className="py-20 text-center bg-[var(--err)]/10 rounded-xl border border-[var(--err)]/30">
                     <AlertCircle className="w-10 h-10 text-rose-400 mx-auto mb-3" />
                     <h3 className="text-lg font-bold text-rose-900">Error al cargar artículo</h3>
-                    <p className="text-rose-500 mt-1">{error || 'Artículo no encontrado'}</p>
+                    <p className="text-[var(--err)] mt-1">{error || 'Artículo no encontrado'}</p>
                 </div>
             </div>
         );
@@ -124,19 +124,19 @@ export default function ArticuloDetailPage() {
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex items-center justify-between">
-                <Link href="/catalog" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-indigo-600 transition-colors font-medium">
+                <Link href="/catalog" className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors font-medium">
                     <ArrowLeft className="w-4 h-4" /> Volver al catálogo
                 </Link>
-                <button onClick={fetchProduct} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors" title="Refrescar">
+                <button onClick={fetchProduct} className="p-2 text-[var(--text-faint)] hover:text-[var(--accent)] transition-colors" title="Refrescar">
                     <RefreshCw className="w-5 h-5" />
                 </button>
             </div>
 
             {/* Header */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
                     {/* Image */}
-                    <div className="aspect-square bg-gray-50 flex items-center justify-center md:border-r border-slate-100">
+                    <div className="aspect-square bg-[var(--bg)] flex items-center justify-center md:border-r border-[var(--border)]">
                         {image && !imgError ? (
                             <img src={image} alt={product.nombre} className="w-full h-full object-contain p-4" onError={() => setImgError(true)} />
                         ) : (
@@ -151,15 +151,15 @@ export default function ArticuloDetailPage() {
                     <div className="col-span-2 p-6 flex flex-col gap-4">
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <p className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">{product.marca || 'GENERIC'}</p>
-                                <h1 className="text-xl font-bold text-slate-900 mt-1">{product.nombre}</h1>
-                                <p className="text-sm text-slate-500 font-mono mt-1">{product.articulo_id}</p>
+                                <p className="text-xs font-mono font-bold text-[var(--text-faint)] uppercase tracking-wider">{product.marca || 'GENERIC'}</p>
+                                <h1 className="text-xl font-bold text-[var(--text)] mt-1">{product.nombre}</h1>
+                                <p className="text-sm text-[var(--text-muted)] font-mono mt-1">{product.articulo_id}</p>
                             </div>
                             <div className="flex items-center gap-2">
                                 {isMapped ? (
                                     <span className="text-xs bg-yellow-400 text-yellow-900 font-bold px-3 py-1 rounded-md">MeLi</span>
                                 ) : (
-                                    <span className="text-xs bg-slate-800 text-white font-bold px-3 py-1 rounded-md">Sin vincular</span>
+                                    <span className="text-xs bg-[var(--surface)] text-[var(--accent-ink)] font-bold px-3 py-1 rounded-md">Sin vincular</span>
                                 )}
                             </div>
                         </div>
@@ -167,13 +167,13 @@ export default function ArticuloDetailPage() {
                         {/* Stock Card */}
                         <div className={cn(
                             "p-4 rounded-lg border flex items-center justify-between",
-                            isLowStock ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200"
+                            isLowStock ? "bg-[var(--err)]/10 border-[var(--err)]/30" : "bg-[var(--ok)]/10 border-[var(--ok)]/30"
                         )}>
                             <div className="flex items-center gap-2">
-                                {isLowStock && <AlertCircle className="w-4 h-4 text-rose-500" />}
-                                <span className="text-sm font-bold uppercase text-slate-600">Stock Físico</span>
+                                {isLowStock && <AlertCircle className="w-4 h-4 text-[var(--err)]" />}
+                                <span className="text-sm font-bold uppercase text-[var(--text-muted)]">Stock Físico</span>
                             </div>
-                            <span className={cn("text-3xl font-black", isLowStock ? "text-rose-600" : "text-emerald-600")}>
+                            <span className={cn("text-3xl font-black", isLowStock ? "text-[var(--err)]" : "text-[var(--ok)]")}>
                                 {stock}
                             </span>
                         </div>
@@ -183,7 +183,7 @@ export default function ArticuloDetailPage() {
                             {boolFields.map(f => f.value != null && (
                                 <span key={f.label} className={cn(
                                     "text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1",
-                                    f.value ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"
+                                    f.value ? "bg-emerald-100 text-[var(--ok)]" : "bg-[var(--surface-2)] text-[var(--text-faint)]"
                                 )}>
                                     {f.value ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                                     {f.label}
@@ -195,18 +195,18 @@ export default function ArticuloDetailPage() {
             </div>
 
             {/* Detail Fields */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                <h2 className="text-lg font-bold text-slate-900 mb-4">Datos del Artículo</h2>
+            <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm p-6">
+                <h2 className="text-lg font-bold text-[var(--text)] mb-4">Datos del Artículo</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {fields.map(f => f.value && (
-                        <div key={f.label} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                            <f.icon className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div key={f.label} className="flex items-start gap-3 p-3 bg-[var(--bg)] rounded-lg">
+                            <f.icon className="w-4 h-4 text-[var(--text-faint)] mt-0.5 shrink-0" />
                             <div className="min-w-0">
-                                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">{f.label}</p>
+                                <p className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider">{f.label}</p>
                                 {f.isLink ? (
-                                    <a href={f.value} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline break-all">{f.value}</a>
+                                    <a href={f.value} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--accent)] hover:underline break-all">{f.value}</a>
                                 ) : (
-                                    <p className="text-sm text-slate-700 break-words">{f.value}</p>
+                                    <p className="text-sm text-[var(--text-muted)] break-words">{f.value}</p>
                                 )}
                             </div>
                         </div>
@@ -215,9 +215,9 @@ export default function ArticuloDetailPage() {
             </div>
 
             {/* -- Aviso Transición a Motor V2 ----------------------------------- */}
-            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6">
+            <div className="bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-xl p-6">
                 <div className="flex gap-3">
-                    <AlertCircle className="w-6 h-6 text-indigo-500 shrink-0" />
+                    <AlertCircle className="w-6 h-6 text-[var(--accent)] shrink-0" />
                     <div>
                         <h3 className="font-bold text-indigo-900 text-lg">La gestión de precios ha migrado (Motor V2)</h3>
                         <p className="text-indigo-800 text-sm mt-1">
@@ -242,8 +242,8 @@ export default function ArticuloDetailPage() {
 
             {/* Marketplace Mappings */}
             {isMapped && (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                    <h2 className="text-lg font-bold text-slate-900 mb-4">Mapeos de Marketplace</h2>
+                <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm p-6">
+                    <h2 className="text-lg font-bold text-[var(--text)] mb-4">Mapeos de Marketplace</h2>
                     <div className="flex flex-wrap gap-2">
                         {(Array.isArray(product.mapeo_publicacion_articulo) ? product.mapeo_publicacion_articulo : [product.mapeo_publicacion_articulo]).map((m: any, i: number) => (
                             <span key={i} className="text-xs bg-yellow-100 text-yellow-800 font-mono font-bold px-3 py-1.5 rounded-lg border border-yellow-200">
@@ -255,7 +255,7 @@ export default function ArticuloDetailPage() {
             )}
 
             {/* Timestamps */}
-            <div className="text-xs text-slate-400 text-right">
+            <div className="text-xs text-[var(--text-faint)] text-right">
                 Creado: {product.creado_el ? new Date(product.creado_el).toLocaleString('es-MX') : 'N/A'}
             </div>
         </div>

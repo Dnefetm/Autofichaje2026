@@ -17,12 +17,12 @@ export default async function PreciosImportacionesPage() {
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Importaciones</h1>
-          <p className="text-slate-500 mt-1">Histórico y estado en tiempo real de los reportes masivos</p>
+          <h1 className="text-2xl font-bold text-[var(--text)]">Importaciones</h1>
+          <p className="text-[var(--text-muted)] mt-1">Histórico y estado en tiempo real de los reportes masivos</p>
         </div>
         <Link 
           href="/precios/importar" 
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-medium transition-colors"
+          className="bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] px-4 py-2 rounded-xl flex items-center gap-2 font-medium transition-colors"
         >
           <Plus className="w-4 h-4" />
           Nueva importación

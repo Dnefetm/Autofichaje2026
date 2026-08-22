@@ -74,15 +74,15 @@ export function SkuCard({
     return (
         <div
             className={cn(
-                "bg-white rounded-xl border overflow-hidden flex flex-col group hover:shadow-md transition-all",
+                "bg-[var(--surface)] rounded-xl border overflow-hidden flex flex-col group hover:shadow-md transition-all",
                 isSelected
-                    ? "border-indigo-400 ring-2 ring-indigo-400 shadow-md"
-                    : "border-slate-200 shadow-sm"
+                    ? "border-[var(--accent)]/70 ring-2 ring-indigo-400 shadow-md"
+                    : "border-[var(--border)] shadow-sm"
             )}
         >
             {/* Image Section */}
             <div
-                className="aspect-square bg-gray-50/80 flex items-center justify-center relative overflow-hidden cursor-pointer"
+                className="aspect-square bg-[var(--bg)]/80 flex items-center justify-center relative overflow-hidden cursor-pointer"
                 onClick={() => onToggleSelection?.(product.articulo_id)}
             >
                 {image && !imgError ? (
@@ -105,7 +105,7 @@ export function SkuCard({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => onToggleSelection?.(product.articulo_id)}
-                        className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer pointer-events-auto"
+                        className="w-5 h-5 rounded border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer pointer-events-auto"
                     />
                 </div>
 
@@ -116,7 +116,7 @@ export function SkuCard({
                             MeLi
                         </span>
                     ) : (
-                        <span className="text-xs bg-slate-800 text-white font-bold px-2 py-0.5 rounded-md shadow-sm">
+                        <span className="text-xs bg-[var(--surface)] text-[var(--accent-ink)] font-bold px-2 py-0.5 rounded-md shadow-sm">
                             Sin vincular
                         </span>
                     )}
@@ -125,56 +125,56 @@ export function SkuCard({
 
             {/* Content Section */}
             <div className="p-3 flex flex-col gap-1 flex-1">
-                <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                <p className="text-[10px] font-mono font-bold text-[var(--text-faint)] uppercase tracking-wider">
                     {product.marca || 'GENERIC'}
                 </p>
-                <h3 className="text-sm font-bold text-slate-900 leading-snug line-clamp-2">
+                <h3 className="text-sm font-bold text-[var(--text)] leading-snug line-clamp-2">
                     {product.nombre}
                 </h3>
 
                 {/* Identifiers */}
                 <div className="mt-1 flex flex-col gap-0.5">
                     <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-bold uppercase text-slate-400 w-16 shrink-0">SKU</span>
-                        <span className="text-[10px] font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded truncate">
+                        <span className="text-[9px] font-bold uppercase text-[var(--text-faint)] w-16 shrink-0">SKU</span>
+                        <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded truncate">
                             {product.articulo_id}
                         </span>
                     </div>
                     {product.modelo && (
                         <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 w-16 shrink-0">Modelo</span>
-                            <span className="text-[10px] text-slate-600 truncate">{product.modelo}</span>
+                            <span className="text-[9px] font-bold uppercase text-[var(--text-faint)] w-16 shrink-0">Modelo</span>
+                            <span className="text-[10px] text-[var(--text-muted)] truncate">{product.modelo}</span>
                         </div>
                     )}
                     {product.codigo_universal && (
                         <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 w-16 shrink-0">UPC/EAN</span>
-                            <span className="text-[10px] font-mono text-slate-600 truncate">{product.codigo_universal}</span>
+                            <span className="text-[9px] font-bold uppercase text-[var(--text-faint)] w-16 shrink-0">UPC/EAN</span>
+                            <span className="text-[10px] font-mono text-[var(--text-muted)] truncate">{product.codigo_universal}</span>
                         </div>
                     )}
                     {product.variante && (
                         <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 w-16 shrink-0">Variante</span>
-                            <span className="text-[10px] text-slate-600 truncate">{product.variante}</span>
+                            <span className="text-[9px] font-bold uppercase text-[var(--text-faint)] w-16 shrink-0">Variante</span>
+                            <span className="text-[10px] text-[var(--text-muted)] truncate">{product.variante}</span>
                         </div>
                     )}
                                         {product.caja_madre && (
                         <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-bold uppercase text-slate-400 w-16 shrink-0">Caja Madre</span>
-                            <span className="text-[10px] text-slate-600 truncate">{product.caja_madre}</span>
+                            <span className="text-[9px] font-bold uppercase text-[var(--text-faint)] w-16 shrink-0">Caja Madre</span>
+                            <span className="text-[10px] text-[var(--text-muted)] truncate">{product.caja_madre}</span>
                         </div>
                     )}
                 </div>
             </div>
 
             {/* Stock Control */}
-            <div className="px-3 pb-3 border-t border-slate-100 pt-2 mt-auto">
+            <div className="px-3 pb-3 border-t border-[var(--border)] pt-2 mt-auto">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">
                         {isLowStock && <AlertCircle className="w-3 h-3 text-amber-500" />}
                         <p className={cn(
                             "text-[10px] uppercase font-bold",
-                            isLowStock ? "text-amber-500" : "text-slate-400"
+                            isLowStock ? "text-amber-500" : "text-[var(--text-faint)]"
                         )}>
                                             Stock Fisico
                         </p>
@@ -185,14 +185,14 @@ export function SkuCard({
                                 type="number"
                                 value={stockInput}
                                 onChange={(e) => setStockInput(e.target.value)}
-                                className="w-16 px-2 py-1 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-center"
+                                className="w-16 px-2 py-1 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-[var(--accent)] outline-none text-center"
                                 autoFocus
                                 onKeyDown={(e) => e.key === 'Enter' && handleSave()}
                             />
                             <button
                                 onClick={handleSave}
                                 disabled={saving}
-                                className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                                className="p-1.5 bg-[var(--accent)] text-[var(--accent-ink)] rounded hover:brightness-110 disabled:opacity-50 transition-colors"
                             >
                                 <Save className="w-3.5 h-3.5" />
                             </button>
@@ -201,24 +201,24 @@ export function SkuCard({
                         <div className="flex items-center gap-1.5 group/edit cursor-pointer" onClick={() => setEditing(true)}>
                             <span className={cn(
                                 "text-xl font-black",
-                                isLowStock ? "text-rose-600" : "text-emerald-600"
+                                isLowStock ? "text-[var(--err)]" : "text-[var(--ok)]"
                             )}>
                                 {newStock}
                             </span>
-                            <Edit2 className="w-3 h-3 text-slate-300 group-hover/edit:text-indigo-600 transition-colors" />
+                            <Edit2 className="w-3 h-3 text-slate-300 group-hover/edit:text-[var(--accent)] transition-colors" />
                         </div>
                     )}
                 </div>
             </div>
 
             {/* Action Footer */}
-            <div className="px-3 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                <Link href={`/catalog/${product.articulo_id}`} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 transition-colors">
+            <div className="px-3 py-2 bg-[var(--bg)] border-t border-[var(--border)] flex items-center justify-between">
+                <Link href={`/catalog/${product.articulo_id}`} className="text-xs font-bold text-[var(--accent)] hover:text-indigo-800 flex items-center gap-1.5 transition-colors">
                     Ver Ficha
                 </Link>
                 <Link
                     href={`/autoficha?articulo_id=${encodeURIComponent(product.articulo_id)}`}
-                    className="text-xs font-bold text-emerald-600 hover:text-emerald-800 flex items-center gap-1 transition-colors"
+                    className="text-xs font-bold text-[var(--ok)] hover:text-emerald-800 flex items-center gap-1 transition-colors"
                     title="Crear ficha técnica para este artículo"
                 >
                     <FileText className="w-3 h-3" /> Crear ficha

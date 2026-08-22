@@ -103,36 +103,36 @@ export default async function HubProveedorPage(props: {
     const totalPaginas = Math.ceil((totalEncontrados || totalFilas || 0) / pageSize);
 
     return (
-        <div className="flex flex-col h-full bg-white relative">
-            <header className="flex items-center justify-between px-8 py-6 border-b border-slate-200">
+        <div className="flex flex-col h-full bg-[var(--surface)] relative">
+            <header className="flex items-center justify-between px-8 py-6 border-b border-[var(--border)]">
                 <div className="flex flex-col flex-1">
-                    <div className="flex items-center text-sm text-slate-500 mb-2">
-                        <Link href="/precios" className="hover:text-indigo-600 transition flex items-center">
+                    <div className="flex items-center text-sm text-[var(--text-muted)] mb-2">
+                        <Link href="/precios" className="hover:text-[var(--accent)] transition flex items-center">
                             <ArrowLeft className="w-3 h-3 mr-1" /> Precios
                         </Link>
                         <span className="mx-2">/</span>
-                        <span className="font-medium text-slate-700">{proveedorDecoded}</span>
+                        <span className="font-medium text-[var(--text-muted)]">{proveedorDecoded}</span>
                         <span className="mx-3 text-slate-300">|</span>
-                        <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial`} className="hover:text-indigo-600 flex items-center gap-1">
+                        <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial`} className="hover:text-[var(--accent)] flex items-center gap-1">
                             <History className="w-3.5 h-3.5" /> Historial de Lotes
                         </Link>
                     </div>
                     <div className="flex items-end justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{proveedorDecoded}</h1>
-                            <p className="text-sm text-slate-500 mt-1">
+                            <h1 className="text-3xl font-bold text-[var(--text)] tracking-tight">{proveedorDecoded}</h1>
+                            <p className="text-sm text-[var(--text-muted)] mt-1">
                                 {(totalFilas || 0).toLocaleString()} SKUs en catálogo
                                 {' · '}Última act. {fechaAct ? new Date(fechaAct).toLocaleDateString('es-MX') : '—'}
                                 {' · '}
                                 {estaVigente
-                                    ? <span className="text-emerald-600 font-semibold">● Lista Vigente</span>
-                                    : <span className="text-amber-600 font-semibold">⚠ Lista sin activar — ve al historial para activarla</span>
+                                    ? <span className="text-[var(--ok)] font-semibold">● Lista Vigente</span>
+                                    : <span className="text-[var(--warn)] font-semibold">⚠ Lista sin activar — ve al historial para activarla</span>
                                 }
                             </p>
                         </div>
                         <Link
                             href={`/precios/${encodeURIComponent(proveedorDecoded)}/subir`}
-                            className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold shadow-sm hover:bg-indigo-700 transition-all flex items-center text-sm"
+                            className="bg-[var(--accent)] text-[var(--accent-ink)] px-6 py-3 rounded-xl font-bold shadow-sm hover:brightness-110 transition-all flex items-center text-sm"
                         >
                             <span className="mr-2 text-lg">+</span> Actualizar lista de precios
                         </Link>
@@ -140,30 +140,30 @@ export default async function HubProveedorPage(props: {
                 </div>
             </header>
 
-            <div className="flex-1 overflow-hidden flex flex-col bg-slate-50">
+            <div className="flex-1 overflow-hidden flex flex-col bg-[var(--bg)]">
                 {/* Buscador */}
-                <div className="p-4 bg-white border-b border-slate-200 flex items-center gap-3 shrink-0">
+                <div className="p-4 bg-[var(--surface)] border-b border-[var(--border)] flex items-center gap-3 shrink-0">
                     <form action={`/precios/${encodeURIComponent(proveedorDecoded)}`} method="GET" className="flex items-center gap-3 flex-1">
                         <div className="relative w-full max-w-xl">
-                            <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                            <Search className="w-4 h-4 absolute left-3.5 top-3 text-[var(--text-faint)]" />
                             <input
                                 type="text"
                                 name="q"
                                 placeholder="Buscar por clave, código de barras o descripción..."
                                 defaultValue={searchParams.q || ''}
-                                className="pl-10 pr-4 py-2.5 w-full text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50"
+                                className="pl-10 pr-4 py-2.5 w-full text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--bg)]/50"
                             />
                         </div>
-                        <button type="submit" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-colors">
+                        <button type="submit" className="px-5 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-xl text-sm font-bold transition-colors">
                             Buscar
                         </button>
                         {q && (
-                            <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}`} className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-medium transition-colors">
+                            <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}`} className="px-4 py-2.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-xl text-sm font-medium transition-colors">
                                 Limpiar
                             </Link>
                         )}
                     </form>
-                    <span className="text-sm text-slate-400 shrink-0">
+                    <span className="text-sm text-[var(--text-faint)] shrink-0">
                         {q ? `${totalEncontrados.toLocaleString()} resultados` : `${(totalFilas || 0).toLocaleString()} productos · Página ${page + 1} de ${totalPaginas}`}
                     </span>
                 </div>
@@ -178,15 +178,15 @@ export default async function HubProveedorPage(props: {
 
                 {/* Paginación */}
                 {!q && totalPaginas > 1 && (
-                    <div className="shrink-0 px-6 py-4 bg-white border-t border-slate-200 flex items-center justify-between text-sm">
-                        <span className="text-slate-500">
+                    <div className="shrink-0 px-6 py-4 bg-[var(--surface)] border-t border-[var(--border)] flex items-center justify-between text-sm">
+                        <span className="text-[var(--text-muted)]">
                             Mostrando {page * pageSize + 1}–{Math.min((page + 1) * pageSize, totalFilas || 0)} de {(totalFilas || 0).toLocaleString()}
                         </span>
                         <div className="flex items-center gap-2">
                             {page > 0 && (
                                 <Link
                                     href={`/precios/${encodeURIComponent(proveedorDecoded)}?page=${page - 1}`}
-                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
+                                    className="px-4 py-2 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-lg font-medium transition-colors"
                                 >
                                     ← Anterior
                                 </Link>
@@ -194,7 +194,7 @@ export default async function HubProveedorPage(props: {
                             {page < totalPaginas - 1 && (
                                 <Link
                                     href={`/precios/${encodeURIComponent(proveedorDecoded)}?page=${page + 1}`}
-                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+                                    className="px-4 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg font-medium transition-colors"
                                 >
                                     Siguiente →
                                 </Link>

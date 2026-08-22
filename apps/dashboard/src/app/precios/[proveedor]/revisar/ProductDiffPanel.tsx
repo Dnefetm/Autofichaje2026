@@ -120,30 +120,30 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
         <div className="flex flex-col h-full relative">
             <div className="flex-1 overflow-auto pb-32">
                 {/* Header / Chips */}
-                <div className="bg-white px-8 py-6 border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+                <div className="bg-[var(--surface)] px-8 py-6 border-b border-[var(--border)] sticky top-0 z-20 shadow-sm">
                     <div className="flex justify-between items-start mb-4">
-                        <h2 className="text-xl font-bold text-slate-900">Auditoría de Precios — Lote #{loteNum}</h2>
+                        <h2 className="text-xl font-bold text-[var(--text)]">Auditoría de Precios — Lote #{loteNum}</h2>
                         <div className="flex items-center space-x-2 text-sm font-medium">
-                            <span className="text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">{globalStats.aprobados} aprobados</span>
-                            <span className="text-rose-600 bg-rose-50 px-3 py-1 rounded-full">{globalStats.rechazados} rechazados</span>
-                            <span className="text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{globalStats.pendientes} pendientes</span>
+                            <span className="text-[var(--ok)] bg-[var(--ok)]/10 px-3 py-1 rounded-full">{globalStats.aprobados} aprobados</span>
+                            <span className="text-[var(--err)] bg-[var(--err)]/10 px-3 py-1 rounded-full">{globalStats.rechazados} rechazados</span>
+                            <span className="text-[var(--text-muted)] bg-[var(--surface-2)] px-3 py-1 rounded-full">{globalStats.pendientes} pendientes</span>
                         </div>
                     </div>
                     
                     <div className="flex flex-wrap gap-3 mb-6">
-                        <button onClick={() => setActiveChip('todos')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'todos' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        <button onClick={() => setActiveChip('todos')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'todos' ? 'bg-[var(--surface)] text-[var(--accent-ink)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-slate-200'}`}>
                             Todos ({diffData.length})
                         </button>
-                        <button onClick={() => setActiveChip('nuevo')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'nuevo' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>
+                        <button onClick={() => setActiveChip('nuevo')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'nuevo' ? 'bg-emerald-600 text-[var(--accent-ink)]' : 'bg-[var(--ok)]/10 text-[var(--ok)] hover:bg-emerald-100'}`}>
                             +{stats.nuevos} Nuevos
                         </button>
-                        <button onClick={() => setActiveChip('cambio')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'cambio' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>
+                        <button onClick={() => setActiveChip('cambio')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'cambio' ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'bg-[var(--accent)]/10 text-indigo-700 hover:bg-[var(--accent)]/20'}`}>
                             Δ {stats.cambios} Cambios
                         </button>
-                        <button onClick={() => setActiveChip('ausente')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'ausente' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
+                        <button onClick={() => setActiveChip('ausente')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'ausente' ? 'bg-amber-600 text-[var(--accent-ink)]' : 'bg-[var(--warn)]/10 text-[var(--warn)] hover:bg-amber-100'}`}>
                             -{stats.ausentes} Ausentes
                         </button>
-                        <button onClick={() => setActiveChip('sin_cambio')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'sin_cambio' ? 'bg-slate-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        <button onClick={() => setActiveChip('sin_cambio')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'sin_cambio' ? 'bg-[var(--bg)]0 text-[var(--accent-ink)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-slate-200'}`}>
                             {stats.sinCambio} Sin cambio
                         </button>
                     </div>
@@ -151,29 +151,29 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                     <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-6">
                             <div className="relative w-72">
-                                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                                <Search className="w-4 h-4 absolute left-3 top-2.5 text-[var(--text-faint)]" />
                                 <input 
                                     type="text" 
                                     placeholder="Buscar SKU/modelo..." 
                                     value={search}
                                     onChange={e => setSearch(e.target.value)}
-                                    className="pl-9 pr-4 py-2 w-full border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="pl-9 pr-4 py-2 w-full border border-slate-300 rounded-md focus:ring-[var(--accent)] focus:border-[var(--accent)]"
                                 />
                             </div>
-                            <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
-                                <input type="checkbox" checked={soloCambiosMayores} onChange={e => setSoloCambiosMayores(e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                            <label className="flex items-center space-x-2 text-[var(--text-muted)] cursor-pointer">
+                                <input type="checkbox" checked={soloCambiosMayores} onChange={e => setSoloCambiosMayores(e.target.checked)} className="rounded border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)]" />
                                 <span>Solo cambios &gt; 5%</span>
                             </label>
-                            <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
-                                <input type="checkbox" checked={soloAumentos} onChange={e => setSoloAumentos(e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                            <label className="flex items-center space-x-2 text-[var(--text-muted)] cursor-pointer">
+                                <input type="checkbox" checked={soloAumentos} onChange={e => setSoloAumentos(e.target.checked)} className="rounded border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)]" />
                                 <span>Solo aumentos</span>
                             </label>
                         </div>
                         <div className="flex items-center space-x-2">
-                            <button onClick={() => handleBulkDecision('aprobado')} className="flex items-center px-3 py-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded text-sm font-medium transition-colors">
+                            <button onClick={() => handleBulkDecision('aprobado')} className="flex items-center px-3 py-1.5 text-[var(--ok)] bg-[var(--ok)]/10 hover:bg-emerald-100 rounded text-sm font-medium transition-colors">
                                 <Check className="w-4 h-4 mr-1" /> Aprobar {filteredData.length} visibles
                             </button>
-                            <button onClick={() => handleBulkDecision('rechazado')} className="flex items-center px-3 py-1.5 text-rose-700 bg-rose-50 hover:bg-rose-100 rounded text-sm font-medium transition-colors">
+                            <button onClick={() => handleBulkDecision('rechazado')} className="flex items-center px-3 py-1.5 text-[var(--err)] bg-[var(--err)]/10 hover:bg-rose-100 rounded text-sm font-medium transition-colors">
                                 <X className="w-4 h-4 mr-1" /> Rechazar {filteredData.length} visibles
                             </button>
                         </div>
@@ -191,7 +191,7 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                         />
                     ))}
                     {filteredData.length === 0 && (
-                        <div className="py-24 text-center text-slate-500">
+                        <div className="py-24 text-center text-[var(--text-muted)]">
                             No hay resultados para los filtros actuales.
                         </div>
                     )}
@@ -199,22 +199,22 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
             </div>
 
             {/* Footer Fijo */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 flex justify-between items-center shadow-[0_-10px_15px_-3px_rgb(0,0,0,0.05)] z-30 ml-64">
+            <div className="fixed bottom-0 left-0 right-0 bg-[var(--surface)] border-t border-[var(--border)] p-4 flex justify-between items-center shadow-[0_-10px_15px_-3px_rgb(0,0,0,0.05)] z-30 ml-64">
                 <div className="text-sm font-medium pl-4 flex items-center space-x-3">
-                    <span className="text-emerald-600">{globalStats.aprobados} aprobados</span>
+                    <span className="text-[var(--ok)]">{globalStats.aprobados} aprobados</span>
                     <span className="text-slate-300">·</span>
-                    <span className="text-rose-600">{globalStats.rechazados} rechazados</span>
+                    <span className="text-[var(--err)]">{globalStats.rechazados} rechazados</span>
                     <span className="text-slate-300">·</span>
-                    <span className="text-slate-500">{globalStats.pendientes} pendientes</span>
+                    <span className="text-[var(--text-muted)]">{globalStats.pendientes} pendientes</span>
                 </div>
                 <div className="flex items-center space-x-4 pr-4">
-                    <button className="inline-flex items-center px-4 py-2 bg-white border border-slate-300 rounded-lg font-medium text-slate-700 hover:bg-slate-50 shadow-sm text-sm transition-colors">
+                    <button className="inline-flex items-center px-4 py-2 bg-[var(--surface)] border border-slate-300 rounded-lg font-medium text-[var(--text-muted)] hover:bg-[var(--bg)] shadow-sm text-sm transition-colors">
                         <Download className="w-4 h-4 mr-2" /> Exportar diff
                     </button>
                     <button 
                         onClick={handleAprobarLote}
                         disabled={loading}
-                        className="inline-flex items-center px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg font-medium hover:bg-emerald-100 shadow-sm text-sm transition-colors disabled:opacity-50"
+                        className="inline-flex items-center px-4 py-2 bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30 rounded-lg font-medium hover:bg-emerald-100 shadow-sm text-sm transition-colors disabled:opacity-50"
                     >
                         <Check className="w-4 h-4 mr-2" /> Aprobar todo el lote
                     </button>
@@ -233,7 +233,7 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                             applyChanges(decisions);
                         }}
                         disabled={loading || globalStats.aprobados === 0 && globalStats.pendientes === 0}
-                        className="inline-flex items-center px-8 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 shadow-md transition-colors disabled:opacity-50 text-base"
+                        className="inline-flex items-center px-8 py-3 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg font-medium hover:brightness-110 shadow-md transition-colors disabled:opacity-50 text-base"
                     >
                         {loading ? 'Aplicando...' : 'Ir a Aplicar'} <ArrowRight className="w-5 h-5 ml-2" />
                     </button>

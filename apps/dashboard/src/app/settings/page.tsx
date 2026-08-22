@@ -32,7 +32,7 @@ function AuthFeedback() {
     return (
         <div className={cn(
             "p-4 rounded-xl border mb-6 flex items-center gap-3 animate-in zoom-in-95 duration-300",
-            auth === 'success' ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800"
+            auth === 'success' ? "bg-[var(--ok)]/10 border-[var(--ok)]/30 text-emerald-800" : "bg-[var(--err)]/10 border-[var(--err)]/30 text-rose-800"
         )}>
             {auth === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
             <span className="text-sm font-bold">
@@ -44,7 +44,7 @@ function AuthFeedback() {
 
 export default function SettingsPage() {
     return (
-        <Suspense fallback={<div className="p-8 text-center text-slate-400">Cargando configuración...</div>}>
+        <Suspense fallback={<div className="p-8 text-center text-[var(--text-faint)]">Cargando configuración...</div>}>
             <SettingsContent />
         </Suspense>
     );
@@ -101,15 +101,15 @@ function SettingsContent() {
             {/* -- Tiendas -- */}
             <div className="flex justify-between items-start md:items-end flex-col md:flex-row gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">Tiendas Conectadas</h2>
-                    <p className="text-slate-500 text-sm mt-1">
+                    <h2 className="text-2xl font-bold tracking-tight text-[var(--text)]">Tiendas Conectadas</h2>
+                    <p className="text-[var(--text-muted)] text-sm mt-1">
                         Vincula cuentas de Mercado Libre de tus vendedores.
                         El Gestor centralizará el inventario de todas ellas.
                     </p>
                 </div>
                 <button
                     onClick={handleLinkNewStore}
-                    className="px-5 py-2.5 bg-yellow-400 text-slate-900 rounded-xl font-bold text-sm hover:bg-yellow-500 transition-colors shadow-sm flex items-center gap-2"
+                    className="px-5 py-2.5 bg-yellow-400 text-[var(--text)] rounded-xl font-bold text-sm hover:bg-yellow-500 transition-colors shadow-sm flex items-center gap-2"
                 >
                     <LinkIcon className="w-4 h-4" />
                     + Vincular Nueva Tienda MeLi
@@ -121,10 +121,10 @@ function SettingsContent() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 space-y-4">
                     {configs.length === 0 ? (
-                        <div className="p-8 text-center bg-slate-50 border border-slate-200 border-dashed rounded-xl">
+                        <div className="p-8 text-center bg-[var(--bg)] border border-[var(--border)] border-dashed rounded-xl">
                             <Database className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-                            <h3 className="text-sm font-bold text-slate-700">No hay tiendas vinculadas</h3>
-                            <p className="text-xs text-slate-500 mt-1">Haz clic en el botón amarillo para autorizar la primera cuenta.</p>
+                            <h3 className="text-sm font-bold text-[var(--text-muted)]">No hay tiendas vinculadas</h3>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">Haz clic en el botón amarillo para autorizar la primera cuenta.</p>
                         </div>
                     ) : (
                         configs.map((config, idx) => (
@@ -137,17 +137,17 @@ function SettingsContent() {
                 </div>
 
                 <div className="space-y-4">
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4 text-sm">
-                        <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                            <Shield className="w-4 h-4 text-emerald-600" />
+                    <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm p-6 space-y-4 text-sm">
+                        <h4 className="font-bold text-[var(--text)] flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-[var(--ok)]" />
                             Estado del Gestor
                         </h4>
                         <StatusItem label="Supabase DB" status={dbState === 'online' ? 'online' : (dbState === 'error' ? 'offline' : 'checking')} />
                         <StatusItem label="Oauth Central" status="online" />
                         <StatusItem label="Catálogo Maestro" status="online" />
                         
-                        <div className="pt-2 border-t border-slate-100">
-                            <a href="/settings/pricing" className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center justify-between group">
+                        <div className="pt-2 border-t border-[var(--border)]">
+                            <a href="/settings/pricing" className="text-[var(--accent)] hover:text-indigo-800 font-bold flex items-center justify-between group">
                                 Estrategia de Precios 
                                 <ChevronRight className="w-4 h-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
                             </a>
@@ -170,14 +170,14 @@ function StoreCard({ config }: { config: any }) {
     };
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex items-center justify-between p-5 hover:border-slate-300 transition-colors">
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden flex items-center justify-between p-5 hover:border-slate-300 transition-colors">
             <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-yellow-400 rounded-xl flex items-center justify-center font-bold text-yellow-900 text-lg shadow-inner">
                     {config.account_name.substring(0, 2).toUpperCase()}
                 </div>
                 <div>
-                    <h3 className="font-bold text-slate-900 text-lg">{config.account_name}</h3>
-                    <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                    <h3 className="font-bold text-[var(--text)] text-lg">{config.account_name}</h3>
+                    <div className="text-xs text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
                         <span className="text-yellow-600 font-semibold">Mercado Libre</span>
                         <span>•</span>
                         <span>ID: {config.settings?.seller_id || config.id.split('-')[0]}</span>
@@ -209,11 +209,11 @@ function StoreCard({ config }: { config: any }) {
 function StatusItem({ label, status }: { label: string, status: 'online' | 'offline' | 'checking' }) {
     return (
         <div className="flex justify-between items-center text-xs">
-            <span className="text-slate-600 font-medium">{label}</span>
+            <span className="text-[var(--text-muted)] font-medium">{label}</span>
             <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px]">
-                {status === 'online' && <><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.5)]" /> <span className="text-emerald-700">En línea</span></>}
-                {status === 'offline' && <><span className="w-1.5 h-1.5 bg-rose-500 rounded-full shadow-[0_0_5px_rgba(244,63,94,0.5)]" /> <span className="text-rose-700">Offline</span></>}
-                {status === 'checking' && <><span className="w-1.5 h-1.5 bg-slate-400 animate-pulse rounded-full" /> <span className="text-slate-500">Validando</span></>}
+                {status === 'online' && <><span className="w-1.5 h-1.5 bg-[var(--ok)]/100 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.5)]" /> <span className="text-[var(--ok)]">En línea</span></>}
+                {status === 'offline' && <><span className="w-1.5 h-1.5 bg-[var(--err)]/100 rounded-full shadow-[0_0_5px_rgba(244,63,94,0.5)]" /> <span className="text-[var(--err)]">Offline</span></>}
+                {status === 'checking' && <><span className="w-1.5 h-1.5 bg-slate-400 animate-pulse rounded-full" /> <span className="text-[var(--text-muted)]">Validando</span></>}
             </div>
         </div>
     );
@@ -314,51 +314,51 @@ function WebhookControlPanel() {
     const allTopics = DEFAULT_TOPICS.map(def => configs.find(c => c.topic === def.topic) ?? def);
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
             {/* Header colapsable */}
             <button
                 onClick={() => setExpanded(e => !e)}
-                className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
+                className="w-full flex items-center justify-between p-6 hover:bg-[var(--bg)] transition-colors"
             >
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center">
-                        <Zap className="w-4 h-4 text-indigo-600" />
+                    <div className="w-9 h-9 bg-[var(--accent)]/20 rounded-xl flex items-center justify-center">
+                        <Zap className="w-4 h-4 text-[var(--accent)]" />
                     </div>
                     <div className="text-left">
-                        <h3 className="font-bold text-slate-900 text-base">Webhooks — Velocidad de reacción</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <h3 className="font-bold text-[var(--text)] text-base">Webhooks — Velocidad de reacción</h3>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
                             Controla qué tan rápido procesa cada tipo de notificación de MeLi
                         </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
                     {!loading && (
-                        <div className="hidden md:flex items-center gap-4 text-xs text-slate-500">
+                        <div className="hidden md:flex items-center gap-4 text-xs text-[var(--text-muted)]">
                             <span className="flex items-center gap-1">
-                                <Activity className="w-3.5 h-3.5 text-indigo-500" />
+                                <Activity className="w-3.5 h-3.5 text-[var(--accent)]" />
                                 {totalEventos} eventos (24h)
                             </span>
-                            <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                            <span className="flex items-center gap-1 text-[var(--ok)] font-semibold">
                                 {totalJobsEvitados} jobs evitados
                             </span>
                             {totalPending > 0 && (
-                                <span className="flex items-center gap-1 text-amber-600 font-semibold">
+                                <span className="flex items-center gap-1 text-[var(--warn)] font-semibold">
                                     {totalPending} en cola
                                 </span>
                             )}
                         </div>
                     )}
-                    {expanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                    {expanded ? <ChevronDown className="w-4 h-4 text-[var(--text-faint)]" /> : <ChevronRight className="w-4 h-4 text-[var(--text-faint)]" />}
                 </div>
             </button>
 
             {expanded && (
-                <div className="border-t border-slate-100">
+                <div className="border-t border-[var(--border)]">
                     {loading ? (
-                        <div className="p-8 text-center text-slate-400 text-sm">Cargando configuración...</div>
+                        <div className="p-8 text-center text-[var(--text-faint)] text-sm">Cargando configuración...</div>
                     ) : (
                         <>
-                            <div className="divide-y divide-slate-100">
+                            <div className="divide-y divide-[var(--border)]">
                                 {allTopics.map(def => {
                                     const topic = def.topic;
                                     const enabled = getVal(topic, 'enabled', def.enabled);
@@ -384,14 +384,14 @@ function WebhookControlPanel() {
                                                             : <ToggleLeft className="w-6 h-6 text-slate-300" />}
                                                     </button>
                                                     <div>
-                                                        <p className="font-semibold text-sm text-slate-800">{def.label}</p>
-                                                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">{topic}</p>
+                                                        <p className="font-semibold text-sm text-[var(--text)]">{def.label}</p>
+                                                        <p className="text-[10px] text-[var(--text-faint)] font-mono mt-0.5">{topic}</p>
                                                     </div>
                                                 </div>
                                                 {metric && (
-                                                    <div className="flex items-center gap-3 text-xs text-slate-400 shrink-0">
+                                                    <div className="flex items-center gap-3 text-xs text-[var(--text-faint)] shrink-0">
                                                         <span>{metric.total_events} recibidos</span>
-                                                        <span className="text-emerald-600 font-semibold">{metric.jobs_evitados} jobs evitados</span>
+                                                        <span className="text-[var(--ok)] font-semibold">{metric.jobs_evitados} jobs evitados</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -400,7 +400,7 @@ function WebhookControlPanel() {
                                             <div className="flex flex-col sm:flex-row sm:items-center gap-3 pl-9">
 
                                                 {/* Segmented control — dos opciones claras y clicables */}
-                                                <div className="flex rounded-lg border border-slate-200 overflow-hidden shrink-0 text-xs font-semibold">
+                                                <div className="flex rounded-lg border border-[var(--border)] overflow-hidden shrink-0 text-xs font-semibold">
                                                     <button
                                                         id={`mode-immediate-${topic}`}
                                                         onClick={() => handleChange(topic, 'dispatch_immediate', true)}
@@ -409,8 +409,8 @@ function WebhookControlPanel() {
                                                         className={cn(
                                                             "flex items-center gap-1.5 px-3 py-2 transition-colors",
                                                             isImmediate
-                                                                ? "bg-emerald-500 text-white"
-                                                                : "bg-white text-slate-500 hover:bg-slate-50"
+                                                                ? "bg-[var(--ok)]/100 text-[var(--accent-ink)]"
+                                                                : "bg-[var(--surface)] text-[var(--text-muted)] hover:bg-[var(--bg)]"
                                                         )}
                                                     >
                                                         <Zap className="w-3.5 h-3.5" /> Inmediato
@@ -421,10 +421,10 @@ function WebhookControlPanel() {
                                                         disabled={!enabled}
                                                         title="Acumular notificaciones y crear un solo job por producto"
                                                         className={cn(
-                                                            "flex items-center gap-1.5 px-3 py-2 border-l border-slate-200 transition-colors",
+                                                            "flex items-center gap-1.5 px-3 py-2 border-l border-[var(--border)] transition-colors",
                                                             !isImmediate
-                                                                ? "bg-indigo-600 text-white"
-                                                                : "bg-white text-slate-500 hover:bg-slate-50"
+                                                                ? "bg-[var(--accent)] text-[var(--accent-ink)]"
+                                                                : "bg-[var(--surface)] text-[var(--text-muted)] hover:bg-[var(--bg)]"
                                                         )}
                                                     >
                                                         <Clock className="w-3.5 h-3.5" /> Con ventana
@@ -433,7 +433,7 @@ function WebhookControlPanel() {
 
                                                 {/* Descripción y control según modo seleccionado */}
                                                 {isImmediate ? (
-                                                    <p className="text-xs text-slate-500 italic">
+                                                    <p className="text-xs text-[var(--text-muted)] italic">
                                                         Se procesa en cuanto llega la notificación — mayor gasto de Edge Requests.
                                                     </p>
                                                 ) : (
@@ -449,7 +449,7 @@ function WebhookControlPanel() {
                                                             className="flex-1 accent-indigo-600"
                                                             disabled={!enabled}
                                                         />
-                                                        <span className="text-sm font-bold text-slate-700 w-44 shrink-0 tabular-nums">
+                                                        <span className="text-sm font-bold text-[var(--text-muted)] w-44 shrink-0 tabular-nums">
                                                             {`Consolidar ${Math.max(1, Math.round(windowSecs / 60))} min`}
                                                         </span>
                                                     </div>
@@ -460,7 +460,7 @@ function WebhookControlPanel() {
                                                         id={`save-${topic}`}
                                                         onClick={() => saveTopic(topic)}
                                                         disabled={saving === topic}
-                                                        className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                                                        className="flex items-center gap-1.5 px-3 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shrink-0"
                                                     >
                                                         {saving === topic ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                                                         Guardar
@@ -473,18 +473,18 @@ function WebhookControlPanel() {
                             </div>
 
                             {/* Footer con explicación en lenguaje de negocio */}
-                            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500">
+                            <div className="px-6 py-4 bg-[var(--bg)] border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-4 text-xs text-[var(--text-muted)]">
                                 <div className="flex flex-wrap gap-x-6 gap-y-2">
                                     <span className="flex items-center gap-1.5">
                                         <Zap className="w-3.5 h-3.5 text-emerald-500" />
                                         <strong>Inmediato:</strong> el worker se activa al instante — ideal para órdenes y pagos.
                                     </span>
                                     <span className="flex items-center gap-1.5">
-                                        <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                                        <Clock className="w-3.5 h-3.5 text-[var(--accent)]" />
                                         <strong>Con ventana:</strong> si el mismo producto se modifica 20 veces en 3 min, se crea 1 solo job en lugar de 20. Reduce costos.
                                     </span>
                                 </div>
-                                <button onClick={loadData} className="flex items-center gap-1 text-slate-400 hover:text-slate-700 transition-colors shrink-0">
+                                <button onClick={loadData} className="flex items-center gap-1 text-[var(--text-faint)] hover:text-[var(--text-muted)] transition-colors shrink-0">
                                     <RefreshCw className="w-3 h-3" /> Actualizar
                                 </button>
                             </div>

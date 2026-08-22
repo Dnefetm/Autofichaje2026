@@ -73,7 +73,7 @@ export default async function ConfirmarPageWrapper(props: { params: Promise<{ pr
 
     return (
         <div className="p-8 max-w-5xl mx-auto">
-            <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial`} className="inline-flex items-center text-sm text-indigo-600 mb-6 hover:underline">
+            <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial`} className="inline-flex items-center text-sm text-[var(--accent)] mb-6 hover:underline">
                 <ArrowLeft className="w-4 h-4 mr-1" /> Volver al historial
             </Link>
             

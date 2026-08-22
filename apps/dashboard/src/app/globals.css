@@ -1,35 +1,43 @@
 @import "tailwindcss";
 
 @layer base {
-  :root {                    /* DARK = tema base */
-    --bg:            #0B0C0E; /* fondo app */
-    --surface:       #121417; /* cards, panel, header de tabla */
-    --surface-2:     #171A1E; /* hover de fila, inputs */
-    --border:        #23272C; /* 1px, apenas visible */
-    --border-strong: #313740; /* foco, separadores de sección */
+  :root, [data-theme="dim"] { /* DARK = tema base (Discord style) */
+    --bg:            #313338;
+    --surface:       #2B2D31;
+    --surface-2:     #232428;
+    --border:        #43454B;
+    --border-strong: #4E5058;
 
-    --text:          #E8EAED; /* 16.2:1 sobre bg */
-    --text-muted:    #9BA1A9; /* 7.5:1  — labels, unidades */
-    --text-faint:    #6B7178; /* solo iconos/bordes, NO texto pequeño */
+    --text:          #F2F3F5;
+    --text-muted:    #B5BAC1;
+    --text-faint:    #80848E;
 
-    --accent:        #2DD4BF; /* 10.5:1 — links, foco, serie primaria */
-    --accent-ink:    #0B0C0E; /* texto sobre accent sólido */
+    --accent:        #5865F2;
+    --accent-ink:    #FFFFFF;
 
-    --ok:            #34D399; /* vigente / publicado / completado */
-    --warn:          #FBBF24; /* pendiente / en cola / sugerido */
-    --err:           #F87171; /* error / timeout / sin match */
-    --info:          #22D3EE; /* procesando / job corriendo */
+    --ok:            #23A559;
+    --warn:          #FEE75C;
+    --err:           #DA373C;
+    --info:          #00A8FC;
 
     --radius: 8px; --radius-sm: 6px;
     --row-h-compact: 32px; --row-h-cozy: 40px; --row-h-roomy: 52px;
   }
 
-  [data-theme="light"] {
-    --bg: #FAFAF9; --surface: #FFFFFF; --surface-2: #F4F4F5;
-    --border: #E4E4E7; --border-strong: #D4D4D8;
-    --text: #18181B; --text-muted: #52525B; --text-faint: #71717A;
-    --accent: #0F766E; --accent-ink: #FFFFFF;
-    --ok: #15803D; --warn: #B45309; --err: #B91C1C; --info: #0E7490;
+  [data-theme="solarized"] {
+    --bg: #002B36; --surface: #073642; --surface-2: #1A4B57;
+    --border: #215A68; --border-strong: #586E75;
+    --text: #93A1A1; --text-muted: #586E75; --text-faint: #215A68;
+    --accent: #2AA198; --accent-ink: #002B36;
+    --ok: #859900; --warn: #B58900; --err: #DC322F; --info: #268BD2;
+  }
+
+  [data-theme="sepia"] {
+    --bg: #3E2723; --surface: #4E342E; --surface-2: #5D4037;
+    --border: #6D4C41; --border-strong: #795548;
+    --text: #FFF8E1; --text-muted: #FFECB3; --text-faint: #FFE082;
+    --accent: #FFB300; --accent-ink: #3E2723;
+    --ok: #81C784; --warn: #FFD54F; --err: #E57373; --info: #64B5F6;
   }
 }
 

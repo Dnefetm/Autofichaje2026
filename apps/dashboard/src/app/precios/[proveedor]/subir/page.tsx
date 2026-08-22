@@ -78,13 +78,13 @@ export default function SubirPaso1() {
     return (
         <div className="p-8 max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[60vh]">
             <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">Subir Excel de Precios</h2>
-                <p className="text-slate-500">Asegúrate de que el archivo contenga las columnas de código, modelo y precio.</p>
+                <h2 className="text-2xl font-bold text-[var(--text)] mb-2">Subir Excel de Precios</h2>
+                <p className="text-[var(--text-muted)]">Asegúrate de que el archivo contenga las columnas de código, modelo y precio.</p>
             </div>
 
             <div 
                 className={`w-full max-w-2xl p-12 border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-colors cursor-pointer
-                    ${dragging ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 hover:bg-slate-50 hover:border-slate-400 bg-white'}`}
+                    ${dragging ? 'border-[var(--accent)] bg-[var(--accent)]/10' : 'border-slate-300 hover:bg-[var(--bg)] hover:border-slate-400 bg-[var(--surface)]'}`}
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={handleDrop}
@@ -94,34 +94,34 @@ export default function SubirPaso1() {
                     const f = e.target.files?.[0]; if (f) handleFile(f);
                 }} />
                 
-                <div className="bg-indigo-100 p-4 rounded-full mb-4">
-                    <Upload className="w-8 h-8 text-indigo-600" />
+                <div className="bg-[var(--accent)]/20 p-4 rounded-full mb-4">
+                    <Upload className="w-8 h-8 text-[var(--accent)]" />
                 </div>
-                <h3 className="text-lg font-medium text-slate-900 mb-1">
+                <h3 className="text-lg font-medium text-[var(--text)] mb-1">
                     {file ? file.name : "📄 Arrastra el Excel del proveedor o haz click para seleccionar"}
                 </h3>
-                {!file && <p className="text-sm text-slate-500 mt-2">Último lote procesado: -</p>}
-                {file && <p className="text-sm text-slate-500 mb-4">{(file.size / 1024 / 1024).toFixed(2)} MB</p>}
+                {!file && <p className="text-sm text-[var(--text-muted)] mt-2">Último lote procesado: -</p>}
+                {file && <p className="text-sm text-[var(--text-muted)] mb-4">{(file.size / 1024 / 1024).toFixed(2)} MB</p>}
                 
                 {error && <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-sm text-center font-medium max-w-md">{error}</div>}
             </div>
 
             <div className="mt-8 flex flex-col items-center">
-                <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-lg p-6 mb-6 shadow-sm">
-                    <h4 className="text-sm font-semibold text-slate-900 mb-4">Modo de actualización</h4>
+                <div className="w-full max-w-2xl bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6 mb-6 shadow-sm">
+                    <h4 className="text-sm font-semibold text-[var(--text)] mb-4">Modo de actualización</h4>
                     <div className="space-y-4">
-                        <label className={`flex items-start p-3 border rounded-md cursor-pointer transition-colors ${modo === 'parcial' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                            <input type="radio" name="modo" value="parcial" checked={modo === 'parcial'} onChange={() => setModo('parcial')} className="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
+                        <label className={`flex items-start p-3 border rounded-md cursor-pointer transition-colors ${modo === 'parcial' ? 'border-[var(--accent)] bg-[var(--accent)]/10' : 'border-[var(--border)] hover:bg-[var(--bg)]'}`}>
+                            <input type="radio" name="modo" value="parcial" checked={modo === 'parcial'} onChange={() => setModo('parcial')} className="mt-0.5 text-[var(--accent)] focus:ring-[var(--accent)]" />
                             <div className="ml-3">
-                                <span className="block text-sm font-medium text-slate-900">Actualización parcial (merge) — recomendado</span>
-                                <span className="block text-xs text-slate-500 mt-1">Solo actualiza los SKUs presentes en el archivo. Los demás conservan su precio anterior y se marcan como desactualizados.</span>
+                                <span className="block text-sm font-medium text-[var(--text)]">Actualización parcial (merge) — recomendado</span>
+                                <span className="block text-xs text-[var(--text-muted)] mt-1">Solo actualiza los SKUs presentes en el archivo. Los demás conservan su precio anterior y se marcan como desactualizados.</span>
                             </div>
                         </label>
-                        <label className={`flex items-start p-3 border rounded-md cursor-pointer transition-colors ${modo === 'full' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                            <input type="radio" name="modo" value="full" checked={modo === 'full'} onChange={() => setModo('full')} className="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
+                        <label className={`flex items-start p-3 border rounded-md cursor-pointer transition-colors ${modo === 'full' ? 'border-[var(--accent)] bg-[var(--accent)]/10' : 'border-[var(--border)] hover:bg-[var(--bg)]'}`}>
+                            <input type="radio" name="modo" value="full" checked={modo === 'full'} onChange={() => setModo('full')} className="mt-0.5 text-[var(--accent)] focus:ring-[var(--accent)]" />
                             <div className="ml-3">
-                                <span className="block text-sm font-medium text-slate-900">Reemplazo total — solo si subes la lista maestra completa</span>
-                                <span className="block text-xs text-slate-500 mt-1">SKUs ausentes quedan sin precio vigente.</span>
+                                <span className="block text-sm font-medium text-[var(--text)]">Reemplazo total — solo si subes la lista maestra completa</span>
+                                <span className="block text-xs text-[var(--text-muted)] mt-1">SKUs ausentes quedan sin precio vigente.</span>
                             </div>
                         </label>
                     </div>
@@ -130,7 +130,7 @@ export default function SubirPaso1() {
                 <button 
                     onClick={submit}
                     disabled={!file || loading}
-                    className="bg-indigo-600 text-white px-8 py-3 rounded-lg font-medium shadow-sm hover:bg-indigo-700 disabled:opacity-50 flex items-center text-lg transition-all"
+                    className="bg-[var(--accent)] text-[var(--accent-ink)] px-8 py-3 rounded-lg font-medium shadow-sm hover:brightness-110 disabled:opacity-50 flex items-center text-lg transition-all"
                 >
                     {loading ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <FileSpreadsheet className="w-5 h-5 mr-2" />}
                     Procesar archivo

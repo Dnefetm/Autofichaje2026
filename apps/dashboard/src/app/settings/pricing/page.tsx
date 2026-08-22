@@ -64,7 +64,7 @@ export default function PricingSettingsPage() {
         }
     }
 
-    if (loading) return <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>;
+    if (loading) return <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" /></div>;
 
     const RuleForm = ({ initialData, onCancel }: { initialData?: any, onCancel: () => void }) => {
         const [formData, setFormData] = useState(initialData || {
@@ -74,45 +74,45 @@ export default function PricingSettingsPage() {
         });
 
         return (
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 mt-4 space-y-4 shadow-sm animate-in fade-in zoom-in-95">
+            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-5 mt-4 space-y-4 shadow-sm animate-in fade-in zoom-in-95">
                 <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-slate-800">{initialData ? 'Editar Regla' : 'Nueva Regla V3'}</h4>
-                    <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4"/></button>
+                    <h4 className="font-bold text-[var(--text)]">{initialData ? 'Editar Regla' : 'Nueva Regla V3'}</h4>
+                    <button onClick={onCancel} className="text-[var(--text-faint)] hover:text-[var(--text-muted)]"><X className="w-4 h-4"/></button>
                 </div>
                 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="col-span-2">
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Nombre Descriptivo</label>
+                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Nombre Descriptivo</label>
                         <input className="w-full border rounded px-3 py-1.5 text-sm" value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} placeholder="Ej: Regla Global Base" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Prioridad (1=Alta)</label>
+                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Prioridad (1=Alta)</label>
                         <input type="number" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.priority} onChange={e=>setFormData({...formData, priority: parseInt(e.target.value)})} />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Margen Objetivo (%)</label>
+                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Margen Objetivo (%)</label>
                         <input type="number" step="0.1" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.margen_objetivo} onChange={e=>setFormData({...formData, margen_objetivo: parseFloat(e.target.value)})} />
                     </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Filtro Marca (Opcional)</label>
+                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Filtro Marca (Opcional)</label>
                         <input className="w-full border rounded px-3 py-1.5 text-sm" value={formData.marca || ''} onChange={e=>setFormData({...formData, marca: e.target.value || null})} placeholder="Todas" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Filtro Categoría (Opcional)</label>
+                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Filtro Categoría (Opcional)</label>
                         <input className="w-full border rounded px-3 py-1.5 text-sm" value={formData.category_id || ''} onChange={e=>setFormData({...formData, category_id: e.target.value || null})} placeholder="Todas" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Costo Base</label>
+                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Costo Base</label>
                         <select className="w-full border rounded px-3 py-1.5 text-sm" value={formData.cost_basis} onChange={e=>setFormData({...formData, cost_basis: e.target.value})}>
                             <option value="menudeo">Menudeo</option>
                             <option value="mayoreo">Mayoreo</option>
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Redondeo</label>
+                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Redondeo</label>
                         <select className="w-full border rounded px-3 py-1.5 text-sm" value={formData.redondeo} onChange={e=>setFormData({...formData, redondeo: e.target.value})}>
                             <option value="none">Sin redondeo</option>
                             <option value="99">A .99</option>
@@ -121,9 +121,9 @@ export default function PricingSettingsPage() {
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-                    <button onClick={onCancel} className="px-4 py-1.5 rounded text-sm font-semibold text-slate-600 hover:bg-slate-200">Cancelar</button>
-                    <button onClick={() => saveRule(formData)} disabled={saving || !formData.name} className="px-4 py-1.5 rounded text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1">
+                <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">
+                    <button onClick={onCancel} className="px-4 py-1.5 rounded text-sm font-semibold text-[var(--text-muted)] hover:bg-slate-200">Cancelar</button>
+                    <button onClick={() => saveRule(formData)} disabled={saving || !formData.name} className="px-4 py-1.5 rounded text-sm font-semibold text-[var(--accent-ink)] bg-[var(--accent)] hover:brightness-110 disabled:opacity-50 flex items-center gap-1">
                         {saving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} Guardar Regla
                     </button>
                 </div>
@@ -134,21 +134,21 @@ export default function PricingSettingsPage() {
     return (
         <div className="max-w-5xl mx-auto space-y-8 p-6 animate-in fade-in slide-in-from-bottom-4">
             <div>
-                <h2 className="text-2xl font-bold tracking-tight text-slate-900">Motor de Precios V3 - Panel de Reglas</h2>
-                <p className="text-slate-500 text-sm mt-1">
+                <h2 className="text-2xl font-bold tracking-tight text-[var(--text)]">Motor de Precios V3 - Panel de Reglas</h2>
+                <p className="text-[var(--text-muted)] text-sm mt-1">
                     Las reglas operan en cascada. El sistema evaluará cada publicación contra estas reglas en orden de prioridad (1 = Máxima prioridad) y aplicará la primera que coincida exactamente con todos sus filtros.
                 </p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--bg)] flex justify-between items-center">
                     <div>
-                        <h3 className="font-bold text-slate-900">Reglas en Cascada</h3>
-                        <p className="text-xs text-slate-500">Listado de reglas de cálculo activas.</p>
+                        <h3 className="font-bold text-[var(--text)]">Reglas en Cascada</h3>
+                        <p className="text-xs text-[var(--text-muted)]">Listado de reglas de cálculo activas.</p>
                     </div>
                     <button 
                         onClick={() => setIsCreatingRule(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded shadow-sm transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-sm font-bold rounded shadow-sm transition-colors"
                     >
                         <Plus className="w-4 h-4" /> Nueva Regla
                     </button>
@@ -159,35 +159,35 @@ export default function PricingSettingsPage() {
 
                     <div className="mt-4 flex flex-col gap-3">
                         {rules.map((rule) => (
-                            <div key={rule.id} className="border border-slate-200 rounded-lg p-4 hover:border-indigo-300 transition-colors bg-white shadow-sm flex flex-col md:flex-row md:items-center gap-4">
+                            <div key={rule.id} className="border border-[var(--border)] rounded-lg p-4 hover:border-[var(--accent)]/50 transition-colors bg-[var(--surface)] shadow-sm flex flex-col md:flex-row md:items-center gap-4">
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px] font-bold border border-slate-200">
+                                        <span className="px-2 py-0.5 rounded bg-[var(--surface-2)] text-[var(--text-muted)] font-mono text-[10px] font-bold border border-[var(--border)]">
                                             #{rule.priority}
                                         </span>
-                                        <h4 className="font-bold text-slate-800">{rule.name}</h4>
-                                        {!rule.is_active && <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded">INACTIVA</span>}
+                                        <h4 className="font-bold text-[var(--text)]">{rule.name}</h4>
+                                        {!rule.is_active && <span className="px-2 py-0.5 bg-rose-100 text-[var(--err)] text-[10px] font-bold rounded">INACTIVA</span>}
                                     </div>
-                                    <div className="flex flex-wrap gap-2 text-[11px] text-slate-500 mt-2">
-                                        {rule.marca && <span className="bg-indigo-50 text-indigo-700 px-1.5 rounded">Marca: {rule.marca}</span>}
-                                        {rule.category_id && <span className="bg-indigo-50 text-indigo-700 px-1.5 rounded">Categoría: {rule.category_id}</span>}
-                                        {!rule.marca && !rule.category_id && <span className="text-slate-400 italic">Global (Aplica a todo)</span>}
+                                    <div className="flex flex-wrap gap-2 text-[11px] text-[var(--text-muted)] mt-2">
+                                        {rule.marca && <span className="bg-[var(--accent)]/10 text-indigo-700 px-1.5 rounded">Marca: {rule.marca}</span>}
+                                        {rule.category_id && <span className="bg-[var(--accent)]/10 text-indigo-700 px-1.5 rounded">Categoría: {rule.category_id}</span>}
+                                        {!rule.marca && !rule.category_id && <span className="text-[var(--text-faint)] italic">Global (Aplica a todo)</span>}
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-6 md:border-l md:border-slate-100 md:pl-6">
+                                <div className="flex items-center gap-6 md:border-l md:border-[var(--border)] md:pl-6">
                                     <div className="text-center">
-                                        <p className="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Margen</p>
-                                        <p className="font-bold text-slate-800 text-lg">{rule.margen_objetivo}%</p>
+                                        <p className="text-[10px] uppercase text-[var(--text-faint)] font-bold mb-0.5">Margen</p>
+                                        <p className="font-bold text-[var(--text)] text-lg">{rule.margen_objetivo}%</p>
                                     </div>
                                     <div className="text-center">
-                                        <p className="text-[10px] uppercase text-slate-400 font-bold mb-0.5">Costo</p>
-                                        <p className="font-semibold text-slate-600 text-sm capitalize">{rule.cost_basis}</p>
+                                        <p className="text-[10px] uppercase text-[var(--text-faint)] font-bold mb-0.5">Costo</p>
+                                        <p className="font-semibold text-[var(--text-muted)] text-sm capitalize">{rule.cost_basis}</p>
                                     </div>
                                     <div className="flex gap-1 ml-2">
-                                        <button onClick={() => setIsEditingRule(rule.id)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors">
+                                        <button onClick={() => setIsEditingRule(rule.id)} className="p-1.5 text-[var(--text-faint)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 rounded transition-colors">
                                             <Edit2 className="w-4 h-4" />
                                         </button>
-                                        <button onClick={() => deleteRule(rule.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors">
+                                        <button onClick={() => deleteRule(rule.id)} className="p-1.5 text-[var(--text-faint)] hover:text-[var(--err)] hover:bg-[var(--err)]/10 rounded transition-colors">
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -200,7 +200,7 @@ export default function PricingSettingsPage() {
                             </div>
                         ))}
                         {rules.length === 0 && !isCreatingRule && (
-                            <div className="text-center py-8 text-slate-400 italic text-sm border-2 border-dashed border-slate-200 rounded-lg">
+                            <div className="text-center py-8 text-[var(--text-faint)] italic text-sm border-2 border-dashed border-[var(--border)] rounded-lg">
                                 No hay reglas de precio configuradas. Las publicaciones arrojarán "no_rule".
                             </div>
                         )}

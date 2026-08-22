@@ -82,19 +82,19 @@ interface Discrepancia {
 
 function EstadoBadge({ estado }: { estado: string }) {
     const MAP: Record<string, string> = {
-        borrador: 'bg-slate-100 text-slate-600',
-        revision: 'bg-amber-100 text-amber-700',
-        publicado: 'bg-emerald-100 text-emerald-700',
+        borrador: 'bg-[var(--surface-2)] text-[var(--text-muted)]',
+        revision: 'bg-amber-100 text-[var(--warn)]',
+        publicado: 'bg-emerald-100 text-[var(--ok)]',
     };
     return (
-        <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${MAP[estado] ?? 'bg-slate-100 text-slate-500'}`}>
+        <span className={`text-xs font-bold px-3 py-1 rounded-full capitalize ${MAP[estado] ?? 'bg-[var(--surface-2)] text-[var(--text-muted)]'}`}>
             {estado}
         </span>
     );
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-    return <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{children}</p>;
+    return <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest mb-0.5">{children}</p>;
 }
 
 function TextBlock({ label, value }: { label: string; value?: string | null }) {
@@ -102,7 +102,7 @@ function TextBlock({ label, value }: { label: string; value?: string | null }) {
     return (
         <div>
             <Label>{label}</Label>
-            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{value}</p>
+            <p className="text-sm text-[var(--text-muted)] leading-relaxed whitespace-pre-wrap">{value}</p>
         </div>
     );
 }
@@ -131,9 +131,9 @@ function KVGrid({ data, label }: { data: Record<string, any>; label?: string }) 
             {label && <Label>{label}</Label>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-1">
                 {Object.entries(data).map(([k, v]) => (
-                    <div key={k} className="flex gap-2 bg-slate-50 rounded-lg px-3 py-2 text-xs">
-                        <span className="font-medium text-slate-500 shrink-0 min-w-0 break-words">{k}:</span>
-                        <span className="text-slate-700 break-words">{String(v ?? '')}</span>
+                    <div key={k} className="flex gap-2 bg-[var(--bg)] rounded-lg px-3 py-2 text-xs">
+                        <span className="font-medium text-[var(--text-muted)] shrink-0 min-w-0 break-words">{k}:</span>
+                        <span className="text-[var(--text-muted)] break-words">{String(v ?? '')}</span>
                     </div>
                 ))}
             </div>
@@ -144,7 +144,7 @@ function KVGrid({ data, label }: { data: Record<string, any>; label?: string }) 
 function EditField({ label, value, onChange, type = 'text' }: {
     label: string; value?: string; onChange: (v: string) => void; type?: 'text' | 'textarea';
 }) {
-    const cls = "w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-1 focus:ring-indigo-500 outline-none";
+    const cls = "w-full p-2.5 bg-[var(--bg)] border border-[var(--border)] rounded-xl text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none";
     return (
         <div className="space-y-1">
             <Label>{label}</Label>
@@ -1010,8 +1010,8 @@ export default function FichaDetallePage() {
 
     // --- Guards ---------------------------------------------------------------
 
-    if (loading) return <div className="flex items-center justify-center h-64 text-slate-400"><Loader2 className="w-6 h-6 animate-spin mr-2" />Cargando…</div>;
-    if (error)   return <div className="flex gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700"><AlertCircle className="w-5 h-5 shrink-0" />{error}</div>;
+    if (loading) return <div className="flex items-center justify-center h-64 text-[var(--text-faint)]"><Loader2 className="w-6 h-6 animate-spin mr-2" />Cargando…</div>;
+    if (error)   return <div className="flex gap-3 p-4 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl text-[var(--err)]"><AlertCircle className="w-5 h-5 shrink-0" />{error}</div>;
     if (!ficha)  return null;
 
     const art = ficha.articulos;
@@ -1032,7 +1032,7 @@ export default function FichaDetallePage() {
     const filled = camposEval.filter(Boolean).length + listasEval.filter(l => l && l > 0).length;
     const totalEval = camposEval.length + listasEval.length;
     const completitud = Math.round((filled / totalEval) * 100);
-    const completitudColor = completitud >= 80 ? 'bg-emerald-500' : completitud >= 50 ? 'bg-amber-400' : 'bg-rose-400';
+    const completitudColor = completitud >= 80 ? 'bg-[var(--ok)]/100' : completitud >= 50 ? 'bg-amber-400' : 'bg-rose-400';
 
     // --- JSX -----------------------------------------------------------------
 
@@ -1052,25 +1052,25 @@ export default function FichaDetallePage() {
 
             {/* -- Header -- */}
             <div className="flex items-center gap-3 flex-wrap">
-                <button type="button" onClick={() => router.back()} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
+                <button type="button" onClick={() => router.back()} className="p-2 hover:bg-[var(--surface-2)] rounded-xl text-[var(--text-faint)] transition-colors">
                     <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div className="flex-1 min-w-0">
                     {editMode
-                        ? <input className="w-full text-2xl font-bold bg-slate-50 border border-indigo-200 rounded-xl px-3 py-1 focus:ring-1 focus:ring-indigo-400 outline-none" value={draft.nombre_producto ?? ''} onChange={e => setDraft(d => ({ ...d, nombre_producto: e.target.value }))} />
+                        ? <input className="w-full text-2xl font-bold bg-[var(--bg)] border border-[var(--accent)]/30 rounded-xl px-3 py-1 focus:ring-1 focus:ring-indigo-400 outline-none" value={draft.nombre_producto ?? ''} onChange={e => setDraft(d => ({ ...d, nombre_producto: e.target.value }))} />
                         : <h1 className="text-2xl font-bold truncate">{ficha.nombre_producto || 'Ficha sin nombre'}</h1>
                     }
-                    <p className="text-slate-400 text-xs font-mono">{ficha.id}</p>
+                    <p className="text-[var(--text-faint)] text-xs font-mono">{ficha.id}</p>
                 </div>
                 <EstadoBadge estado={ficha.estado} />
                 {!editMode && (
                     <div className="flex items-center gap-2">
                         <button type="button" onClick={generarPDF} disabled={generandoPdf}
-                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-white border border-slate-200 text-slate-600 rounded-xl hover:border-indigo-300 hover:text-indigo-700 transition-colors disabled:opacity-50">
+                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] rounded-xl hover:border-[var(--accent)]/50 hover:text-indigo-700 transition-colors disabled:opacity-50">
                             {generandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} PDF
                         </button>
                         <button type="button" onClick={startEdit}
-                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-white border border-slate-200 text-slate-600 rounded-xl hover:border-indigo-300 hover:text-indigo-700 transition-colors">
+                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] rounded-xl hover:border-[var(--accent)]/50 hover:text-indigo-700 transition-colors">
                             <Edit2 className="w-4 h-4" /> Editar
                         </button>
                     </div>
@@ -1079,21 +1079,21 @@ export default function FichaDetallePage() {
 
             {/* Banner edición */}
             {editMode && (
-                <div className="flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-2xl px-5 py-3 gap-3 flex-wrap">
+                <div className="flex items-center justify-between bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-2xl px-5 py-3 gap-3 flex-wrap">
                     <p className="text-sm font-semibold text-indigo-700">Modo edición activo</p>
                     <div className="flex gap-2">
                         <button type="button" onClick={() => { setEditMode(false); setDraft({}); }}
-                            className="flex items-center gap-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
+                            className="flex items-center gap-1 px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg)]">
                             <X className="w-4 h-4" /> Cancelar
                         </button>
                         <button type="button" onClick={saveEdit} disabled={patchSaving}
-                            className="flex items-center gap-1 px-3 py-1.5 text-sm font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60">
+                            className="flex items-center gap-1 px-3 py-1.5 text-sm font-semibold bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg hover:brightness-110 disabled:opacity-60">
                             {patchSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
                         </button>
                     </div>
                 </div>
             )}
-            {patchError && <div className="flex gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm"><AlertCircle className="w-4 h-4 shrink-0" />{patchError}</div>}
+            {patchError && <div className="flex gap-2 p-3 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl text-[var(--err)] text-sm"><AlertCircle className="w-4 h-4 shrink-0" />{patchError}</div>}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
@@ -1101,12 +1101,12 @@ export default function FichaDetallePage() {
                 <div className="lg:col-span-2 space-y-4">
 
                     {/* NIVEL 1 — Identidad del producto */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Identidad del producto</h2>
+                            <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-widest">Identidad del producto</h2>
                             {ficha.articulo_id
-                                ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">Vinculado al catálogo</span>
-                                : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">Sin artículo vinculado</span>
+                                ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)]">Vinculado al catálogo</span>
+                                : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--warn)]/10 text-[var(--warn)]">Sin artículo vinculado</span>
                             }
                         </div>
                         {(() => {
@@ -1124,19 +1124,19 @@ export default function FichaDetallePage() {
                             const altoCm   = ficha.alto_cm  ?? art?.alto_cm  ?? null;
                             const mats     = ficha.materiales ?? null;
                             const pais     = ficha.pais_origen ?? null;
-                            const inputCls = "w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none";
-                            const numCls   = "w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none";
+                            const inputCls = "w-full p-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none";
+                            const numCls   = "w-full p-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none";
                             return (
                                 <>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                                        {sku && <div><Label>SKU</Label><p className="font-mono font-bold text-slate-800">{sku}</p></div>}
+                                        {sku && <div><Label>SKU</Label><p className="font-mono font-bold text-[var(--text)]">{sku}</p></div>}
 
                                         {/* Marca */}
                                         <div>
                                             <Label>Marca</Label>
                                             {editMode
                                                 ? <input className={inputCls} value={draft.marca ?? ''} onChange={e => setDraft(d => ({ ...d, marca: e.target.value }))} />
-                                                : <p className="font-semibold text-slate-800">{marca ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                                : <p className="font-semibold text-[var(--text)]">{marca ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
                                         </div>
 
                                         {/* Modelo */}
@@ -1144,7 +1144,7 @@ export default function FichaDetallePage() {
                                             <Label>Modelo</Label>
                                             {editMode
                                                 ? <input className={inputCls} value={draft.modelo ?? ''} onChange={e => setDraft(d => ({ ...d, modelo: e.target.value }))} />
-                                                : <p className="text-slate-700">{modelo ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                                : <p className="text-[var(--text-muted)]">{modelo ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
                                         </div>
 
                                         {/* Variante */}
@@ -1152,7 +1152,7 @@ export default function FichaDetallePage() {
                                             <Label>Variante</Label>
                                             {editMode
                                                 ? <input className={inputCls} value={draft.variante ?? ''} onChange={e => setDraft(d => ({ ...d, variante: e.target.value }))} />
-                                                : <p className="text-slate-700">{variante ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                                : <p className="text-[var(--text-muted)]">{variante ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
                                         </div>
 
                                         {/* Fabricante */}
@@ -1161,7 +1161,7 @@ export default function FichaDetallePage() {
                                                 <Label>Fabricante</Label>
                                                 {editMode
                                                     ? <input className={inputCls} value={draft.fabricante ?? ''} onChange={e => setDraft(d => ({ ...d, fabricante: e.target.value }))} />
-                                                    : <p className="text-slate-700">{ficha.fabricante}</p>}
+                                                    : <p className="text-[var(--text-muted)]">{ficha.fabricante}</p>}
                                             </div>
                                         )}
 
@@ -1170,7 +1170,7 @@ export default function FichaDetallePage() {
                                             <Label>Código de barras (EAN)</Label>
                                             {editMode
                                                 ? <input className={inputCls} value={draft.codigo_universal ?? ''} onChange={e => setDraft(d => ({ ...d, codigo_universal: e.target.value }))} placeholder="EAN / UPC / GTIN" />
-                                                : <p className="font-mono text-slate-700">{ean ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                                : <p className="font-mono text-[var(--text-muted)]">{ean ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
                                         </div>
 
                                         {/* Categoría */}
@@ -1178,7 +1178,7 @@ export default function FichaDetallePage() {
                                             <Label>Categoría</Label>
                                             {editMode
                                                 ? <input className={inputCls} value={draft.categoria ?? ''} onChange={e => setDraft(d => ({ ...d, categoria: e.target.value }))} />
-                                                : <p className="text-slate-700">{categ ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                                : <p className="text-[var(--text-muted)]">{categ ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
                                         </div>
 
                                         {/* Materiales */}
@@ -1186,7 +1186,7 @@ export default function FichaDetallePage() {
                                             <Label>Materiales</Label>
                                             {editMode
                                                 ? <input className={inputCls} value={draft.materiales ?? ''} onChange={e => setDraft(d => ({ ...d, materiales: e.target.value }))} />
-                                                : <p className="text-slate-700">{mats ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                                : <p className="text-[var(--text-muted)]">{mats ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
                                         </div>
 
                                         {/* País de origen */}
@@ -1194,27 +1194,27 @@ export default function FichaDetallePage() {
                                             <Label>País de origen</Label>
                                             {editMode
                                                 ? <input className={inputCls} value={draft.pais_origen ?? ''} onChange={e => setDraft(d => ({ ...d, pais_origen: e.target.value }))} />
-                                                : <p className="text-slate-700">{pais ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
+                                                : <p className="text-[var(--text-muted)]">{pais ?? <span className="text-slate-300 italic text-xs">—</span>}</p>}
                                         </div>
                                     </div>
 
                                     {/* Dimensiones y peso */}
                                     {(pesoKg || largoCm || anchoCm || altoCm || editMode) && (
-                                        <div className="border-t border-slate-100 pt-3">
+                                        <div className="border-t border-[var(--border)] pt-3">
                                             <Label>Dimensiones y peso</Label>
                                             {editMode ? (
                                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
-                                                    <div><label className="text-[10px] text-slate-400">Largo (cm)</label><input type="number" className={numCls} value={draft.largo_cm ?? ''} onChange={e => setDraft(d => ({ ...d, largo_cm: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
-                                                    <div><label className="text-[10px] text-slate-400">Ancho (cm)</label><input type="number" className={numCls} value={draft.ancho_cm ?? ''} onChange={e => setDraft(d => ({ ...d, ancho_cm: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
-                                                    <div><label className="text-[10px] text-slate-400">Alto (cm)</label><input type="number" className={numCls} value={draft.alto_cm ?? ''} onChange={e => setDraft(d => ({ ...d, alto_cm: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
-                                                    <div><label className="text-[10px] text-slate-400">Peso (kg)</label><input type="number" className={numCls} value={draft.peso_kg ?? ''} onChange={e => setDraft(d => ({ ...d, peso_kg: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
+                                                    <div><label className="text-[10px] text-[var(--text-faint)]">Largo (cm)</label><input type="number" className={numCls} value={draft.largo_cm ?? ''} onChange={e => setDraft(d => ({ ...d, largo_cm: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
+                                                    <div><label className="text-[10px] text-[var(--text-faint)]">Ancho (cm)</label><input type="number" className={numCls} value={draft.ancho_cm ?? ''} onChange={e => setDraft(d => ({ ...d, ancho_cm: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
+                                                    <div><label className="text-[10px] text-[var(--text-faint)]">Alto (cm)</label><input type="number" className={numCls} value={draft.alto_cm ?? ''} onChange={e => setDraft(d => ({ ...d, alto_cm: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
+                                                    <div><label className="text-[10px] text-[var(--text-faint)]">Peso (kg)</label><input type="number" className={numCls} value={draft.peso_kg ?? ''} onChange={e => setDraft(d => ({ ...d, peso_kg: e.target.value === '' ? undefined : Number(e.target.value) }))} /></div>
                                                 </div>
                                             ) : (
                                                 <div className="flex flex-wrap gap-4 mt-1 text-sm">
-                                                    {largoCm && <span className="text-slate-600"><b>L:</b> {largoCm} cm</span>}
-                                                    {anchoCm && <span className="text-slate-600"><b>A:</b> {anchoCm} cm</span>}
-                                                    {altoCm  && <span className="text-slate-600"><b>H:</b> {altoCm} cm</span>}
-                                                    {pesoKg  && <span className="text-slate-600"><b>Peso:</b> {pesoKg} kg</span>}
+                                                    {largoCm && <span className="text-[var(--text-muted)]"><b>L:</b> {largoCm} cm</span>}
+                                                    {anchoCm && <span className="text-[var(--text-muted)]"><b>A:</b> {anchoCm} cm</span>}
+                                                    {altoCm  && <span className="text-[var(--text-muted)]"><b>H:</b> {altoCm} cm</span>}
+                                                    {pesoKg  && <span className="text-[var(--text-muted)]"><b>Peso:</b> {pesoKg} kg</span>}
                                                 </div>
                                             )}
                                         </div>
@@ -1223,23 +1223,23 @@ export default function FichaDetallePage() {
                             );
                         })()}
                         {art && (
-                            <div className="border-t border-slate-100 pt-2 flex items-center gap-3 flex-wrap">
+                            <div className="border-t border-[var(--border)] pt-2 flex items-center gap-3 flex-wrap">
                                 <Link href={`/catalog?q=${art.articulo_id}`} target="_blank"
-                                    className="inline-flex items-center gap-1 text-indigo-500 hover:text-indigo-700 text-xs font-semibold">
+                                    className="inline-flex items-center gap-1 text-[var(--accent)] hover:text-indigo-700 text-xs font-semibold">
                                     <Link2 className="w-3 h-3" /> Ver en catálogo <ExternalLink className="w-3 h-3" />
                                 </Link>
                                 <button type="button" onClick={() => { setVinculandoModal(true); setVinculandoQ(art.articulo_id); }}
-                                    className="inline-flex items-center gap-1 text-amber-500 hover:text-amber-700 text-xs font-semibold">
+                                    className="inline-flex items-center gap-1 text-amber-500 hover:text-[var(--warn)] text-xs font-semibold">
                                     <Link2 className="w-3 h-3" /> Cambiar artículo
                                 </button>
                                 <button type="button" onClick={desvincularArticulo}
-                                    className="inline-flex items-center gap-1 text-rose-400 hover:text-rose-600 text-xs font-semibold">
+                                    className="inline-flex items-center gap-1 text-rose-400 hover:text-[var(--err)] text-xs font-semibold">
                                     <Unlink className="w-3 h-3" /> Desvincular
                                 </button>
                             </div>
                         )}
                         {!art && (
-                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 flex items-center justify-between gap-3">
+                            <div className="p-3 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl text-xs text-[var(--warn)] flex items-center justify-between gap-3">
                                 <span>Sin artículo del catálogo vinculado.{' '}
                                     <Link href="/autoficha" className="underline font-semibold">Ir a Crear con IA</Link>
                                 </span>
@@ -1253,8 +1253,8 @@ export default function FichaDetallePage() {
 
 
                     {/* NIVEL 2 — Descripción comercial */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-                        <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Descripción comercial</h2>
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
+                        <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-widest">Descripción comercial</h2>
                         {editMode ? (
                             <div className="space-y-3">
                                 <EditField label="Descripción corta" value={draft.descripcion} onChange={v => setDraft(d => ({ ...d, descripcion: v }))} type="textarea" />
@@ -1278,18 +1278,18 @@ export default function FichaDetallePage() {
                                                 <input value={bp} onChange={e => {
                                                     const arr = [...(draft.bullet_points ?? [])]; arr[i] = e.target.value;
                                                     setDraft(d => ({ ...d, bullet_points: arr }));
-                                                }} className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                                }} className="flex-1 p-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none" />
                                                 <button type="button" onClick={() => setDraft(d => ({ ...d, bullet_points: (d.bullet_points ?? []).filter((_, j) => j !== i) }))}
-                                                    className="text-slate-300 hover:text-rose-500 shrink-0"><X className="w-4 h-4" /></button>
+                                                    className="text-slate-300 hover:text-[var(--err)] shrink-0"><X className="w-4 h-4" /></button>
                                             </div>
                                         ))}
                                         <button type="button" onClick={() => setDraft(d => ({ ...d, bullet_points: [...(d.bullet_points ?? []), ''] }))}
-                                            className="text-xs text-indigo-500 hover:text-indigo-700">+ Agregar punto</button>
+                                            className="text-xs text-[var(--accent)] hover:text-indigo-700">+ Agregar punto</button>
                                     </div>
                                 ) : (
                                     <ul className="mt-1 space-y-1">
                                         {(ficha.bullet_points ?? []).map((bp, i) => (
-                                            <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                                            <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-muted)]">
                                                 <span className="text-indigo-400 shrink-0 mt-0.5">▸</span>{bp}
                                             </li>
                                         ))}
@@ -1300,8 +1300,8 @@ export default function FichaDetallePage() {
                     </div>
 
                     {/* NIVEL 3 — Especificaciones técnicas */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-                        <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Especificaciones técnicas</h2>
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
+                        <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-widest">Especificaciones técnicas</h2>
                         {editMode ? (
                             <div className="space-y-4">
                                 <EditField label="Especificaciones (texto)" value={draft.especificaciones} onChange={v => setDraft(d => ({ ...d, especificaciones: v }))} type="textarea" />
@@ -1315,18 +1315,18 @@ export default function FichaDetallePage() {
                                             <div className="space-y-1.5 mt-1">
                                                 {Object.entries(obj).map(([k, v]) => (
                                                     <div key={k} className="flex gap-1.5 items-center">
-                                                        <input value={k.startsWith('__n_') ? '' : k} placeholder="Nombre del atributo" onChange={e => { const nk = e.target.value || k; const r: Record<string,any> = {}; for (const [ek,ev] of Object.entries((draft as Record<string,any>)[campo] ?? {})) r[ek === k ? nk : ek] = ev; setDraft(d => ({...d, [campo]: r})); }} className="w-2/5 p-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-400 outline-none text-slate-700 placeholder-slate-300" />
-                                                        <input value={String(v ?? '')} onChange={e => setDraft(d => ({ ...d, [campo]: { ...((d[campo] ?? {}) as object), [k]: e.target.value } }))} className="flex-1 p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                                        <input value={k.startsWith('__n_') ? '' : k} placeholder="Nombre del atributo" onChange={e => { const nk = e.target.value || k; const r: Record<string,any> = {}; for (const [ek,ev] of Object.entries((draft as Record<string,any>)[campo] ?? {})) r[ek === k ? nk : ek] = ev; setDraft(d => ({...d, [campo]: r})); }} className="w-2/5 p-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-400 outline-none text-[var(--text-muted)] placeholder-slate-300" />
+                                                        <input value={String(v ?? '')} onChange={e => setDraft(d => ({ ...d, [campo]: { ...((d[campo] ?? {}) as object), [k]: e.target.value } }))} className="flex-1 p-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-lg focus:ring-1 focus:ring-indigo-400 outline-none" />
                                                         <button type="button" onClick={() => {
                                                             const copy = { ...(draft[campo] as Record<string, any>) }; delete copy[k];
                                                             setDraft(d => ({ ...d, [campo]: copy }));
-                                                        }} className="text-slate-300 hover:text-rose-500"><X className="w-3.5 h-3.5" /></button>
+                                                        }} className="text-slate-300 hover:text-[var(--err)]"><X className="w-3.5 h-3.5" /></button>
                                                     </div>
                                                 ))}
                                                 <button type="button" onClick={() => {
                                                     const key = `__n_${Date.now()}`;
                                                     setDraft(d => ({ ...d, [campo]: { ...((d[campo] ?? {}) as object), [key]: '' } }));
-                                                }} className="text-xs text-indigo-500 hover:text-indigo-700">+ Agregar atributo</button>
+                                                }} className="text-xs text-[var(--accent)] hover:text-indigo-700">+ Agregar atributo</button>
                                             </div>
                                         </div>
                                     );
@@ -1343,8 +1343,8 @@ export default function FichaDetallePage() {
                                 {hasAtribDin && <KVGrid data={ficha.atributos_dinamicos!} label="Atributos técnicos (IA)" />}
                                 {hasAtribExt && <KVGrid data={ficha.atributos_extras!}    label="Atributos adicionales" />}
                                 {!ficha.especificaciones && !hasAtribDin && !hasAtribCat && !hasAtribExt && (
-                                    <div className="flex flex-col items-center gap-2 py-4 border-2 border-dashed border-slate-200 rounded-xl text-center">
-                                        <p className="text-xs text-slate-400">Sin especificaciones técnicas aún.</p>
+                                    <div className="flex flex-col items-center gap-2 py-4 border-2 border-dashed border-[var(--border)] rounded-xl text-center">
+                                        <p className="text-xs text-[var(--text-faint)]">Sin especificaciones técnicas aún.</p>
                                         <p className="text-xs text-indigo-400 font-semibold">Usa "Enriquecer" para extraerlas de un documento.</p>
                                     </div>
                                 )}
@@ -1354,8 +1354,8 @@ export default function FichaDetallePage() {
 
                     {/* NIVEL 4 — Información complementaria */}
                     {(ficha.uso_recomendado || ficha.precauciones || ficha.ingredientes || editMode) && (
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-                            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Información complementaria</h2>
+                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
+                            <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-widest">Información complementaria</h2>
                             {editMode ? (
                                 <div className="space-y-3">
                                     <EditField label="Uso recomendado" value={draft.uso_recomendado} onChange={v => setDraft(d => ({ ...d, uso_recomendado: v }))} type="textarea" />
@@ -1374,8 +1374,8 @@ export default function FichaDetallePage() {
 
                     {/* NIVEL 5 — Marketplace */}
                     {(ficha.palabras_clave?.length || editMode) ? (
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3">
-                            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-3">
+                            <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-2">
                                 <Tag className="w-4 h-4" /> Marketplace
                             </h2>
                             <div>
@@ -1384,10 +1384,10 @@ export default function FichaDetallePage() {
                                     <div className="space-y-2 mt-1">
                                         <div className="flex flex-wrap gap-1.5">
                                             {(draft.palabras_clave ?? []).map((kw, i) => (
-                                                <span key={i} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-full">
+                                                <span key={i} className="flex items-center gap-1 bg-[var(--accent)]/10 text-indigo-700 text-xs px-2 py-1 rounded-full">
                                                     {kw}
                                                     <button type="button" onClick={() => setDraft(d => ({ ...d, palabras_clave: (d.palabras_clave ?? []).filter((_, j) => j !== i) }))}
-                                                        className="hover:text-rose-500"><X className="w-2.5 h-2.5" /></button>
+                                                        className="hover:text-[var(--err)]"><X className="w-2.5 h-2.5" /></button>
                                                 </span>
                                             ))}
                                         </div>
@@ -1396,12 +1396,12 @@ export default function FichaDetallePage() {
                                                 setDraft(d => ({ ...d, palabras_clave: [...(d.palabras_clave ?? []), e.currentTarget.value.trim()] }));
                                                 e.currentTarget.value = '';
                                             }
-                                        }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                        }} className="w-full p-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none" />
                                     </div>
                                 ) : (
                                     <div className="flex flex-wrap gap-1.5 mt-1">
                                         {(ficha.palabras_clave ?? []).map((kw, i) => (
-                                            <span key={i} className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-3 py-1 rounded-full">{kw}</span>
+                                            <span key={i} className="bg-[var(--accent)]/10 text-indigo-700 text-xs font-semibold px-3 py-1 rounded-full">{kw}</span>
                                         ))}
                                     </div>
                                 )}
@@ -1411,26 +1411,26 @@ export default function FichaDetallePage() {
 
                     {/* Historial de extracciones (colapsable) */}
                     {ficha.ficha_extracciones && ficha.ficha_extracciones.length > 0 && (
-                        <details className="bg-white border border-slate-200 rounded-2xl shadow-sm">
-                            <summary className="px-6 py-4 cursor-pointer text-sm font-bold text-slate-600 flex items-center gap-2 list-none">
-                                <FileText className="w-4 h-4 text-slate-400" />
+                        <details className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm">
+                            <summary className="px-6 py-4 cursor-pointer text-sm font-bold text-[var(--text-muted)] flex items-center gap-2 list-none">
+                                <FileText className="w-4 h-4 text-[var(--text-faint)]" />
                                 Historial de extracciones ({ficha.ficha_extracciones.length})
                                 <ChevronRight className="w-4 h-4 text-slate-300 ml-auto" />
                             </summary>
-                            <div className="px-6 pb-5 space-y-2 border-t border-slate-100 pt-3">
+                            <div className="px-6 pb-5 space-y-2 border-t border-[var(--border)] pt-3">
                                 {ficha.ficha_extracciones.map(e => (
-                                    <div key={e.id} className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
+                                    <div key={e.id} className="p-3 bg-[var(--bg)] rounded-xl text-xs space-y-1">
                                         <div className="flex items-center justify-between gap-2">
-                                            <span className="font-mono text-slate-400">{e.id.slice(0, 8)}…</span>
+                                            <span className="font-mono text-[var(--text-faint)]">{e.id.slice(0, 8)}…</span>
                                             <div className="flex items-center gap-2">
                                                 {e.aplicada_a_ficha
-                                                    ? <span className="text-emerald-600 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Aplicada</span>
-                                                    : <span className="text-amber-600 font-semibold">Pendiente</span>}
-                                                <span className="text-slate-400">{new Date(e.created_at).toLocaleDateString('es-MX')}</span>
+                                                    ? <span className="text-[var(--ok)] font-semibold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Aplicada</span>
+                                                    : <span className="text-[var(--warn)] font-semibold">Pendiente</span>}
+                                                <span className="text-[var(--text-faint)]">{new Date(e.created_at).toLocaleDateString('es-MX')}</span>
                                             </div>
                                         </div>
-                                        {e.extraccion_cruda?.nombre && <p className="text-slate-600">Nombre: <strong>{String(e.extraccion_cruda.nombre)}</strong></p>}
-                                        {e.extraccion_cruda?.confidence != null && <p className="text-slate-400">Confianza: {Math.round(Number(e.extraccion_cruda.confidence) * 100)}%</p>}
+                                        {e.extraccion_cruda?.nombre && <p className="text-[var(--text-muted)]">Nombre: <strong>{String(e.extraccion_cruda.nombre)}</strong></p>}
+                                        {e.extraccion_cruda?.confidence != null && <p className="text-[var(--text-faint)]">Confianza: {Math.round(Number(e.extraccion_cruda.confidence) * 100)}%</p>}
                                     </div>
                                 ))}
                             </div>
@@ -1438,46 +1438,46 @@ export default function FichaDetallePage() {
                     )}
 
                     {/* -- Imágenes del producto --------------------------------- */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Imágenes del producto</h2>
+                            <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-widest">Imágenes del producto</h2>
                             <div className="flex items-center gap-2">
                                 {imagenesLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-300" />}
-                                <span className="text-xs text-slate-400">{imagenes.length} imagen{imagenes.length !== 1 ? 'es' : ''} • WebP</span>
+                                <span className="text-xs text-[var(--text-faint)]">{imagenes.length} imagen{imagenes.length !== 1 ? 'es' : ''} • WebP</span>
                             </div>
                         </div>
 
                         {imagenesError && (
-                            <p className="text-xs text-rose-500 font-medium">{imagenesError}</p>
+                            <p className="text-xs text-[var(--err)] font-medium">{imagenesError}</p>
                         )}
 
                         {/* Miniaturas con reordenamiento */}
                         {imagenes.length > 0 && (
                             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                                 {imagenes.map((img, idx) => (
-                                    <div key={img.id} className="group relative aspect-square rounded-xl overflow-hidden border-2 border-slate-100 bg-slate-50 hover:border-indigo-300 transition-all">
+                                    <div key={img.id} className="group relative aspect-square rounded-xl overflow-hidden border-2 border-[var(--border)] bg-[var(--bg)] hover:border-[var(--accent)]/50 transition-all">
                                         {/* Badge de orden */}
-                                        <span className="absolute top-1.5 left-1.5 z-10 bg-slate-900/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                        <span className="absolute top-1.5 left-1.5 z-10 bg-[var(--surface-2)]/70 text-[var(--accent-ink)] text-[9px] font-bold px-1.5 py-0.5 rounded-md">
                                             #{idx + 1}
                                         </span>
                                         {/* Badge imagen principal */}
                                         {idx === 0 && (
-                                            <span className="absolute top-1.5 right-1.5 z-10 bg-emerald-500 text-white text-[8px] font-bold px-1 py-0.5 rounded">PRINCIPAL</span>
+                                            <span className="absolute top-1.5 right-1.5 z-10 bg-[var(--ok)]/100 text-[var(--accent-ink)] text-[8px] font-bold px-1 py-0.5 rounded">PRINCIPAL</span>
                                         )}
                                         <img src={img.url} alt={`Imagen ${idx + 1}`} className="w-full h-full object-cover" loading="lazy"
                                             onError={e => { (e.currentTarget as HTMLImageElement).src = ''; (e.currentTarget as HTMLImageElement).style.opacity = '0.3'; }} />
                                         {/* Overlay de controles */}
                                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100">
                                             <button type="button" onClick={() => reorderImagen(idx, -1)} disabled={idx === 0}
-                                                className="p-1.5 bg-white/90 hover:bg-white rounded-lg disabled:opacity-30 transition-all" title="Mover adelante">
+                                                className="p-1.5 bg-[var(--surface)]/90 hover:bg-[var(--surface)] rounded-lg disabled:opacity-30 transition-all" title="Mover adelante">
                                                 <ArrowLeft className="w-3 h-3" />
                                             </button>
                                             <button type="button" onClick={() => reorderImagen(idx, 1)} disabled={idx === imagenes.length - 1}
-                                                className="p-1.5 bg-white/90 hover:bg-white rounded-lg disabled:opacity-30 transition-all" title="Mover atrás">
+                                                className="p-1.5 bg-[var(--surface)]/90 hover:bg-[var(--surface)] rounded-lg disabled:opacity-30 transition-all" title="Mover atrás">
                                                 <ArrowLeft className="w-3 h-3 rotate-180" />
                                             </button>
                                             <button type="button" onClick={() => deleteImagen(img.id)} disabled={imgSaving.has(img.id)}
-                                                className="p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg disabled:opacity-60 transition-all" title="Eliminar">
+                                                className="p-1.5 bg-[var(--err)]/100 hover:bg-rose-600 text-[var(--accent-ink)] rounded-lg disabled:opacity-60 transition-all" title="Eliminar">
                                                 {imgSaving.has(img.id) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                                             </button>
                                         </div>
@@ -1488,15 +1488,15 @@ export default function FichaDetallePage() {
 
                         {/* Input URL directa */}
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Agregar por URL directa</label>
+                            <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Agregar por URL directa</label>
                             <div className="flex gap-2">
                                 <input type="url" value={imgUrlInput}
                                     onChange={e => setImgUrlInput(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && addImageFromUrl()}
                                     placeholder="https://...imagen.jpg"
-                                    className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                                    className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400" />
                                 <button type="button" onClick={addImageFromUrl} disabled={!imgUrlInput.trim() || imgUrlLoading}
-                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold rounded-xl disabled:opacity-50 flex items-center gap-2 transition-colors">
+                                    className="px-4 py-2 bg-[var(--surface)] hover:bg-slate-700 text-[var(--accent-ink)] text-sm font-bold rounded-xl disabled:opacity-50 flex items-center gap-2 transition-colors">
                                     {imgUrlLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                                     Agregar
                                 </button>
@@ -1505,7 +1505,7 @@ export default function FichaDetallePage() {
 
                         {/* Upload archivo (Múltiple y Cámara) */}
                         <div className="space-y-3">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subir desde dispositivo (máx 10)</label>
+                            <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Subir desde dispositivo (máx 10)</label>
                             
                             <input id="img-upload-camera" type="file" accept="image/*" capture="environment" className="hidden"
                                 onChange={async e => { 
@@ -1525,34 +1525,34 @@ export default function FichaDetallePage() {
                             
                             <div className="grid grid-cols-2 gap-3">
                                 <button type="button" onClick={() => document.getElementById('img-upload-camera')?.click()} disabled={imgUrlLoading}
-                                    className="py-2.5 rounded-xl border-2 border-slate-200 bg-white text-sm text-slate-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2 font-semibold">
+                                    className="py-2.5 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text-muted)] hover:border-[var(--accent)]/70 hover:text-[var(--accent)] transition-colors flex items-center justify-center gap-2 font-semibold">
                                     <Upload className="w-4 h-4" /> Tomar Foto
                                 </button>
                                 <button type="button" onClick={() => document.getElementById('img-upload-gallery')?.click()} disabled={imgUrlLoading}
-                                    className="py-2.5 rounded-xl border-2 border-dashed border-slate-300 text-sm text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
+                                    className="py-2.5 rounded-xl border-2 border-dashed border-slate-300 text-sm text-[var(--text-muted)] hover:border-[var(--accent)]/70 hover:text-[var(--accent)] transition-colors flex items-center justify-center gap-2">
                                     <Upload className="w-4 h-4" /> Elegir Galería
                                 </button>
                             </div>
-                            <p className="text-[10px] text-slate-400 text-center">Se convierten y optimizan a WebP automáticamente al subir.</p>
+                            <p className="text-[10px] text-[var(--text-faint)] text-center">Se convierten y optimizan a WebP automáticamente al subir.</p>
                         </div>
 
                         {/* Extracción con IA desde URL de página */}
-                        <details className="border border-slate-200 rounded-xl overflow-hidden">
-                            <summary className="px-4 py-3 cursor-pointer text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 list-none hover:bg-slate-50 transition-colors">
+                        <details className="border border-[var(--border)] rounded-xl overflow-hidden">
+                            <summary className="px-4 py-3 cursor-pointer text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-2 list-none hover:bg-[var(--bg)] transition-colors">
                                 <Sparkles className="w-3.5 h-3.5 text-violet-500" />
                                 Extraer imágenes desde página web con IA
                                 <ChevronRight className="w-3.5 h-3.5 ml-auto text-slate-300" />
                             </summary>
-                            <div className="px-4 pb-4 pt-3 space-y-3 border-t border-slate-100">
-                                <p className="text-[11px] text-slate-400">Pega la URL de una página de producto. La IA identificará las imágenes relevantes para que tú elijas cuáles guardar.</p>
+                            <div className="px-4 pb-4 pt-3 space-y-3 border-t border-[var(--border)]">
+                                <p className="text-[11px] text-[var(--text-faint)]">Pega la URL de una página de producto. La IA identificará las imágenes relevantes para que tú elijas cuáles guardar.</p>
                                 <div className="flex gap-2">
                                     <input type="url" value={imgExtractUrl}
                                         onChange={e => setImgExtractUrl(e.target.value)}
                                         placeholder="https://prod.fabrica.com/producto"
-                                        className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                                        className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400" />
                                     <button type="button" onClick={extractImagenesFromUrl}
                                         disabled={!imgExtractUrl.trim() || imgExtractLoading}
-                                        className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold rounded-xl disabled:opacity-50 flex items-center gap-2 transition-colors">
+                                        className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-[var(--accent-ink)] text-sm font-bold rounded-xl disabled:opacity-50 flex items-center gap-2 transition-colors">
                                         {imgExtractLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                                         Analizar
                                     </button>
@@ -1561,9 +1561,9 @@ export default function FichaDetallePage() {
                         </details>
 
                         {imagenes.length === 0 && !imagenesLoading && (
-                            <div className="flex flex-col items-center gap-2 py-4 border-2 border-dashed border-slate-200 rounded-xl text-center">
-                                <p className="text-xs text-slate-400">Sin imágenes aún.</p>
-                                <p className="text-xs text-slate-400">La primera imagen será la imagen principal en MeLi.</p>
+                            <div className="flex flex-col items-center gap-2 py-4 border-2 border-dashed border-[var(--border)] rounded-xl text-center">
+                                <p className="text-xs text-[var(--text-faint)]">Sin imágenes aún.</p>
+                                <p className="text-xs text-[var(--text-faint)]">La primera imagen será la imagen principal en MeLi.</p>
                             </div>
                         )}
                     </div>
@@ -1590,23 +1590,23 @@ export default function FichaDetallePage() {
                 <div className="space-y-4">
 
                     {/* Enriquecer */}
-                    <div className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl p-5 text-white shadow-lg space-y-3">
+                    <div className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl p-5 text-[var(--accent-ink)] shadow-lg space-y-3">
                         <div className="flex items-center gap-2">
                             <Sparkles className="w-5 h-5" />
                             <h3 className="text-sm font-bold">Enriquecer ficha</h3>
                         </div>
                         {enrichedMsg && (
-                            <p className="text-xs bg-white/20 rounded-lg px-3 py-2 text-white">{enrichedMsg}</p>
+                            <p className="text-xs bg-[var(--surface)]/20 rounded-lg px-3 py-2 text-[var(--accent-ink)]">{enrichedMsg}</p>
                         )}
                         {!enrichOpen ? (
                             <div className="space-y-2">
                                 <button type="button" onClick={() => { setEnrichOpen(true); setEnrichedMsg(''); setEnrichError(''); }}
-                                    className="w-full py-2.5 px-4 rounded-xl text-sm font-bold bg-white text-indigo-700 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2">
+                                    className="w-full py-2.5 px-4 rounded-xl text-sm font-bold bg-[var(--surface)] text-indigo-700 hover:bg-[var(--accent)]/10 transition-colors flex items-center justify-center gap-2">
                                     <Upload className="w-4 h-4" /> Agregar documento
                                 </button>
                                 {ficha.articulos && (
                                     <button type="button" onClick={enrichFromCatalog}
-                                        className="w-full py-2 px-4 rounded-xl text-xs font-semibold border border-indigo-400 text-indigo-100 hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
+                                        className="w-full py-2 px-4 rounded-xl text-xs font-semibold border border-[var(--accent)]/70 text-indigo-100 hover:bg-[var(--surface)]/10 transition-colors flex items-center justify-center gap-2">
                                         <Link2 className="w-3.5 h-3.5" /> Enriquecer desde catálogo
                                     </button>
                                 )}
@@ -1614,7 +1614,7 @@ export default function FichaDetallePage() {
                         ) : (
                             <div className="space-y-3">
                                 {/* --- Campo: Producto objetivo --- */}
-                                <div className="bg-white/10 rounded-xl p-3 space-y-1.5">
+                                <div className="bg-[var(--surface)]/10 rounded-xl p-3 space-y-1.5">
                                     <label className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest flex items-center gap-1">
                                         🎯 Producto a extraer
                                         <span className="font-normal normal-case text-indigo-300 ml-1">(opcional)</span>
@@ -1624,7 +1624,7 @@ export default function FichaDetallePage() {
                                         placeholder="Ej: Würth 8890402, grasa multiuso..."
                                         value={enrichProductoObjetivo}
                                         onChange={e => setEnrichProductoObjetivo(e.target.value)}
-                                        className="w-full p-2 rounded-lg bg-indigo-700/60 border border-indigo-500 text-xs text-white placeholder-indigo-300 focus:outline-none focus:ring-1 focus:ring-white/50"
+                                        className="w-full p-2 rounded-lg bg-indigo-700/60 border border-[var(--accent)] text-xs text-[var(--accent-ink)] placeholder-indigo-300 focus:outline-none focus:ring-1 focus:ring-white/50"
                                     />
                                     <p className="text-[10px] text-indigo-300 leading-tight">
                                         Si el documento tiene varios productos (catálogo, tabla comparativa), indica nombre, modelo o SKU del que quieres extraer.
@@ -1637,9 +1637,9 @@ export default function FichaDetallePage() {
                                         <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Campos a extraer</p>
                                         <div className="flex gap-2">
                                             <button type="button" onClick={() => setEnrichCampos(new Set(TODOS_CAMPOS_ENRICH.map(c => c.key)))}
-                                                className="text-[10px] text-indigo-300 hover:text-white">Todos</button>
+                                                className="text-[10px] text-indigo-300 hover:text-[var(--accent-ink)]">Todos</button>
                                             <button type="button" onClick={() => setEnrichCampos(new Set())}
-                                                className="text-[10px] text-indigo-300 hover:text-white">Ninguno</button>
+                                                className="text-[10px] text-indigo-300 hover:text-[var(--accent-ink)]">Ninguno</button>
                                         </div>
                                     </div>
                                     {(['Identidad','Descripción','Uso y seguridad','Regulatorio','Logística','Marketing'] as const).map(grupo => {
@@ -1654,7 +1654,7 @@ export default function FichaDetallePage() {
                                                         else campos.forEach(c => s.add(c.key));
                                                         return s;
                                                     });
-                                                }} className="text-[10px] font-bold text-indigo-300 hover:text-white mb-1 flex items-center gap-1">
+                                                }} className="text-[10px] font-bold text-indigo-300 hover:text-[var(--accent-ink)] mb-1 flex items-center gap-1">
                                                     {todosGrupo ? '▾' : '▸'} {grupo}
                                                 </button>
                                                 <div className="grid grid-cols-1 gap-0.5 pl-3">
@@ -1685,7 +1685,7 @@ export default function FichaDetallePage() {
                                 <div className="flex gap-1">
                                     {(['file', 'url'] as const).map(m => (
                                         <button key={m} type="button" onClick={() => setEnrichMode(m)}
-                                            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${enrichMode === m ? 'bg-white text-indigo-700' : 'text-indigo-200 hover:text-white'}`}>
+                                            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${enrichMode === m ? 'bg-[var(--surface)] text-indigo-700' : 'text-indigo-200 hover:text-[var(--accent-ink)]'}`}>
                                             {m === 'file' ? '📄 Archivo' : '🔗 URL'}
                                         </button>
                                     ))}
@@ -1695,22 +1695,22 @@ export default function FichaDetallePage() {
                                         <input ref={enrichFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden"
                                             onChange={e => setEnrichFile(e.target.files?.[0] ?? null)} />
                                         <button type="button" onClick={() => enrichFileRef.current?.click()}
-                                            className="w-full py-2 rounded-xl border-2 border-dashed border-indigo-400 text-xs text-indigo-200 hover:border-white hover:text-white transition-colors">
+                                            className="w-full py-2 rounded-xl border-2 border-dashed border-[var(--accent)]/70 text-xs text-indigo-200 hover:border-white hover:text-[var(--accent-ink)] transition-colors">
                                             {enrichFile ? enrichFile.name : 'Seleccionar archivo…'}
                                         </button>
                                     </>
                                 ) : (
                                     <input type="url" placeholder="https://…/ficha.pdf" value={enrichUrl}
                                         onChange={e => setEnrichUrl(e.target.value)}
-                                        className="w-full p-2 rounded-xl bg-indigo-700 border border-indigo-500 text-xs text-white placeholder-indigo-300 focus:outline-none" />
+                                        className="w-full p-2 rounded-xl bg-indigo-700 border border-[var(--accent)] text-xs text-[var(--accent-ink)] placeholder-indigo-300 focus:outline-none" />
                                 )}
                                 {enrichError && <p className="text-xs text-rose-200">{enrichError}</p>}
                                 <div className="flex gap-2">
                                     <button type="button" onClick={() => { setEnrichOpen(false); setEnrichFile(null); setEnrichUrl(''); setEnrichError(''); }}
-                                        className="flex-1 py-2 rounded-xl text-xs border border-indigo-400 text-indigo-200 hover:text-white transition-colors">Cancelar</button>
+                                        className="flex-1 py-2 rounded-xl text-xs border border-[var(--accent)]/70 text-indigo-200 hover:text-[var(--accent-ink)] transition-colors">Cancelar</button>
                                     <button type="button" onClick={lanzarEnriquecimiento}
                                         disabled={enrichLoading || enrichCampos.size === 0}
-                                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-white text-indigo-700 hover:bg-indigo-50 transition-colors disabled:opacity-60 flex items-center justify-center gap-1">
+                                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-[var(--surface)] text-indigo-700 hover:bg-[var(--accent)]/10 transition-colors disabled:opacity-60 flex items-center justify-center gap-1">
                                         {enrichLoading ? <><Loader2 className="w-3 h-3 animate-spin" />Procesando…</> : `Extraer (${enrichCampos.size} campos)`}
                                     </button>
                                 </div>
@@ -1719,33 +1719,33 @@ export default function FichaDetallePage() {
                     </div>
 
                     {/* Cambiar estado */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-sm space-y-3">
                         <h3 className="text-sm font-bold">Estado</h3>
                         <div className="space-y-2">
                             {ESTADOS.map(e => (
                                 <button key={e} type="button" onClick={() => cambiarEstado(e)} disabled={saving || ficha.estado === e}
-                                    className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold border transition-colors ${ficha.estado === e ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+                                    className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold border transition-colors ${ficha.estado === e ? 'bg-[var(--accent)] text-[var(--accent-ink)] border-indigo-600' : 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--accent)]/50'}`}>
                                     {e === 'borrador' ? '📝 Borrador' : e === 'revision' ? '🔍 En revisión' : '✅ Publicada'}
                                 </button>
                             ))}
                         </div>
-                        {savedOk && <p className="text-xs text-emerald-600 font-semibold text-center">✓ Estado actualizado</p>}
+                        {savedOk && <p className="text-xs text-[var(--ok)] font-semibold text-center">✓ Estado actualizado</p>}
                     </div>
 
                     {/* Completitud */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-sm space-y-2">
                         <h3 className="text-sm font-bold">Completitud</h3>
                         <div className="flex items-center gap-3">
-                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="flex-1 h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
                                 <div className={`h-full rounded-full transition-all ${completitudColor}`} style={{ width: `${completitud}%` }} />
                             </div>
-                            <span className="text-sm font-bold text-slate-600">{completitud}%</span>
+                            <span className="text-sm font-bold text-[var(--text-muted)]">{completitud}%</span>
                         </div>
-                        <p className="text-xs text-slate-400">{filled} de {totalEval} campos de contenido llenos</p>
+                        <p className="text-xs text-[var(--text-faint)]">{filled} de {totalEval} campos de contenido llenos</p>
                     </div>
 
                     {/* Autocompletar campos vacíos */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-sm space-y-3">
                         <div className="flex items-center gap-2">
                             <Sparkles className="w-4 h-4 text-violet-500" />
                             <h3 className="text-sm font-bold">Autocompletar campos</h3>
@@ -1753,11 +1753,11 @@ export default function FichaDetallePage() {
                         {autocompletarMsg && (
                             <p className={`text-xs rounded-lg px-3 py-2 font-medium ${
                                 autocompletarMsg.startsWith('✓')
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    ? 'bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30'
+                                    : 'bg-[var(--warn)]/10 text-[var(--warn)] border border-[var(--warn)]/30'
                             }`}>{autocompletarMsg}</p>
                         )}
-                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                        <p className="text-[11px] text-[var(--text-faint)] leading-relaxed">
                             Analiza el texto existente y sugiere valores para campos vacíos (materiales, regulatorio, etc.). Tú apruebas campo por campo.
                         </p>
                         <button type="button" onClick={lanzarAutocompletar}
@@ -1770,24 +1770,24 @@ export default function FichaDetallePage() {
                     </div>
 
                     {/* Acciones */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-sm space-y-2">
                         <h3 className="text-sm font-bold">Acciones</h3>
-                        <Link href="/fichas" className="block w-full py-2.5 px-4 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 text-center transition-colors">
+                        <Link href="/fichas" className="block w-full py-2.5 px-4 rounded-xl text-sm font-semibold border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] text-center transition-colors">
                             ← Listado de fichas
                         </Link>
-                        <Link href="/autoficha" className="block w-full py-2.5 px-4 rounded-xl text-sm font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 text-center transition-colors">
+                        <Link href="/autoficha" className="block w-full py-2.5 px-4 rounded-xl text-sm font-semibold bg-[var(--accent)]/10 text-indigo-700 border border-[var(--accent)]/30 hover:bg-[var(--accent)]/20 text-center transition-colors">
                             Nueva ficha con IA
                         </Link>
                         {ficha.estado !== 'publicado' && (
                             <button type="button" onClick={eliminarFicha} disabled={deleting}
-                                className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
+                                className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold bg-[var(--err)]/10 text-[var(--err)] border border-[var(--err)]/30 hover:bg-rose-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
                                 {deleting ? <><Loader2 className="w-4 h-4 animate-spin" />Eliminando…</> : <><Trash2 className="w-4 h-4" />Eliminar ficha</>}
                             </button>
                         )}
                     </div>
 
                     {/* Metadata */}
-                    <div className="text-xs text-slate-400 space-y-1 px-1">
+                    <div className="text-xs text-[var(--text-faint)] space-y-1 px-1">
                         <p>Creada: {new Date(ficha.created_at).toLocaleString('es-MX')}</p>
                     </div>
                 </div>
@@ -1796,11 +1796,11 @@ export default function FichaDetallePage() {
             {/* -- Overlay: Descubriendo productos (Etapa 1) -- */}
             {enrichStep === 'discovering' && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4 max-w-sm w-full">
-                        <Loader2 className="w-10 h-10 animate-spin text-indigo-500" />
+                    <div className="bg-[var(--surface)] rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4 max-w-sm w-full">
+                        <Loader2 className="w-10 h-10 animate-spin text-[var(--accent)]" />
                         <div className="text-center">
-                            <p className="font-bold text-slate-700">Analizando el documento…</p>
-                            <p className="text-xs text-slate-400 mt-1">Identificando todos los productos para que puedas elegir el exacto.</p>
+                            <p className="font-bold text-[var(--text-muted)]">Analizando el documento…</p>
+                            <p className="text-xs text-[var(--text-faint)] mt-1">Identificando todos los productos para que puedas elegir el exacto.</p>
                         </div>
                     </div>
                 </div>
@@ -1809,10 +1809,10 @@ export default function FichaDetallePage() {
             {/* -- Modal: Elegir producto (Etapa 1.5) -- */}
             {enrichStep === 'picking' && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
-                        <div className="px-6 py-4 border-b border-slate-100">
+                    <div className="bg-[var(--surface)] rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+                        <div className="px-6 py-4 border-b border-[var(--border)]">
                             <h2 className="text-lg font-bold">Elige el producto a extraer</h2>
-                            <p className="text-xs text-slate-400 mt-0.5">
+                            <p className="text-xs text-[var(--text-faint)] mt-0.5">
                                 Se encontraron {productosDescubiertos.length} producto(s) en el documento.
                                 Selecciona el que quieres enriquecer en la ficha.
                             </p>
@@ -1820,7 +1820,7 @@ export default function FichaDetallePage() {
 
                         <div className="overflow-y-auto flex-1 p-4 space-y-2">
                             {/* Opción: escribir manualmente */}
-                            <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition-colors">
+                            <label className="flex items-start gap-3 p-3 rounded-xl border border-[var(--border)] hover:border-[var(--accent)]/50 cursor-pointer transition-colors">
                                 <input type="radio" name="producto_pick" value="__manual__"
                                     checked={!productosDescubiertos.some(p =>
                                         `${p.nombre}${p.codigo ? ' ' + p.codigo : ''}` === productoSeleccionado
@@ -1828,7 +1828,7 @@ export default function FichaDetallePage() {
                                     onChange={() => {}}
                                     className="accent-indigo-600 mt-0.5 shrink-0" />
                                 <div className="flex-1">
-                                    <p className="text-xs font-bold text-slate-500 uppercase">Otro / Escribir manualmente</p>
+                                    <p className="text-xs font-bold text-[var(--text-muted)] uppercase">Otro / Escribir manualmente</p>
                                     <input
                                         type="text"
                                         placeholder="Nombre o código del producto..."
@@ -1837,7 +1837,7 @@ export default function FichaDetallePage() {
                                         ) ? '' : productoSeleccionado}
                                         onChange={e => setProductoSeleccionado(e.target.value)}
                                         onClick={() => setProductoSeleccionado('')}
-                                        className="mt-1 w-full p-2 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-400 outline-none"
+                                        className="mt-1 w-full p-2 text-sm border border-[var(--border)] rounded-lg focus:ring-1 focus:ring-indigo-400 outline-none"
                                     />
                                 </div>
                             </label>
@@ -1847,31 +1847,31 @@ export default function FichaDetallePage() {
                                 const val = `${p.nombre}${p.codigo ? ' ' + p.codigo : ''}`;
                                 return (
                                     <label key={i} onClick={() => setProductoSeleccionado(val)}
-                                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${productoSeleccionado === val ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400' : 'border-slate-200 hover:border-indigo-200'}`}>
+                                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${productoSeleccionado === val ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10 ring-1 ring-indigo-400' : 'border-[var(--border)] hover:border-[var(--accent)]/30'}`}>
                                         <input type="radio" name="producto_pick" value={val}
                                             checked={productoSeleccionado === val}
                                             onChange={() => setProductoSeleccionado(val)}
                                             className="accent-indigo-600 mt-0.5 shrink-0" />
                                         <div>
-                                            <p className="text-sm font-semibold text-slate-700">{p.nombre}</p>
-                                            {p.codigo && <p className="text-xs font-mono text-indigo-600">{p.codigo}</p>}
-                                            {p.descripcion_breve && <p className="text-xs text-slate-400 mt-0.5">{p.descripcion_breve}</p>}
+                                            <p className="text-sm font-semibold text-[var(--text-muted)]">{p.nombre}</p>
+                                            {p.codigo && <p className="text-xs font-mono text-[var(--accent)]">{p.codigo}</p>}
+                                            {p.descripcion_breve && <p className="text-xs text-[var(--text-faint)] mt-0.5">{p.descripcion_breve}</p>}
                                         </div>
                                     </label>
                                 );
                             })}
                         </div>
 
-                        <div className="flex gap-3 px-6 py-4 border-t border-slate-100">
+                        <div className="flex gap-3 px-6 py-4 border-t border-[var(--border)]">
                             <button type="button"
                                 onClick={() => { setEnrichStep('config'); setProductosDescubiertos([]); setProductoSeleccionado(''); }}
-                                className="flex-1 py-2.5 rounded-xl text-sm border border-slate-200 text-slate-600 hover:bg-slate-50">
+                                className="flex-1 py-2.5 rounded-xl text-sm border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)]">
                                 Cancelar
                             </button>
                             <button type="button"
                                 disabled={!productoSeleccionado.trim() || enrichLoading}
                                 onClick={() => lanzarExtraccionConProducto(productoSeleccionado.trim())}
-                                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--accent)] text-[var(--accent-ink)] hover:brightness-110 disabled:opacity-60 flex items-center justify-center gap-2">
                                 {enrichLoading
                                     ? <><Loader2 className="w-4 h-4 animate-spin" />Extrayendo…</>
                                     : <><Sparkles className="w-4 h-4" />Extraer este producto</>}
@@ -1884,50 +1884,50 @@ export default function FichaDetallePage() {
             {/* -- Modal enriquecimiento v2 -- */}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                    <div className="bg-[var(--surface)] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
                             <div>
                                 <h2 className="text-lg font-bold">Revisar datos extraídos</h2>
-                                <p className="text-xs text-slate-400">
+                                <p className="text-xs text-[var(--text-faint)]">
                                     {conflictos.filter(d => d.accion === 'agregar').length} campo(s) nuevos ·{' '}
                                     {conflictos.filter(d => d.accion === 'conflicto').length} conflicto(s).
                                     Nada se guarda hasta que apruebes.
                                 </p>
-                                {enrichedMsg && <p className="text-xs text-emerald-600 font-semibold mt-1">{enrichedMsg}</p>}
+                                {enrichedMsg && <p className="text-xs text-[var(--ok)] font-semibold mt-1">{enrichedMsg}</p>}
                             </div>
-                            <button type="button" onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+                            <button type="button" onClick={() => setShowModal(false)} className="text-[var(--text-faint)] hover:text-[var(--text-muted)]"><X className="w-5 h-5" /></button>
                         </div>
 
                         <div className="overflow-y-auto flex-1 p-6 space-y-5">
                             {conflictos.map(d => (
-                                <div key={d.campo} className="border border-slate-200 rounded-xl overflow-hidden">
-                                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                                        <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">{d.label}</p>
+                                <div key={d.campo} className="border border-[var(--border)] rounded-xl overflow-hidden">
+                                    <div className="px-4 py-2 bg-[var(--bg)] border-b border-[var(--border)] flex items-center justify-between">
+                                        <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wide">{d.label}</p>
                                         <div className="flex items-center gap-2">
                                             {d.accion === 'agregar'
-                                                ? <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Campo nuevo</span>
-                                                : <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Conflicto</span>
+                                                ? <span className="text-[10px] font-bold bg-emerald-100 text-[var(--ok)] px-2 py-0.5 rounded-full">Campo nuevo</span>
+                                                : <span className="text-[10px] font-bold bg-amber-100 text-[var(--warn)] px-2 py-0.5 rounded-full">Conflicto</span>
                                             }
-                                            <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{d.tipo}</span>
+                                            <span className="text-[10px] text-[var(--text-faint)] bg-[var(--surface-2)] px-2 py-0.5 rounded-full">{d.tipo}</span>
                                         </div>
                                     </div>
 
                                     {/* LISTAS — checkboxes de items nuevos */}
                                     {d.tipo === 'lista' && (
                                         <div className="p-4 space-y-2">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Items actuales</p>
+                                            <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase mb-2">Items actuales</p>
                                             {(d.valor_actual ?? []).map((item: string) => (
-                                                <div key={item} className="flex items-center gap-2 text-xs text-slate-500">
-                                                    <span className="w-3 h-3 rounded border border-slate-300 bg-slate-100 shrink-0" />{item}
+                                                <div key={item} className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+                                                    <span className="w-3 h-3 rounded border border-slate-300 bg-[var(--surface-2)] shrink-0" />{item}
                                                 </div>
                                             ))}
                                             {d.items_nuevos && d.items_nuevos.length > 0 && (
                                                 <>
-                                                    <p className="text-[10px] font-bold text-emerald-600 uppercase mt-3 mb-2">Items nuevos — elige cuáles agregar</p>
+                                                    <p className="text-[10px] font-bold text-[var(--ok)] uppercase mt-3 mb-2">Items nuevos — elige cuáles agregar</p>
                                                     {d.items_nuevos.map((item: string) => {
                                                         const checked = listChecks[d.campo]?.has(item) ?? true;
                                                         return (
-                                                            <label key={item} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                                                            <label key={item} className="flex items-center gap-2 text-xs text-[var(--text-muted)] cursor-pointer">
                                                                 <input type="checkbox" checked={checked} onChange={e => {
                                                                     setListChecks(prev => {
                                                                         const s = new Set(prev[d.campo] ?? []);
@@ -1935,7 +1935,7 @@ export default function FichaDetallePage() {
                                                                         return { ...prev, [d.campo]: s };
                                                                     });
                                                                 }} className="accent-indigo-600" />
-                                                                <span className="text-emerald-700 font-medium">{item}</span>
+                                                                <span className="text-[var(--ok)] font-medium">{item}</span>
                                                             </label>
                                                         );
                                                     })}
@@ -1949,24 +1949,24 @@ export default function FichaDetallePage() {
                                         <div className="p-4 space-y-3">
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button type="button" onClick={() => setSeleccion(s => ({ ...s, [d.campo]: 'actual' }))}
-                                                    className={`p-3 rounded-lg text-xs text-left border transition-colors ${seleccion[d.campo] === 'actual' ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-400' : 'border-slate-200 hover:bg-slate-50'}`}>
-                                                    <p className={`font-bold mb-1 text-[10px] uppercase ${seleccion[d.campo] === 'actual' ? 'text-indigo-600' : 'text-slate-400'}`}>
+                                                    className={`p-3 rounded-lg text-xs text-left border transition-colors ${seleccion[d.campo] === 'actual' ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10 ring-1 ring-indigo-400' : 'border-[var(--border)] hover:bg-[var(--bg)]'}`}>
+                                                    <p className={`font-bold mb-1 text-[10px] uppercase ${seleccion[d.campo] === 'actual' ? 'text-[var(--accent)]' : 'text-[var(--text-faint)]'}`}>
                                                         {seleccion[d.campo] === 'actual' ? '✓ ' : ''}Mantener actual
                                                     </p>
-                                                    <p className="text-slate-600 line-clamp-3 whitespace-pre-wrap">{formatVal(d.valor_actual)}</p>
+                                                    <p className="text-[var(--text-muted)] line-clamp-3 whitespace-pre-wrap">{formatVal(d.valor_actual)}</p>
                                                 </button>
                                                 <button type="button" onClick={() => setSeleccion(s => ({ ...s, [d.campo]: 'nuevo' }))}
-                                                    className={`p-3 rounded-lg text-xs text-left border transition-colors ${seleccion[d.campo] === 'nuevo' ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-400' : 'border-slate-200 hover:bg-slate-50'}`}>
-                                                    <p className={`font-bold mb-1 text-[10px] uppercase ${seleccion[d.campo] === 'nuevo' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                    className={`p-3 rounded-lg text-xs text-left border transition-colors ${seleccion[d.campo] === 'nuevo' ? 'border-emerald-400 bg-[var(--ok)]/10 ring-1 ring-emerald-400' : 'border-[var(--border)] hover:bg-[var(--bg)]'}`}>
+                                                    <p className={`font-bold mb-1 text-[10px] uppercase ${seleccion[d.campo] === 'nuevo' ? 'text-[var(--ok)]' : 'text-[var(--text-faint)]'}`}>
                                                         {seleccion[d.campo] === 'nuevo' ? '✓ ' : ''}Usar nuevo
                                                     </p>
-                                                    <p className="text-slate-600 line-clamp-3 whitespace-pre-wrap">{formatVal(d.valor_nuevo)}</p>
+                                                    <p className="text-[var(--text-muted)] line-clamp-3 whitespace-pre-wrap">{formatVal(d.valor_nuevo)}</p>
                                                 </button>
                                             </div>
                                             {/* Combinar con IA */}
-                                            <div className={`rounded-lg border p-3 space-y-2 transition-colors ${seleccion[d.campo] === 'combinar' ? 'border-violet-400 bg-violet-50' : 'border-slate-200'}`}>
+                                            <div className={`rounded-lg border p-3 space-y-2 transition-colors ${seleccion[d.campo] === 'combinar' ? 'border-violet-400 bg-violet-50' : 'border-[var(--border)]'}`}>
                                                 <div className="flex items-center justify-between">
-                                                    <p className={`text-[10px] font-bold uppercase ${seleccion[d.campo] === 'combinar' ? 'text-violet-600' : 'text-slate-400'}`}>
+                                                    <p className={`text-[10px] font-bold uppercase ${seleccion[d.campo] === 'combinar' ? 'text-violet-600' : 'text-[var(--text-faint)]'}`}>
                                                         {seleccion[d.campo] === 'combinar' ? '✓ ' : ''}Combinar con IA
                                                     </p>
                                                     <button type="button" onClick={() => combinarConIA(d)} disabled={combinandoField === d.campo}
@@ -1977,11 +1977,11 @@ export default function FichaDetallePage() {
                                                 {seleccion[d.campo] === 'combinar' && combinados[d.campo] && (
                                                     <textarea value={combinados[d.campo]}
                                                         onChange={e => setCombinados(c => ({ ...c, [d.campo]: e.target.value }))}
-                                                        className="w-full p-2 text-xs bg-white border border-violet-200 rounded-lg resize-none h-20 focus:ring-1 focus:ring-violet-400 outline-none"
+                                                        className="w-full p-2 text-xs bg-[var(--surface)] border border-violet-200 rounded-lg resize-none h-20 focus:ring-1 focus:ring-violet-400 outline-none"
                                                         placeholder="Resultado editable…" />
                                                 )}
                                                 {seleccion[d.campo] !== 'combinar' && !combinados[d.campo] && (
-                                                    <p className="text-xs text-slate-400">Haz clic en Sintetizar para que la IA combine ambas versiones.</p>
+                                                    <p className="text-xs text-[var(--text-faint)]">Haz clic en Sintetizar para que la IA combine ambas versiones.</p>
                                                 )}
                                             </div>
                                         </div>
@@ -1992,7 +1992,7 @@ export default function FichaDetallePage() {
                                         <div className="p-4 space-y-3">
                                             {d.keys_nuevas && Object.keys(d.keys_nuevas).length > 0 && (
                                                 <>
-                                                    <p className="text-[10px] font-bold text-emerald-600 uppercase mb-2">Atributos nuevos — elige cuáles agregar</p>
+                                                    <p className="text-[10px] font-bold text-[var(--ok)] uppercase mb-2">Atributos nuevos — elige cuáles agregar</p>
                                                     {Object.entries(d.keys_nuevas).map(([k, v]) => {
                                                         const checkKey = `${d.campo}::${k}`;
                                                         const checked = listChecks[checkKey] !== undefined
@@ -2010,8 +2010,8 @@ export default function FichaDetallePage() {
                                                                     }}
                                                                     className="accent-indigo-600 mt-0.5 shrink-0" />
                                                                 <span className="text-xs">
-                                                                    <span className="font-semibold text-slate-700">{k}:</span>{' '}
-                                                                    <span className="text-emerald-700">{String(v)}</span>
+                                                                    <span className="font-semibold text-[var(--text-muted)]">{k}:</span>{' '}
+                                                                    <span className="text-[var(--ok)]">{String(v)}</span>
                                                                 </span>
                                                             </label>
                                                         );
@@ -2020,18 +2020,18 @@ export default function FichaDetallePage() {
                                             )}
                                             {d.keys_conflicto && Object.keys(d.keys_conflicto).length > 0 && (
                                                 <>
-                                                    <p className="text-[10px] font-bold text-amber-600 uppercase mt-2">En conflicto — elige cuál conservar:</p>
+                                                    <p className="text-[10px] font-bold text-[var(--warn)] uppercase mt-2">En conflicto — elige cuál conservar:</p>
                                                     {Object.entries(d.keys_conflicto).map(([k, vals]) => (
                                                         <div key={k} className="grid grid-cols-2 gap-2">
                                                             <button type="button" onClick={() => setSeleccion(s => ({ ...s, [`${d.campo}::conflict::${k}`]: 'actual' }))}
-                                                                className={`p-2 rounded-lg text-xs text-left border ${seleccion[`${d.campo}::conflict::${k}`] !== 'nuevo' ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200'}`}>
-                                                                <p className="text-[10px] text-slate-400 font-bold">{k} (actual)</p>
-                                                                <p className="text-slate-700">{String((vals as any).actual)}</p>
+                                                                className={`p-2 rounded-lg text-xs text-left border ${seleccion[`${d.campo}::conflict::${k}`] !== 'nuevo' ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10' : 'border-[var(--border)]'}`}>
+                                                                <p className="text-[10px] text-[var(--text-faint)] font-bold">{k} (actual)</p>
+                                                                <p className="text-[var(--text-muted)]">{String((vals as any).actual)}</p>
                                                             </button>
                                                             <button type="button" onClick={() => setSeleccion(s => ({ ...s, [`${d.campo}::conflict::${k}`]: 'nuevo' }))}
-                                                                className={`p-2 rounded-lg text-xs text-left border ${seleccion[`${d.campo}::conflict::${k}`] === 'nuevo' ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200'}`}>
-                                                                <p className="text-[10px] text-slate-400 font-bold">{k} (nuevo)</p>
-                                                                <p className="text-slate-700">{String((vals as any).nuevo)}</p>
+                                                                className={`p-2 rounded-lg text-xs text-left border ${seleccion[`${d.campo}::conflict::${k}`] === 'nuevo' ? 'border-emerald-400 bg-[var(--ok)]/10' : 'border-[var(--border)]'}`}>
+                                                                <p className="text-[10px] text-[var(--text-faint)] font-bold">{k} (nuevo)</p>
+                                                                <p className="text-[var(--text-muted)]">{String((vals as any).nuevo)}</p>
                                                             </button>
                                                         </div>
                                                     ))}
@@ -2043,12 +2043,12 @@ export default function FichaDetallePage() {
                             ))}
                         </div>
 
-                        {applyError && <div className="mx-6 mb-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs">{applyError}</div>}
-                        <div className="flex gap-3 px-6 py-4 border-t border-slate-100">
+                        {applyError && <div className="mx-6 mb-2 p-3 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl text-[var(--err)] text-xs">{applyError}</div>}
+                        <div className="flex gap-3 px-6 py-4 border-t border-[var(--border)]">
                             <button type="button" onClick={() => setShowModal(false)}
-                                className="flex-1 py-2.5 rounded-xl text-sm border border-slate-200 text-slate-600 hover:bg-slate-50">Cancelar</button>
+                                className="flex-1 py-2.5 rounded-xl text-sm border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)]">Cancelar</button>
                             <button type="button" onClick={aplicarSeleccion} disabled={applying}
-                                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--accent)] text-[var(--accent-ink)] hover:brightness-110 disabled:opacity-60 flex items-center justify-center gap-2">
                                 {applying ? <><Loader2 className="w-4 h-4 animate-spin" />Aplicando…</> : <><CheckCircle2 className="w-4 h-4" />Aplicar</>}
                             </button>
                         </div>
@@ -2059,19 +2059,19 @@ export default function FichaDetallePage() {
             {/* -- Modal Vincular / Cambiar artículo -- */}
             {vinculandoModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                    <div className="bg-[var(--surface)] rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
                             <div>
                                 <h2 className="text-lg font-bold">
                                     {ficha?.articulos ? 'Cambiar artículo vinculado' : 'Vincular artículo del catálogo'}
                                 </h2>
-                                <p className="text-xs text-slate-400">Busca por nombre, marca, SKU o modelo.</p>
+                                <p className="text-xs text-[var(--text-faint)]">Busca por nombre, marca, SKU o modelo.</p>
                             </div>
                             <button type="button" onClick={() => { setVinculandoModal(false); setVinculandoResults([]); setVinculandoQ(''); setVinculandoError(''); }}
-                                className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+                                className="text-[var(--text-faint)] hover:text-[var(--text-muted)]"><X className="w-5 h-5" /></button>
                         </div>
 
-                        <div className="p-4 border-b border-slate-100">
+                        <div className="p-4 border-b border-[var(--border)]">
                             <div className="flex gap-2">
                                 <input
                                     type="text"
@@ -2079,31 +2079,31 @@ export default function FichaDetallePage() {
                                     value={vinculandoQ}
                                     onChange={e => setVinculandoQ(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && buscarParaVincular()}
-                                    className="flex-1 p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-indigo-400 outline-none"
+                                    className="flex-1 p-2.5 text-sm bg-[var(--bg)] border border-[var(--border)] rounded-xl focus:ring-1 focus:ring-indigo-400 outline-none"
                                     autoFocus
                                 />
                                 <button type="button" onClick={buscarParaVincular} disabled={vinculandoLoading || vinculandoQ.trim().length < 2}
-                                    className="px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-1.5">
+                                    className="px-4 py-2.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-semibold rounded-xl hover:brightness-110 disabled:opacity-60 flex items-center gap-1.5">
                                     {vinculandoLoading
                                         ? <><Loader2 className="w-4 h-4 animate-spin" />Buscando…</>
                                         : <><Search className="w-4 h-4" />Buscar</>}
                                 </button>
                             </div>
-                            {vinculandoError && <p className="text-xs text-rose-600 mt-2">{vinculandoError}</p>}
+                            {vinculandoError && <p className="text-xs text-[var(--err)] mt-2">{vinculandoError}</p>}
                         </div>
 
                         <div className="overflow-y-auto flex-1 p-4 space-y-2">
                             {vinculandoResults.length === 0 && !vinculandoLoading && (
-                                <p className="text-xs text-center text-slate-400 py-6">
+                                <p className="text-xs text-center text-[var(--text-faint)] py-6">
                                     {vinculandoQ.length < 2 ? 'Escribe al menos 2 caracteres y haz clic en Buscar.' : 'Sin resultados — intenta otra búsqueda.'}
                                 </p>
                             )}
                             {vinculandoResults.map(art => (
                                 <button key={art.articulo_id} type="button" onClick={() => vincularArticulo(art.articulo_id)}
-                                    className="w-full text-left p-3 rounded-xl border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50 transition-colors space-y-0.5">
-                                    <p className="text-sm font-semibold text-slate-800 leading-tight">{art.nombre}</p>
-                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
-                                        <span>SKU: <code className="text-slate-700">{art.articulo_id}</code></span>
+                                    className="w-full text-left p-3 rounded-xl border border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--accent)]/10 transition-colors space-y-0.5">
+                                    <p className="text-sm font-semibold text-[var(--text)] leading-tight">{art.nombre}</p>
+                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[var(--text-muted)]">
+                                        <span>SKU: <code className="text-[var(--text-muted)]">{art.articulo_id}</code></span>
                                         {art.marca    && <span>Marca: {art.marca}</span>}
                                         {art.modelo   && <span>Modelo: {art.modelo}</span>}
                                         {art.variante && <span>Variante: {art.variante}</span>}
@@ -2119,10 +2119,10 @@ export default function FichaDetallePage() {
             {/* -- Modal: Imágenes extraídas por IA ------------------------ */}
             {imgExtractOpen && imgExtractResults.length > 0 && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-                        <div className="px-6 py-4 border-b border-slate-100">
-                            <h2 className="text-lg font-bold text-slate-900">Imágenes encontradas</h2>
-                            <p className="text-xs text-slate-400 mt-0.5">
+                    <div className="bg-[var(--surface)] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+                        <div className="px-6 py-4 border-b border-[var(--border)]">
+                            <h2 className="text-lg font-bold text-[var(--text)]">Imágenes encontradas</h2>
+                            <p className="text-xs text-[var(--text-faint)] mt-0.5">
                                 La IA encontró {imgExtractResults.length} imagen(es). Selecciona las que quieres guardar en la ficha.
                             </p>
                         </div>
@@ -2136,32 +2136,32 @@ export default function FichaDetallePage() {
                                             sel ? s.delete(img.url) : s.add(img.url);
                                             return s;
                                         })}
-                                        className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${sel ? 'border-indigo-500 ring-2 ring-indigo-300' : 'border-slate-200 hover:border-slate-300'}`}>
+                                        className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${sel ? 'border-[var(--accent)] ring-2 ring-indigo-300' : 'border-[var(--border)] hover:border-slate-300'}`}>
                                         <img src={img.url} alt={img.descripcion} className="w-full h-full object-cover"
                                             onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                         {sel && (
-                                            <div className="absolute top-1.5 right-1.5 bg-indigo-600 rounded-full p-0.5">
-                                                <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                                            <div className="absolute top-1.5 right-1.5 bg-[var(--accent)] rounded-full p-0.5">
+                                                <CheckCircle2 className="w-3.5 h-3.5 text-[var(--accent-ink)]" />
                                             </div>
                                         )}
                                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                                            <p className="text-[9px] text-white font-semibold truncate">{img.descripcion}</p>
-                                            <p className="text-[8px] text-white/70">{img.confianza}% confianza</p>
+                                            <p className="text-[9px] text-[var(--accent-ink)] font-semibold truncate">{img.descripcion}</p>
+                                            <p className="text-[8px] text-[var(--accent-ink)]/70">{img.confianza}% confianza</p>
                                         </div>
                                     </button>
                                 );
                             })}
                         </div>
-                        <div className="flex gap-3 px-6 py-4 border-t border-slate-100">
+                        <div className="flex gap-3 px-6 py-4 border-t border-[var(--border)]">
                             <button type="button"
                                 onClick={() => { setImgExtractOpen(false); setImgExtractResults([]); }}
-                                className="flex-1 py-2.5 rounded-xl text-sm border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold transition-colors">
+                                className="flex-1 py-2.5 rounded-xl text-sm border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-semibold transition-colors">
                                 Cancelar
                             </button>
                             <button type="button"
                                 disabled={imgExtractSelected.size === 0}
                                 onClick={() => saveExtractedImages([...imgExtractSelected])}
-                                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--accent)] text-[var(--accent-ink)] hover:brightness-110 disabled:opacity-50 transition-colors">
                                 Guardar {imgExtractSelected.size} imagen(es)
                             </button>
                         </div>
@@ -2172,13 +2172,13 @@ export default function FichaDetallePage() {
             {/* -- Modal: Autocompletar — aprobar sugerencias ----------- */}
             {autocompletarSugerencias && Object.keys(autocompletarSugerencias).length > 0 && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
-                        <div className="px-6 py-4 border-b border-slate-100">
+                    <div className="bg-[var(--surface)] rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+                        <div className="px-6 py-4 border-b border-[var(--border)]">
                             <div className="flex items-center gap-2">
                                 <Sparkles className="w-5 h-5 text-violet-600" />
-                                <h2 className="text-lg font-bold text-slate-900">Sugerencias de campos</h2>
+                                <h2 className="text-lg font-bold text-[var(--text)]">Sugerencias de campos</h2>
                             </div>
-                            <p className="text-xs text-slate-400 mt-0.5">
+                            <p className="text-xs text-[var(--text-faint)] mt-0.5">
                                 La IA extrajo {Object.keys(autocompletarSugerencias).length} valor(es) del texto existente.
                                 Marca los que quieres aplicar — nada se guarda sin tu aprobación.
                             </p>
@@ -2198,7 +2198,7 @@ export default function FichaDetallePage() {
                                 const checked = autocompletarChecks.has(campo);
                                 return (
                                     <label key={campo}
-                                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${checked ? 'border-violet-400 bg-violet-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${checked ? 'border-violet-400 bg-violet-50' : 'border-[var(--border)] hover:border-slate-300'}`}>
                                         <input type="checkbox" checked={checked}
                                             onChange={e => setAutocompletarChecks(prev => {
                                                 const s = new Set(prev);
@@ -2207,8 +2207,8 @@ export default function FichaDetallePage() {
                                             })}
                                             className="accent-violet-600 mt-0.5 shrink-0 w-4 h-4" />
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">{label}</p>
-                                            <p className="text-sm text-slate-800 mt-0.5 leading-snug">
+                                            <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wide">{label}</p>
+                                            <p className="text-sm text-[var(--text)] mt-0.5 leading-snug">
                                                 {Array.isArray(valor) ? valor.join(', ') : String(valor)}
                                             </p>
                                         </div>
@@ -2216,16 +2216,16 @@ export default function FichaDetallePage() {
                                 );
                             })}
                         </div>
-                        <div className="flex gap-3 px-6 py-4 border-t border-slate-100">
+                        <div className="flex gap-3 px-6 py-4 border-t border-[var(--border)]">
                             <button type="button"
                                 onClick={() => { setAutocompletarSugerencias(null); setAutocompletarChecks(new Set()); }}
-                                className="flex-1 py-2.5 rounded-xl text-sm border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold transition-colors">
+                                className="flex-1 py-2.5 rounded-xl text-sm border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-semibold transition-colors">
                                 Cancelar
                             </button>
                             <button type="button"
                                 disabled={autocompletarChecks.size === 0 || autocompletarApplying}
                                 onClick={aplicarAutocompletar}
-                                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+                                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-violet-600 text-[var(--accent-ink)] hover:bg-violet-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
                                 {autocompletarApplying
                                     ? <><Loader2 className="w-4 h-4 animate-spin" />Guardando…</>
                                     : `Aplicar ${autocompletarChecks.size} campo(s)`}

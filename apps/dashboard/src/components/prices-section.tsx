@@ -100,14 +100,14 @@ function PricingRuleModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                    <h3 className="font-bold text-slate-800">Fórmula de Precio: {account_name}</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">×</button>
+            <div className="bg-[var(--surface)] rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                    <h3 className="font-bold text-[var(--text)]">Fórmula de Precio: {account_name}</h3>
+                    <button onClick={onClose} className="text-[var(--text-faint)] hover:text-[var(--text-muted)]">×</button>
                 </div>
                 
                 {loading ? (
-                    <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div>
+                    <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" /></div>
                 ) : (
                     <div className="p-6 space-y-4">
                         {error && (
@@ -117,33 +117,33 @@ function PricingRuleModal({
                             </div>
                         )}
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Margen de Ganancia Neto (%)</label>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Margen de Ganancia Neto (%)</label>
                             <input type="number" value={margin} onChange={e => setMargin(Number(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
-                            <p className="text-[10px] text-slate-400 mt-1">Porcentaje de ganancia libre después de todos los descuentos.</p>
+                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Porcentaje de ganancia libre después de todos los descuentos.</p>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Comisión MeLi (%)</label>
+                                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Comisión MeLi (%)</label>
                                 <input type="number" value={comision} onChange={e => setComision(Number(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Impuesto (IVA %)</label>
+                                <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Impuesto (IVA %)</label>
                                 <input type="number" value={iva} onChange={e => setIva(Number(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
                             </div>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Cargo Fijo MeLi ($)</label>
+                            <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Cargo Fijo MeLi ($)</label>
                             <input type="number" value={fijo} onChange={e => setFijo(Number(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
                         </div>
                     </div>
                 )}
                 
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded-lg">Cancelar</button>
+                <div className="px-6 py-4 bg-[var(--bg)] border-t border-[var(--border)] flex justify-end gap-3">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-[var(--text-muted)] hover:bg-slate-200 rounded-lg">Cancelar</button>
                     <button 
                         onClick={handleSave} 
                         disabled={saving || loading}
-                        className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg flex items-center gap-2"
+                        className="px-4 py-2 text-sm font-bold text-[var(--accent-ink)] bg-[var(--accent)] hover:brightness-110 rounded-lg flex items-center gap-2"
                     >
                         {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                         Aplicar y Recalcular
@@ -209,19 +209,19 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
     return (
         <div className={cn(
             "rounded-xl border p-4 transition-all",
-            isNew ? "bg-slate-50 border-dashed border-slate-300" : "bg-white border-slate-200"
+            isNew ? "bg-[var(--bg)] border-dashed border-slate-300" : "bg-[var(--surface)] border-[var(--border)]"
         )}>
             {/* Cuenta */}
             <div className="flex items-center gap-2 mb-3">
                 <Store className="w-4 h-4 text-yellow-500 shrink-0" />
-                <span className="text-sm font-bold text-slate-800">{accountName}</span>
+                <span className="text-sm font-bold text-[var(--text)]">{accountName}</span>
                 {!isNew && (
-                    <span className="ml-auto text-xs text-slate-400">
+                    <span className="ml-auto text-xs text-[var(--text-faint)]">
                         {price.updated_at ? new Date(price.updated_at).toLocaleDateString('es-MX') : ''}
                     </span>
                 )}
                 {isNew && (
-                    <span className="ml-auto text-xs bg-slate-200 text-slate-500 font-semibold px-2 py-0.5 rounded-full">
+                    <span className="ml-auto text-xs bg-slate-200 text-[var(--text-muted)] font-semibold px-2 py-0.5 rounded-full">
                         Sin configurar
                     </span>
                 )}
@@ -231,43 +231,43 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Precio venta */}
                 <div>
-                    <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1">
+                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1">
                         Precio Venta (Calculado o Manual)
                     </label>
                     <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] font-medium">$</span>
                         <input
                             type="number"
                             step="0.01"
                             value={salePrice}
                             onChange={(e) => setSalePrice(e.target.value)}
                             placeholder="0.00"
-                            className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
+                            className="w-full pl-7 pr-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] outline-none font-medium"
                         />
                     </div>
                 </div>
 
                 {/* Precio Base */}
                 <div>
-                    <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1">
+                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1">
                         Precio Lista (Opcional)
                     </label>
                     <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)] font-medium">$</span>
                         <input
                             type="number"
                             step="0.01"
                             value={basePrice}
                             onChange={(e) => setBasePrice(e.target.value)}
                             placeholder="0.00"
-                            className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                            className="w-full pl-7 pr-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] outline-none"
                         />
                     </div>
                 </div>
 
                 {/* SKU Tienda */}
                 <div>
-                    <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1">
+                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1">
                         SKU Tienda
                     </label>
                     <input
@@ -275,7 +275,7 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
                         value={skuTienda}
                         onChange={(e) => setSkuTienda(e.target.value)}
                         placeholder={modeloDefault || 'SKU'}
-                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] outline-none font-mono"
                     />
                 </div>
             </div>
@@ -285,12 +285,12 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={() => setModalOpen(true)}
-                        className="text-xs font-semibold text-indigo-600 flex items-center gap-1 hover:text-indigo-800 transition-colors"
+                        className="text-xs font-semibold text-[var(--accent)] flex items-center gap-1 hover:text-indigo-800 transition-colors"
                     >
                         <Settings className="w-3.5 h-3.5" />
                         Configurar Fórmula
                     </button>
-                    {err && <span className="text-xs text-rose-500 font-medium ml-2">{err}</span>}
+                    {err && <span className="text-xs text-[var(--err)] font-medium ml-2">{err}</span>}
                 </div>
                 
                 <button
@@ -300,8 +300,8 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
                     className={cn(
                         "flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all",
                         saved
-                            ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                            : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                            ? "bg-emerald-100 text-[var(--ok)] border border-[var(--ok)]/30"
+                            : "bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] shadow-sm"
                     )}
                 >
                     {saving
@@ -358,15 +358,15 @@ export function PricesSection({ articulo_id, modeloDefault }: PricesSectionProps
     ];
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm p-6">
             <div className="flex items-center gap-2 mb-4">
-                <DollarSign className="w-5 h-5 text-indigo-500" />
-                <h2 className="text-lg font-bold text-slate-900">Precios para MeLi</h2>
-                {loading && <Loader2 className="w-4 h-4 animate-spin text-slate-400 ml-auto" />}
+                <DollarSign className="w-5 h-5 text-[var(--accent)]" />
+                <h2 className="text-lg font-bold text-[var(--text)]">Precios para MeLi</h2>
+                {loading && <Loader2 className="w-4 h-4 animate-spin text-[var(--text-faint)] ml-auto" />}
             </div>
 
             {!loading && allRows.length === 0 && (
-                <p className="text-sm text-slate-400 text-center py-6">
+                <p className="text-sm text-[var(--text-faint)] text-center py-6">
                     No hay cuentas MeLi activas configuradas.
                 </p>
             )}

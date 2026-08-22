@@ -59,7 +59,7 @@ export function LoteActions({ importacion, proveedor }: { importacion: any, prov
             {/* Ver Resumen del Lote */}
             <Link
                 href={`/precios/${encodeURIComponent(proveedor)}/historial/${importacion.id}/resumen`}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--text-muted)] hover:bg-[var(--bg)] transition-colors shadow-sm"
             >
                 <BarChart2 className="w-3.5 h-3.5" />
                 Ver Resumen
@@ -70,7 +70,7 @@ export function LoteActions({ importacion, proveedor }: { importacion: any, prov
                 <button
                     onClick={handleRestore}
                     disabled={restoring}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-indigo-200 rounded-lg text-sm font-medium text-indigo-700 hover:bg-indigo-50 transition-colors shadow-sm disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-[var(--surface)] border border-[var(--accent)]/30 rounded-lg text-sm font-medium text-indigo-700 hover:bg-[var(--accent)]/10 transition-colors shadow-sm disabled:opacity-50"
                 >
                     {restoring ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
                     Restaurar
@@ -82,7 +82,7 @@ export function LoteActions({ importacion, proveedor }: { importacion: any, prov
                 <button
                     onClick={handleEliminar}
                     disabled={deleting}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-rose-200 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors shadow-sm disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-[var(--surface)] border border-[var(--err)]/30 rounded-lg text-sm font-medium text-[var(--err)] hover:bg-[var(--err)]/10 transition-colors shadow-sm disabled:opacity-50"
                 >
                     {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                     Eliminar

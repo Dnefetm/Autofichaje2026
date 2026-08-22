@@ -61,12 +61,12 @@ export default function Sidebar() {
 
     return (
         <aside className={cn(
-            'bg-slate-900 text-white flex-shrink-0 flex flex-col h-full border-r border-slate-800 transition-all duration-200',
+            'bg-[var(--surface-2)] text-[var(--accent-ink)] flex-shrink-0 flex flex-col h-full border-r border-slate-800 transition-all duration-200',
             collapsed ? 'w-16' : 'w-64'
         )}>
             {/* Logo */}
             <div className={cn('p-4 flex items-center gap-3', collapsed && 'justify-center')}>
-                <div className="w-8 h-8 shrink-0 bg-indigo-500 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 shrink-0 bg-[var(--accent)]/100 rounded-lg flex items-center justify-center">
                     <RefreshCcw className="w-5 h-5" />
                 </div>
                 {!collapsed && <h1 className="text-xl font-bold tracking-tight">GESTOR</h1>}
@@ -80,11 +80,11 @@ export default function Sidebar() {
                         href={item.href}
                         title={item.name}
                         className={cn(
-                            'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md hover:bg-slate-800 transition-colors group',
+                            'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md hover:bg-[var(--surface)] transition-colors group',
                             collapsed && 'justify-center'
                         )}
                     >
-                        <item.icon className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-indigo-400" />
+                        <item.icon className="w-4 h-4 shrink-0 text-[var(--text-faint)] group-hover:text-indigo-400" />
                         {!collapsed && <span>{item.name}</span>}
                     </Link>
                 ))}
@@ -93,7 +93,7 @@ export default function Sidebar() {
                     href="/catalog/external/pendientes"
                     title="Pendientes"
                     className={cn(
-                        'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md hover:bg-slate-800 transition-colors group',
+                        'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md hover:bg-[var(--surface)] transition-colors group',
                         collapsed && 'justify-center'
                     )}
                 >
@@ -102,7 +102,7 @@ export default function Sidebar() {
                         <div className="flex items-center justify-between flex-1">
                             <span>Pendientes</span>
                             {pendingCount !== null && pendingCount > 0 && (
-                                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                                <span className="px-2 py-0.5 rounded-full bg-[var(--warn)]/100 text-[var(--accent-ink)] text-[10px] font-bold">
                                     {pendingCount.toLocaleString()}
                                 </span>
                             )}
@@ -120,7 +120,7 @@ export default function Sidebar() {
                     {!collapsed && (
                         <div>
                             <p className="text-sm font-medium">Operador 1</p>
-                            <p className="text-xs text-slate-500">Cerrar sesión</p>
+                            <p className="text-xs text-[var(--text-muted)]">Cerrar sesión</p>
                         </div>
                     )}
                 </div>
@@ -130,7 +130,7 @@ export default function Sidebar() {
             <button
                 onClick={toggle}
                 title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-                className="flex items-center justify-center py-3 border-t border-slate-800 hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"
+                className="flex items-center justify-center py-3 border-t border-slate-800 hover:bg-[var(--surface)] transition-colors text-[var(--text-faint)] hover:text-[var(--accent-ink)]"
             >
                 {collapsed
                     ? <ChevronRight className="w-4 h-4" />

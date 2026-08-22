@@ -22,26 +22,26 @@ export function CatalogoProveedorTable({
     const paginatedItems = items.slice(page * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE + ITEMS_PER_PAGE);
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-[var(--surface)] rounded-2xl shadow-sm border border-[var(--border)] overflow-hidden">
             {/* Paginación Superior */}
             {totalPages > 1 && (
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                    <span className="text-xs text-slate-500 font-medium">
+                <div className="px-4 py-3 bg-[var(--bg)] border-b border-[var(--border)] flex items-center justify-between">
+                    <span className="text-xs text-[var(--text-muted)] font-medium">
                         Mostrando {page * ITEMS_PER_PAGE + 1} - {Math.min((page + 1) * ITEMS_PER_PAGE, items.length)} de {items.length} artículos
                     </span>
                     <div className="flex items-center gap-2">
                         <button 
                             onClick={() => setPage(p => Math.max(0, p - 1))}
                             disabled={page === 0}
-                            className="p-1.5 rounded bg-white border border-slate-200 text-slate-600 disabled:opacity-50 hover:bg-slate-50"
+                            className="p-1.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] disabled:opacity-50 hover:bg-[var(--bg)]"
                         >
                             <ChevronLeft className="w-4 h-4" />
                         </button>
-                        <span className="text-xs font-bold text-slate-700 px-2">Pág {page + 1} de {totalPages}</span>
+                        <span className="text-xs font-bold text-[var(--text-muted)] px-2">Pág {page + 1} de {totalPages}</span>
                         <button 
                             onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                             disabled={page === totalPages - 1}
-                            className="p-1.5 rounded bg-white border border-slate-200 text-slate-600 disabled:opacity-50 hover:bg-slate-50"
+                            className="p-1.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] disabled:opacity-50 hover:bg-[var(--bg)]"
                         >
                             <ChevronRight className="w-4 h-4" />
                         </button>
@@ -52,7 +52,7 @@ export function CatalogoProveedorTable({
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        <tr className="bg-[var(--bg)]/80 border-b border-[var(--border)] text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                             <th className="py-3.5 px-4 min-w-[200px]">Código / Modelo</th>
                             <th className="py-3.5 px-4 min-w-[260px]">Descripción</th>
                             <th className="py-3.5 px-4 text-right">Distribuidor</th>
@@ -63,10 +63,10 @@ export function CatalogoProveedorTable({
                             <th className="py-3.5 px-4 text-right">Acción</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
+                    <tbody className="divide-y divide-[var(--border)] text-xs">
                         {paginatedItems.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
+                                <td colSpan={8} className="py-12 text-center text-[var(--text-faint)] text-sm">
                                     No hay productos para mostrar.
                                 </td>
                             </tr>
@@ -74,44 +74,44 @@ export function CatalogoProveedorTable({
                             paginatedItems.map(item => {
                                 const vinculado = !!item.articulo_id_vinculado || localVinculados.has(item.id);
                                 return (
-                                    <tr key={item.id} className="hover:bg-slate-50/60 transition-colors group">
+                                    <tr key={item.id} className="hover:bg-[var(--bg)]/60 transition-colors group">
                                         <td className="py-3.5 px-4 align-top">
                                             <div className="flex items-center gap-1.5">
-                                                <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                                                <span className="font-mono font-bold text-[var(--text)] bg-[var(--surface-2)] px-2 py-0.5 rounded text-[11px]">
                                                     {item.modelo || item.codigo}
                                                 </span>
-                                                <span className="text-slate-400 text-[10px]">{item.marca}</span>
+                                                <span className="text-[var(--text-faint)] text-[10px]">{item.marca}</span>
                                             </div>
                                             {item.codigo && item.codigo !== item.modelo && (
-                                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                <div className="text-[10px] text-[var(--text-faint)] font-mono mt-0.5">
                                                     EAN: {item.codigo}
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="py-3.5 px-4 align-top text-slate-600">
+                                        <td className="py-3.5 px-4 align-top text-[var(--text-muted)]">
                                             <p className="line-clamp-2" title={item.descripcion}>
                                                 {item.descripcion || '—'}
                                             </p>
                                         </td>
-                                        <td className="py-3.5 px-4 text-right align-top font-bold text-slate-900">
+                                        <td className="py-3.5 px-4 text-right align-top font-bold text-[var(--text)]">
                                             {item.precio_distribuidor ? fmtMx.format(parseFloat(item.precio_distribuidor)) : '—'}
                                         </td>
-                                        <td className="py-3.5 px-4 text-right align-top text-slate-700">
+                                        <td className="py-3.5 px-4 text-right align-top text-[var(--text-muted)]">
                                             {item.precio_subdistribuidor ? fmtMx.format(parseFloat(item.precio_subdistribuidor)) : '—'}
                                         </td>
-                                        <td className="py-3.5 px-4 text-right align-top text-slate-700">
+                                        <td className="py-3.5 px-4 text-right align-top text-[var(--text-muted)]">
                                             {item.precio_mayoreo ? fmtMx.format(parseFloat(item.precio_mayoreo)) : '—'}
                                         </td>
-                                        <td className="py-3.5 px-4 text-right align-top text-slate-700">
+                                        <td className="py-3.5 px-4 text-right align-top text-[var(--text-muted)]">
                                             {item.precio_menudeo ? fmtMx.format(parseFloat(item.precio_menudeo)) : '—'}
                                         </td>
                                         <td className="py-3.5 px-4 text-center align-top">
                                             {vinculado ? (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30">
                                                     <Check className="w-3 h-3" /> Vinculado
                                                 </span>
                                             ) : (
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--surface-2)] text-[var(--text-muted)]">
                                                     No vinculado
                                                 </span>
                                             )}
@@ -119,7 +119,7 @@ export function CatalogoProveedorTable({
                                         <td className="py-3.5 px-4 text-right align-top">
                                             <button
                                                 onClick={() => setSelectedItem(item)}
-                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1 shadow-sm ${vinculado ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1 shadow-sm ${vinculado ? 'bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
                                             >
                                                 {vinculado ? (
                                                     <><LinkIcon className="w-3 h-3" /> Cambiar</>
@@ -138,13 +138,13 @@ export function CatalogoProveedorTable({
 
             {/* Paginación Inferior */}
             {totalPages > 1 && (
-                <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-                     <span className="text-xs text-slate-500 font-medium">
+                <div className="px-4 py-3 bg-[var(--bg)] border-t border-[var(--border)] flex items-center justify-between">
+                     <span className="text-xs text-[var(--text-muted)] font-medium">
                         Página {page + 1} de {totalPages}
                     </span>
                     <div className="flex items-center gap-2">
-                        <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1.5 rounded bg-white border border-slate-200 text-slate-600 disabled:opacity-50 font-bold text-xs">Anterior</button>
-                        <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} className="px-3 py-1.5 rounded bg-white border border-slate-200 text-slate-600 disabled:opacity-50 font-bold text-xs">Siguiente</button>
+                        <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] disabled:opacity-50 font-bold text-xs">Anterior</button>
+                        <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} className="px-3 py-1.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] disabled:opacity-50 font-bold text-xs">Siguiente</button>
                     </div>
                 </div>
             )}

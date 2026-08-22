@@ -51,7 +51,7 @@ function HealthBar({ value }: { value: number | null }) {
     if (value === null || value === undefined) return (
         <div className="flex items-center gap-2">
             <div className="flex-1 h-2 bg-gray-200 rounded-full" />
-            <span className="text-xs text-gray-400">Sin datos</span>
+            <span className="text-xs text-[var(--text-faint)]">Sin datos</span>
         </div>
     );
     const pct = Math.round(value * 100);
@@ -176,7 +176,7 @@ function EditableField({
                         value={inputVal}
                         onChange={e => setInputVal(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancelEdit(); }}
-                        className="w-28 text-sm border-2 border-indigo-400 rounded-[var(--radius)] px-2 py-1 focus:ring-0 outline-none font-semibold"
+                        className="w-28 text-sm border-2 border-[var(--accent)]/70 rounded-[var(--radius)] px-2 py-1 focus:ring-0 outline-none font-semibold"
                         disabled={saveState === 'saving'}
                     />
                     {saveState === 'saving' ? (
@@ -443,7 +443,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             {isVariant && pub.variation_attributes?.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5 mt-2">
                                     {(pub.variation_attributes || []).map((a: any) => (
-                                        <span key={a.name} className="text-xs bg-[var(--accent)]/10 text-[var(--accent)] border border-indigo-200 px-2 py-0.5 rounded-[var(--radius-sm)] font-medium">
+                                        <span key={a.name} className="text-xs bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30 px-2 py-0.5 rounded-[var(--radius-sm)] font-medium">
                                             {a.name}: <strong>{a.value_name}</strong>
                                         </span>
                                     ))}

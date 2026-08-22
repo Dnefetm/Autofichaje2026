@@ -75,25 +75,25 @@ export default function NuevaFichaPage() {
     return (
         <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-500">
             <div className="flex items-center gap-3">
-                <button type="button" onClick={() => router.back()} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
+                <button type="button" onClick={() => router.back()} className="p-2 hover:bg-[var(--surface-2)] rounded-xl text-[var(--text-faint)] transition-colors">
                     <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight">Nueva Ficha Técnica</h2>
-                    <p className="text-slate-500 text-sm mt-0.5">Crea una ficha manualmente en estado borrador</p>
+                    <p className="text-[var(--text-muted)] text-sm mt-0.5">Crea una ficha manualmente en estado borrador</p>
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+            <form onSubmit={handleSubmit} className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6 shadow-sm space-y-6">
                 {error && (
-                    <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700">
+                    <div className="flex items-start gap-3 p-4 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl text-[var(--err)]">
                         <AlertCircle className="w-5 h-5 shrink-0" /><p className="text-sm">{error}</p>
                     </div>
                 )}
 
                 <div className="space-y-4">
                     <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                        <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">
                             Nombre del Producto *
                         </label>
                         <input 
@@ -102,51 +102,51 @@ export default function NuevaFichaPage() {
                             value={nombreProducto} 
                             onChange={e => setNombreProducto(e.target.value)}
                             placeholder="Ej. Samsung Galaxy S23 Ultra"
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-1 focus:ring-indigo-500 outline-none" 
+                            className="w-full p-3 bg-[var(--bg)] border border-[var(--border)] rounded-xl text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none" 
                         />
                     </div>
 
-                    <div className="space-y-2 pt-4 border-t border-slate-100">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                    <div className="space-y-2 pt-4 border-t border-[var(--border)]">
+                        <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">
                             Vincular Artículo del Catálogo (Opcional)
                         </label>
                         
                         {articuloId ? (
-                            <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-sm">
+                            <div className="flex items-center justify-between p-3 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-xl text-emerald-800 text-sm">
                                 <div className="flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                    <CheckCircle2 className="w-4 h-4 text-[var(--ok)]" />
                                     <span className="font-medium">{articuloNombre}</span>
-                                    <span className="text-emerald-600/70 text-xs font-mono">({articuloId})</span>
+                                    <span className="text-[var(--ok)]/70 text-xs font-mono">({articuloId})</span>
                                 </div>
-                                <button type="button" onClick={() => { setArticuloId(''); setArticuloNombre(''); }} className="text-emerald-700 hover:text-rose-600 text-xs font-bold px-2">
+                                <button type="button" onClick={() => { setArticuloId(''); setArticuloNombre(''); }} className="text-[var(--ok)] hover:text-[var(--err)] text-xs font-bold px-2">
                                     Quitar
                                 </button>
                             </div>
                         ) : (
                             <div className="space-y-3">
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
                                     <input 
                                         type="text" 
                                         placeholder="Buscar por SKU o Nombre..." 
                                         value={q} 
                                         onChange={e => setQ(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), buscarArticulos())}
-                                        className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-1 focus:ring-indigo-500 outline-none" 
+                                        className="w-full pl-9 pr-4 py-2.5 border border-[var(--border)] rounded-xl text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none" 
                                     />
-                                    <button type="button" onClick={buscarArticulos} disabled={searchLoading || q.length < 2} className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50">
+                                    <button type="button" onClick={buscarArticulos} disabled={searchLoading || q.length < 2} className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-lg text-xs font-semibold transition-colors disabled:opacity-50">
                                         {searchLoading ? 'Buscando...' : 'Buscar'}
                                     </button>
                                 </div>
                                 {searchResults.length > 0 && (
-                                    <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+                                    <div className="border border-[var(--border)] rounded-xl overflow-hidden divide-y divide-[var(--border)]">
                                         {searchResults.map(art => (
-                                            <div key={art.articulo_id} className="p-3 hover:bg-slate-50 flex items-center justify-between transition-colors">
+                                            <div key={art.articulo_id} className="p-3 hover:bg-[var(--bg)] flex items-center justify-between transition-colors">
                                                 <div>
-                                                    <p className="text-sm font-semibold text-slate-700">{art.nombre}</p>
-                                                    <p className="text-xs text-slate-400 font-mono">{art.articulo_id} • {art.marca}</p>
+                                                    <p className="text-sm font-semibold text-[var(--text-muted)]">{art.nombre}</p>
+                                                    <p className="text-xs text-[var(--text-faint)] font-mono">{art.articulo_id} • {art.marca}</p>
                                                 </div>
-                                                <button type="button" onClick={() => seleccionarArticulo(art)} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors">
+                                                <button type="button" onClick={() => seleccionarArticulo(art)} className="px-3 py-1.5 bg-[var(--accent)]/10 text-indigo-700 hover:bg-[var(--accent)]/20 rounded-lg text-xs font-bold transition-colors">
                                                     Seleccionar
                                                 </button>
                                             </div>
@@ -155,15 +155,15 @@ export default function NuevaFichaPage() {
                                 )}
                             </div>
                         )}
-                        <p className="text-xs text-slate-400">Si no lo vinculas ahora, podrás hacerlo más tarde desde la ficha.</p>
+                        <p className="text-xs text-[var(--text-faint)]">Si no lo vinculas ahora, podrás hacerlo más tarde desde la ficha.</p>
                     </div>
                 </div>
 
-                <div className="pt-6 flex items-center justify-end gap-3 border-t border-slate-100">
-                    <Link href="/fichas" className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+                <div className="pt-6 flex items-center justify-end gap-3 border-t border-[var(--border)]">
+                    <Link href="/fichas" className="px-5 py-2.5 text-sm font-semibold text-[var(--text-muted)] hover:bg-[var(--surface-2)] rounded-xl transition-colors">
                         Cancelar
                     </Link>
-                    <button type="submit" disabled={loading || !nombreProducto.trim()} className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-60 flex items-center gap-2">
+                    <button type="submit" disabled={loading || !nombreProducto.trim()} className="px-5 py-2.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-semibold rounded-xl hover:brightness-110 transition-colors disabled:opacity-60 flex items-center gap-2">
                         {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                         Crear Ficha
                     </button>

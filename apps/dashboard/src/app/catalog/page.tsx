@@ -164,19 +164,19 @@ function CatalogPageInner() {
         <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex justify-between items-end">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">Catálogo Maestro</h2>
-                    <p className="text-slate-500 text-sm">Gestiona tu inventario y sincroniza con marketplaces.</p>
+                    <h2 className="text-2xl font-bold tracking-tight text-[var(--text)]">Catálogo Maestro</h2>
+                    <p className="text-[var(--text-muted)] text-sm">Gestiona tu inventario y sincroniza con marketplaces.</p>
                 </div>
                 <div className="flex gap-3">
                     <Link
                         href="/catalog/bundles"
-                        className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm"
+                        className="px-4 py-2 border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--bg)] text-[var(--text-muted)] rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm"
                     >
                         <Package className="w-4 h-4" />
                         Constructor de Kits
                     </Link>                   <button
                         onClick={() => { fetchProducts(page); fetchStats(); }}
-                        className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                        className="p-2 text-[var(--text-faint)] hover:text-[var(--accent)] transition-colors"
                         title="Refrescar datos"
                     >
                         <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
@@ -201,28 +201,28 @@ function CatalogPageInner() {
 
             {/* Grid de Productos o Errores */}
             {loading ? (
-                <div className="py-20 text-center text-slate-400 flex flex-col items-center gap-4">
+                <div className="py-20 text-center text-[var(--text-faint)] flex flex-col items-center gap-4">
                     <RefreshCw className="w-8 h-8 animate-spin text-indigo-200" />
                     <p>Sincronizando catálogo maestro...</p>
                 </div>
             ) : fetchError ? (
-                <div className="py-20 text-center bg-rose-50 rounded-xl border border-rose-200 shadow-sm flex flex-col items-center gap-4">
+                <div className="py-20 text-center bg-[var(--err)]/10 rounded-xl border border-[var(--err)]/30 shadow-sm flex flex-col items-center gap-4">
                     <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center">
-                        <AlertCircle className="w-8 h-8 text-rose-500" />
+                        <AlertCircle className="w-8 h-8 text-[var(--err)]" />
                     </div>
                     <div>
                         <h3 className="text-lg font-bold text-rose-900">Error de Base de Datos</h3>
-                        <p className="text-rose-500 max-w-lg mt-1 whitespace-pre-wrap">{fetchError}</p>
+                        <p className="text-[var(--err)] max-w-lg mt-1 whitespace-pre-wrap">{fetchError}</p>
                     </div>
                 </div>
             ) : filteredProducts.length === 0 ? (
-                <div className="py-20 text-center bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center gap-4">
-                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
+                <div className="py-20 text-center bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm flex flex-col items-center gap-4">
+                    <div className="w-16 h-16 bg-[var(--bg)] rounded-full flex items-center justify-center">
                         <Package className="w-8 h-8 text-slate-300" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-slate-900">No se encontraron productos</h3>
-                        <p className="text-slate-500 max-w-sm mt-1">Intenta ajustar tus filtros de búsqueda. O revisa que la base de datos realmente tenga SKUs.</p>
+                        <h3 className="text-lg font-bold text-[var(--text)]">No se encontraron productos</h3>
+                        <p className="text-[var(--text-muted)] max-w-sm mt-1">Intenta ajustar tus filtros de búsqueda. O revisa que la base de datos realmente tenga SKUs.</p>
                     </div>
                 </div>
             ) : (
@@ -241,22 +241,22 @@ function CatalogPageInner() {
 
             {/* Pagination Controls */}
             {!loading && !fetchError && totalCount > PAGE_SIZE && (
-                <div className="flex items-center justify-between pt-6 border-t border-slate-200">
-                    <p className="text-sm text-slate-500">
+                <div className="flex items-center justify-between pt-6 border-t border-[var(--border)]">
+                    <p className="text-sm text-[var(--text-muted)]">
                         Mostrando {page * PAGE_SIZE + 1} a {Math.min((page + 1) * PAGE_SIZE, totalCount)} de {totalCount} SKUs
                     </p>
                     <div className="flex gap-2">
                         <button
                             onClick={() => setPage(p => Math.max(0, p - 1))}
                             disabled={page === 0}
-                            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="px-4 py-2 text-sm font-medium text-[var(--text-muted)] bg-[var(--surface)] border border-slate-300 rounded-md hover:bg-[var(--bg)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                             Anterior
                         </button>
                         <button
                             onClick={() => setPage(p => p + 1)}
                             disabled={(page + 1) * PAGE_SIZE >= totalCount}
-                            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="px-4 py-2 text-sm font-medium text-[var(--text-muted)] bg-[var(--surface)] border border-slate-300 rounded-md hover:bg-[var(--bg)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                             Siguiente
                         </button>
@@ -266,16 +266,16 @@ function CatalogPageInner() {
 
             {/* Floating Action Bar for Mass selection */}
             {selectedSkus.size > 0 && (
-                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 z-40 animate-in slide-in-from-bottom-10 border border-slate-700">
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-[var(--surface-2)] text-[var(--accent-ink)] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 z-40 animate-in slide-in-from-bottom-10 border border-slate-700">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-300">
+                        <div className="w-8 h-8 rounded-full bg-[var(--accent)]/100/20 flex items-center justify-center text-indigo-300">
                             <CheckSquare className="w-4 h-4" />
                         </div>
                         <div>
                             <p className="text-sm font-bold">{selectedSkus.size} Seleccionados</p>
                             <button
                                 onClick={handleSelectAllInPage}
-                                className="text-xs text-slate-400 hover:text-white transition-colors"
+                                className="text-xs text-[var(--text-faint)] hover:text-[var(--accent-ink)] transition-colors"
                             >
                                 {selectedSkus.size === filteredProducts.length ? 'Deseleccionar todos' : 'Seleccionar página actual'}
                             </button>
@@ -287,13 +287,13 @@ function CatalogPageInner() {
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setIsBulkModalOpen(true)}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-5 py-2 rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
+                            className="bg-[var(--accent)] hover:bg-[var(--accent)]/100 text-[var(--accent-ink)] text-sm font-bold px-5 py-2 rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
                         >
                             Modificar Precios
                         </button>
                         <button
                             onClick={() => setSelectedSkus(new Set())}
-                            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                            className="p-2 text-[var(--text-faint)] hover:text-[var(--accent-ink)] rounded-lg hover:bg-[var(--surface)] transition-colors"
                             title="Cancelar selección"
                         >
                             <X className="w-5 h-5" />
@@ -318,7 +318,7 @@ function CatalogPageInner() {
 export default function CatalogPage() {
     return (
         <Suspense fallback={
-            <div className="py-20 text-center text-slate-400">Cargando catálogo...</div>
+            <div className="py-20 text-center text-[var(--text-faint)]">Cargando catálogo...</div>
         }>
             <CatalogPageInner />
         </Suspense>
@@ -329,15 +329,15 @@ function StatCard({ label, value, icon, color }: any) {
     const colors: any = {
         blue: 'bg-blue-50 text-blue-600',
         green: 'bg-green-50 text-green-600',
-        amber: 'bg-amber-50 text-amber-600'
+        amber: 'bg-[var(--warn)]/10 text-[var(--warn)]'
     };
     return (
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <div className="bg-[var(--surface)] p-4 rounded-xl border border-[var(--border)] shadow-sm flex items-center gap-4">
             <div className={cn("w-12 h-12 rounded-full flex items-center justify-center", colors[color])}>
                 {icon}
             </div>
             <div>
-                <p className="text-sm text-slate-500 font-medium">{label}</p>
+                <p className="text-sm text-[var(--text-muted)] font-medium">{label}</p>
                 <p className="text-2xl font-bold">{value}</p>
             </div>
         </div>

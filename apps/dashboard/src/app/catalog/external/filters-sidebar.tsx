@@ -61,10 +61,10 @@ interface FiltersSidebarProps {
 function Accordion({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
     const [open, setOpen] = React.useState(defaultOpen);
     return (
-        <div className="border-b border-slate-100">
+        <div className="border-b border-[var(--border)]">
             <button
                 onClick={() => setOpen(o => !o)}
-                className="w-full flex items-center justify-between py-3 px-1 text-xs font-bold text-slate-500 uppercase tracking-wider hover:text-slate-700 transition-colors"
+                className="w-full flex items-center justify-between py-3 px-1 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider hover:text-[var(--text-muted)] transition-colors"
             >
                 {title}
                 {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -82,12 +82,12 @@ function CheckItem({ label, checked, count, onChange }: { label: string; checked
                     type="checkbox"
                     checked={checked}
                     onChange={onChange}
-                    className="w-3.5 h-3.5 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                    className="w-3.5 h-3.5 rounded text-[var(--accent)] border-slate-300 focus:ring-[var(--accent)]"
                 />
-                <span className={cn("text-xs", checked ? "text-slate-900 font-semibold" : "text-slate-600 group-hover:text-slate-900")}>{label}</span>
+                <span className={cn("text-xs", checked ? "text-[var(--text)] font-semibold" : "text-[var(--text-muted)] group-hover:text-[var(--text)]")}>{label}</span>
             </div>
             {count !== undefined && (
-                <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{count}</span>
+                <span className="text-[10px] text-[var(--text-faint)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{count}</span>
             )}
         </label>
     );
@@ -96,8 +96,8 @@ function CheckItem({ label, checked, count, onChange }: { label: string; checked
 function RadioItem({ label, selected, onChange }: { label: string; selected: boolean; onChange: () => void }) {
     return (
         <label className="flex items-center gap-2 group cursor-pointer">
-            <input type="radio" checked={selected} onChange={onChange} className="w-3.5 h-3.5 text-indigo-600 border-slate-300 focus:ring-indigo-500" />
-            <span className={cn("text-xs", selected ? "text-slate-900 font-semibold" : "text-slate-600 group-hover:text-slate-900")}>{label}</span>
+            <input type="radio" checked={selected} onChange={onChange} className="w-3.5 h-3.5 text-[var(--accent)] border-slate-300 focus:ring-[var(--accent)]" />
+            <span className={cn("text-xs", selected ? "text-[var(--text)] font-semibold" : "text-[var(--text-muted)] group-hover:text-[var(--text)]")}>{label}</span>
         </label>
     );
 }
@@ -146,20 +146,20 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
     };
 
     return (
-        <div className="w-64 shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-y-auto max-h-[calc(100vh-200px)] sticky top-4">
+        <div className="w-64 shrink-0 bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm overflow-y-auto max-h-[calc(100vh-200px)] sticky top-4">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
                 <div className="flex items-center gap-2">
-                    <SlidersHorizontal className="w-4 h-4 text-slate-500" />
-                    <span className="text-sm font-bold text-slate-800">Filtros</span>
+                    <SlidersHorizontal className="w-4 h-4 text-[var(--text-muted)]" />
+                    <span className="text-sm font-bold text-[var(--text)]">Filtros</span>
                     {active > 0 && (
-                        <span className="bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{active}</span>
+                        <span className="bg-[var(--accent)] text-[var(--accent-ink)] text-[10px] font-bold px-1.5 py-0.5 rounded-full">{active}</span>
                     )}
                 </div>
                 {active > 0 && (
                     <button
                         onClick={() => onChange({ ...defaultFilters })}
-                        className="text-xs text-slate-400 hover:text-rose-500 flex items-center gap-1 transition-colors"
+                        className="text-xs text-[var(--text-faint)] hover:text-[var(--err)] flex items-center gap-1 transition-colors"
                     >
                         <X className="w-3 h-3" /> Limpiar
                     </button>
@@ -182,14 +182,14 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                                         type="radio"
                                         checked={filters.marketplace_id === m.id}
                                         onChange={() => set({ marketplace_id: m.id })}
-                                        className="w-3.5 h-3.5 text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                                        className="w-3.5 h-3.5 text-[var(--accent)] border-slate-300 focus:ring-[var(--accent)]"
                                     />
-                                    <span className={cn('text-xs', filters.marketplace_id === m.id ? 'text-slate-900 font-semibold' : 'text-slate-600 group-hover:text-slate-900')}>
+                                    <span className={cn('text-xs', filters.marketplace_id === m.id ? 'text-[var(--text)] font-semibold' : 'text-[var(--text-muted)] group-hover:text-[var(--text)]')}>
                                         {m.account_name}
                                     </span>
                                 </div>
                                 {m.count !== undefined && (
-                                    <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{m.count.toLocaleString()}</span>
+                                    <span className="text-[10px] text-[var(--text-faint)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{m.count.toLocaleString()}</span>
                                 )}
                             </label>
                         ))}
@@ -201,7 +201,7 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                     <select
                         value={filters.sortBy}
                         onChange={e => set({ sortBy: e.target.value as FilterState['sortBy'] })}
-                        className="w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                        className="w-full text-xs border border-[var(--border)] rounded-md px-2 py-1.5 focus:ring-[var(--accent)] focus:border-[var(--accent)] bg-[var(--surface)]"
                     >
                         <option value="creado_el">Fecha de creación</option>
                         <option value="titulo">Título</option>
@@ -215,7 +215,7 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                             <button
                                 key={d}
                                 onClick={() => set({ sortDir: d })}
-                                className={cn("flex-1 text-xs py-1 rounded border transition-colors", filters.sortDir === d ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300")}
+                                className={cn("flex-1 text-xs py-1 rounded border transition-colors", filters.sortDir === d ? "bg-[var(--accent)] text-[var(--accent-ink)] border-indigo-600" : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:border-slate-300")}
                             >
                                 {d === 'desc' ? '↓ Mayor' : '↑ Menor'}
                             </button>
@@ -378,15 +378,15 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                             placeholder="Min"
                             value={filters.priceMin ?? ''}
                             onChange={e => set({ priceMin: e.target.value ? Number(e.target.value) : null })}
-                            className="w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 focus:ring-indigo-500"
+                            className="w-full text-xs border border-[var(--border)] rounded-md px-2 py-1.5 focus:ring-[var(--accent)]"
                         />
-                        <span className="text-slate-400 text-xs">–</span>
+                        <span className="text-[var(--text-faint)] text-xs">–</span>
                         <input
                             type="number"
                             placeholder="Max"
                             value={filters.priceMax ?? ''}
                             onChange={e => set({ priceMax: e.target.value ? Number(e.target.value) : null })}
-                            className="w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 focus:ring-indigo-500"
+                            className="w-full text-xs border border-[var(--border)] rounded-md px-2 py-1.5 focus:ring-[var(--accent)]"
                         />
                     </div>
                 </Accordion>

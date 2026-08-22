@@ -55,17 +55,17 @@ export function BulkEditModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-slate-900">Edición Masiva de Precios</h3>
-                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--surface-2)]/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[var(--surface)] rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-[var(--text)]">Edición Masiva de Precios</h3>
+                    <button onClick={onClose} className="p-2 text-[var(--text-faint)] hover:text-[var(--text-muted)] rounded-lg hover:bg-[var(--bg)] transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 <div className="p-6 space-y-6">
-                    <div className="bg-indigo-50 text-indigo-700 p-4 rounded-xl flex gap-3 text-sm">
+                    <div className="bg-[var(--accent)]/10 text-indigo-700 p-4 rounded-xl flex gap-3 text-sm">
                         <AlertTriangle className="w-5 h-5 flex-shrink-0" />
                         <p>
                             Estás a punto de modificar el precio de <strong>{selectedSkus.size} SKUs</strong> en Mercado Libre.
@@ -74,13 +74,13 @@ export function BulkEditModal({
                     </div>
 
                     <div className="space-y-4">
-                        <label className="text-sm font-bold text-slate-700">Tipo de Modificación</label>
+                        <label className="text-sm font-bold text-[var(--text-muted)]">Tipo de Modificación</label>
                         <div className="grid grid-cols-2 gap-3">
                             <button
                                 onClick={() => setMode('percentage')}
                                 className={cn(
                                     "px-4 py-3 rounded-xl border-2 flex items-center justify-center gap-2 text-sm font-semibold transition-all",
-                                    mode === 'percentage' ? "border-indigo-600 text-indigo-700 bg-indigo-50" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                                    mode === 'percentage' ? "border-indigo-600 text-indigo-700 bg-[var(--accent)]/10" : "border-[var(--border)] text-[var(--text-muted)] hover:border-slate-300"
                                 )}
                             >
                                 <Percent className="w-4 h-4" />
@@ -90,7 +90,7 @@ export function BulkEditModal({
                                 onClick={() => setMode('fixed')}
                                 className={cn(
                                     "px-4 py-3 rounded-xl border-2 flex items-center justify-center gap-2 text-sm font-semibold transition-all",
-                                    mode === 'fixed' ? "border-indigo-600 text-indigo-700 bg-indigo-50" : "border-slate-200 text-slate-500 hover:border-slate-300"
+                                    mode === 'fixed' ? "border-indigo-600 text-indigo-700 bg-[var(--accent)]/10" : "border-[var(--border)] text-[var(--text-muted)] hover:border-slate-300"
                                 )}
                             >
                                 <DollarSign className="w-4 h-4" />
@@ -100,12 +100,12 @@ export function BulkEditModal({
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700">
+                        <label className="text-sm font-bold text-[var(--text-muted)]">
                             {mode === 'percentage' ? 'Valor del Porcentaje (Ej. 15 para +15%, -10 para -10%)' : 'Nuevo Precio Fijo Exacto'}
                         </label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                {mode === 'percentage' ? <Percent className="w-5 h-5 text-slate-400" /> : <DollarSign className="w-5 h-5 text-slate-400" />}
+                                {mode === 'percentage' ? <Percent className="w-5 h-5 text-[var(--text-faint)]" /> : <DollarSign className="w-5 h-5 text-[var(--text-faint)]" />}
                             </div>
                             <input
                                 type="number"
@@ -118,14 +118,14 @@ export function BulkEditModal({
                     </div>
 
                     {error && (
-                        <p className="text-sm text-rose-600 font-medium">{error}</p>
+                        <p className="text-sm text-[var(--err)] font-medium">{error}</p>
                     )}
                 </div>
 
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <div className="px-6 py-4 bg-[var(--bg)] border-t border-[var(--border)] flex justify-end gap-3">
                     <button
                         onClick={onClose}
-                        className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
+                        className="px-5 py-2.5 text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
                         disabled={loading}
                     >
                         Cancelar
@@ -133,7 +133,7 @@ export function BulkEditModal({
                     <button
                         onClick={handleConfirm}
                         disabled={loading || selectedSkus.size === 0}
-                        className="px-6 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center min-w-[140px]"
+                        className="px-6 py-2.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-bold rounded-xl hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center min-w-[140px]"
                     >
                         {loading ? (
                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

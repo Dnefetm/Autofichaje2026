@@ -38,9 +38,9 @@ function MatchingPageInner() {
 
   if (!importacionId) {
     return (
-      <div className="p-10 text-center text-slate-500">
+      <div className="p-10 text-center text-[var(--text-muted)]">
         <p>No se especificó un ID de importación.</p>
-        <button className="mt-4 text-indigo-600 underline" onClick={() => router.push('/precios/importaciones')}>
+        <button className="mt-4 text-[var(--accent)] underline" onClick={() => router.push('/precios/importaciones')}>
           Volver a Importaciones
         </button>
       </div>
@@ -50,12 +50,12 @@ function MatchingPageInner() {
   return (
     <div className="max-w-4xl mx-auto py-10 px-4">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Motor de Importación: Mapeo de Columnas</h1>
-        <p className="text-sm text-slate-500 mt-1">Configura las columnas de la lista cruda del proveedor para guardar la lista sana en tu base de datos.</p>
+        <h1 className="text-2xl font-bold text-[var(--text)]">Motor de Importación: Mapeo de Columnas</h1>
+        <p className="text-sm text-[var(--text-muted)] mt-1">Configura las columnas de la lista cruda del proveedor para guardar la lista sana en tu base de datos.</p>
       </div>
 
       {loadingInitial ? (
-        <div className="flex justify-center p-10"><Loader2 className="w-8 h-8 animate-spin text-indigo-500"/></div>
+        <div className="flex justify-center p-10"><Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]"/></div>
       ) : (
         <PasoMapear importacionId={importacionId} onBack={() => {
            router.push('/precios/importaciones'); 
@@ -70,7 +70,7 @@ function MatchingPageInner() {
 
 export default function MatchingPage() {
   return (
-    <Suspense fallback={<div className="p-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-indigo-600" /></div>}>
+    <Suspense fallback={<div className="p-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-[var(--accent)]" /></div>}>
       <MatchingPageInner />
     </Suspense>
   );

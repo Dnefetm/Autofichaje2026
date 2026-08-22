@@ -17,15 +17,15 @@ function cn(...classes: (string | boolean | undefined | null)[]) {
 }
 
 function ConfidenceBadge({ value }: { value: number }) {
-    if (value >= 0.8) return <span className="text-[10px] font-bold text-emerald-600">● {Math.round(value * 100)}%</span>;
+    if (value >= 0.8) return <span className="text-[10px] font-bold text-[var(--ok)]">● {Math.round(value * 100)}%</span>;
     if (value >= 0.5) return <span className="text-[10px] font-bold text-amber-500">● {Math.round(value * 100)}%</span>;
-    return <span className="text-[10px] font-bold text-rose-500">● {Math.round(value * 100)}%</span>;
+    return <span className="text-[10px] font-bold text-[var(--err)]">● {Math.round(value * 100)}%</span>;
 }
 
 function ScoreBadge({ score, label }: { score: number; label: string }) {
-    const color = score >= 80 ? 'bg-emerald-100 text-emerald-700' :
-                  score >= 60 ? 'bg-amber-100 text-amber-700' :
-                                'bg-slate-100 text-slate-500';
+    const color = score >= 80 ? 'bg-emerald-100 text-[var(--ok)]' :
+                  score >= 60 ? 'bg-amber-100 text-[var(--warn)]' :
+                                'bg-[var(--surface-2)] text-[var(--text-muted)]';
     return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${color}`}>{label} ({score})</span>;
 }
 
@@ -36,10 +36,10 @@ interface FieldProps {
     onChange: (v: string) => void; type?: 'text' | 'number' | 'textarea'; mono?: boolean;
 }
 function Field({ label, value, onChange, type = 'text', mono = false }: FieldProps) {
-    const cls = cn('w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-1 focus:ring-indigo-500 outline-none', mono && 'font-mono');
+    const cls = cn('w-full p-3 bg-[var(--bg)] border border-[var(--border)] rounded-xl text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none', mono && 'font-mono');
     return (
         <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</label>
+            <label className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest">{label}</label>
             {type === 'textarea'
                 ? <textarea className={cn(cls, 'h-24 resize-none')} value={value ?? ''} onChange={e => onChange(e.target.value)} />
                 : <input type={type} className={cls} value={value ?? ''} onChange={e => onChange(e.target.value)} />
@@ -60,13 +60,13 @@ type SaveMode = 'create' | 'update' | 'link_only';
 
 function ArticuloCard({ match, onSelect }: { match: ArticuloMatch; onSelect: (m: ArticuloMatch, mode: SaveMode) => void }) {
     return (
-        <div className="p-4 bg-white border border-slate-200 rounded-xl hover:border-indigo-300 transition-colors space-y-2">
+        <div className="p-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl hover:border-[var(--accent)]/50 transition-colors space-y-2">
             <div className="flex items-start justify-between gap-2">
-                <p className="font-semibold text-sm text-slate-800 leading-tight">{match.nombre}</p>
+                <p className="font-semibold text-sm text-[var(--text)] leading-tight">{match.nombre}</p>
                 <ScoreBadge score={match.score} label={match.score_label} />
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600">
-                <span><b>SKU:</b> <code className="text-slate-700">{match.articulo_id}</code></span>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]">
+                <span><b>SKU:</b> <code className="text-[var(--text-muted)]">{match.articulo_id}</code></span>
                 <span><b>Marca:</b> {match.marca}</span>
                 {match.modelo            && <span><b>Modelo:</b> {match.modelo}</span>}
                 {match.variante          && <span><b>Variante:</b> {match.variante}</span>}
@@ -74,14 +74,14 @@ function ArticuloCard({ match, onSelect }: { match: ArticuloMatch; onSelect: (m:
                 {match.codigo_sat        && <span><b>SAT:</b> <code>{match.codigo_sat}</code></span>}
                 {match.categoria         && <span><b>Cat:</b> {match.categoria}</span>}
             </div>
-            {match.descripcion && <p className="text-xs text-slate-400 line-clamp-2">{match.descripcion}</p>}
+            {match.descripcion && <p className="text-xs text-[var(--text-faint)] line-clamp-2">{match.descripcion}</p>}
             <div className="flex gap-2 pt-1">
                 <button onClick={() => onSelect(match, 'update')}
-                    className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">
+                    className="text-xs px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg hover:brightness-110 font-semibold">
                     Actualizar campos vacíos
                 </button>
                 <button onClick={() => onSelect(match, 'link_only')}
-                    className="text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-semibold">
+                    className="text-xs px-3 py-1.5 bg-[var(--surface-2)] text-[var(--text-muted)] rounded-lg hover:bg-slate-200 font-semibold">
                     Solo vincular
                 </button>
             </div>
@@ -564,32 +564,32 @@ function AutofichaPageInner() {
         <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-700">
             <div>
                 <h2 className="text-3xl font-bold tracking-tight">Crear con IA — Autofichas</h2>
-                <p className="text-slate-500 text-lg">Digitaliza fichas técnicas y catálogos de proveedores en segundos.</p>
+                <p className="text-[var(--text-muted)] text-lg">Digitaliza fichas técnicas y catálogos de proveedores en segundos.</p>
             </div>
 
             {/* -- Banner de borradores (BLOQUE 3) --------------------------- */}
             {pendingBorradores.length > 0 && !result && (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                <div className="bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-2xl p-4">
                     <button onClick={() => setShowBorradores(p => !p)}
                         className="w-full flex items-center justify-between text-sm font-semibold text-amber-800">
                         <span className="flex items-center gap-2">
                             <Clock className="w-4 h-4" />
                             {pendingBorradores.length} borrador{pendingBorradores.length !== 1 ? 'es' : ''} pendiente{pendingBorradores.length !== 1 ? 's' : ''}
-                            {pendingBorradores.some(b => b.dispositivo === 'mobile') && <span className="flex items-center gap-1 text-xs font-normal text-amber-600 ml-1"><Smartphone className="w-3 h-3" /> desde celular</span>}
+                            {pendingBorradores.some(b => b.dispositivo === 'mobile') && <span className="flex items-center gap-1 text-xs font-normal text-[var(--warn)] ml-1"><Smartphone className="w-3 h-3" /> desde celular</span>}
                         </span>
                         <ChevronDown className={cn('w-4 h-4 transition-transform', showBorradores && 'rotate-180')} />
                     </button>
                     {showBorradores && (
                         <div className="mt-3 space-y-2">
                             {pendingBorradores.map(b => (
-                                <div key={b.id} className="relative flex items-center gap-3 p-3 bg-white border border-amber-200 rounded-xl text-sm">
+                                <div key={b.id} className="relative flex items-center gap-3 p-3 bg-[var(--surface)] border border-[var(--warn)]/30 rounded-xl text-sm">
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-slate-700 truncate">
+                                        <p className="font-medium text-[var(--text-muted)] truncate">
                                             {b.archivos_storage?.length > 0
                                                 ? `${b.archivos_storage.length} archivo${b.archivos_storage.length !== 1 ? 's' : ''}: ${b.archivos_storage[0]?.nombre || '…'}`
                                                 : b.url_origen ? `URL: ${b.url_origen.slice(0, 40)}…` : 'Borrador vacío'}
                                         </p>
-                                        <p className="text-xs text-amber-600 mt-0.5">
+                                        <p className="text-xs text-[var(--warn)] mt-0.5">
                                             {b.dispositivo === 'mobile' && <Smartphone className="w-3 h-3 inline mr-1" />}
                                             {b.estado} · {new Date(b.updated_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
                                         </p>
@@ -597,14 +597,14 @@ function AutofichaPageInner() {
                                     <button
                                         type="button"
                                         onClick={() => continuarBorrador(b)}
-                                        className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700">
+                                        className="text-xs px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg font-semibold hover:brightness-110">
                                         Continuar
                                     </button>
                                     <button
                                         type="button"
                                         aria-label="Eliminar borrador"
                                         onClick={(e) => eliminarBorrador(b.id, e)}
-                                        className="relative z-10 p-1.5 shrink-0 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors">
+                                        className="relative z-10 p-1.5 shrink-0 text-[var(--text-faint)] hover:text-[var(--err)] hover:bg-[var(--err)]/10 rounded-lg transition-colors">
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -621,7 +621,7 @@ function AutofichaPageInner() {
                         {(['file', 'url'] as const).map(m => (
                             <button key={m} onClick={() => { setInputMode(m); setFiles([]); }}
                                 className={cn('px-4 py-2 rounded-xl text-sm font-semibold border transition-colors',
-                                    inputMode === m ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300')}>
+                                    inputMode === m ? 'bg-[var(--accent)] text-[var(--accent-ink)] border-indigo-600' : 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--accent)]/50')}>
                                 {m === 'file' ? '📄 Subir archivos' : '🔗 URL de documento'}
                             </button>
                         ))}
@@ -635,27 +635,27 @@ function AutofichaPageInner() {
                                     <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
                                         onChange={e => e.target.files && addFiles(e.target.files)} />
                                     <button onClick={() => cameraRef.current?.click()}
-                                        className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 flex items-center justify-center gap-3 text-base transition-colors">
+                                        className="w-full py-4 bg-[var(--surface-2)] text-[var(--accent-ink)] font-bold rounded-2xl hover:bg-[var(--surface)] flex items-center justify-center gap-3 text-base transition-colors">
                                         <Camera className="w-6 h-6" /> Tomar foto del producto
                                     </button>
-                                    <p className="text-xs text-slate-400 text-center mt-1">También puedes arrastrar archivos o seleccionarlos manualmente abajo ↓</p>
+                                    <p className="text-xs text-[var(--text-faint)] text-center mt-1">También puedes arrastrar archivos o seleccionarlos manualmente abajo ↓</p>
                                 </div>
                             )}
 
                             {/* Drop zone */}
-                            <div className={cn('relative bg-white border-2 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center text-center gap-4 transition-all cursor-pointer',
-                                dragOver ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-400')}
+                            <div className={cn('relative bg-[var(--surface)] border-2 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center text-center gap-4 transition-all cursor-pointer',
+                                dragOver ? 'border-[var(--accent)] bg-[var(--accent)]/10' : 'border-[var(--border)] hover:border-[var(--accent)]/70')}
                                 onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                                 onDragLeave={() => setDragOver(false)}
                                 onDrop={onDrop} onClick={() => inputRef.current?.click()}>
                                 <input ref={inputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple className="hidden"
                                     onChange={e => e.target.files && addFiles(e.target.files)} />
-                                <div className={cn('w-16 h-16 rounded-2xl flex items-center justify-center transition-colors', dragOver ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-50 text-slate-400')}>
+                                <div className={cn('w-16 h-16 rounded-2xl flex items-center justify-center transition-colors', dragOver ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'bg-[var(--bg)] text-[var(--text-faint)]')}>
                                     <Upload className="w-8 h-8" />
                                 </div>
                                 <div>
-                                    <p className="font-bold text-lg text-slate-700">{dragOver ? 'Suelta los archivos' : 'Arrastra o haz clic para seleccionar'}</p>
-                                    <p className="text-slate-400 text-sm mt-1">PDF, PNG, JPEG, WEBP · máx. 50 MB por archivo · hasta 10 archivos</p>
+                                    <p className="font-bold text-lg text-[var(--text-muted)]">{dragOver ? 'Suelta los archivos' : 'Arrastra o haz clic para seleccionar'}</p>
+                                    <p className="text-[var(--text-faint)] text-sm mt-1">PDF, PNG, JPEG, WEBP · máx. 50 MB por archivo · hasta 10 archivos</p>
                                 </div>
                             </div>
 
@@ -664,38 +664,38 @@ function AutofichaPageInner() {
                                 <div className="space-y-2">
                                     {files.map((entry, i) => (
                                         <div key={i} className={cn('flex items-center gap-3 p-3 rounded-xl border text-sm',
-                                            entry.error ? 'bg-rose-50 border-rose-200' : entry.progress === 100 ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200')}>
-                                            {entry.file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-slate-400 shrink-0" /> : <FileText className="w-4 h-4 text-slate-400 shrink-0" />}
+                                            entry.error ? 'bg-[var(--err)]/10 border-[var(--err)]/30' : entry.progress === 100 ? 'bg-[var(--ok)]/10 border-[var(--ok)]/30' : 'bg-[var(--surface)] border-[var(--border)]')}>
+                                            {entry.file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-[var(--text-faint)] shrink-0" /> : <FileText className="w-4 h-4 text-[var(--text-faint)] shrink-0" />}
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-medium truncate">{entry.file.name}</p>
-                                                {entry.error ? <p className="text-rose-600 text-xs">{entry.error}</p>
-                                                    : entry.progress === 100 ? <p className="text-emerald-600 text-xs">✓ Subido a Storage</p>
-                                                    : entry.progress > 0 ? <div className="mt-1 h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 transition-all" style={{ width: `${entry.progress}%` }} /></div>
-                                                    : <p className="text-slate-400 text-xs">{(entry.file.size / 1e6).toFixed(1)} MB</p>}
+                                                {entry.error ? <p className="text-[var(--err)] text-xs">{entry.error}</p>
+                                                    : entry.progress === 100 ? <p className="text-[var(--ok)] text-xs">✓ Subido a Storage</p>
+                                                    : entry.progress > 0 ? <div className="mt-1 h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden"><div className="h-full bg-[var(--accent)]/100 transition-all" style={{ width: `${entry.progress}%` }} /></div>
+                                                    : <p className="text-[var(--text-faint)] text-xs">{(entry.file.size / 1e6).toFixed(1)} MB</p>}
                                             </div>
-                                            <button onClick={() => setFiles(p => p.filter((_, j) => j !== i))} className="text-slate-300 hover:text-rose-500 shrink-0"><X className="w-4 h-4" /></button>
+                                            <button onClick={() => setFiles(p => p.filter((_, j) => j !== i))} className="text-slate-300 hover:text-[var(--err)] shrink-0"><X className="w-4 h-4" /></button>
                                         </div>
                                     ))}
                                 </div>
                             )}
                         </div>
                     ) : (
-                        <div className="bg-white border border-slate-200 rounded-3xl p-10 space-y-4">
-                            <label className="text-sm font-semibold text-slate-700">URL del documento (PDF o imagen)</label>
+                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-10 space-y-4">
+                            <label className="text-sm font-semibold text-[var(--text-muted)]">URL del documento (PDF o imagen)</label>
                             <input type="url" placeholder="https://proveedor.com/ficha-tecnica.pdf" value={url} onChange={e => { setUrl(e.target.value); scheduleAutoSave(); }}
-                                className="w-full p-4 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono" />
+                                className="w-full p-4 border border-[var(--border)] rounded-xl text-sm focus:ring-2 focus:ring-[var(--accent)] outline-none font-mono" />
                         </div>
                     )}
 
                     {status === 'error' && (
-                        <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700">
+                        <div className="flex items-start gap-3 p-4 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-2xl text-[var(--err)]">
                             <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" /><p className="text-sm">{errorMsg}</p>
                         </div>
                     )}
 
                     {/* Campo: Producto u objetivo para el LLM */}
-                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
-                        <label className="text-xs font-bold text-amber-700 uppercase tracking-widest flex items-center gap-1">
+                    <div className="bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-2xl p-4 space-y-2">
+                        <label className="text-xs font-bold text-[var(--warn)] uppercase tracking-widest flex items-center gap-1">
                             <span>🎯</span> Producto / datos a extraer (opcional)
                         </label>
                         <input
@@ -703,9 +703,9 @@ function AutofichaPageInner() {
                             placeholder="Ej: 'Grasa Würth 8890402' — si el doc tiene varios productos, indica cuál"
                             value={productoObjetivo}
                             onChange={e => setProductoObjetivo(e.target.value)}
-                            className="w-full p-3 bg-white border border-amber-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 outline-none"
+                            className="w-full p-3 bg-[var(--surface)] border border-amber-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-400 outline-none"
                         />
-                        <p className="text-[11px] text-amber-600">
+                        <p className="text-[11px] text-[var(--warn)]">
                             Si el documento tiene más de un producto, indica cuál extraer. Si dejas en blanco, la IA extrae el producto principal del documento.
                         </p>
                     </div>
@@ -714,13 +714,13 @@ function AutofichaPageInner() {
                     {canProcess && (
                         <div className={cn('flex gap-3', isMobile && 'flex-col')}>
                             <button type="button" onClick={handleProcess} disabled={isProcessing}
-                                className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 shadow-lg shadow-indigo-100 disabled:opacity-60 text-base">
+                                className="flex-1 py-4 bg-[var(--accent)] text-[var(--accent-ink)] font-bold rounded-2xl hover:brightness-110 transition-all flex items-center justify-center gap-3 shadow-lg shadow-indigo-100 disabled:opacity-60 text-base">
                                 {status === 'uploading' ? <><Loader2 className="w-5 h-5 animate-spin" /> Subiendo archivos…</>
                                     : status === 'processing' ? <><Loader2 className="w-5 h-5 animate-spin" /> Procesando{files.length > 1 ? ` ${files.length} documentos` : ''}…</>
                                     : <><Sparkles className="w-5 h-5" /> Estructurar con IA{files.length > 1 ? ` (${files.filter(f=>!f.error).length})` : ''}</>}
                             </button>
                             <button type="button" onClick={guardarBorrador} disabled={isProcessing}
-                                className="py-4 px-5 bg-slate-100 text-slate-700 font-bold rounded-2xl hover:bg-slate-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60 text-sm whitespace-nowrap">
+                                className="py-4 px-5 bg-[var(--surface-2)] text-[var(--text-muted)] font-bold rounded-2xl hover:bg-slate-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60 text-sm whitespace-nowrap">
                                 <Clock className="w-4 h-4" /> Guardar borrador
                             </button>
                             {/* Eliminar borrador activo */}
@@ -731,7 +731,7 @@ function AutofichaPageInner() {
                                         await eliminarBorrador(currentBorrador, e as any);
                                         handleReset();
                                     }}
-                                    className="py-4 px-4 bg-rose-50 text-rose-600 font-bold rounded-2xl hover:bg-rose-100 transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap border border-rose-200">
+                                    className="py-4 px-4 bg-[var(--err)]/10 text-[var(--err)] font-bold rounded-2xl hover:bg-rose-100 transition-all flex items-center justify-center gap-2 text-sm whitespace-nowrap border border-[var(--err)]/30">
                                     <Trash2 className="w-4 h-4" /> Eliminar
                                 </button>
                             )}
@@ -743,32 +743,32 @@ function AutofichaPageInner() {
                     {/* BLOQUE 4: Grid responsive — 2 cols desktop, 1 col mobile */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         {/* Preview */}
-                        <div className="bg-slate-50 rounded-2xl p-6 flex flex-col items-center justify-center min-h-[360px] border border-slate-200 gap-4">
+                        <div className="bg-[var(--bg)] rounded-2xl p-6 flex flex-col items-center justify-center min-h-[360px] border border-[var(--border)] gap-4">
                             {(() => {
                                 const img = files.find(f => f.file.type.startsWith('image/'));
                                 return img
                                     // eslint-disable-next-line @next/next/no-img-element
                                     ? <img src={URL.createObjectURL(img.file)} alt="Preview" className="max-h-72 object-contain rounded-xl shadow" />
-                                    : <div className="text-center text-slate-400">
+                                    : <div className="text-center text-[var(--text-faint)]">
                                         <Camera className="w-12 h-12 mx-auto mb-2 opacity-50" />
                                         <p className="text-sm font-medium">{files.length > 1 ? `${files.length} documentos` : files[0]?.file.name || url.split('/').pop()}</p>
                                     </div>;
                             })()}
-                            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-slate-200 shadow-sm">
-                                <span className="text-xs text-slate-500">Confianza:</span>
+                            <div className="flex items-center gap-2 px-4 py-2 bg-[var(--surface)] rounded-full border border-[var(--border)] shadow-sm">
+                                <span className="text-xs text-[var(--text-muted)]">Confianza:</span>
                                 <ConfidenceBadge value={result.confidence} />
                             </div>
                         </div>
 
                         {/* Formulario — campo grid-cols-1 en mobile */}
-                        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm space-y-5 overflow-y-auto max-h-[80vh]">
+                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 shadow-sm space-y-5 overflow-y-auto max-h-[80vh]">
                             <div className="flex justify-between items-center">
-                                <h3 className="text-xl font-bold flex items-center gap-2"><Sparkles className="w-5 h-5 text-indigo-500" /> Datos Extraídos</h3>
-                                <button onClick={handleReset} className="text-slate-400 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
+                                <h3 className="text-xl font-bold flex items-center gap-2"><Sparkles className="w-5 h-5 text-[var(--accent)]" /> Datos Extraídos</h3>
+                                <button onClick={handleReset} className="text-[var(--text-faint)] hover:text-[var(--err)]"><Trash2 className="w-4 h-4" /></button>
                             </div>
 
                             <div className="space-y-3">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Identificación</p>
+                                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b pb-1">Identificación</p>
                                 <Field
                                     label="N.º de parte / Modelo (detectado por IA)"
                                     value={edited?.sku_detectado}
@@ -776,17 +776,17 @@ function AutofichaPageInner() {
                                     mono
                                 />
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                    <label className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest">
                                         SKU de tienda (articulo_id)
                                     </label>
                                     <input
                                         type="text"
-                                        className="w-full p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm font-mono focus:ring-1 focus:ring-amber-400 outline-none placeholder-amber-300"
+                                        className="w-full p-3 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl text-sm font-mono focus:ring-1 focus:ring-amber-400 outline-none placeholder-amber-300"
                                         placeholder={`Ej: ${edited?.marca?.slice(0,3).toUpperCase() ?? 'MRC'}-${edited?.sku_detectado ?? 'MODELO'}`}
                                         value={(edited as any)?.sku_tienda ?? ''}
                                         onChange={e => updateField('sku_tienda' as any, e.target.value)}
                                     />
-                                    <p className="text-[10px] text-amber-600">Este será el ID de tu catálogo. Déjalo vacío para usar el N.º de parte detectado.</p>
+                                    <p className="text-[10px] text-[var(--warn)]">Este será el ID de tu catálogo. Déjalo vacío para usar el N.º de parte detectado.</p>
                                 </div>
                                 <Field label="Nombre del Producto" value={edited?.nombre} onChange={v => updateField('nombre', v)} />
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -800,14 +800,14 @@ function AutofichaPageInner() {
                                 <Field label="Categoría" value={edited?.categoria} onChange={v => updateField('categoria', v)} />
                             </div>
                             <div className="space-y-3">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Códigos</p>
+                                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b pb-1">Códigos</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <Field label="EAN / UPC / GTIN" value={edited?.codigo_universal} onChange={v => updateField('codigo_universal', v)} mono />
                                     <Field label="Clave SAT" value={edited?.codigo_sat} onChange={v => updateField('codigo_sat', v)} mono />
                                 </div>
                             </div>
                             <div className="space-y-3">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Dimensiones</p>
+                                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b pb-1">Dimensiones</p>
                                 <div className="grid grid-cols-2 gap-3">
                                     <Field label="Largo (cm)" value={edited?.largo_cm} onChange={v => updateField('largo_cm', parseFloat(v) || undefined as any)} type="number" />
                                     <Field label="Ancho (cm)" value={edited?.ancho_cm} onChange={v => updateField('ancho_cm', parseFloat(v) || undefined as any)} type="number" />
@@ -818,20 +818,20 @@ function AutofichaPageInner() {
                                 <Field label="Materiales" value={edited?.materiales} onChange={v => updateField('materiales', v)} />
                             </div>
                             <div className="space-y-3">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Descripción</p>
+                                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b pb-1">Descripción</p>
                                 <Field label="Descripción técnica (corta)" value={edited?.descripcion} onChange={v => updateField('descripcion', v)} type="textarea" />
                                 <Field label="Descripción extendida" value={edited?.descripcion_larga} onChange={v => updateField('descripcion_larga', v)} type="textarea" />
                                 <Field label="Especificaciones" value={edited?.especificaciones} onChange={v => updateField('especificaciones', v)} type="textarea" />
                             </div>
                             <div className="space-y-3">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Uso y Seguridad</p>
+                                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b pb-1">Uso y Seguridad</p>
                                 <Field label="Uso recomendado" value={edited?.uso_recomendado} onChange={v => updateField('uso_recomendado', v)} type="textarea" />
                                 <Field label="Precauciones" value={edited?.precauciones} onChange={v => updateField('precauciones', v)} type="textarea" />
                                 <Field label="Ingredientes / Composición" value={edited?.ingredientes} onChange={v => updateField('ingredientes', v)} type="textarea" />
                             </div>
                             <div className="space-y-3">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Cumplimiento y Etiquetado</p>
-                                <p className="text-[10px] text-slate-400 leading-relaxed">
+                                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b pb-1">Cumplimiento y Etiquetado</p>
+                                <p className="text-[10px] text-[var(--text-faint)] leading-relaxed">
                                     Campos de etiquetado regulatorio. La IA los extrae si aparecen en el documento; de lo contrario, quedan vacíos para revisión manual.
                                 </p>
                                 <Field
@@ -861,37 +861,37 @@ function AutofichaPageInner() {
                             </div>
 
                             <div className="space-y-3">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Marketplaces</p>
+                                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b pb-1">Marketplaces</p>
                                 {/* Bullet points — lista editable */}
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Puntos clave (bullet points)</label>
+                                    <label className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest">Puntos clave (bullet points)</label>
                                     {(edited?.bullet_points ?? []).map((bp, i) => (
                                         <div key={i} className="flex gap-2">
                                             <input value={bp} onChange={e => {
                                                 const arr = [...(edited?.bullet_points ?? [])];
                                                 arr[i] = e.target.value;
                                                 updateField('bullet_points', arr as any);
-                                            }} className="flex-1 p-2 bg-slate-50 border border-slate-100 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                            }} className="flex-1 p-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none" />
                                             <button type="button" onClick={() => {
                                                 const arr = (edited?.bullet_points ?? []).filter((_, j) => j !== i);
                                                 updateField('bullet_points', arr as any);
-                                            }} className="text-slate-300 hover:text-rose-500"><X className="w-3 h-3" /></button>
+                                            }} className="text-slate-300 hover:text-[var(--err)]"><X className="w-3 h-3" /></button>
                                         </div>
                                     ))}
                                     <button type="button" onClick={() => updateField('bullet_points', [...(edited?.bullet_points ?? []), ''] as any)}
-                                        className="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1">
+                                        className="text-xs text-[var(--accent)] hover:text-indigo-700 flex items-center gap-1">
                                         <Plus className="w-3 h-3" /> Agregar punto
                                     </button>
                                 </div>
                                 {/* Palabras clave */}
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Palabras clave</label>
+                                    <label className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest">Palabras clave</label>
                                     <div className="flex flex-wrap gap-2">
                                         {(edited?.palabras_clave ?? []).map((kw, i) => (
-                                            <span key={i} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-full">
+                                            <span key={i} className="flex items-center gap-1 bg-[var(--accent)]/10 text-indigo-700 text-xs px-2 py-1 rounded-full">
                                                 {kw}
                                                 <button type="button" onClick={() => updateField('palabras_clave', (edited?.palabras_clave ?? []).filter((_, j) => j !== i) as any)}
-                                                    className="hover:text-rose-500"><X className="w-2.5 h-2.5" /></button>
+                                                    className="hover:text-[var(--err)]"><X className="w-2.5 h-2.5" /></button>
                                             </span>
                                         ))}
                                     </div>
@@ -900,17 +900,17 @@ function AutofichaPageInner() {
                                             updateField('palabras_clave', [...(edited?.palabras_clave ?? []), e.currentTarget.value.trim()] as any);
                                             e.currentTarget.value = '';
                                         }
-                                    }} className="w-full p-2 bg-slate-50 border border-slate-100 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                    }} className="w-full p-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none" />
                                 </div>
                             </div>
 
                             {/* SECCIÓN A — Atributos de Categoría (plantilla dinámica v4) */}
                             <div className="space-y-3">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">
+                                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b pb-1">
                                     Atributos de {edited?.categoria || 'Categoría'}
                                 </p>
                                 {plantillaCampos.length === 0 ? (
-                                    <p className="text-xs text-slate-400">Sin plantilla definida para esta categoría</p>
+                                    <p className="text-xs text-[var(--text-faint)]">Sin plantilla definida para esta categoría</p>
                                 ) : (
                                     plantillaCampos.map((campo: any) => (
                                         <Field
@@ -926,21 +926,21 @@ function AutofichaPageInner() {
 
                             {/* SECCIÓN B — Otros atributos detectados (key-value editable) */}
                             <div className="space-y-3">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">
+                                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b pb-1">
                                     Otros atributos detectados
                                 </p>
                                 {Object.keys(atribExtras).length === 0 ? (
-                                    <p className="text-xs text-slate-400">La IA no detectó atributos adicionales</p>
+                                    <p className="text-xs text-[var(--text-faint)]">La IA no detectó atributos adicionales</p>
                                 ) : (
                                     Object.entries(atribExtras).map(([key, val]) => (
                                         <div key={key} className="flex gap-2 items-center">
                                             <input value={key} readOnly
-                                                className="w-1/3 p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs font-mono text-slate-500" />
+                                                className="w-1/3 p-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-xs font-mono text-[var(--text-muted)]" />
                                             <input value={String(val ?? '')}
                                                 onChange={e => { setAtribExtras(prev => ({ ...prev, [key]: e.target.value })); scheduleAutoSave(); }}
-                                                className="flex-1 p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                                className="flex-1 p-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-xs focus:ring-1 focus:ring-indigo-400 outline-none" />
                                             <button onClick={() => setAtribExtras(prev => { const n = { ...prev }; delete n[key]; return n; })}
-                                                className="text-slate-300 hover:text-rose-500 shrink-0">
+                                                className="text-slate-300 hover:text-[var(--err)] shrink-0">
                                                 <X className="w-3 h-3" />
                                             </button>
                                         </div>
@@ -949,32 +949,32 @@ function AutofichaPageInner() {
                             </div>
 
                             {status === 'error' && (
-                                <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">
+                                <div className="flex items-start gap-2 p-3 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl text-[var(--err)] text-sm">
                                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />{errorMsg}
                                 </div>
                             )}
 
-                            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-3">
+                            <div className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-3">
                                 <button onClick={handleSave} disabled={isSaving || isSaved}
-                                    className="flex-1 bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-60">
+                                    className="flex-1 bg-[var(--accent)] text-[var(--accent-ink)] font-bold py-3 rounded-xl hover:brightness-110 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-60">
                                     {isSaved ? <><CheckCircle2 className="w-5 h-5" /> ¡Guardado!</>
                                         : isSaving ? <><Loader2 className="w-5 h-5 animate-spin" /> Guardando…</>
                                         : <><Save className="w-5 h-5" /> Guardar en Catálogo</>}
                                 </button>
-                                <button onClick={handleReset} className="px-5 py-3 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-slate-100">Descartar</button>
+                                <button onClick={handleReset} className="px-5 py-3 bg-[var(--bg)] text-[var(--text-muted)] font-bold rounded-xl hover:bg-[var(--surface-2)]">Descartar</button>
                             </div>
                         </div>
                     </div>
 
                     {/* -- Panel vinculación manual (BLOQUE 1 cards enriquecidas + BLOQUE 2 buscador) */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5 shadow-sm">
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5 shadow-sm">
                         <div className="flex items-center justify-between flex-wrap gap-2">
                             <div>
-                                <h3 className="text-base font-bold flex items-center gap-2"><Link2 className="w-4 h-4 text-indigo-500" /> Vincular a artículo del catálogo</h3>
-                                <p className="text-xs text-slate-400 mt-0.5">Tú decides. La IA solo sugiere — busca manualmente o elige "Crear como nuevo".</p>
+                                <h3 className="text-base font-bold flex items-center gap-2"><Link2 className="w-4 h-4 text-[var(--accent)]" /> Vincular a artículo del catálogo</h3>
+                                <p className="text-xs text-[var(--text-faint)] mt-0.5">Tú decides. La IA solo sugiere — busca manualmente o elige "Crear como nuevo".</p>
                             </div>
                             {suggestions.length > 0 && (
-                                <button onClick={() => setShowSuggestions(p => !p)} className="text-xs text-slate-500 flex items-center gap-1 hover:text-slate-700">
+                                <button onClick={() => setShowSuggestions(p => !p)} className="text-xs text-[var(--text-muted)] flex items-center gap-1 hover:text-[var(--text-muted)]">
                                     {suggestions.length} sugerencia{suggestions.length !== 1 ? 's' : ''} de IA <ChevronDown className={cn('w-3 h-3 transition-transform', showSuggestions && 'rotate-180')} />
                                 </button>
                             )}
@@ -982,29 +982,29 @@ function AutofichaPageInner() {
 
                         {/* Artículo seleccionado */}
                         {linkedArticulo ? (
-                            <div className="flex items-start gap-3 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
-                                <CheckCircle2 className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                            <div className="flex items-start gap-3 p-4 bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-xl">
+                                <CheckCircle2 className="w-5 h-5 text-[var(--accent)] shrink-0 mt-0.5" />
                                 <div className="flex-1">
                                     <p className="text-sm font-bold text-indigo-800">{linkedArticulo.nombre}</p>
-                                    <p className="text-xs text-indigo-600 font-mono mt-0.5">{linkedArticulo.articulo_id} — {linkedArticulo.marca}</p>
+                                    <p className="text-xs text-[var(--accent)] font-mono mt-0.5">{linkedArticulo.articulo_id} — {linkedArticulo.marca}</p>
                                     <div className="flex flex-wrap items-center gap-2 mt-2">
-                                        <span className="text-xs text-slate-500">Modo:</span>
+                                        <span className="text-xs text-[var(--text-muted)]">Modo:</span>
                                         {(['update', 'link_only'] as const).map(m => (
                                             <button key={m} onClick={() => setSaveMode(m)}
                                                 className={cn('text-xs px-2 py-1 rounded-lg border font-medium transition-colors',
-                                                    saveMode === m ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300')}>
+                                                    saveMode === m ? 'bg-[var(--accent)] text-[var(--accent-ink)] border-indigo-600' : 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--accent)]/50')}>
                                                 {m === 'update' ? '📝 Rellenar vacíos' : '🔗 Solo vincular'}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-                                <button onClick={() => { setLinkedArticulo(null); setSaveMode('create'); }} className="text-slate-400 hover:text-rose-500"><X className="w-4 h-4" /></button>
+                                <button onClick={() => { setLinkedArticulo(null); setSaveMode('create'); }} className="text-[var(--text-faint)] hover:text-[var(--err)]"><X className="w-4 h-4" /></button>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-3 p-3 bg-slate-50 border border-dashed border-slate-300 rounded-xl">
-                                <Plus className="w-4 h-4 text-indigo-500" />
-                                <p className="text-sm text-slate-600 flex-1">
-                                    <span className="font-semibold text-indigo-600">Crear como nuevo artículo</span> — SKU: <span className="font-mono text-xs bg-slate-200 px-1 rounded">{edited?.sku_detectado}</span>
+                            <div className="flex items-center gap-3 p-3 bg-[var(--bg)] border border-dashed border-slate-300 rounded-xl">
+                                <Plus className="w-4 h-4 text-[var(--accent)]" />
+                                <p className="text-sm text-[var(--text-muted)] flex-1">
+                                    <span className="font-semibold text-[var(--accent)]">Crear como nuevo artículo</span> — SKU: <span className="font-mono text-xs bg-slate-200 px-1 rounded">{edited?.sku_detectado}</span>
                                 </p>
                             </div>
                         )}
@@ -1012,7 +1012,7 @@ function AutofichaPageInner() {
                         {/* Sugerencias IA con ArticuloCard enriquecida (BLOQUE 1) */}
                         {showSuggestions && suggestions.length > 0 && (
                             <div className="space-y-2">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sugerencias de la IA (solo informativas)</p>
+                                <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest">Sugerencias de la IA (solo informativas)</p>
                                 {suggestions.slice(0, 5).map(s => (
                                     <ArticuloCard key={s.articulo_id} match={s} onSelect={selectArticulo} />
                                 ))}
@@ -1021,14 +1021,14 @@ function AutofichaPageInner() {
 
                         {/* Buscador manual */}
                         <div className="space-y-3">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Búsqueda manual</p>
+                            <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest">Búsqueda manual</p>
                             <div className="flex gap-2">
                                 <input type="text" placeholder="SKU, EAN, nombre del producto…" value={searchQ}
                                     onChange={e => setSearchQ(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && handleManualSearch()}
-                                    className="flex-1 p-3 border border-slate-200 rounded-xl text-sm focus:ring-1 focus:ring-indigo-500 outline-none font-mono" />
+                                    className="flex-1 p-3 border border-[var(--border)] rounded-xl text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none font-mono" />
                                 <button onClick={handleManualSearch} disabled={searchLoading || searchQ.trim().length < 2}
-                                    className="px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2">
+                                    className="px-4 py-3 bg-[var(--accent)] text-[var(--accent-ink)] rounded-xl hover:brightness-110 disabled:opacity-50 flex items-center gap-2">
                                     {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                                 </button>
                             </div>
@@ -1042,7 +1042,7 @@ function AutofichaPageInner() {
                             )}
                             {searchResults.length === 0 && searchQ.trim().length >= 2 && !searchLoading && (
                                 <button onClick={() => { setLinkedArticulo(null); setSaveMode('create'); setSearchResults([]); setSearchQ(''); }}
-                                    className="w-full p-3 border-2 border-dashed border-indigo-300 rounded-xl text-sm text-indigo-600 font-semibold hover:bg-indigo-50 flex items-center justify-center gap-2">
+                                    className="w-full p-3 border-2 border-dashed border-[var(--accent)]/50 rounded-xl text-sm text-[var(--accent)] font-semibold hover:bg-[var(--accent)]/10 flex items-center justify-center gap-2">
                                     <Plus className="w-4 h-4" /> Sin resultados — Crear como artículo nuevo
                                 </button>
                             )}
@@ -1056,7 +1056,7 @@ function AutofichaPageInner() {
 
 export default function AutofichaPage() {
     return (
-        <Suspense fallback={<div className="py-20 text-center text-slate-400">Cargando...</div>}>
+        <Suspense fallback={<div className="py-20 text-center text-[var(--text-faint)]">Cargando...</div>}>
             <AutofichaPageInner />
         </Suspense>
     );

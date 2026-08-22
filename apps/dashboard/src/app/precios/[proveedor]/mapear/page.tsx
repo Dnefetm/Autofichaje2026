@@ -116,52 +116,52 @@ export default function MapearColumnasPage() {
         }
     };
 
-    if (loading) return <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-500" /></div>;
+    if (loading) return <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-[var(--accent)]" /></div>;
 
     return (
         <div className="p-8 max-w-5xl mx-auto min-h-screen">
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">Mapear Columnas - {proveedor}</h2>
-            <p className="text-slate-500 mb-8">Asigna las columnas correctas del archivo a los campos del sistema.</p>
+            <h2 className="text-2xl font-bold text-[var(--text)] mb-2">Mapear Columnas - {proveedor}</h2>
+            <p className="text-[var(--text-muted)] mb-8">Asigna las columnas correctas del archivo a los campos del sistema.</p>
 
             {error && <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-lg">{error}</div>}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 
                 {/* Panel Izquierdo: Configuración General */}
-                <div className="bg-white border rounded-xl p-6 shadow-sm">
+                <div className="bg-[var(--surface)] border rounded-xl p-6 shadow-sm">
                     <h3 className="font-semibold text-lg border-b pb-2 mb-4">Campos Principales</h3>
                     
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Columna CÓDIGO DE BARRAS *</label>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna CÓDIGO DE BARRAS *</label>
                             <select className="w-full border p-2 rounded-md" value={colCodigo} onChange={e => setColCodigo(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
                                 {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Columna MODELO / CLAVE *</label>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna MODELO / CLAVE *</label>
                             <select className="w-full border p-2 rounded-md" value={colModelo} onChange={e => setColModelo(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
                                 {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Columna MARCA</label>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna MARCA</label>
                             <select className="w-full border p-2 rounded-md" value={colMarca} onChange={e => setColMarca(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
                                 {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Columna DESCRIPCIÓN</label>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna DESCRIPCIÓN</label>
                             <select className="w-full border p-2 rounded-md" value={colDescripcion} onChange={e => setColDescripcion(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
                                 {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Moneda por defecto</label>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Moneda por defecto</label>
                             <select className="w-full border p-2 rounded-md" value={moneda} onChange={e => setMoneda(e.target.value)}>
                                 <option value="MXN">MXN - Peso Mexicano</option>
                                 <option value="USD">USD - Dólar Estadounidense</option>
@@ -171,31 +171,31 @@ export default function MapearColumnasPage() {
                 </div>
 
                 {/* Panel Derecho: Precios */}
-                <div className="bg-white border rounded-xl p-6 shadow-sm">
+                <div className="bg-[var(--surface)] border rounded-xl p-6 shadow-sm">
                     <h3 className="font-semibold text-lg border-b pb-2 mb-4">Mapeo de Precios</h3>
                     
                     <div className="space-y-4">
                         {precios.map((p, index) => (
-                            <div key={index} className="p-4 border rounded-md relative bg-slate-50">
+                            <div key={index} className="p-4 border rounded-md relative bg-[var(--bg)]">
                                 <button onClick={() => handleRemovePrecio(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold">✕</button>
                                 
-                                <label className="block text-xs font-medium text-slate-500 uppercase mb-1">Columna Excel</label>
-                                <select className="w-full border p-2 rounded-md mb-2 bg-white" value={p.columna} onChange={e => handlePrecioChange(index, 'columna', e.target.value)}>
+                                <label className="block text-xs font-medium text-[var(--text-muted)] uppercase mb-1">Columna Excel</label>
+                                <select className="w-full border p-2 rounded-md mb-2 bg-[var(--surface)]" value={p.columna} onChange={e => handlePrecioChange(index, 'columna', e.target.value)}>
                                     <option value="">-- Seleccionar Columna --</option>
                                     {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
                                 </select>
                                 
                                 <div className="flex gap-2">
                                     <div className="flex-1">
-                                        <label className="block text-xs font-medium text-slate-500 uppercase mb-1">Tipo de Costo</label>
-                                        <input type="text" className="w-full border p-2 rounded-md bg-white" value={p.tipo_costo} onChange={e => handlePrecioChange(index, 'tipo_costo', e.target.value)} list="tiposCosto" />
+                                        <label className="block text-xs font-medium text-[var(--text-muted)] uppercase mb-1">Tipo de Costo</label>
+                                        <input type="text" className="w-full border p-2 rounded-md bg-[var(--surface)]" value={p.tipo_costo} onChange={e => handlePrecioChange(index, 'tipo_costo', e.target.value)} list="tiposCosto" />
                                         <datalist id="tiposCosto">
                                             {tiposCosto.map(t => <option key={t} value={t} />)}
                                         </datalist>
                                     </div>
                                     <div className="w-24 flex items-end pb-2">
                                         <label className="flex items-center text-sm cursor-pointer" title="Marca esta casilla si el precio en el Excel ya tiene el IVA sumado">
-                                            <input type="checkbox" className="mr-2 rounded text-indigo-600 focus:ring-indigo-500" checked={p.incluye_iva} onChange={e => handlePrecioChange(index, 'incluye_iva', e.target.checked)} />
+                                            <input type="checkbox" className="mr-2 rounded text-[var(--accent)] focus:ring-[var(--accent)]" checked={p.incluye_iva} onChange={e => handlePrecioChange(index, 'incluye_iva', e.target.checked)} />
                                             ¿Ya incluye IVA?
                                         </label>
                                     </div>
@@ -203,7 +203,7 @@ export default function MapearColumnasPage() {
                             </div>
                         ))}
                         
-                        <button onClick={handleAddPrecio} className="w-full py-2 border-2 border-dashed border-indigo-300 text-indigo-600 rounded-md hover:bg-indigo-50 font-medium">
+                        <button onClick={handleAddPrecio} className="w-full py-2 border-2 border-dashed border-[var(--accent)]/50 text-[var(--accent)] rounded-md hover:bg-[var(--accent)]/10 font-medium">
                             + Añadir Nivel de Precio
                         </button>
                     </div>
@@ -211,21 +211,21 @@ export default function MapearColumnasPage() {
             </div>
 
             {/* Panel Inferior: Vista Previa */}
-            <div className="mt-8 bg-white border rounded-xl p-6 shadow-sm overflow-x-auto">
+            <div className="mt-8 bg-[var(--surface)] border rounded-xl p-6 shadow-sm overflow-x-auto">
                 <h3 className="font-semibold text-lg border-b pb-2 mb-4">Vista Previa de Datos (Primeras 3 filas)</h3>
                 <table className="w-full text-sm text-left border-collapse">
                     <thead>
-                        <tr className="bg-slate-100">
+                        <tr className="bg-[var(--surface-2)]">
                             {headers.map((h, i) => (
-                                <th key={i} className="p-2 border font-medium text-slate-700 whitespace-nowrap">{h}</th>
+                                <th key={i} className="p-2 border font-medium text-[var(--text-muted)] whitespace-nowrap">{h}</th>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
                         {preview.map((row, rIdx) => (
-                            <tr key={rIdx} className="hover:bg-slate-50">
+                            <tr key={rIdx} className="hover:bg-[var(--bg)]">
                                 {headers.map((_, cIdx) => (
-                                    <td key={cIdx} className="p-2 border text-slate-600 max-w-[200px] truncate" title={row[cIdx]}>{row[cIdx]}</td>
+                                    <td key={cIdx} className="p-2 border text-[var(--text-muted)] max-w-[200px] truncate" title={row[cIdx]}>{row[cIdx]}</td>
                                 ))}
                             </tr>
                         ))}
@@ -237,7 +237,7 @@ export default function MapearColumnasPage() {
                 <button 
                     onClick={handleGuardar}
                     disabled={saving || !colCodigo || !colModelo}
-                    className="bg-indigo-600 text-white px-8 py-3 rounded-lg font-medium shadow-sm hover:bg-indigo-700 disabled:opacity-50 flex items-center text-lg"
+                    className="bg-[var(--accent)] text-[var(--accent-ink)] px-8 py-3 rounded-lg font-medium shadow-sm hover:brightness-110 disabled:opacity-50 flex items-center text-lg"
                 >
                     {saving ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
                     Guardar y Procesar Archivo

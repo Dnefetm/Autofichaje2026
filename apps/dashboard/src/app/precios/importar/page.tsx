@@ -53,17 +53,17 @@ function cn(...classes: (string | boolean | undefined | null)[]) {
 }
 
 function scoreColor(s: number | null) {
-  if (s === null) return 'text-slate-400';
-  if (s >= 90) return 'text-emerald-600';
+  if (s === null) return 'text-[var(--text-faint)]';
+  if (s >= 90) return 'text-[var(--ok)]';
   if (s >= 60) return 'text-yellow-600';
-  return 'text-rose-500';
+  return 'text-[var(--err)]';
 }
 
 function scoreBg(s: number | null) {
-  if (s === null) return 'bg-slate-100 border-slate-200';
-  if (s >= 90) return 'bg-emerald-50 border-emerald-200';
+  if (s === null) return 'bg-[var(--surface-2)] border-[var(--border)]';
+  if (s >= 90) return 'bg-[var(--ok)]/10 border-[var(--ok)]/30';
   if (s >= 60) return 'bg-yellow-50 border-yellow-200';
-  return 'bg-rose-50 border-rose-200';
+  return 'bg-[var(--err)]/10 border-[var(--err)]/30';
 }
 
 // -- StepIndicator -------------------------------------------------------------
@@ -73,7 +73,7 @@ function StepIndicator({ step, current }: { step: number; current: number }) {
   return (
     <div className={cn(
       'w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all',
-      done ? 'bg-emerald-500 text-white' : active ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-200 text-slate-500'
+      done ? 'bg-[var(--ok)]/100 text-[var(--accent-ink)]' : active ? 'bg-[var(--accent)] text-[var(--accent-ink)] shadow-lg' : 'bg-slate-200 text-[var(--text-muted)]'
     )}>
       {done ? <Check className="w-4 h-4" /> : step}
     </div>
@@ -173,32 +173,32 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
   return (
     <div className="space-y-6">
       <div>
-        <label htmlFor="proveedor-input" className="block text-xs font-bold text-slate-600 mb-1">Proveedor <span className="text-rose-500">*</span></label>
+        <label htmlFor="proveedor-input" className="block text-xs font-bold text-[var(--text-muted)] mb-1">Proveedor <span className="text-[var(--err)]">*</span></label>
         <input id="proveedor-input" type="text" value={proveedor}
           onChange={(e) => { setProveedor(e.target.value); setError(null); }}
                           readOnly={!!proveedorInicial}
           placeholder="Ej: Samsung, LG, Urrea..."
-          className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+          className="w-full px-4 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-[var(--surface)]" />
       </div>
       <div>
-        <label className="block text-xs font-bold text-slate-600 mb-1">Archivo Excel <span className="text-rose-500">*</span></label>
+        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Archivo Excel <span className="text-[var(--err)]">*</span></label>
         <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}
           onDrop={handleDrop} onClick={() => inputRef.current?.click()}
           className={cn('border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all',
-            dragging ? 'border-indigo-400 bg-indigo-50' : file ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50')}>
+            dragging ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10' : file ? 'border-emerald-400 bg-[var(--ok)]/10' : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--bg)]')}>
           <input ref={inputRef} id="file-input" type="file" accept=".xlsx,.xls" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
           {file ? (
             <div className="flex items-center justify-center gap-3">
-              <FileSpreadsheet className="w-8 h-8 text-emerald-600" />
-              <div className="text-left"><p className="font-bold text-sm">{file.name}</p><p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p></div>
+              <FileSpreadsheet className="w-8 h-8 text-[var(--ok)]" />
+              <div className="text-left"><p className="font-bold text-sm">{file.name}</p><p className="text-xs text-[var(--text-muted)]">{(file.size / 1024).toFixed(1)} KB</p></div>
             </div>
           ) : (
-            <div><Upload className="mx-auto w-10 h-10 text-slate-300 mb-2" /><p className="text-sm font-semibold text-slate-500">Arrastra tu Excel aquí</p><p className="text-xs text-slate-400 mt-1">o haz clic • .xlsx, .xls • máx. 50 MB</p></div>
+            <div><Upload className="mx-auto w-10 h-10 text-slate-300 mb-2" /><p className="text-sm font-semibold text-[var(--text-muted)]">Arrastra tu Excel aquí</p><p className="text-xs text-[var(--text-faint)] mt-1">o haz clic • .xlsx, .xls • máx. 50 MB</p></div>
           )}
         </div>
       </div>
-      {error && <div className="flex items-center gap-2 text-rose-600 text-sm bg-rose-50 px-4 py-2 rounded-xl"><AlertCircle className="w-4 h-4" />{error}</div>}
+      {error && <div className="flex items-center gap-2 text-[var(--err)] text-sm bg-[var(--err)]/10 px-4 py-2 rounded-xl"><AlertCircle className="w-4 h-4" />{error}</div>}
       
       {activa && (
         <BannerImportacionActiva
@@ -221,7 +221,7 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
         />
       )}
 
-      <button onClick={submit} disabled={loading || !!activa || checkingActiva} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-sm">
+      <button onClick={submit} disabled={loading || !!activa || checkingActiva} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[var(--accent)] hover:brightness-110 disabled:opacity-50 text-[var(--accent-ink)] font-bold rounded-xl transition-all shadow-sm">
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
         {loading ? 'Subiendo...' : activa ? 'Hay una importación en curso' : 'Subir y continuar'}
         {!loading && !activa && <ChevronRight className="w-4 h-4" />}
@@ -344,30 +344,30 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
   }
 
   if (loadingPreview) return (
-    <div className="flex items-center justify-center py-20 gap-3 text-slate-400">
+    <div className="flex items-center justify-center py-20 gap-3 text-[var(--text-faint)]">
       <Loader2 className="w-5 h-5 animate-spin" /> Leyendo el archivo...
     </div>
   );
   if (errorPreview || !preview) return (
     <div className="text-center py-16">
-      <p className="text-rose-600 mb-4">{errorPreview}</p>
-      <button onClick={onBack} className="text-indigo-600 hover:underline">Volver</button>
+      <p className="text-[var(--err)] mb-4">{errorPreview}</p>
+      <button onClick={onBack} className="text-[var(--accent)] hover:underline">Volver</button>
     </div>
   );
 
     return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-8 text-center space-y-6">
+      <div className="bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-2xl p-8 text-center space-y-6">
         <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />
         <div>
-          <h3 className="font-bold text-xl text-slate-800">Lista Guardada (Lista Sana)</h3>
-          <p className="text-slate-600 mt-2">
+          <h3 className="font-bold text-xl text-[var(--text)]">Lista Guardada (Lista Sana)</h3>
+          <p className="text-[var(--text-muted)] mt-2">
             Hemos guardado exitosamente tu configuración. La lista original está a salvo en la base de datos y lista para vincularse cuando lo decidas.
           </p>
         </div>
-        {error && <div className="text-rose-600 text-sm font-semibold">{error}</div>}
+        {error && <div className="text-[var(--err)] text-sm font-semibold">{error}</div>}
         <div className="flex gap-4 justify-center">
-          <button onClick={() => setIsMapeoGuardado(false)} className="px-6 py-3 border border-slate-300 text-slate-600 font-bold rounded-xl hover:bg-white transition-colors">Modificar mapeo</button>
-          <button onClick={handleIrAlPanel} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2">
+          <button onClick={() => setIsMapeoGuardado(false)} className="px-6 py-3 border border-slate-300 text-[var(--text-muted)] font-bold rounded-xl hover:bg-[var(--surface)] transition-colors">Modificar mapeo</button>
+          <button onClick={handleIrAlPanel} className="px-6 py-3 bg-[var(--accent)] text-[var(--accent-ink)] font-bold rounded-xl hover:brightness-110 transition-colors flex items-center gap-2">
             <CheckCircle className="w-5 h-5"/>
             Finalizar y Ver Panel
           </button>
@@ -381,19 +381,19 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
   // Colores por rol para el preview
   type ColInfo = { label: string; emoji: string; hCls: string; cCls: string };
   const colRole: Record<string, ColInfo> = {};
-  if (columnaModelo) colRole[columnaModelo] = { label: 'Modelo', emoji: '🔑', hCls: 'bg-indigo-50 text-indigo-700', cCls: 'bg-indigo-50/40 font-bold' };
+  if (columnaModelo) colRole[columnaModelo] = { label: 'Modelo', emoji: '🔑', hCls: 'bg-[var(--accent)]/10 text-indigo-700', cCls: 'bg-[var(--accent)]/10/40 font-bold' };
   if (columnaMarca) colRole[columnaMarca] = { label: 'Marca', emoji: '🏷️', hCls: 'bg-violet-50 text-violet-700', cCls: 'bg-violet-50/40 font-bold' };
-  if (columnaCodigo) colRole[columnaCodigo] = { label: 'Código', emoji: '🔢', hCls: 'bg-amber-50 text-amber-700', cCls: 'bg-amber-50/40 font-bold' };
+  if (columnaCodigo) colRole[columnaCodigo] = { label: 'Código', emoji: '🔢', hCls: 'bg-[var(--warn)]/10 text-[var(--warn)]', cCls: 'bg-[var(--warn)]/10/40 font-bold' };
   if (columnaDescripcion) colRole[columnaDescripcion] = { label: 'Descripción', emoji: '📝', hCls: 'bg-teal-50 text-teal-700', cCls: 'bg-teal-50/40' };
   if (columnaMoneda) colRole[columnaMoneda] = { label: 'Moneda', emoji: '🌐', hCls: 'bg-sky-50 text-sky-700', cCls: 'bg-sky-50/40' };
   precios.forEach((p) => {
-    if (p.columna) colRole[p.columna] = { label: TIPOS_COSTO.find((t) => t.value === p.tipo_costo)?.label ?? p.tipo_costo, emoji: '💲', hCls: 'bg-emerald-50 text-emerald-700', cCls: 'bg-emerald-50/40 text-emerald-700 font-bold' };
+    if (p.columna) colRole[p.columna] = { label: TIPOS_COSTO.find((t) => t.value === p.tipo_costo)?.label ?? p.tipo_costo, emoji: '💲', hCls: 'bg-[var(--ok)]/10 text-[var(--ok)]', cCls: 'bg-[var(--ok)]/10/40 text-[var(--ok)] font-bold' };
   });
 
   function Sel({ id, value, onChange, placeholder = '-- Seleccionar --' }: { id: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
     return (
       <select id={id} value={value} onChange={(e) => { onChange(e.target.value); setError(null); }}
-        className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-white">
+        className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-[var(--surface)]">
         <option value="">{placeholder}</option>
         {headers.map((h) => <option key={h} value={h}>{h}</option>)}
       </select>
@@ -404,75 +404,75 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
     <div className="space-y-6">
       {/* Info archivo */}
       <div className="flex items-center gap-3">
-        <FileSpreadsheet className="w-5 h-5 text-indigo-500" />
+        <FileSpreadsheet className="w-5 h-5 text-[var(--accent)]" />
         <div>
           <p className="font-bold text-sm">{preview?.nombre_archivo}</p>
-          <p className="text-xs text-slate-400">{preview?.total_rows} filas • Proveedor: {preview?.proveedor}</p>
+          <p className="text-xs text-[var(--text-faint)]">{preview?.total_rows} filas • Proveedor: {preview?.proveedor}</p>
         </div>
-        {preview?.mapeo_previo && (<span className="ml-auto text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full font-semibold"> ↩ Mapeo previo </span>)}
+        {preview?.mapeo_previo && (<span className="ml-auto text-xs bg-[var(--accent)]/10 text-[var(--accent)] px-2 py-1 rounded-full font-semibold"> ↩ Mapeo previo </span>)}
       </div>
 
       {/* Leyenda */}
       <div className="flex flex-wrap gap-2">
         {[
-          { emoji: '🔑', label: 'Modelo', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+          { emoji: '🔑', label: 'Modelo', cls: 'bg-[var(--accent)]/10 text-indigo-700 border-[var(--accent)]/30' },
           { emoji: '🏷️', label: 'Marca', cls: 'bg-violet-50 text-violet-700 border-violet-200' },
-          { emoji: '💲', label: 'Precio', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-          { emoji: '🔢', label: 'Código', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+          { emoji: '💲', label: 'Precio', cls: 'bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30' },
+          { emoji: '🔢', label: 'Código', cls: 'bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30' },
           { emoji: '📝', label: 'Descripción', cls: 'bg-teal-50 text-teal-700 border-teal-200' },
         ].map(l => <span key={l.label} className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${l.cls}`}>{l.emoji} {l.label}</span>)}
       </div>
 
       {/* Identificación del producto */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-        <h3 className="text-sm font-bold text-slate-700">Identificación del producto</h3>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
+        <h3 className="text-sm font-bold text-[var(--text-muted)]">Identificación del producto</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">Modelo <span className="text-rose-500">*</span></label>
+            <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Modelo <span className="text-[var(--err)]">*</span></label>
             <Sel id="sel-columna-modelo" value={columnaModelo} onChange={setColumnaModelo} />
-            <p className="text-[10px] text-slate-400 mt-1">Referencia, N° de parte del proveedor</p>
+            <p className="text-[10px] text-[var(--text-faint)] mt-1">Referencia, N° de parte del proveedor</p>
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">Marca <span className="text-rose-500">*</span></label>
+            <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Marca <span className="text-[var(--err)]">*</span></label>
             <Sel id="sel-columna-marca" value={columnaMarca} onChange={setColumnaMarca} />
-            <p className="text-[10px] text-slate-400 mt-1">Se combina con Modelo para matching</p>
+            <p className="text-[10px] text-[var(--text-faint)] mt-1">Se combina con Modelo para matching</p>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">Código Universal <span className="text-slate-400">(opc.)</span></label>
+            <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Código Universal <span className="text-[var(--text-faint)]">(opc.)</span></label>
             <Sel id="sel-columna-codigo" value={columnaCodigo} onChange={setColumnaCodigo} placeholder="-- Sin columna --" />
-            <p className="text-[10px] text-slate-400 mt-1">UPC/EAN → match exacto score 100</p>
+            <p className="text-[10px] text-[var(--text-faint)] mt-1">UPC/EAN → match exacto score 100</p>
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">Descripción <span className="text-slate-400">(opc.)</span></label>
+            <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Descripción <span className="text-[var(--text-faint)]">(opc.)</span></label>
             <Sel id="sel-columna-descripcion" value={columnaDescripcion} onChange={setColumnaDescripcion} placeholder="-- Sin columna --" />
-            <p className="text-[10px] text-slate-400 mt-1">Título o descripción larga del producto</p>
+            <p className="text-[10px] text-[var(--text-faint)] mt-1">Título o descripción larga del producto</p>
           </div>
         </div>
       </div>
 
       {/* RAW: Columnas originales a conservar */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 space-y-3">
          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-700">Columnas originales a conservar (Raw)</h3>
+            <h3 className="text-sm font-bold text-[var(--text-muted)]">Columnas originales a conservar (Raw)</h3>
             <div className="flex gap-2">
-               <button onClick={() => setColumnasAGuardar(headers)} className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded">Marcar todas</button>
-               <button onClick={() => setColumnasAGuardar([])} className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-1 rounded">Desmarcar todas</button>
+               <button onClick={() => setColumnasAGuardar(headers)} className="text-[10px] text-[var(--accent)] font-bold bg-[var(--accent)]/10 px-2 py-1 rounded">Marcar todas</button>
+               <button onClick={() => setColumnasAGuardar([])} className="text-[10px] text-[var(--text-muted)] font-bold bg-[var(--surface-2)] px-2 py-1 rounded">Desmarcar todas</button>
             </div>
          </div>
-         <p className="text-xs text-slate-500 leading-relaxed mb-3">
+         <p className="text-xs text-[var(--text-muted)] leading-relaxed mb-3">
            Elige qué columnas deseas guardar como evidencia o base de datos. Se almacenarán permanentemente en el payload original, sin modificar, incluso si no son requeridas para la validación (identidad de la fila).
          </p>
          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
            {headers.map((h) => {
              const isChecked = columnasAGuardar.includes(h);
              return (
-               <label key={h} className={cn("flex items-center gap-2 p-2 text-xs border rounded-lg cursor-pointer transition-colors", isChecked ? "border-indigo-400 bg-indigo-50/30" : "border-slate-200 bg-slate-50 opacity-75")}>
+               <label key={h} className={cn("flex items-center gap-2 p-2 text-xs border rounded-lg cursor-pointer transition-colors", isChecked ? "border-[var(--accent)]/70 bg-[var(--accent)]/10/30" : "border-[var(--border)] bg-[var(--bg)] opacity-75")}>
                  <input type="checkbox" checked={isChecked} onChange={(e) => {
                    if(e.target.checked) setColumnasAGuardar(p => [...p, h]);
                    else setColumnasAGuardar(p => p.filter(x => x !== h));
-                 }} className="rounded uppercase no-outline w-3 h-3 text-indigo-600"/>
+                 }} className="rounded uppercase no-outline w-3 h-3 text-[var(--accent)]"/>
                  <span className="truncate font-medium">{h}</span>
                </label>
              );
@@ -481,10 +481,10 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
       </div>
 
       {/* Tipos de precio — múltiples */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-slate-700">Tipos de precio <span className="text-rose-500">*</span></h3>
-          <button onClick={addPrecio} className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-semibold border border-indigo-200 rounded-lg px-2 py-1">
+          <h3 className="text-sm font-bold text-[var(--text-muted)]">Tipos de precio <span className="text-[var(--err)]">*</span></h3>
+          <button onClick={addPrecio} className="flex items-center gap-1 text-xs text-[var(--accent)] hover:text-indigo-800 font-semibold border border-[var(--accent)]/30 rounded-lg px-2 py-1">
             <Plus className="w-3.5 h-3.5" /> Agregar tipo
           </button>
         </div>
@@ -494,39 +494,39 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
             <div className="flex-[2] min-w-32">
               <select id={`sel-precio-tipo-${i}`} value={p.tipo_costo}
                 onChange={(e) => updatePrecio(i, 'tipo_costo', e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-white">
+                className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-[var(--surface)]">
                 {TIPOS_COSTO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
             <div className="flex-1 min-w-24 flex items-center pt-2">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-600">
-                <input type="checkbox" checked={p.incluye_iva || false} onChange={(e) => updatePrecio(i, 'incluye_iva', e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4" />
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--text-muted)]">
+                <input type="checkbox" checked={p.incluye_iva || false} onChange={(e) => updatePrecio(i, 'incluye_iva', e.target.checked)} className="rounded border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)] w-4 h-4" />
                 ¿Con IVA?
               </label>
             </div>
             {precios.length > 1 && (
-              <button onClick={() => removePrecio(i)} className="mt-1 p-2 text-slate-300 hover:text-rose-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={() => removePrecio(i)} className="mt-1 p-2 text-slate-300 hover:text-[var(--err)] transition-colors"><Trash2 className="w-4 h-4" /></button>
             )}
           </div>
         ))}
         {precios.length > 1 && (
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-[var(--text-faint)] mt-2">
             {precios.length} tipos de precio → se insertan {precios.length} registros por fila del Excel
           </p>
         )}
       </div>
 
       {/* Moneda */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">Columna: Moneda <span className="text-slate-400">(opc.)</span></label>
+            <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Columna: Moneda <span className="text-[var(--text-faint)]">(opc.)</span></label>
             <Sel id="sel-columna-moneda" value={columnaMoneda} onChange={setColumnaMoneda} placeholder="-- Sin columna --" />
           </div>
           <div>
-            <label htmlFor="sel-moneda-default" className="block text-xs font-bold text-slate-600 mb-1">Moneda por default</label>
+            <label htmlFor="sel-moneda-default" className="block text-xs font-bold text-[var(--text-muted)] mb-1">Moneda por default</label>
             <select id="sel-moneda-default" value={monedaDefault} onChange={(e) => setMonedaDefault(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-white">
+              className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-[var(--surface)]">
               <option value="MXN">MXN — Peso Mexicano</option>
               <option value="USD">USD — Dólar Americano</option>
             </select>
@@ -536,11 +536,11 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
 
       {/* Preview de tabla */}
       {rows.length > 0 && (
-        <div className="border border-slate-200 rounded-2xl overflow-hidden">
-          <p className="text-xs font-bold text-slate-500 px-4 py-2 bg-slate-50">Vista previa (primeras {rows.length} filas)</p>
+        <div className="border border-[var(--border)] rounded-2xl overflow-hidden">
+          <p className="text-xs font-bold text-[var(--text-muted)] px-4 py-2 bg-[var(--bg)]">Vista previa (primeras {rows.length} filas)</p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead><tr className="border-b border-slate-200">
+              <thead><tr className="border-b border-[var(--border)]">
                 {headers.map((h) => {
                   const r = colRole[h];
                   return <th key={h} className={cn('px-3 py-2 text-left font-bold whitespace-nowrap', r?.hCls)}>{r ? `${r.emoji} ` : ''}{h}</th>;
@@ -548,7 +548,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
               </tr></thead>
               <tbody>
                 {rows.map((row, i) => (
-                  <tr key={i} className="border-b border-slate-100">
+                  <tr key={i} className="border-b border-[var(--border)]">
                     {headers.map((h, j) => {
                       const r = colRole[h];
                       return <td key={j} className={cn('px-3 py-1.5 whitespace-nowrap', r?.cCls)}>{row[j] || '—'}</td>;
@@ -561,21 +561,21 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
         </div>
       )}
 
-      {error && (<div className="flex items-center gap-2 text-rose-600 text-sm bg-rose-50 px-4 py-2 rounded-xl"><AlertCircle className="w-4 h-4" />{error}</div>)}
+      {error && (<div className="flex items-center gap-2 text-[var(--err)] text-sm bg-[var(--err)]/10 px-4 py-2 rounded-xl"><AlertCircle className="w-4 h-4" />{error}</div>)}
 
       {/* Info matching */}
-      <div className="text-xs text-slate-400 space-y-1 bg-slate-50 rounded-xl p-4">
-        <p className="font-bold text-slate-500">Algoritmo de matching (en Postgres)</p>
+      <div className="text-xs text-[var(--text-faint)] space-y-1 bg-[var(--bg)] rounded-xl p-4">
+        <p className="font-bold text-[var(--text-muted)]">Algoritmo de matching (en Postgres)</p>
         <p>1. <strong>Código Universal</strong> → match exacto contra catálogo → score 100.</p>
         <p>2. <strong>Marca + Modelo</strong> del Excel vs catálogo con similitud de texto (pg_trgm, índice GIN).</p>
       </div>
 
       <div className="flex gap-3">
-        <button onClick={onBack} className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl text-sm font-semibold">
+        <button onClick={onBack} className="flex items-center gap-2 px-4 py-2.5 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] rounded-xl text-sm font-semibold">
           <ArrowLeft className="w-3.5 h-3.5" /> Volver
         </button>
         <button onClick={handleMapear} disabled={loadingMapear || !columnaModelo || !columnaMarca || precios.every((p) => !p.columna)}
-          className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-sm text-sm">
+          className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-[var(--accent)] hover:brightness-110 disabled:opacity-50 text-[var(--accent-ink)] font-bold rounded-xl transition-all shadow-sm text-sm">
           {loadingMapear ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {loadingMapear ? 'Guardando...' : 'Guardar Configuración'}
           {!loadingMapear && <ChevronRight className="w-4 h-4" />}
@@ -622,18 +622,18 @@ function RemapModal({ costoId, onSelect, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 overflow-hidden">
+      <div className="bg-[var(--surface)] rounded-2xl shadow-2xl w-full max-w-xl mx-4 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h3 className="font-bold text-slate-800">Remapear artículo</h3>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 transition-colors">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+          <h3 className="font-bold text-[var(--text)]">Remapear artículo</h3>
+          <button onClick={onClose} className="p-1 text-[var(--text-faint)] hover:text-[var(--text-muted)] transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
         {/* Search */}
-        <div className="px-5 py-3 border-b border-slate-100">
+        <div className="px-5 py-3 border-b border-[var(--border)]">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
             <input
               id="remap-search-input"
               autoFocus
@@ -641,32 +641,32 @@ function RemapModal({ costoId, onSelect, onClose }: {
               value={query}
               onChange={(e) => handleQuery(e.target.value)}
               placeholder="Buscar por modelo, marca, código universal..."
-              className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="w-full pl-9 pr-4 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
-            {buscando && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-slate-400" />}
+            {buscando && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-[var(--text-faint)]" />}
           </div>
         </div>
         {/* Results */}
-        <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+        <div className="max-h-80 overflow-y-auto divide-y divide-[var(--border)]">
           {resultados.length === 0 && query.trim() && !buscando && (
-            <p className="text-center text-slate-400 text-sm py-8">Sin resultados para "{query}"</p>
+            <p className="text-center text-[var(--text-faint)] text-sm py-8">Sin resultados para "{query}"</p>
           )}
           {resultados.length === 0 && !query.trim() && (
             <p className="text-center text-slate-300 text-sm py-8">Escribe para buscar en el catálogo</p>
           )}
           {resultados.map((art) => (
-            <div key={art.articulo_id} className="flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors">
+            <div key={art.articulo_id} className="flex items-center justify-between px-5 py-3 hover:bg-[var(--bg)] transition-colors">
               <div className="min-w-0">
-                <p className="font-semibold text-sm text-slate-800 truncate">{art.nombre}</p>
-                <p className="text-xs text-slate-400 font-mono">
+                <p className="font-semibold text-sm text-[var(--text)] truncate">{art.nombre}</p>
+                <p className="text-xs text-[var(--text-faint)] font-mono">
                   <span className="text-violet-600 font-bold">{art.marca}</span> · {art.modelo}
-                  {art.codigo_universal && <span className="ml-2 text-amber-600">{art.codigo_universal}</span>}
-                  <span className="ml-2 px-1 bg-slate-100 rounded text-slate-600 border border-slate-200">📍 {art.caja_madre || '—'}</span>
+                  {art.codigo_universal && <span className="ml-2 text-[var(--warn)]">{art.codigo_universal}</span>}
+                  <span className="ml-2 px-1 bg-[var(--surface-2)] rounded text-[var(--text-muted)] border border-[var(--border)]">📍 {art.caja_madre || '—'}</span>
                 </p>
               </div>
               <button
                 onClick={() => onSelect(art)}
-                className="ml-3 shrink-0 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors">
+                className="ml-3 shrink-0 px-3 py-1.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-xs font-bold rounded-lg transition-colors">
                 Seleccionar
               </button>
             </div>
@@ -898,8 +898,8 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
   if (guardadoOk) return (
     <div className="text-center py-16">
       <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
-      <h3 className="text-xl font-bold text-slate-800 mb-2">¡Importación completada en Lote!</h3>
-      <p className="text-slate-500 mb-6">Los costos confirmados se han guardado con éxito. Puedes revertir el reporte si es necesario.</p>
+      <h3 className="text-xl font-bold text-[var(--text)] mb-2">¡Importación completada en Lote!</h3>
+      <p className="text-[var(--text-muted)] mb-6">Los costos confirmados se han guardado con éxito. Puedes revertir el reporte si es necesario.</p>
       <div className="flex gap-4 justify-center">
          {pendientesRestantes > 0 ? (
            <button onClick={() => {
@@ -907,17 +907,17 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
               setBatchIdConfirmado(null);
               setSelecciones({});
               refrescarCostos();
-           }} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl">
+           }} className="px-6 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] font-bold rounded-xl">
              Continuar vinculando ({pendientesRestantes} restantes)
            </button>
          ) : (
-           <button onClick={onFinish} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl">
+           <button onClick={onFinish} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-[var(--accent-ink)] font-bold rounded-xl">
              Finalizar Importación Total
            </button>
          )}
-         <button onClick={onFinish} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">Volver a Importaciones</button>
+         <button onClick={onFinish} className="px-6 py-2.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] font-bold rounded-xl">Volver a Importaciones</button>
          {batchIdConfirmado && (
-           <button onClick={handleRevertirLote} disabled={revertiendo} className="px-6 py-2.5 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold rounded-xl transition-colors">
+           <button onClick={handleRevertirLote} disabled={revertiendo} className="px-6 py-2.5 bg-rose-100 hover:bg-rose-200 text-[var(--err)] font-bold rounded-xl transition-colors">
              {revertiendo ? 'Revirtiendo...' : 'Revertir último lote'}
            </button>
          )}
@@ -930,57 +930,57 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label: 'Con Match', value: stats.sugerido, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-          { label: 'Sin Match', value: stats.sin_match, color: 'text-slate-500', bg: 'bg-slate-50' },
-          { label: 'Confirmados', value: stats.confirmado, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Rechazados', value: stats.rechazado, color: 'text-rose-500', bg: 'bg-rose-50' },
+          { label: 'Con Match', value: stats.sugerido, color: 'text-[var(--accent)]', bg: 'bg-[var(--accent)]/10' },
+          { label: 'Sin Match', value: stats.sin_match, color: 'text-[var(--text-muted)]', bg: 'bg-[var(--bg)]' },
+          { label: 'Confirmados', value: stats.confirmado, color: 'text-[var(--ok)]', bg: 'bg-[var(--ok)]/10' },
+          { label: 'Rechazados', value: stats.rechazado, color: 'text-[var(--err)]', bg: 'bg-[var(--err)]/10' },
         ].map((s) => (
           <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
-            <p className="text-xs text-slate-500">{s.label}</p>
+            <p className="text-xs text-[var(--text-muted)]">{s.label}</p>
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
           </div>
         ))}
       </div>
 
       <div className="flex items-center gap-3">
-         <span className="text-sm font-bold text-slate-600"> {numSeleccionados} </span>
-         <span className="text-xs text-slate-400">asignados</span>
+         <span className="text-sm font-bold text-[var(--text-muted)]"> {numSeleccionados} </span>
+         <span className="text-xs text-[var(--text-faint)]">asignados</span>
          <button onClick={() => {
             // "Marcar todas como Sin asignar"
             const nuevas = {...selecciones};
             Object.keys(nuevas).forEach(k => nuevas[k] = null);
             setSelecciones(nuevas);
-         }} className="text-xs text-slate-500 hover:underline font-semibold bg-slate-100 px-2 py-1 rounded">Marcar todas como Sin Asignar</button>
-         <button onClick={handleExportarSinMatchSistema} className="text-xs text-rose-600 hover:underline font-semibold bg-rose-50 px-2 py-1 rounded">Exportar Sin Match en Sistema</button>
+         }} className="text-xs text-[var(--text-muted)] hover:underline font-semibold bg-[var(--surface-2)] px-2 py-1 rounded">Marcar todas como Sin Asignar</button>
+         <button onClick={handleExportarSinMatchSistema} className="text-xs text-[var(--err)] hover:underline font-semibold bg-[var(--err)]/10 px-2 py-1 rounded">Exportar Sin Match en Sistema</button>
          <button onClick={handleExportarNoAsignados} className="text-xs text-yellow-600 hover:underline font-semibold bg-yellow-50 px-2 py-1 rounded">Exportar No Asignados</button>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
-         <span className="text-xs text-slate-400">Filtrar vista:</span>
+         <span className="text-xs text-[var(--text-faint)]">Filtrar vista:</span>
          {(['todos', 'match_exacto', 'match_similitud', 'sin_match'] as const).map((f) => (
-            <button key={f} onClick={() => { setFiltroVista(f); setOffset(0); cargarDatos(0, f, q); }} className={cn('text-xs px-2 py-1 rounded-full border transition-colors', filtroVista === f ? 'bg-indigo-100 border-indigo-400 text-indigo-700 font-bold' : 'border-slate-200 text-slate-500 hover:border-indigo-300')}>
+            <button key={f} onClick={() => { setFiltroVista(f); setOffset(0); cargarDatos(0, f, q); }} className={cn('text-xs px-2 py-1 rounded-full border transition-colors', filtroVista === f ? 'bg-[var(--accent)]/20 border-[var(--accent)]/70 text-indigo-700 font-bold' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]/50')}>
                {f === 'todos' ? 'Todos' : f === 'match_exacto' ? 'Solo Match (100%)' : f === 'match_similitud' ? 'Revisar Sugeridos' : 'Sin Match'}
             </button>
          ))}
-         <span className="text-xs text-slate-400 ml-2">({totalPendientes} resultados)</span>
+         <span className="text-xs text-[var(--text-faint)] ml-2">({totalPendientes} resultados)</span>
          <form onSubmit={(e) => { e.preventDefault(); setOffset(0); cargarDatos(0, filtroVista, q); }} className="ml-auto flex items-center gap-2">
             <div className="relative w-64">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-[var(--text-faint)]" />
                 <input 
                     type="text" 
                     placeholder="Buscar modelo o marca..." 
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    className="pl-9 pr-4 py-2 w-full text-sm border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="pl-9 pr-4 py-2 w-full text-sm border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-[var(--accent)]"
                 />
             </div>
-            <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors">
+            <button type="submit" className="px-4 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-sm font-bold rounded-lg shadow-sm transition-colors">
                 Buscar
             </button>
          </form>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20 gap-3 text-slate-400">
+        <div className="flex items-center justify-center py-20 gap-3 text-[var(--text-faint)]">
           <Loader2 className="w-5 h-5 animate-spin" /> Cargando matches...
         </div>
       ) : (
@@ -994,8 +994,8 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
       )}
 
       {error && (
-        <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
-          <div className="flex items-center gap-2 text-rose-600 text-sm font-semibold">
+        <div className="bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2 text-[var(--err)] text-sm font-semibold">
             <AlertCircle className="w-4 h-4 shrink-0" />{error}
             {erroresDetalle.length > 0 && (
               <button onClick={() => setErroresVisible((v) => !v)} className="ml-auto text-xs underline">
@@ -1006,7 +1006,7 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
           {erroresVisible && erroresDetalle.length > 0 && (
             <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto">
               {erroresDetalle.map((e, i) => (
-                <li key={i} className="text-xs text-rose-500 font-mono">{e.costo_id.slice(0, 8)}… — {e.error}</li>
+                <li key={i} className="text-xs text-[var(--err)] font-mono">{e.costo_id.slice(0, 8)}… — {e.error}</li>
               ))}
             </ul>
           )}
@@ -1052,20 +1052,20 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
 
       {/* Paginación */}
       {totalPendientes > limit && (
-        <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-          <span className="text-xs text-slate-500 font-medium">Mostrando {offset + 1} - {Math.min(offset + limit, totalPendientes)} de {totalPendientes}</span>
+        <div className="flex items-center justify-between bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-3">
+          <span className="text-xs text-[var(--text-muted)] font-medium">Mostrando {offset + 1} - {Math.min(offset + limit, totalPendientes)} de {totalPendientes}</span>
           <div className="flex gap-2">
             <button 
               onClick={() => { const nx = Math.max(0, offset - limit); setOffset(nx); cargarDatos(nx, filtroVista); }} 
               disabled={offset === 0 || loading} 
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded text-xs font-bold text-slate-600 disabled:opacity-50 hover:bg-slate-100"
+              className="px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded text-xs font-bold text-[var(--text-muted)] disabled:opacity-50 hover:bg-[var(--surface-2)]"
             >
               Anterior
             </button>
             <button 
               onClick={() => { const nx = offset + limit; setOffset(nx); cargarDatos(nx, filtroVista); }} 
               disabled={offset + limit >= totalPendientes || loading} 
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded text-xs font-bold text-slate-600 disabled:opacity-50 hover:bg-slate-100"
+              className="px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded text-xs font-bold text-[var(--text-muted)] disabled:opacity-50 hover:bg-[var(--surface-2)]"
             >
               Siguiente
             </button>
@@ -1074,11 +1074,11 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
       )}
 
       <div className="flex gap-3">
-        <button onClick={onBack} className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl text-sm font-semibold">
+        <button onClick={onBack} className="flex items-center gap-2 px-4 py-2.5 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] rounded-xl text-sm font-semibold">
           <ArrowLeft className="w-3.5 h-3.5" /> Volver
         </button>
         <button onClick={handleConfirmar} disabled={guardando || numSeleccionados === 0}
-          className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-sm text-sm">
+          className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 bg-[var(--accent)] hover:brightness-110 disabled:opacity-50 text-[var(--accent-ink)] font-bold rounded-xl transition-all shadow-sm text-sm">
           {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
           {guardando ? 'Confirmando...' : `Confirmar Lote con ${numSeleccionados} asignados`}
         </button>

@@ -27,9 +27,9 @@ export function FichaPublicadaView({
   const TextBlock = ({ title, value }: { title: string, value: string | null | undefined }) => {
     if (!value) return null;
     return (
-      <div className="bg-white p-5 sm:p-8 rounded-2xl border border-slate-100 shadow-sm space-y-3">
-        <h3 className="text-sm font-bold tracking-widest uppercase text-slate-400">{title}</h3>
-        <div className="text-slate-700 whitespace-pre-wrap leading-relaxed">
+      <div className="bg-[var(--surface)] p-5 sm:p-8 rounded-2xl border border-[var(--border)] shadow-sm space-y-3">
+        <h3 className="text-sm font-bold tracking-widest uppercase text-[var(--text-faint)]">{title}</h3>
+        <div className="text-[var(--text-muted)] whitespace-pre-wrap leading-relaxed">
           {value}
         </div>
       </div>
@@ -37,30 +37,30 @@ export function FichaPublicadaView({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 pb-20">
+    <div className="min-h-screen bg-[var(--bg)]/50 pb-20">
       {/* Sticky Header / Toolbar */}
-      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
+      <div className="sticky top-0 z-30 bg-[var(--surface)]/80 backdrop-blur-md border-b border-[var(--border)] shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={() => window.history.back()} className="p-2 -ml-2 text-slate-400 hover:text-slate-700 transition-colors">
+            <button type="button" onClick={() => window.history.back()} className="p-2 -ml-2 text-[var(--text-faint)] hover:text-[var(--text-muted)] transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div className="flex flex-col">
-              <h1 className="font-bold text-slate-800 line-clamp-1">{ficha.nombre_producto || 'Ficha Técnica'}</h1>
-              <span className="text-xs font-mono text-slate-400">{ficha.id}</span>
+              <h1 className="font-bold text-[var(--text)] line-clamp-1">{ficha.nombre_producto || 'Ficha Técnica'}</h1>
+              <span className="text-xs font-mono text-[var(--text-faint)]">{ficha.id}</span>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-200">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[var(--ok)]/10 text-[var(--ok)] rounded-full text-xs font-bold border border-[var(--ok)]/30">
               <CheckCircle2 className="w-3.5 h-3.5" /> Publicado
             </div>
             <button type="button" onClick={onGenerarPDF} disabled={generandoPdf}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-white border border-slate-200 text-slate-600 rounded-xl hover:border-indigo-300 hover:text-indigo-700 transition-colors disabled:opacity-50 shadow-sm">
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] rounded-xl hover:border-[var(--accent)]/50 hover:text-indigo-700 transition-colors disabled:opacity-50 shadow-sm">
                 {generandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} PDF
             </button>
             <button type="button" onClick={onEdit}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-[var(--accent)] text-[var(--accent-ink)] rounded-xl hover:brightness-110 transition-colors shadow-sm">
                 <Edit2 className="w-4 h-4" /> Editar
             </button>
           </div>
@@ -73,48 +73,48 @@ export function FichaPublicadaView({
         <div className="lg:col-span-8 space-y-6 sm:space-y-8">
           
           {/* Identity Block */}
-          <div className="bg-white p-5 sm:p-8 rounded-3xl border border-slate-100 shadow-sm">
+          <div className="bg-[var(--surface)] p-5 sm:p-8 rounded-3xl border border-[var(--border)] shadow-sm">
             <div className="flex items-center gap-3 mb-6 flex-wrap">
               {ficha.marca && (
-                <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold uppercase tracking-wider">
+                <span className="px-3 py-1 bg-[var(--surface-2)] text-[var(--text-muted)] rounded-lg text-xs font-bold uppercase tracking-wider">
                   {ficha.marca}
                 </span>
               )}
               {ficha.codigo_universal && (
-                <span className="text-sm font-mono text-slate-500">EAN: {ficha.codigo_universal}</span>
+                <span className="text-sm font-mono text-[var(--text-muted)]">EAN: {ficha.codigo_universal}</span>
               )}
               {ficha.modelo && (
-                <span className="text-sm font-mono text-slate-500">Modelo: {ficha.modelo}</span>
+                <span className="text-sm font-mono text-[var(--text-muted)]">Modelo: {ficha.modelo}</span>
               )}
             </div>
             
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 leading-tight mb-4">
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--text)] leading-tight mb-4">
               {ficha.nombre_producto}
             </h1>
             
             {ficha.descripcion && (
-              <p className="text-lg text-slate-600 leading-relaxed">
+              <p className="text-lg text-[var(--text-muted)] leading-relaxed">
                 {ficha.descripcion}
               </p>
             )}
 
             {/* Chips */}
             <div className="flex flex-wrap gap-2 mt-6">
-              {ficha.categoria && <span className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-medium border border-indigo-100">{ficha.categoria}</span>}
-              {ficha.variante && <span className="px-3 py-1.5 bg-slate-50 text-slate-700 rounded-xl text-sm font-medium border border-slate-200">Var: {ficha.variante}</span>}
-              {ficha.fabricante && <span className="px-3 py-1.5 bg-slate-50 text-slate-700 rounded-xl text-sm font-medium border border-slate-200">Fab: {ficha.fabricante}</span>}
+              {ficha.categoria && <span className="px-3 py-1.5 bg-[var(--accent)]/10 text-indigo-700 rounded-xl text-sm font-medium border border-indigo-100">{ficha.categoria}</span>}
+              {ficha.variante && <span className="px-3 py-1.5 bg-[var(--bg)] text-[var(--text-muted)] rounded-xl text-sm font-medium border border-[var(--border)]">Var: {ficha.variante}</span>}
+              {ficha.fabricante && <span className="px-3 py-1.5 bg-[var(--bg)] text-[var(--text-muted)] rounded-xl text-sm font-medium border border-[var(--border)]">Fab: {ficha.fabricante}</span>}
             </div>
           </div>
 
           <TextBlock title="Descripción Detallada" value={ficha.descripcion_larga} />
           
           {ficha.bullet_points && ficha.bullet_points.length > 0 && (
-            <div className="bg-white p-5 sm:p-8 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold tracking-widest uppercase text-slate-400">Puntos Clave</h3>
+            <div className="bg-[var(--surface)] p-5 sm:p-8 rounded-2xl border border-[var(--border)] shadow-sm space-y-4">
+              <h3 className="text-sm font-bold tracking-widest uppercase text-[var(--text-faint)]">Puntos Clave</h3>
               <ul className="space-y-3">
                 {ficha.bullet_points.map((bp: string, i: number) => (
-                  <li key={i} className="flex gap-3 text-slate-700 leading-relaxed">
-                    <span className="text-indigo-500 mt-1 shrink-0">•</span>
+                  <li key={i} className="flex gap-3 text-[var(--text-muted)] leading-relaxed">
+                    <span className="text-[var(--accent)] mt-1 shrink-0">•</span>
                     <span>{bp}</span>
                   </li>
                 ))}
@@ -126,8 +126,8 @@ export function FichaPublicadaView({
           
           {/* Cumplimiento / Seguridad */}
           {tieneCumplimiento && (
-            <div className="bg-amber-50 p-5 sm:p-8 rounded-2xl border border-amber-200 space-y-4">
-              <h3 className="text-sm font-bold tracking-widest uppercase text-amber-600">Cumplimiento y Seguridad</h3>
+            <div className="bg-[var(--warn)]/10 p-5 sm:p-8 rounded-2xl border border-[var(--warn)]/30 space-y-4">
+              <h3 className="text-sm font-bold tracking-widest uppercase text-[var(--warn)]">Cumplimiento y Seguridad</h3>
               <div className="space-y-3 text-amber-900/80">
                 {ficha.informacion_normativa && <p><strong className="text-amber-900">Normativa:</strong> {ficha.informacion_normativa}</p>}
                 {ficha.leyendas_precautorias && <p><strong className="text-amber-900">Leyendas Precautorias:</strong> {ficha.leyendas_precautorias}</p>}
@@ -147,16 +147,16 @@ export function FichaPublicadaView({
           
           {/* Images Gallery */}
           {imagenes && imagenes.length > 0 && (
-            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold tracking-widest uppercase text-slate-400 mb-4">Galería</h3>
-              <div className="aspect-square w-full rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
+            <div className="bg-[var(--surface)] p-5 sm:p-6 rounded-3xl border border-[var(--border)] shadow-sm space-y-4">
+              <h3 className="text-sm font-bold tracking-widest uppercase text-[var(--text-faint)] mb-4">Galería</h3>
+              <div className="aspect-square w-full rounded-2xl overflow-hidden bg-[var(--bg)] border border-[var(--border)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={imagenes[0]} alt="Principal" className="w-full h-full object-contain" />
               </div>
               {imagenes.length > 1 && (
                 <div className="grid grid-cols-3 gap-2">
                   {imagenes.slice(1, 4).map((img, i) => (
-                    <div key={i} className="aspect-square rounded-xl overflow-hidden bg-slate-50 border border-slate-100">
+                    <div key={i} className="aspect-square rounded-xl overflow-hidden bg-[var(--bg)] border border-[var(--border)]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={img} alt={`Img ${i+1}`} className="w-full h-full object-contain" />
                     </div>
@@ -168,15 +168,15 @@ export function FichaPublicadaView({
 
           {/* Atributos Tecnicos */}
           {atributosRows.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-4 sm:p-5 bg-slate-50/80 border-b border-slate-100">
-                <h3 className="text-sm font-bold tracking-widest uppercase text-slate-500">Atributos Técnicos</h3>
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
+              <div className="p-4 sm:p-5 bg-[var(--bg)]/80 border-b border-[var(--border)]">
+                <h3 className="text-sm font-bold tracking-widest uppercase text-[var(--text-muted)]">Atributos Técnicos</h3>
               </div>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-[var(--border)]">
                 {atributosRows.map(([k, v], i) => (
                   <div key={i} className="flex p-4 sm:p-5 text-sm">
-                    <span className="w-1/2 text-slate-500 font-medium">{k}</span>
-                    <span className="w-1/2 text-slate-900 font-semibold">{v}</span>
+                    <span className="w-1/2 text-[var(--text-muted)] font-medium">{k}</span>
+                    <span className="w-1/2 text-[var(--text)] font-semibold">{v}</span>
                   </div>
                 ))}
               </div>
@@ -185,15 +185,15 @@ export function FichaPublicadaView({
 
           {/* Dimensiones */}
           {dims.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-4 sm:p-5 bg-slate-50/80 border-b border-slate-100">
-                <h3 className="text-sm font-bold tracking-widest uppercase text-slate-500">Dimensiones</h3>
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
+              <div className="p-4 sm:p-5 bg-[var(--bg)]/80 border-b border-[var(--border)]">
+                <h3 className="text-sm font-bold tracking-widest uppercase text-[var(--text-muted)]">Dimensiones</h3>
               </div>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-[var(--border)]">
                 {dims.map(([k, v], i) => (
                   <div key={i} className="flex p-4 sm:p-5 text-sm">
-                    <span className="w-1/2 text-slate-500 font-medium">{k}</span>
-                    <span className="w-1/2 text-slate-900 font-semibold">{v}</span>
+                    <span className="w-1/2 text-[var(--text-muted)] font-medium">{k}</span>
+                    <span className="w-1/2 text-[var(--text)] font-semibold">{v}</span>
                   </div>
                 ))}
               </div>

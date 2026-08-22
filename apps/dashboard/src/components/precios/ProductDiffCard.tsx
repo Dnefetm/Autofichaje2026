@@ -18,7 +18,7 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
         const isUp = tier.delta_pct > 0;
         return (
             <div 
-                className={cn("text-[11px] font-medium mt-0.5 cursor-help", isUp ? "text-rose-600" : "text-emerald-600")}
+                className={cn("text-[11px] font-medium mt-0.5 cursor-help", isUp ? "text-[var(--err)]" : "text-[var(--ok)]")}
                 title={`Diferencia: ${isUp ? '+' : ''}${fmt.format(tier.delta_val)}`}
             >
                 {isUp ? '+' : ''}{tier.delta_pct.toFixed(1)}% {isUp ? '🔴' : '🟢'}
@@ -31,22 +31,22 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
 
     return (
         <div className={cn(
-            "bg-white rounded-lg border mb-6 shadow-sm overflow-hidden transition-all",
+            "bg-[var(--surface)] rounded-lg border mb-6 shadow-sm overflow-hidden transition-all",
             isAprobado ? "border-emerald-300 ring-1 ring-emerald-500/20" : 
             isRechazado ? "border-rose-300 ring-1 ring-rose-500/20" : 
-            isAusente ? "border-slate-200 opacity-75" : "border-slate-200"
+            isAusente ? "border-[var(--border)] opacity-75" : "border-[var(--border)]"
         )}>
             {/* Row 1: Header */}
-            <div className="px-5 py-3 border-b border-slate-100 flex items-start justify-between bg-white">
+            <div className="px-5 py-3 border-b border-[var(--border)] flex items-start justify-between bg-[var(--surface)]">
                 <div className="flex items-start">
                     {/* Simplified Checkbox for visual consistency */}
                     <div className="mt-1 mr-3 flex-shrink-0">
                         {isAprobado ? (
-                            <div className="w-5 h-5 bg-emerald-500 text-white rounded flex items-center justify-center">
+                            <div className="w-5 h-5 bg-[var(--ok)]/100 text-[var(--accent-ink)] rounded flex items-center justify-center">
                                 <Check className="w-3 h-3" strokeWidth={3} />
                             </div>
                         ) : isRechazado ? (
-                            <div className="w-5 h-5 bg-rose-500 text-white rounded flex items-center justify-center">
+                            <div className="w-5 h-5 bg-[var(--err)]/100 text-[var(--accent-ink)] rounded flex items-center justify-center">
                                 <X className="w-3 h-3" strokeWidth={3} />
                             </div>
                         ) : (
@@ -55,14 +55,14 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                     </div>
                     <div>
                         <div className="flex items-center flex-wrap gap-2">
-                            <span className={cn("font-semibold text-slate-900", isAusente && "line-through text-slate-500")}>
+                            <span className={cn("font-semibold text-[var(--text)]", isAusente && "line-through text-[var(--text-muted)]")}>
                                 {product.marca} · {product.modelo} · <span className="font-mono text-sm">{product.codigo_universal}</span>
                             </span>
-                            {isNuevo && <span className="text-[10px] font-bold tracking-wider uppercase bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">Nuevo</span>}
-                            {isAusente && <span className="text-[10px] font-bold tracking-wider uppercase bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">Ausente</span>}
-                            {isSinCambio && <span className="text-[10px] font-bold tracking-wider uppercase bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Sin cambio</span>}
+                            {isNuevo && <span className="text-[10px] font-bold tracking-wider uppercase bg-[var(--accent)]/20 text-indigo-700 px-1.5 py-0.5 rounded">Nuevo</span>}
+                            {isAusente && <span className="text-[10px] font-bold tracking-wider uppercase bg-slate-200 text-[var(--text-muted)] px-1.5 py-0.5 rounded">Ausente</span>}
+                            {isSinCambio && <span className="text-[10px] font-bold tracking-wider uppercase bg-[var(--surface-2)] text-[var(--text-muted)] px-1.5 py-0.5 rounded">Sin cambio</span>}
                         </div>
-                        <p className="text-[13px] text-slate-500 mt-0.5 truncate max-w-xl" title={product.nombre}>{product.nombre}</p>
+                        <p className="text-[13px] text-[var(--text-muted)] mt-0.5 truncate max-w-xl" title={product.nombre}>{product.nombre}</p>
                     </div>
                 </div>
                 
@@ -71,7 +71,7 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                         onClick={() => onDecision(isAprobado ? 'pendiente' : 'aprobado')}
                         className={cn(
                             "px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center",
-                            isAprobado ? "bg-emerald-100 text-emerald-800" : "bg-white hover:bg-slate-50 text-slate-600 border border-slate-200"
+                            isAprobado ? "bg-emerald-100 text-emerald-800" : "bg-[var(--surface)] hover:bg-[var(--bg)] text-[var(--text-muted)] border border-[var(--border)]"
                         )}
                     >
                         {isAprobado && <Check className="w-4 h-4 mr-1.5" />}
@@ -81,7 +81,7 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                         onClick={() => onDecision(isRechazado ? 'pendiente' : 'rechazado')}
                         className={cn(
                             "px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center",
-                            isRechazado ? "bg-rose-100 text-rose-800" : "bg-white hover:bg-slate-50 text-slate-600 border border-slate-200"
+                            isRechazado ? "bg-rose-100 text-rose-800" : "bg-[var(--surface)] hover:bg-[var(--bg)] text-[var(--text-muted)] border border-[var(--border)]"
                         )}
                     >
                         {isRechazado && <X className="w-4 h-4 mr-1.5" />}
@@ -94,7 +94,7 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
             {!isSinCambio && (
                 <div className="flex flex-col">
                     {/* Row 2: Headers */}
-                    <div className="bg-[#FAFAFA] grid grid-cols-5 px-5 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                    <div className="bg-[#FAFAFA] grid grid-cols-5 px-5 py-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)]">
                         <div></div>
                         <div className="text-right">Distribuidor</div>
                         <div className="text-right">Subdistribuidor</div>
@@ -104,41 +104,41 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
 
                     {/* Row 3: Vigente */}
                     <div className="grid grid-cols-5 px-5 py-2.5 items-center border-b border-slate-50">
-                        <div className="text-[13px] font-medium text-slate-500 flex items-center">
+                        <div className="text-[13px] font-medium text-[var(--text-muted)] flex items-center">
                             <span className="w-2 h-2 rounded-full bg-slate-300 mr-2"></span> Vigente
                         </div>
-                        <div className="text-right text-sm text-slate-600">{product.tiers.distribuidor.vigente ? fmt.format(product.tiers.distribuidor.vigente) : '—'}</div>
-                        <div className="text-right text-sm text-slate-600">{product.tiers.subdistribuidor.vigente ? fmt.format(product.tiers.subdistribuidor.vigente) : '—'}</div>
-                        <div className="text-right text-sm text-slate-600">{product.tiers.mayoreo.vigente ? fmt.format(product.tiers.mayoreo.vigente) : '—'}</div>
-                        <div className="text-right text-sm text-slate-600">{product.tiers.menudeo.vigente ? fmt.format(product.tiers.menudeo.vigente) : '—'}</div>
+                        <div className="text-right text-sm text-[var(--text-muted)]">{product.tiers.distribuidor.vigente ? fmt.format(product.tiers.distribuidor.vigente) : '—'}</div>
+                        <div className="text-right text-sm text-[var(--text-muted)]">{product.tiers.subdistribuidor.vigente ? fmt.format(product.tiers.subdistribuidor.vigente) : '—'}</div>
+                        <div className="text-right text-sm text-[var(--text-muted)]">{product.tiers.mayoreo.vigente ? fmt.format(product.tiers.mayoreo.vigente) : '—'}</div>
+                        <div className="text-right text-sm text-[var(--text-muted)]">{product.tiers.menudeo.vigente ? fmt.format(product.tiers.menudeo.vigente) : '—'}</div>
                     </div>
 
                     {/* Row 4: Nuevo */}
                     <div className="grid grid-cols-5 px-5 py-3 items-start bg-[#F5F8FF]">
                         <div className="text-[13px] font-bold text-indigo-900 flex items-center pt-1">
-                            <span className="w-2 h-2 rounded-full bg-indigo-500 mr-2"></span> Nuevo
+                            <span className="w-2 h-2 rounded-full bg-[var(--accent)]/100 mr-2"></span> Nuevo
                         </div>
                         
                         {isAusente ? (
-                            <div className="col-span-4 text-center text-[13px] italic text-slate-500 py-1">
+                            <div className="col-span-4 text-center text-[13px] italic text-[var(--text-muted)] py-1">
                                 — no vino en Excel —
                             </div>
                         ) : (
                             <>
                                 <div className="text-right">
-                                    <div className="text-sm font-bold text-slate-900">{product.tiers.distribuidor.nuevo ? fmt.format(product.tiers.distribuidor.nuevo) : '—'}</div>
+                                    <div className="text-sm font-bold text-[var(--text)]">{product.tiers.distribuidor.nuevo ? fmt.format(product.tiers.distribuidor.nuevo) : '—'}</div>
                                     {renderTierDelta(product.tiers.distribuidor)}
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-sm font-bold text-slate-900">{product.tiers.subdistribuidor.nuevo ? fmt.format(product.tiers.subdistribuidor.nuevo) : '—'}</div>
+                                    <div className="text-sm font-bold text-[var(--text)]">{product.tiers.subdistribuidor.nuevo ? fmt.format(product.tiers.subdistribuidor.nuevo) : '—'}</div>
                                     {renderTierDelta(product.tiers.subdistribuidor)}
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-sm font-bold text-slate-900">{product.tiers.mayoreo.nuevo ? fmt.format(product.tiers.mayoreo.nuevo) : '—'}</div>
+                                    <div className="text-sm font-bold text-[var(--text)]">{product.tiers.mayoreo.nuevo ? fmt.format(product.tiers.mayoreo.nuevo) : '—'}</div>
                                     {renderTierDelta(product.tiers.mayoreo)}
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-sm font-bold text-slate-900">{product.tiers.menudeo.nuevo ? fmt.format(product.tiers.menudeo.nuevo) : '—'}</div>
+                                    <div className="text-sm font-bold text-[var(--text)]">{product.tiers.menudeo.nuevo ? fmt.format(product.tiers.menudeo.nuevo) : '—'}</div>
                                     {renderTierDelta(product.tiers.menudeo)}
                                 </div>
                             </>

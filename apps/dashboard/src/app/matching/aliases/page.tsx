@@ -51,7 +51,7 @@ export default function AliasesPage() {
       {!data ? <p>Cargando...</p> : (
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left border-b bg-slate-50">
+            <tr className="text-left border-b bg-[var(--bg)]">
               <th className="p-2">Proveedor</th>
               <th className="p-2">Código</th>
               <th className="p-2">Marca / Modelo</th>
@@ -62,7 +62,7 @@ export default function AliasesPage() {
           </thead>
           <tbody>
             {(data as AliasRow[]).map(row => (
-              <tr key={row.id} className="border-b hover:bg-slate-50">
+              <tr key={row.id} className="border-b hover:bg-[var(--bg)]">
                 <td className="p-2 font-semibold">{row.proveedor}</td>
                 <td className="p-2 font-mono">{row.codigo_excel || '-'}</td>
                 <td className="p-2">{row.marca_excel || '-'} / {row.modelo_excel || '-'}</td>

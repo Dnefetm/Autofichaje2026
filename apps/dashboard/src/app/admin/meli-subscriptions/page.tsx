@@ -58,15 +58,15 @@ export default function MeliSubscriptionsPage() {
     return (
         <div className="p-8 max-w-4xl mx-auto space-y-6">
             <h1 className="text-3xl font-bold">Configuración de Suscripciones Webhook</h1>
-            <p className="text-gray-500">
+            <p className="text-[var(--text-muted)]">
                 Selecciona a qué eventos de Mercado Libre quieres suscribirte. 
                 Deshabilitar topics que no usas ahorrará CPU en Vercel. Total eventos últimas 24h: {totalEvents}
             </p>
 
-            <div className="bg-white shadow rounded-lg border">
+            <div className="bg-[var(--surface)] shadow rounded-lg border">
                 <div className="p-6 border-b">
                     <h2 className="text-xl font-semibold">Topics Disponibles</h2>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-[var(--text-muted)]">
                         Recomendado mantener: items, orders_v2, payments, questions, shipments
                     </p>
                 </div>
@@ -75,7 +75,7 @@ export default function MeliSubscriptionsPage() {
                         const count = stats[topic] || 0;
                         const isSubscribed = subscribedTopics.includes(topic);
                         return (
-                            <div key={topic} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                            <div key={topic} className="flex items-center justify-between p-3 border rounded-lg hover:bg-[var(--bg)]">
                                 <div className="flex items-center space-x-3">
                                     <input 
                                         type="checkbox"
@@ -88,7 +88,7 @@ export default function MeliSubscriptionsPage() {
                                         {topic}
                                     </label>
                                 </div>
-                                <div className="text-sm text-gray-500">
+                                <div className="text-sm text-[var(--text-muted)]">
                                     {count} eventos (24h)
                                 </div>
                             </div>
@@ -101,7 +101,7 @@ export default function MeliSubscriptionsPage() {
                 <button 
                     onClick={handleSave} 
                     disabled={saving}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-blue-600 text-[var(--accent-ink)] rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                     {saving ? 'Guardando...' : 'Guardar Suscripciones en ML'}
                 </button>

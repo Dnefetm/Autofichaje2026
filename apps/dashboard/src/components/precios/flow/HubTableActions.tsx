@@ -35,14 +35,14 @@ export function HubTableActions({ proveedor, count }: { proveedor: string, count
             <button 
                 onClick={handleRecalculateAll}
                 disabled={recalculating || count === 0}
-                className="inline-flex items-center px-4 py-2 bg-white border border-slate-300 rounded-md font-medium text-slate-700 hover:bg-slate-50 shadow-sm text-sm transition-colors disabled:opacity-50"
+                className="inline-flex items-center px-4 py-2 bg-[var(--surface)] border border-slate-300 rounded-md font-medium text-[var(--text-muted)] hover:bg-[var(--bg)] shadow-sm text-sm transition-colors disabled:opacity-50"
             >
                 {recalculating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
                 Recalcular todos
             </button>
             <button 
                 disabled={count === 0}
-                className="inline-flex items-center px-4 py-2 bg-white border border-slate-300 rounded-md font-medium text-slate-700 hover:bg-slate-50 shadow-sm text-sm transition-colors disabled:opacity-50"
+                className="inline-flex items-center px-4 py-2 bg-[var(--surface)] border border-slate-300 rounded-md font-medium text-[var(--text-muted)] hover:bg-[var(--bg)] shadow-sm text-sm transition-colors disabled:opacity-50"
             >
                 <Download className="w-4 h-4 mr-2" />
                 Exportar lista activa

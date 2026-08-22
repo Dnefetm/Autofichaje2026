@@ -40,7 +40,7 @@ export function HubRowActions({ articuloId, proveedor, estadoActualizacion }: { 
                 <button 
                     onClick={() => handleAction('confirmado_vigente')}
                     disabled={loading}
-                    className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors disabled:opacity-50" 
+                    className="p-1.5 text-[var(--text-faint)] hover:text-[var(--ok)] hover:bg-[var(--ok)]/10 rounded transition-colors disabled:opacity-50" 
                     title="Confirmar vigente manualmente"
                 >
                     <CheckCircle className="w-4 h-4" />
@@ -51,14 +51,14 @@ export function HubRowActions({ articuloId, proveedor, estadoActualizacion }: { 
                 <button 
                     onClick={() => handleAction('marcado_descontinuado')}
                     disabled={loading}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors disabled:opacity-50" 
+                    className="p-1.5 text-[var(--text-faint)] hover:text-[var(--err)] hover:bg-[var(--err)]/10 rounded transition-colors disabled:opacity-50" 
                     title="Marcar como descontinuado"
                 >
                     <XCircle className="w-4 h-4" />
                 </button>
             )}
 
-            <button className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="Recalcular precio de publicación">
+            <button className="p-1.5 text-[var(--text-faint)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 rounded transition-colors" title="Recalcular precio de publicación">
                 <RefreshCw className="w-4 h-4" />
             </button>
         </div>

@@ -148,15 +148,15 @@ export function PriceConfirmationPanelClient({
     const tiposCostoOrden = ['distribuidor', 'subdistribuidor', 'mayoreo', 'menudeo'];
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-[var(--surface)] rounded-2xl shadow-sm border border-[var(--border)] overflow-hidden">
             {/* Header del Panel */}
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="p-6 border-b border-[var(--border)] bg-[var(--bg)]/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                        <CheckSquare className="w-5 h-5 text-indigo-600" />
+                    <h2 className="text-xl font-bold text-[var(--text)] flex items-center gap-2">
+                        <CheckSquare className="w-5 h-5 text-[var(--accent)]" />
                         Revisión de Precios: {proveedor}
                     </h2>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-[var(--text-muted)] mt-1">
                         {productos.length} productos coincidentes · {costos.length} costos calculados
                     </p>
                 </div>
@@ -166,7 +166,7 @@ export function PriceConfirmationPanelClient({
                     <button
                         onClick={() => handleConfirmar(false)}
                         disabled={loading || productos.length === 0}
-                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-[var(--accent-ink)] rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
                     >
                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                         Aprobar Todos ({productos.length})
@@ -175,7 +175,7 @@ export function PriceConfirmationPanelClient({
                         <button
                             onClick={() => handleConfirmar(true)}
                             disabled={loading}
-                            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2"
+                            className="px-4 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2"
                         >
                             Aprobar Selección ({selectedKeys.size})
                         </button>
@@ -184,31 +184,31 @@ export function PriceConfirmationPanelClient({
             </div>
 
             {/* Barra de Filtros */}
-            <div className="px-6 py-3 border-b border-slate-100 bg-white flex items-center justify-between text-xs">
+            <div className="px-6 py-3 border-b border-[var(--border)] bg-[var(--surface)] flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
-                    <Filter className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="font-bold text-slate-600">Filtrar:</span>
+                    <Filter className="w-3.5 h-3.5 text-[var(--text-faint)]" />
+                    <span className="font-bold text-[var(--text-muted)]">Filtrar:</span>
                     <button
                         onClick={() => setFiltro('todos')}
-                        className={`px-3 py-1 rounded-lg font-medium transition-colors ${filtro === 'todos' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+                        className={`px-3 py-1 rounded-lg font-medium transition-colors ${filtro === 'todos' ? 'bg-[var(--accent)]/10 text-indigo-700 font-bold' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
                     >
                         Todos ({productos.length})
                     </button>
                     <button
                         onClick={() => setFiltro('con_cambio')}
-                        className={`px-3 py-1 rounded-lg font-medium transition-colors ${filtro === 'con_cambio' ? 'bg-amber-50 text-amber-700 font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+                        className={`px-3 py-1 rounded-lg font-medium transition-colors ${filtro === 'con_cambio' ? 'bg-[var(--warn)]/10 text-[var(--warn)] font-bold' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
                     >
                         Con Variación de Precio
                     </button>
                     <button
                         onClick={() => setFiltro('nuevos')}
-                        className={`px-3 py-1 rounded-lg font-medium transition-colors ${filtro === 'nuevos' ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-slate-500 hover:text-slate-800'}`}
+                        className={`px-3 py-1 rounded-lg font-medium transition-colors ${filtro === 'nuevos' ? 'bg-[var(--ok)]/10 text-[var(--ok)] font-bold' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
                     >
                         Nuevos
                     </button>
                 </div>
 
-                <span className="text-slate-400">
+                <span className="text-[var(--text-faint)]">
                     Mostrando {productosFiltrados.length} productos
                 </span>
             </div>
@@ -217,13 +217,13 @@ export function PriceConfirmationPanelClient({
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        <tr className="bg-[var(--bg)]/80 border-b border-[var(--border)] text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                             <th className="py-3 px-4 w-10">
                                 <input
                                     type="checkbox"
                                     onChange={e => handleSelectAll(e.target.checked)}
                                     checked={selectedKeys.size === productosFiltrados.length && productosFiltrados.length > 0}
-                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                    className="rounded border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)]"
                                 />
                             </th>
                             <th className="py-3 px-4 min-w-[220px]">Producto / Catálogo</th>
@@ -233,31 +233,31 @@ export function PriceConfirmationPanelClient({
                             <th className="py-3 px-4 text-right">Menudeo</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
+                    <tbody className="divide-y divide-[var(--border)] text-xs">
                         {productosFiltrados.map(prod => (
-                            <tr key={prod.key} className="hover:bg-slate-50/60 transition-colors group">
+                            <tr key={prod.key} className="hover:bg-[var(--bg)]/60 transition-colors group">
                                 {/* Checkbox */}
                                 <td className="py-3.5 px-4 align-top pt-4">
                                     <input
                                         type="checkbox"
                                         checked={selectedKeys.has(prod.key)}
                                         onChange={e => handleSelectOne(prod.key, e.target.checked)}
-                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        className="rounded border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)]"
                                     />
                                 </td>
 
                                 {/* Producto y Detalles */}
                                 <td className="py-3.5 px-4 align-top">
                                     <div className="flex items-center gap-2">
-                                        <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                                        <span className="font-mono font-bold text-[var(--text)] bg-[var(--surface-2)] px-2 py-0.5 rounded text-[11px]">
                                             {prod.modelo || prod.codigo}
                                         </span>
-                                        <span className="text-slate-500 font-semibold">{prod.marca}</span>
+                                        <span className="text-[var(--text-muted)] font-semibold">{prod.marca}</span>
                                     </div>
-                                    <p className="text-slate-600 mt-1 line-clamp-1 text-xs" title={prod.descripcion}>
+                                    <p className="text-[var(--text-muted)] mt-1 line-clamp-1 text-xs" title={prod.descripcion}>
                                         {prod.descripcion}
                                     </p>
-                                    <span className="text-[10px] text-slate-400 font-mono">
+                                    <span className="text-[10px] text-[var(--text-faint)] font-mono">
                                         ID Catálogo: {prod.articulo_id}
                                     </span>
                                 </td>
@@ -280,21 +280,21 @@ export function PriceConfirmationPanelClient({
                                     return (
                                         <td key={tipo} className="py-3 px-4 text-right align-top">
                                             {/* Renglón 1: Precio Previo */}
-                                            <div className="text-[11px] text-slate-400">
+                                            <div className="text-[11px] text-[var(--text-faint)]">
                                                 {tienePrevio ? fmtMx.format(pInfo.valor_anterior!) : <span className="italic text-slate-300">Previo: —</span>}
                                             </div>
 
                                             {/* Renglón 2: Precio Nuevo + Variación */}
-                                            <div className="font-bold text-slate-900 text-sm mt-0.5 flex items-center justify-end gap-1">
+                                            <div className="font-bold text-[var(--text)] text-sm mt-0.5 flex items-center justify-end gap-1">
                                                 {fmtMx.format(pInfo.valor)}
                                                 {subio && (
-                                                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1 py-0.5 rounded flex items-center">
+                                                    <span className="text-[10px] font-bold text-[var(--err)] bg-[var(--err)]/10 px-1 py-0.5 rounded flex items-center">
                                                         <ArrowUpRight className="w-3 h-3" />
                                                         +{pInfo.delta_pct?.toFixed(1)}%
                                                     </span>
                                                 )}
                                                 {bajo && (
-                                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded flex items-center">
+                                                    <span className="text-[10px] font-bold text-[var(--ok)] bg-[var(--ok)]/10 px-1 py-0.5 rounded flex items-center">
                                                         <ArrowDownRight className="w-3 h-3" />
                                                         {pInfo.delta_pct?.toFixed(1)}%
                                                     </span>

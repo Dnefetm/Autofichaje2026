@@ -16,7 +16,7 @@ export default async function AplicarPaso3(props: { params: Promise<{ proveedor:
     const latestBatch = ultimas?.[0];
 
     if (!latestBatch) {
-        return <div className="p-8 text-center text-slate-500">No hay lotes para aplicar.</div>;
+        return <div className="p-8 text-center text-[var(--text-muted)]">No hay lotes para aplicar.</div>;
     }
 
     // Get Lote Number

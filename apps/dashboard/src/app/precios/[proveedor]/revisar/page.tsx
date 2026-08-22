@@ -15,7 +15,7 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
   const latestBatch = ultimas?.[0];
   if (!latestBatch) {
     return (
-      <div className="p-8 text-center text-slate-500">
+      <div className="p-8 text-center text-[var(--text-muted)]">
         No hay importaciones recientes para revisar. Sube un archivo primero.
       </div>
     );
@@ -129,7 +129,7 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
   });
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full bg-[var(--bg)]">
       {error ? (
         <div className="p-8 text-red-500">Error: {error.message}</div>
       ) : (

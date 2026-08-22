@@ -35,7 +35,7 @@ export function AutocompleteRegla({
             <select 
                 value={value}
                 onChange={e => onChange(e.target.value)}
-                className="border-slate-300 rounded-md text-sm shadow-sm focus:ring-indigo-500 focus:border-indigo-500 w-full px-3 py-2 border bg-white"
+                className="border-slate-300 rounded-md text-sm shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)] w-full px-3 py-2 border bg-[var(--surface)]"
             >
                 <option value="">-- Seleccionar Regla --</option>
                 {reglas.map(r => (
@@ -44,7 +44,7 @@ export function AutocompleteRegla({
                     </option>
                 ))}
             </select>
-            {loading && <div className="absolute right-8 top-2.5 text-xs text-slate-400">...</div>}
+            {loading && <div className="absolute right-8 top-2.5 text-xs text-[var(--text-faint)]">...</div>}
         </div>
     );
 }

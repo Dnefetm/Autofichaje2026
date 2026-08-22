@@ -73,12 +73,12 @@ export function AutocompleteArticulo({
                     if (e.target.value === '') onChange('');
                 }}
                 onFocus={() => { if (results.length > 0) setIsOpen(true); }}
-                className="border-slate-300 rounded-md text-sm shadow-sm focus:ring-indigo-500 focus:border-indigo-500 w-full px-2 py-1 border"
+                className="border-slate-300 rounded-md text-sm shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)] w-full px-2 py-1 border"
             />
-            {loading && <div className="absolute right-2 top-1.5 text-xs text-slate-400">...</div>}
+            {loading && <div className="absolute right-2 top-1.5 text-xs text-[var(--text-faint)]">...</div>}
             
             {isOpen && results.length > 0 && (
-                <div className="absolute z-50 mt-1 w-full max-w-sm bg-white rounded-md shadow-lg border border-slate-200 max-h-60 overflow-auto">
+                <div className="absolute z-50 mt-1 w-full max-w-sm bg-[var(--surface)] rounded-md shadow-lg border border-[var(--border)] max-h-60 overflow-auto">
                     {results.map(r => (
                         <div 
                             key={r.id} 
@@ -87,10 +87,10 @@ export function AutocompleteArticulo({
                                 onChange(r.id);
                                 setIsOpen(false);
                             }}
-                            className="px-3 py-2 hover:bg-indigo-50 cursor-pointer border-b border-slate-100 last:border-0"
+                            className="px-3 py-2 hover:bg-[var(--accent)]/10 cursor-pointer border-b border-[var(--border)] last:border-0"
                         >
-                            <div className="text-sm font-medium text-slate-900 truncate">{r.titulo || r.modelo}</div>
-                            <div className="text-xs text-slate-500 flex justify-between">
+                            <div className="text-sm font-medium text-[var(--text)] truncate">{r.titulo || r.modelo}</div>
+                            <div className="text-xs text-[var(--text-muted)] flex justify-between">
                                 <span>{r.marca} - {r.modelo}</span>
                                 <span>{r.codigo_universal}</span>
                             </div>

@@ -52,10 +52,10 @@ export function VinculacionActions({ proveedor, importacionId, filaNum, codigoEx
     };
 
     if (done === 'aceptado') {
-        return <span className="text-xs font-bold text-emerald-600 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Vinculado</span>;
+        return <span className="text-xs font-bold text-[var(--ok)] flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Vinculado</span>;
     }
     if (done === 'rechazado') {
-        return <span className="text-xs font-bold text-slate-400 flex items-center gap-1"><X className="w-3.5 h-3.5" /> Ignorado</span>;
+        return <span className="text-xs font-bold text-[var(--text-faint)] flex items-center gap-1"><X className="w-3.5 h-3.5" /> Ignorado</span>;
     }
 
     return (
@@ -64,7 +64,7 @@ export function VinculacionActions({ proveedor, importacionId, filaNum, codigoEx
                 onClick={handleAceptar}
                 disabled={loading !== null}
                 title="Aceptar vinculación propuesta"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-[var(--ok)] rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
             >
                 {loading === 'aceptar' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                 Aceptar
@@ -73,7 +73,7 @@ export function VinculacionActions({ proveedor, importacionId, filaNum, codigoEx
                 onClick={handleRechazar}
                 disabled={loading !== null}
                 title="Rechazar esta propuesta"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
             >
                 <X className="w-3 h-3" />
                 Ignorar

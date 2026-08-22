@@ -35,13 +35,13 @@ export function PendienteVincularRow({ pendiente }: { pendiente: any }) {
     };
 
     return (
-        <tr className="hover:bg-slate-50 transition-colors">
-            <td className="px-4 py-3 font-mono text-slate-700">{pendiente.codigo_excel}</td>
+        <tr className="hover:bg-[var(--bg)] transition-colors">
+            <td className="px-4 py-3 font-mono text-[var(--text-muted)]">{pendiente.codigo_excel}</td>
             <td className="px-4 py-3">
                 <div className="font-medium">{pendiente.marca_excel}</div>
-                <div className="text-slate-500">{pendiente.modelo_excel}</div>
+                <div className="text-[var(--text-muted)]">{pendiente.modelo_excel}</div>
             </td>
-            <td className="px-4 py-3 font-medium text-slate-900">
+            <td className="px-4 py-3 font-medium text-[var(--text)]">
                 {Number(pendiente.valor).toLocaleString()} {pendiente.moneda}
             </td>
 
@@ -55,7 +55,7 @@ export function PendienteVincularRow({ pendiente }: { pendiente: any }) {
                 <button 
                     onClick={handleVincular} 
                     disabled={loading || !articuloId}
-                    className="bg-indigo-600 text-white px-3 py-1 rounded text-sm disabled:opacity-50 whitespace-nowrap"
+                    className="bg-[var(--accent)] text-[var(--accent-ink)] px-3 py-1 rounded text-sm disabled:opacity-50 whitespace-nowrap"
                 >
                     {loading ? '...' : 'Vincular'}
                 </button>

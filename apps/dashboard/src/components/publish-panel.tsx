@@ -39,16 +39,16 @@ interface PublishPanelProps {
 function TraceBlock({ trace }: { trace: Record<string, any> }) {
     const [open, setOpen] = useState(false);
     return (
-        <div className="mt-3 border border-slate-200 rounded-lg overflow-hidden">
+        <div className="mt-3 border border-[var(--border)] rounded-lg overflow-hidden">
             <button
                 onClick={() => setOpen(o => !o)}
-                className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors"
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-[var(--text-muted)] bg-[var(--bg)] hover:bg-[var(--surface-2)] transition-colors"
             >
                 <span>Ver trace técnico</span>
                 {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
             {open && (
-                <pre className="text-[10px] leading-relaxed text-slate-600 bg-slate-50 p-3 overflow-auto max-h-80 whitespace-pre-wrap break-all">
+                <pre className="text-[10px] leading-relaxed text-[var(--text-muted)] bg-[var(--bg)] p-3 overflow-auto max-h-80 whitespace-pre-wrap break-all">
                     {JSON.stringify(trace, null, 2)}
                 </pre>
             )}
@@ -342,38 +342,38 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const isOpen = modalMode ? true : panelOpen;
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden">
             {/* Header — toggle del panel (se oculta en modalMode) */}
             {!modalMode && (
                 <button
                     id="publish-panel-toggle"
                     onClick={() => setPanelOpen(o => !o)}
-                    className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+                    className="w-full flex items-center justify-between px-6 py-4 hover:bg-[var(--bg)] transition-colors"
                 >
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-yellow-100 rounded-lg">
                             <Send className="w-4 h-4 text-yellow-600" />
                         </div>
                         <div className="text-left">
-                            <h2 className="text-base font-bold text-slate-900">Publicar en MeLi</h2>
-                            <p className="text-xs text-slate-400 mt-0.5">
+                            <h2 className="text-base font-bold text-[var(--text)]">Publicar en MeLi</h2>
+                            <p className="text-xs text-[var(--text-faint)] mt-0.5">
                                 Modelo User Products · Aprobación manual requerida
-                                {ficha_id && <span className="ml-2 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[9px] font-bold">Datos desde ficha técnica</span>}
+                                {ficha_id && <span className="ml-2 px-1.5 py-0.5 bg-[var(--accent)]/20 text-indigo-700 rounded text-[9px] font-bold">Datos desde ficha técnica</span>}
                             </p>
                         </div>
                     </div>
                     {panelOpen
-                        ? <ChevronUp className="w-5 h-5 text-slate-400" />
-                        : <ChevronDown className="w-5 h-5 text-slate-400" />
+                        ? <ChevronUp className="w-5 h-5 text-[var(--text-faint)]" />
+                        : <ChevronDown className="w-5 h-5 text-[var(--text-faint)]" />
                     }
                 </button>
             )}
 
             {isOpen && (
-                <div className={`${!modalMode ? 'border-t border-slate-100' : ''} px-6 py-5 space-y-5`}>
+                <div className={`${!modalMode ? 'border-t border-[var(--border)]' : ''} px-6 py-5 space-y-5`}>
                     {/* Badge de ficha en modal mode */}
                     {modalMode && ficha_id && (
-                        <div className="flex items-center gap-2 p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl">
+                        <div className="flex items-center gap-2 p-2.5 bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-xl">
                             <span className="text-xs font-bold text-indigo-700">📄 Publicando con datos de la ficha técnica</span>
                             <span className="text-[10px] text-indigo-400 font-mono">{ficha_id.slice(0, 8)}…</span>
                         </div>
@@ -384,14 +384,14 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                         <>
                             {/* Cuenta */}
                             <div>
-                                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">
+                                <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">
                                     <Store className="w-3 h-3 inline mr-1" />Cuenta de destino <span className="text-rose-400">*</span>
                                 </label>
                                 <select
                                     id="publish-account-select"
                                     value={selectedAccount}
                                     onChange={e => setSelectedAccount(e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white"
+                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)]"
                                 >
                                     <option value="">— Selecciona una cuenta —</option>
                                     {accounts.map(a => (
@@ -403,7 +403,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             {/* Categoría + Tipo de listado */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">
+                                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">
                                         <Tag className="w-3 h-3 inline mr-1" />Categoría MeLi
                                     </label>
                                     <input
@@ -412,18 +412,18 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         value={categoryId}
                                         onChange={e => setCategoryId(e.target.value)}
                                         placeholder="Auto-detectada por AI"
-                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono"
+                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)] font-mono"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">
+                                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">
                                         Tipo de listado
                                     </label>
                                     <select
                                         id="publish-listing-type"
                                         value={listingType}
                                         onChange={e => setListingType(e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white"
+                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)]"
                                     >
                                         <option value="gold_special">Gold Special (recomendado)</option>
                                         <option value="gold_pro">Gold Pro</option>
@@ -435,14 +435,14 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
                             {/* Imágenes */}
                             <div>
-                                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">
+                                <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">
                                     <ImageIcon className="w-3 h-3 inline mr-1" />Imágenes <span className="text-rose-400">*</span>
                                     <span className="ml-1 text-slate-300 font-normal normal-case">Mín. 1 — la primera es la imagen principal</span>
                                 </label>
 
                                 {/* Sugerencias del artículo */}
                                 {preloadedSuggestions.length > 0 && images.length === 0 && (
-                                    <div className="mb-2 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                                    <div className="mb-2 p-3 bg-[var(--accent)]/10 rounded-lg border border-indigo-100">
                                         <p className="text-[10px] font-bold text-indigo-400 uppercase mb-2">Imágenes del artículo (haz clic para agregar)</p>
                                         <div className="flex flex-wrap gap-2">
                                             {preloadedSuggestions.map((url, i) => (
@@ -450,11 +450,11 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                     key={i}
                                                     onClick={() => addSuggestion(url)}
                                                     title={url}
-                                                    className="group relative w-12 h-12 rounded-md overflow-hidden border border-indigo-200 hover:border-indigo-500 transition-all"
+                                                    className="group relative w-12 h-12 rounded-md overflow-hidden border border-[var(--accent)]/30 hover:border-[var(--accent)] transition-all"
                                                 >
                                                     <img src={url} alt="" className="w-full h-full object-cover" onError={e => (e.currentTarget.src = '')} />
-                                                    <div className="absolute inset-0 bg-indigo-600/0 group-hover:bg-indigo-600/20 transition-all flex items-center justify-center">
-                                                        <Plus className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
+                                                    <div className="absolute inset-0 bg-[var(--accent)]/0 group-hover:bg-[var(--accent)]/20 transition-all flex items-center justify-center">
+                                                        <Plus className="w-4 h-4 text-[var(--accent-ink)] opacity-0 group-hover:opacity-100" />
                                                     </div>
                                                 </button>
                                             ))}
@@ -466,15 +466,15 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 {images.length > 0 && (
                                     <div className="space-y-1.5 mb-2">
                                         {images.map((url, i) => (
-                                            <div key={i} id={`publish-image-${i}`} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200 group">
+                                            <div key={i} id={`publish-image-${i}`} className="flex items-center gap-2 p-2 bg-[var(--bg)] rounded-lg border border-[var(--border)] group">
                                                 {/* Thumbnail */}
-                                                <div className="w-10 h-10 rounded-md overflow-hidden shrink-0 border border-slate-200 bg-white">
+                                                <div className="w-10 h-10 rounded-md overflow-hidden shrink-0 border border-[var(--border)] bg-[var(--surface)]">
                                                     <img src={url} alt="" className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} />
                                                 </div>
                                                 {/* Orden badge */}
                                                 <span className="text-xs font-black text-slate-300 w-5 shrink-0">#{i + 1}</span>
                                                 {/* URL truncada */}
-                                                <span className="flex-1 text-xs text-slate-500 truncate font-mono">{url}</span>
+                                                <span className="flex-1 text-xs text-[var(--text-muted)] truncate font-mono">{url}</span>
                                                 {/* Controles */}
                                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button onClick={() => moveImage(i, -1)} disabled={i === 0} className="p-1 rounded hover:bg-slate-200 disabled:opacity-30" title="Subir">
@@ -502,28 +502,28 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         onKeyDown={e => e.key === 'Enter' && addImage()}
                                         placeholder="https://... URL pública de la imagen"
                                         className={cn(
-                                            "flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 bg-white",
+                                            "flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 bg-[var(--surface)]",
                                             imgInputError
                                                 ? "border-rose-300 focus:ring-rose-400"
-                                                : "border-slate-200 focus:ring-yellow-400"
+                                                : "border-[var(--border)] focus:ring-yellow-400"
                                         )}
                                     />
                                     <button
                                         id="publish-add-image-btn"
                                         onClick={addImage}
-                                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-bold transition-colors flex items-center gap-1"
+                                        className="px-3 py-2 bg-[var(--surface)] hover:bg-slate-700 text-[var(--accent-ink)] rounded-lg text-sm font-bold transition-colors flex items-center gap-1"
                                     >
                                         <Plus className="w-4 h-4" /> Agregar
                                     </button>
                                 </div>
-                                {imgInputError && <p className="text-xs text-rose-500 mt-1">{imgInputError}</p>}
+                                {imgInputError && <p className="text-xs text-[var(--err)] mt-1">{imgInputError}</p>}
                             </div>
 
                             {/* Error general */}
                             {errorMsg && (
-                                <div className="flex items-center gap-2 p-3 bg-rose-50 rounded-lg border border-rose-200">
-                                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-                                    <p className="text-xs text-rose-700 font-medium">{errorMsg}</p>
+                                <div className="flex items-center gap-2 p-3 bg-[var(--err)]/10 rounded-lg border border-[var(--err)]/30">
+                                    <AlertCircle className="w-4 h-4 text-[var(--err)] shrink-0" />
+                                    <p className="text-xs text-[var(--err)] font-medium">{errorMsg}</p>
                                 </div>
                             )}
 
@@ -532,7 +532,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 id="publish-preview-btn"
                                 onClick={handlePreview}
                                 disabled={loading || !selectedAccount || images.length === 0}
-                                className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-sm"
+                                className="w-full flex items-center justify-center gap-2 py-3 bg-[var(--accent)] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--accent-ink)] font-bold rounded-xl transition-all shadow-sm"
                             >
                                 {loading
                                     ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -548,18 +548,18 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                         <>
                             {/* 404 — artículo no encontrado */}
                             {previewResult.status === 404 && (
-                                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                                <div className="p-4 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <XCircle className="w-5 h-5 text-rose-500" />
+                                        <XCircle className="w-5 h-5 text-[var(--err)]" />
                                         <h3 className="font-bold text-rose-800 text-sm">Artículo no encontrado en BD</h3>
                                     </div>
-                                    <p className="text-xs text-rose-700 mb-2">{previewResult.data.error}</p>
+                                    <p className="text-xs text-[var(--err)] mb-2">{previewResult.data.error}</p>
                                     {previewResult.data.trace?.input && (
-                                        <p className="text-xs font-mono bg-rose-100 px-2 py-1 rounded text-rose-600">
+                                        <p className="text-xs font-mono bg-rose-100 px-2 py-1 rounded text-[var(--err)]">
                                             articulo_id enviado: <strong>{previewResult.data.trace.input.articulo_id}</strong>
                                         </p>
                                     )}
-                                    <p className="text-xs text-rose-500 mt-2">Verifica que el artículo siga existiendo en el catálogo.</p>
+                                    <p className="text-xs text-[var(--err)] mt-2">Verifica que el artículo siga existiendo en el catálogo.</p>
                                 </div>
                             )}
 
@@ -587,23 +587,23 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
                             {/* 422 — error de validación */}
                             {previewResult.status === 422 && (
-                                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                                <div className="p-4 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <XCircle className="w-5 h-5 text-rose-500" />
+                                        <XCircle className="w-5 h-5 text-[var(--err)]" />
                                         <h3 className="font-bold text-rose-800 text-sm">Error de validación</h3>
                                     </div>
-                                    <p className="text-xs text-rose-700 mb-2">{previewResult.data.error}</p>
+                                    <p className="text-xs text-[var(--err)] mb-2">{previewResult.data.error}</p>
                                     {previewResult.data.errores?.map((e: string, i: number) => (
-                                        <p key={i} className="text-xs text-rose-600 font-mono bg-rose-100 px-2 py-1 rounded mt-1">• {e}</p>
+                                        <p key={i} className="text-xs text-[var(--err)] font-mono bg-rose-100 px-2 py-1 rounded mt-1">• {e}</p>
                                     ))}
                                     {previewResult.data.meli_error && (
                                         <div className="mt-3 p-3 bg-rose-100 rounded-lg border border-rose-300">
-                                            <p className="text-[10px] font-bold uppercase text-rose-500 mb-1.5">Detalle de MeLi</p>
+                                            <p className="text-[10px] font-bold uppercase text-[var(--err)] mb-1.5">Detalle de MeLi</p>
                                             {previewResult.data.meli_error.message && (
                                                 <p className="text-xs font-bold text-rose-800 mb-1">{previewResult.data.meli_error.message}</p>
                                             )}
                                             {previewResult.data.meli_error.cause?.map((c: any, i: number) => (
-                                                <p key={i} className="text-xs text-rose-700 font-mono bg-white px-2 py-1 rounded mt-1">[{c.code}] {c.message}</p>
+                                                <p key={i} className="text-xs text-[var(--err)] font-mono bg-[var(--surface)] px-2 py-1 rounded mt-1">[{c.code}] {c.message}</p>
                                             ))}
                                         </div>
                                     )}
@@ -632,27 +632,27 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 const originalAttrs: any[] = t?.paso_8_attributes_final || [];
                                 return (
                                     <div className="space-y-4">
-                                        <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                                        <div className="flex items-center gap-2 p-3 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-xl">
+                                            <CheckCircle2 className="w-5 h-5 text-[var(--ok)] shrink-0" />
                                             <div>
                                                 <p className="font-bold text-emerald-800 text-sm">Preview listo — revisa y confirma</p>
-                                                <p className="text-xs text-emerald-600">Cuenta: <strong>{accountName}</strong>{t?.paso_3_precio?.sale_price ? <span> · Precio: <strong>{new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(t.paso_3_precio.sale_price)}</strong></span> : null}</p>
+                                                <p className="text-xs text-[var(--ok)]">Cuenta: <strong>{accountName}</strong>{t?.paso_3_precio?.sale_price ? <span> · Precio: <strong>{new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(t.paso_3_precio.sale_price)}</strong></span> : null}</p>
                                             </div>
                                         </div>
                                         {/* Categoría */}
                                         <div>
-                                            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5"><Tag className="w-3 h-3 inline mr-1" />Categoría MeLi</label>
+                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5"><Tag className="w-3 h-3 inline mr-1" />Categoría MeLi</label>
                                             {/* Ruta activa (auto-predicha o seleccionada) */}
-                                            <div className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50">
-                                                <span className="font-mono text-[10px] text-slate-400 mr-2">{curCatId}</span>
-                                                <span className="text-slate-700">{activePath}</span>
+                                            <div className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--bg)]">
+                                                <span className="font-mono text-[10px] text-[var(--text-faint)] mr-2">{curCatId}</span>
+                                                <span className="text-[var(--text-muted)]">{activePath}</span>
                                             </div>
                                             {/* Select multi-opción solo si hay varias del dry-run */}
                                             {allCatOptions.length > 1 && (
                                                 <select
                                                     value={curCatId}
                                                     onChange={e => { setCategoryOverride(e.target.value); setCatSelectedPath(''); }}
-                                                    className="mt-1 w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white font-mono"
+                                                    className="mt-1 w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)] font-mono"
                                                 >
                                                     {allCatOptions.map((opt: any) => opt?.category_id && (
                                                         <option key={opt.category_id} value={opt.category_id}>
@@ -664,8 +664,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
                                             {/* Buscador live */}
                                             <div className="relative mt-2">
-                                                <div className="flex items-center gap-1 px-3 py-2 border border-slate-300 rounded-lg bg-white focus-within:ring-2 focus-within:ring-yellow-400">
-                                                    <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                <div className="flex items-center gap-1 px-3 py-2 border border-slate-300 rounded-lg bg-[var(--surface)] focus-within:ring-2 focus-within:ring-yellow-400">
+                                                    <Search className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
                                                     <input
                                                         id="cat-search-input"
                                                         type="text"
@@ -688,10 +688,10 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                         placeholder="Buscar categoría en MeLi (ej. dado métrico)"
                                                         className="flex-1 text-sm bg-transparent outline-none placeholder-slate-400"
                                                     />
-                                                    {catSearchLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400 shrink-0" />}
+                                                    {catSearchLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--text-faint)] shrink-0" />}
                                                 </div>
                                                 {catSearchResults.length > 0 && (
-                                                    <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                                    <div className="absolute z-50 left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg max-h-48 overflow-y-auto">
                                                         {catSearchResults.map((c: any) => (
                                                             <button
                                                                 key={c.category_id}
@@ -702,10 +702,10 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                                     setCatSearch('');
                                                                     setCatSearchResults([]);
                                                                 }}
-                                                                className="w-full text-left px-3 py-2 text-xs hover:bg-yellow-50 border-b border-slate-100 last:border-0"
+                                                                className="w-full text-left px-3 py-2 text-xs hover:bg-yellow-50 border-b border-[var(--border)] last:border-0"
                                                             >
-                                                                <span className="font-mono font-bold text-slate-700 text-[10px]">{c.category_id}</span>
-                                                                <span className="text-slate-600 ml-2">{c.path || c.category_name || ''}</span>
+                                                                <span className="font-mono font-bold text-[var(--text-muted)] text-[10px]">{c.category_id}</span>
+                                                                <span className="text-[var(--text-muted)] ml-2">{c.path || c.category_name || ''}</span>
                                                             </button>
                                                         ))}
                                                     </div>
@@ -725,12 +725,12 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         </div>
                                         {/* Family name */}
                                         <div>
-                                            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">Family Name (título base)</label>
-                                            <input type="text" value={familyNameOverride !== '' ? familyNameOverride : (t?.paso_8_ai?.family_name || '')} onChange={e => setFamilyNameOverride(e.target.value)} maxLength={60} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono" />
+                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Family Name (título base)</label>
+                                            <input type="text" value={familyNameOverride !== '' ? familyNameOverride : (t?.paso_8_ai?.family_name || '')} onChange={e => setFamilyNameOverride(e.target.value)} maxLength={60} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono" />
                                         </div>
                                         {/* Dimensiones del paquete */}
                                         <div>
-                                            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5"><Package className="w-3 h-3 inline mr-1" />Dimensiones del paquete</label>
+                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5"><Package className="w-3 h-3 inline mr-1" />Dimensiones del paquete</label>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {[
                                                     { id: 'SELLER_PACKAGE_HEIGHT', label: 'Alto',   unit: 'cm', traceKey: 'SELLER_PACKAGE_HEIGHT' },
@@ -743,8 +743,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                     const isEdited = dimOverrides[id] !== undefined && dimOverrides[id] !== traceVal;
                                                     return (
                                                         <div key={id} className="relative">
-                                                            <label className="text-[9px] uppercase text-slate-400 font-bold">{label}</label>
-                                                            <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden focus-within:ring-2 focus-within:ring-yellow-400">
+                                                            <label className="text-[9px] uppercase text-[var(--text-faint)] font-bold">{label}</label>
+                                                            <div className="flex items-center border border-[var(--border)] rounded-lg bg-[var(--surface)] overflow-hidden focus-within:ring-2 focus-within:ring-yellow-400">
                                                                 <input
                                                                     type="text"
                                                                     value={currentVal}
@@ -752,14 +752,14 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                                     placeholder={`ej. 10 ${unit}`}
                                                                     className="flex-1 px-2 py-1.5 text-xs font-mono bg-transparent outline-none"
                                                                 />
-                                                                <span className="text-[9px] text-slate-400 px-2 border-l border-slate-100">{unit}</span>
+                                                                <span className="text-[9px] text-[var(--text-faint)] px-2 border-l border-[var(--border)]">{unit}</span>
                                                             </div>
                                                             {isEdited && <span className="text-[8px] text-blue-500 absolute right-0 top-0">editado</span>}
                                                         </div>
                                                     );
                                                 })}
                                             </div>
-                                            <p className="text-[9px] text-slate-400 mt-1">Valores actuales del artículo. Edítalos si MeLi los rechazó. Formato: número espacio unidad (ej. &quot;10 cm&quot;, &quot;500 g&quot;)</p>
+                                            <p className="text-[9px] text-[var(--text-faint)] mt-1">Valores actuales del artículo. Edítalos si MeLi los rechazó. Formato: número espacio unidad (ej. &quot;10 cm&quot;, &quot;500 g&quot;)</p>
                                         </div>
                                         {/* Atributos requeridos */}
                                         {loadingAttrs ? (
@@ -769,7 +769,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             </div>
                                         ) : reqAttrs.length > 0 && (
                                             <div>
-                                                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block mb-2">Atributos requeridos ({reqAttrs.length})</label>
+                                                <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-2">Atributos requeridos ({reqAttrs.length})</label>
                                                 <div className="space-y-2">
                                                     {reqAttrs.map((attr: any) => {
                                                         const ov = attrOverrides[attr.id];
@@ -781,18 +781,18 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                         const valName = ov?.value_name ?? curVal?.value_name ?? '';
                                                         const isMissing = !curVal && !ov;
                                                         return (
-                                                            <div key={attr.id} className={cn('p-2.5 rounded-lg border', isMissing ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50')}>
+                                                            <div key={attr.id} className={cn('p-2.5 rounded-lg border', isMissing ? 'border-[var(--err)]/30 bg-[var(--err)]/10' : 'border-[var(--border)] bg-[var(--bg)]')}>
                                                                 <div className="flex items-center justify-between mb-1.5">
-                                                                    <span className="text-xs font-bold text-slate-700">{attr.name}</span>
-                                                                    <span className={cn('text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase', ov ? 'bg-blue-100 text-blue-700' : isMissing ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700')}>{ov ? 'Editado' : isMissing ? 'Faltante' : 'Auto'}</span>
+                                                                    <span className="text-xs font-bold text-[var(--text-muted)]">{attr.name}</span>
+                                                                    <span className={cn('text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase', ov ? 'bg-blue-100 text-blue-700' : isMissing ? 'bg-rose-100 text-[var(--err)]' : 'bg-emerald-100 text-[var(--ok)]')}>{ov ? 'Editado' : isMissing ? 'Faltante' : 'Auto'}</span>
                                                                 </div>
                                                                 {attr.values?.length > 0 ? (
-                                                                    <select value={valId} onChange={e => { const opt = attr.values.find((v: any) => v.id === e.target.value); setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_id: e.target.value, value_name: opt?.name } })); }} className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-yellow-400">
+                                                                    <select value={valId} onChange={e => { const opt = attr.values.find((v: any) => v.id === e.target.value); setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_id: e.target.value, value_name: opt?.name } })); }} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-yellow-400">
                                                                         <option value="">— Seleccionar —</option>
                                                                         {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
                                                                     </select>
                                                                 ) : (
-                                                                    <input type="text" value={valName} onChange={e => setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_name: e.target.value } }))} placeholder={`Ingresa ${attr.name}`} className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-yellow-400 font-mono" />
+                                                                    <input type="text" value={valName} onChange={e => setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_name: e.target.value } }))} placeholder={`Ingresa ${attr.name}`} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-yellow-400 font-mono" />
                                                                 )}
                                                             </div>
                                                         );
@@ -804,7 +804,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         <TraceBlock trace={t || {}} />
                                         {/* CTAs */}
                                         <div className="flex gap-3">
-                                            <button id="publish-back-btn" onClick={resetPanel} className="flex-1 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors">Volver</button>
+                                            <button id="publish-back-btn" onClick={resetPanel} className="flex-1 py-2.5 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-xl text-sm transition-colors">Volver</button>
                                             <button id="publish-confirm-btn" onClick={handlePublish} disabled={loading} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-50">
                                                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                                 {loading ? 'Publicando...' : 'Publicar con estos datos'}
@@ -818,7 +818,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             {(previewResult.status === 404 || previewResult.status === 409 || previewResult.status === 422) && (
                                 <button
                                     onClick={resetPanel}
-                                    className="w-full py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
+                                    className="w-full py-2.5 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-xl text-sm transition-colors"
                                 >
                                     <RefreshCw className="w-4 h-4 inline mr-1" />
                                     Volver a configurar
@@ -827,11 +827,11 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
                             {/* Si el trace existe pero el status no es 200/409/422/404 */}
                             {previewResult.status >= 500 && (
-                                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg space-y-2">
-                                    <p className="text-xs text-rose-700 font-bold">Error del servidor: {previewResult.data.error}</p>
+                                <div className="p-3 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-lg space-y-2">
+                                    <p className="text-xs text-[var(--err)] font-bold">Error del servidor: {previewResult.data.error}</p>
 
                                     {previewResult.data.trace && <TraceBlock trace={previewResult.data.trace} />}
-                                    <button onClick={resetPanel} className="mt-2 text-xs text-rose-500 underline">Volver</button>
+                                    <button onClick={resetPanel} className="mt-2 text-xs text-[var(--err)] underline">Volver</button>
                                 </div>
                             )}
                         </>
@@ -842,13 +842,13 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                         <div className="space-y-3">
                             {/* Éxito */}
                             {publishResult.status === 200 && publishResult.data.ok && (
-                                <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                                <div className="p-5 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-xl text-center">
                                     <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
                                     <h3 className="font-bold text-emerald-800 text-base mb-1">¡Publicación exitosa!</h3>
-                                    <p className="text-sm font-mono font-bold text-emerald-700 mb-3">
+                                    <p className="text-sm font-mono font-bold text-[var(--ok)] mb-3">
                                         {publishResult.data.item_id}
                                     </p>
-                                    <p className="text-xs text-emerald-600 mb-3">
+                                    <p className="text-xs text-[var(--ok)] mb-3">
                                         Título generado: <span className="font-bold">{publishResult.data.title}</span>
                                     </p>
                                     {publishResult.data.permalink && (
@@ -889,23 +889,23 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
                             {/* Error genérico */}
                             {!publishResult.data.ok && publishResult.status !== 409 && (
-                                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                                <div className="p-4 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <XCircle className="w-4 h-4 text-rose-500" />
+                                        <XCircle className="w-4 h-4 text-[var(--err)]" />
                                         <h3 className="font-bold text-rose-800 text-sm">Error al publicar</h3>
                                     </div>
-                                    <p className="text-xs text-rose-700">{publishResult.data.error}</p>
+                                    <p className="text-xs text-[var(--err)]">{publishResult.data.error}</p>
                                     {publishResult.data.errores?.map((e: string, i: number) => (
-                                        <p key={i} className="text-xs text-rose-600 font-mono bg-rose-100 px-2 py-1 rounded mt-1">• {e}</p>
+                                        <p key={i} className="text-xs text-[var(--err)] font-mono bg-rose-100 px-2 py-1 rounded mt-1">• {e}</p>
                                     ))}
                                     {publishResult.data.meli_error && (
                                         <div className="mt-3 p-3 bg-rose-100 rounded-lg border border-rose-300">
-                                            <p className="text-[10px] font-bold uppercase text-rose-500 mb-1.5">Detalle de rechazo MeLi</p>
+                                            <p className="text-[10px] font-bold uppercase text-[var(--err)] mb-1.5">Detalle de rechazo MeLi</p>
                                             {publishResult.data.meli_error.message && (
                                                 <p className="text-xs font-bold text-rose-800 mb-1">{publishResult.data.meli_error.message}</p>
                                             )}
                                             {publishResult.data.meli_error.cause?.map((c: any, i: number) => (
-                                                <p key={i} className="text-xs text-rose-700 font-mono bg-white px-2 py-1 rounded mt-1">[{c.code}] {c.message}</p>
+                                                <p key={i} className="text-xs text-[var(--err)] font-mono bg-[var(--surface)] px-2 py-1 rounded mt-1">[{c.code}] {c.message}</p>
                                             ))}
                                         </div>
                                     )}
@@ -921,7 +921,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                     <button
                                         id="publish-result-back-edit-btn"
                                         onClick={() => setStage('preview')}
-                                        className="flex-1 py-2.5 border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
+                                        className="flex-1 py-2.5 border border-slate-300 text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-xl text-sm transition-colors"
                                     >
                                         <RefreshCw className="w-4 h-4 inline mr-1" />
                                         Volver a editar
@@ -929,7 +929,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                     <button
                                         id="publish-result-reset-btn"
                                         onClick={resetPanel}
-                                        className="flex-1 py-2.5 border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
+                                        className="flex-1 py-2.5 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-xl text-sm transition-colors"
                                     >
                                         Nueva publicación
                                     </button>
@@ -938,7 +938,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 <button
                                     id="publish-result-new-btn"
                                     onClick={resetPanel}
-                                    className="w-full py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-sm transition-colors"
+                                    className="w-full py-2.5 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-xl text-sm transition-colors"
                                 >
                                     <RefreshCw className="w-4 h-4 inline mr-1" />
                                     Nueva publicación

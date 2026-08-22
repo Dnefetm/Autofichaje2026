@@ -100,36 +100,36 @@ export default function OperationsPage() {
         <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
             <div className="flex justify-between items-end">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">Operaciones Masivas</h2>
-                    <p className="text-slate-500 text-sm">Gestiona miles de SKUs simultáneamente mediante archivos CSV.</p>
+                    <h2 className="text-2xl font-bold tracking-tight text-[var(--text)]">Operaciones Masivas</h2>
+                    <p className="text-[var(--text-muted)] text-sm">Gestiona miles de SKUs simultáneamente mediante archivos CSV.</p>
                 </div>
-                <div className="flex bg-slate-100 p-1 rounded-lg">
+                <div className="flex bg-[var(--surface-2)] p-1 rounded-lg">
                     <button
                         onClick={() => { setOperation('stock'); setStatus('idle'); }}
-                        className={cn("px-4 py-1.5 rounded-md text-xs font-bold transition-all", operation === 'stock' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                        className={cn("px-4 py-1.5 rounded-md text-xs font-bold transition-all", operation === 'stock' ? "bg-[var(--surface)] text-[var(--accent)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-muted)]")}
                     >Stock</button>
                     <button
                         onClick={() => { setOperation('price'); setStatus('idle'); }}
-                        className={cn("px-4 py-1.5 rounded-md text-xs font-bold transition-all", operation === 'price' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                        className={cn("px-4 py-1.5 rounded-md text-xs font-bold transition-all", operation === 'price' ? "bg-[var(--surface)] text-[var(--accent)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-muted)]")}
                     >Precios</button>
                 </div>
             </div>
 
             {/* Zona de Carga */}
             <div className={cn(
-                "bg-white border-2 border-dashed rounded-2xl p-12 transition-all flex flex-col items-center gap-4",
-                status === 'idle' ? "border-slate-200 hover:border-indigo-300" : "border-indigo-100 bg-indigo-50/20"
+                "bg-[var(--surface)] border-2 border-dashed rounded-2xl p-12 transition-all flex flex-col items-center gap-4",
+                status === 'idle' ? "border-[var(--border)] hover:border-[var(--accent)]/50" : "border-indigo-100 bg-[var(--accent)]/10/20"
             )}>
                 <div className={cn(
                     "w-16 h-16 rounded-full flex items-center justify-center mb-2",
-                    operation === 'stock' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
+                    operation === 'stock' ? "bg-[var(--ok)]/10 text-[var(--ok)]" : "bg-blue-50 text-blue-600"
                 )}>
                     {operation === 'stock' ? <Database className="w-8 h-8" /> : <FileSpreadsheet className="w-8 h-8" />}
                 </div>
 
                 <div className="text-center">
-                    <h3 className="text-lg font-bold text-slate-900">Sube tu archivo para {operation === 'stock' ? 'Inventario' : 'Precios'}</h3>
-                    <p className="text-sm text-slate-500">Formato requerido: CSV con columnas <span className="font-mono bg-slate-100 px-1 rounded">sku</span> y <span className="font-mono bg-slate-100 px-1 rounded">{operation === 'stock' ? 'stock' : 'precio'}</span></p>
+                    <h3 className="text-lg font-bold text-[var(--text)]">Sube tu archivo para {operation === 'stock' ? 'Inventario' : 'Precios'}</h3>
+                    <p className="text-sm text-[var(--text-muted)]">Formato requerido: CSV con columnas <span className="font-mono bg-[var(--surface-2)] px-1 rounded">sku</span> y <span className="font-mono bg-[var(--surface-2)] px-1 rounded">{operation === 'stock' ? 'stock' : 'precio'}</span></p>
                 </div>
 
                 <div className="relative group">
@@ -139,7 +139,7 @@ export default function OperationsPage() {
                         onChange={handleFileChange}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
-                    <button className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md group-hover:bg-indigo-700 transition-all">
+                    <button className="px-8 py-2.5 bg-[var(--accent)] text-[var(--accent-ink)] rounded-xl font-bold text-sm shadow-md group-hover:brightness-110 transition-all">
                         Seleccionar CSV
                     </button>
                 </div>
@@ -148,8 +148,8 @@ export default function OperationsPage() {
             {/* Vista Previa y Acción */}
             {status !== 'idle' && (
                 <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
-                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
+                        <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--bg)]/50">
                             <div className="flex items-center gap-2">
                                 <FileCheck className="w-4 h-4 text-emerald-500" />
                                 <span className="font-bold text-sm">Vista Previa: {previewData.length} filas detectadas</span>
@@ -157,14 +157,14 @@ export default function OperationsPage() {
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => setStatus('idle')}
-                                    className="px-4 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700"
+                                    className="px-4 py-1.5 text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-muted)]"
                                 >Cancelar</button>
                                 <button
                                     onClick={handleExecute}
                                     disabled={loading || status === 'success'}
                                     className={cn(
                                         "px-6 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-sm",
-                                        status === 'success' ? "bg-emerald-500 text-white" : "bg-indigo-600 text-white hover:bg-indigo-700"
+                                        status === 'success' ? "bg-[var(--ok)]/100 text-[var(--accent-ink)]" : "bg-[var(--accent)] text-[var(--accent-ink)] hover:brightness-110"
                                     )}
                                 >
                                     {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
@@ -175,22 +175,22 @@ export default function OperationsPage() {
 
                         <div className="max-h-[300px] overflow-auto">
                             <table className="w-full text-left text-xs">
-                                <thead className="bg-slate-50/80 sticky top-0 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                                <thead className="bg-[var(--bg)]/80 sticky top-0 border-b border-[var(--border)] text-[var(--text-muted)] font-bold uppercase tracking-wider">
                                     <tr>
                                         <th className="px-6 py-3">SKU</th>
                                         <th className="px-6 py-3 text-right">Valor Detectado</th>
                                         <th className="px-6 py-3">Acción</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100">
+                                <tbody className="divide-y divide-[var(--border)]">
                                     {previewData.slice(0, 10).map((row, i) => (
-                                        <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="px-6 py-3 font-mono font-bold text-slate-700">{row.sku}</td>
-                                            <td className="px-6 py-3 text-right font-bold text-indigo-600">
+                                        <tr key={i} className="hover:bg-[var(--bg)]/50 transition-colors">
+                                            <td className="px-6 py-3 font-mono font-bold text-[var(--text-muted)]">{row.sku}</td>
+                                            <td className="px-6 py-3 text-right font-bold text-[var(--accent)]">
                                                 {operation === 'stock' ? row.stock : `$${row.precio}`}
                                             </td>
                                             <td className="px-6 py-3">
-                                                <div className="flex items-center gap-1 text-emerald-600 font-medium">
+                                                <div className="flex items-center gap-1 text-[var(--ok)] font-medium">
                                                     <ArrowRight className="w-3 h-3" />
                                                     Sincronizar
                                                 </div>
@@ -199,7 +199,7 @@ export default function OperationsPage() {
                                     ))}
                                     {previewData.length > 10 && (
                                         <tr>
-                                            <td colSpan={3} className="px-6 py-4 text-center text-slate-400 italic">
+                                            <td colSpan={3} className="px-6 py-4 text-center text-[var(--text-faint)] italic">
                                                 Y {previewData.length - 10} filas más...
                                             </td>
                                         </tr>
@@ -210,21 +210,21 @@ export default function OperationsPage() {
                     </div>
 
                     {status === 'success' && (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 flex gap-4 animate-in zoom-in-95 duration-300">
-                            <CheckCircle2 className="w-6 h-6 text-emerald-600 flex-shrink-0" />
+                        <div className="bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-xl p-6 flex gap-4 animate-in zoom-in-95 duration-300">
+                            <CheckCircle2 className="w-6 h-6 text-[var(--ok)] flex-shrink-0" />
                             <div>
                                 <h4 className="font-bold text-emerald-900">¡Actualización Exitosa!</h4>
-                                <p className="text-emerald-700 text-sm">Los datos han sido persistidos en Supabase. El Worker iniciará la sincronización con los marketplaces en su próximo ciclo.</p>
+                                <p className="text-[var(--ok)] text-sm">Los datos han sido persistidos en Supabase. El Worker iniciará la sincronización con los marketplaces en su próximo ciclo.</p>
                             </div>
                         </div>
                     )}
 
                     {status === 'error' && (
-                        <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 flex gap-4 animate-in zoom-in-95 duration-300">
-                            <AlertTriangle className="w-6 h-6 text-rose-600 flex-shrink-0" />
+                        <div className="bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl p-6 flex gap-4 animate-in zoom-in-95 duration-300">
+                            <AlertTriangle className="w-6 h-6 text-[var(--err)] flex-shrink-0" />
                             <div>
                                 <h4 className="font-bold text-rose-900">Error en el Proceso</h4>
-                                <p className="text-rose-700 text-sm">{errorMessage}</p>
+                                <p className="text-[var(--err)] text-sm">{errorMessage}</p>
                             </div>
                         </div>
                     )}

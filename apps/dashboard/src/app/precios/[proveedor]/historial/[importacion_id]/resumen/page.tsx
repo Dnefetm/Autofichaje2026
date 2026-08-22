@@ -132,31 +132,31 @@ export default async function ResumenLotePage(props: {
     const hasPrevious = anteriorId != null;
 
     return (
-        <div className="min-h-screen bg-slate-50">
+        <div className="min-h-screen bg-[var(--bg)]">
             {/* Header */}
-            <header className="bg-white border-b border-slate-200 px-8 py-5">
+            <header className="bg-[var(--surface)] border-b border-[var(--border)] px-8 py-5">
                 <Link
                     href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial`}
-                    className="inline-flex items-center text-sm text-slate-500 hover:text-indigo-600 mb-3"
+                    className="inline-flex items-center text-sm text-[var(--text-muted)] hover:text-[var(--accent)] mb-3"
                 >
                     <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Historial
                 </Link>
                 <div className="flex items-start justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900">
+                        <h1 className="text-2xl font-bold text-[var(--text)]">
                             Resumen del Lote
                         </h1>
-                        <p className="text-sm text-slate-500 mt-1">
+                        <p className="text-sm text-[var(--text-muted)] mt-1">
                             {imp?.nombre_archivo} · {imp?.total_filas?.toLocaleString()} productos ·{' '}
                             {imp?.creado_el ? new Date(imp.creado_el).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
                         </p>
                         {imp?.estado === 'completado' && (
-                            <span className="mt-2 inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                            <span className="mt-2 inline-flex items-center text-xs font-bold text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/30 px-2.5 py-1 rounded-lg">
                                 ● Lista Activa y Vigente
                             </span>
                         )}
                         {!hasPrevious && (
-                            <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg inline-block">
+                            <div className="mt-2 text-xs text-[var(--warn)] bg-[var(--warn)]/10 border border-[var(--warn)]/30 px-3 py-2 rounded-lg inline-block">
                                 Sin lista anterior para comparar. Todo aparece como Nuevo.
                             </div>
                         )}
@@ -169,13 +169,13 @@ export default async function ResumenLotePage(props: {
                         <div className="flex items-center gap-2">
                             <Link
                                 href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial/${importacionId}/vinculacion`}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors shadow-sm"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-xl font-bold text-sm transition-colors shadow-sm"
                             >
                                 Ver Vinculación con Catálogo →
                             </Link>
                             <Link
                                 href={`/precios/${encodeURIComponent(proveedorDecoded)}`}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-xl font-bold text-sm transition-colors"
                             >
                                 Ver Catálogo Completo
                             </Link>
@@ -188,46 +188,46 @@ export default async function ResumenLotePage(props: {
 
             {/* Tarjetas de Resumen */}
             <div className="px-8 py-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-                    <div className="text-3xl font-black text-amber-700">{actualizados.length.toLocaleString()}</div>
-                    <div className="text-sm font-bold text-amber-600 mt-1 flex items-center gap-1">
+                <div className="bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-2xl p-5">
+                    <div className="text-3xl font-black text-[var(--warn)]">{actualizados.length.toLocaleString()}</div>
+                    <div className="text-sm font-bold text-[var(--warn)] mt-1 flex items-center gap-1">
                         <TrendingUp className="w-4 h-4" /> Precio Actualizado
                     </div>
                     <div className="text-xs text-amber-500 mt-0.5">Mismo SKU, precio diferente</div>
                 </div>
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
-                    <div className="text-3xl font-black text-emerald-700">{nuevos.length.toLocaleString()}</div>
-                    <div className="text-sm font-bold text-emerald-600 mt-1 flex items-center gap-1">
+                <div className="bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-2xl p-5">
+                    <div className="text-3xl font-black text-[var(--ok)]">{nuevos.length.toLocaleString()}</div>
+                    <div className="text-sm font-bold text-[var(--ok)] mt-1 flex items-center gap-1">
                         <Plus className="w-4 h-4" /> Nuevos
                     </div>
                     <div className="text-xs text-emerald-500 mt-0.5">SKU no existía antes</div>
                 </div>
-                <div className="bg-slate-100 border border-slate-200 rounded-2xl p-5">
-                    <div className="text-3xl font-black text-slate-600">{sinCambio.length.toLocaleString()}</div>
-                    <div className="text-sm font-bold text-slate-500 mt-1">Sin Cambio</div>
-                    <div className="text-xs text-slate-400 mt-0.5">Mismo precio que antes</div>
+                <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-5">
+                    <div className="text-3xl font-black text-[var(--text-muted)]">{sinCambio.length.toLocaleString()}</div>
+                    <div className="text-sm font-bold text-[var(--text-muted)] mt-1">Sin Cambio</div>
+                    <div className="text-xs text-[var(--text-faint)] mt-0.5">Mismo precio que antes</div>
                 </div>
-                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5">
-                    <div className="text-3xl font-black text-rose-700">{descontinuados.length.toLocaleString()}</div>
-                    <div className="text-sm font-bold text-rose-600 mt-1 flex items-center gap-1">
+                <div className="bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-2xl p-5">
+                    <div className="text-3xl font-black text-[var(--err)]">{descontinuados.length.toLocaleString()}</div>
+                    <div className="text-sm font-bold text-[var(--err)] mt-1 flex items-center gap-1">
                         <Minus className="w-4 h-4" /> Descontinuados
                     </div>
-                    <div className="text-xs text-rose-500 mt-0.5">En lista anterior, ausentes ahora</div>
+                    <div className="text-xs text-[var(--err)] mt-0.5">En lista anterior, ausentes ahora</div>
                 </div>
             </div>
 
             {/* Tabla de Actualizados */}
             {actualizados.length > 0 && (
                 <section className="px-8 pb-8">
-                    <h2 className="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-amber-600" />
+                    <h2 className="text-base font-bold text-[var(--text)] mb-3 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-[var(--warn)]" />
                         Precios Actualizados ({actualizados.length.toLocaleString()})
                     </h2>
-                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] overflow-hidden shadow-sm">
                         <div className="overflow-x-auto max-h-96 overflow-y-auto">
                             <table className="w-full text-xs">
-                                <thead className="bg-slate-50 sticky top-0">
-                                    <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                                <thead className="bg-[var(--bg)] sticky top-0">
+                                    <tr className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)]">
                                         <th className="py-3 px-4 text-left min-w-[180px]">SKU / Descripción</th>
                                         <th className="py-3 px-4 text-right">Dist. Anterior</th>
                                         <th className="py-3 px-4 text-right">Dist. Nuevo</th>
@@ -239,21 +239,21 @@ export default async function ResumenLotePage(props: {
                                         <th className="py-3 px-4 text-right">Menu. Nuevo</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100">
+                                <tbody className="divide-y divide-[var(--border)]">
                                     {actualizados.slice(0, 500).map((item, i) => (
-                                        <tr key={i} className="hover:bg-amber-50/30">
+                                        <tr key={i} className="hover:bg-[var(--warn)]/10/30">
                                             <td className="py-2.5 px-4">
-                                                <span className="font-mono font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded">{item.sku}</span>
-                                                <p className="text-slate-500 mt-0.5 line-clamp-1">{item.descripcion}</p>
+                                                <span className="font-mono font-bold text-[var(--text)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{item.sku}</span>
+                                                <p className="text-[var(--text-muted)] mt-0.5 line-clamp-1">{item.descripcion}</p>
                                             </td>
-                                            <td className="py-2.5 px-4 text-right text-slate-400 line-through">{item.anterior.distribuidor > 0 ? fmtMx(item.anterior.distribuidor) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right font-bold text-slate-900">{item.nuevo.dist > 0 ? fmtMx(item.nuevo.dist) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right text-slate-400 line-through">{item.anterior.subdistribuidor > 0 ? fmtMx(item.anterior.subdistribuidor) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right font-bold text-slate-900">{item.nuevo.subdist > 0 ? fmtMx(item.nuevo.subdist) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right text-slate-400 line-through">{item.anterior.mayoreo > 0 ? fmtMx(item.anterior.mayoreo) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right font-bold text-slate-900">{item.nuevo.mayoreo > 0 ? fmtMx(item.nuevo.mayoreo) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right text-slate-400 line-through">{item.anterior.menudeo > 0 ? fmtMx(item.anterior.menudeo) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right font-bold text-slate-900">{item.nuevo.menudeo > 0 ? fmtMx(item.nuevo.menudeo) : '—'}</td>
+                                            <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{item.anterior.distribuidor > 0 ? fmtMx(item.anterior.distribuidor) : '—'}</td>
+                                            <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{item.nuevo.dist > 0 ? fmtMx(item.nuevo.dist) : '—'}</td>
+                                            <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{item.anterior.subdistribuidor > 0 ? fmtMx(item.anterior.subdistribuidor) : '—'}</td>
+                                            <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{item.nuevo.subdist > 0 ? fmtMx(item.nuevo.subdist) : '—'}</td>
+                                            <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{item.anterior.mayoreo > 0 ? fmtMx(item.anterior.mayoreo) : '—'}</td>
+                                            <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{item.nuevo.mayoreo > 0 ? fmtMx(item.nuevo.mayoreo) : '—'}</td>
+                                            <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{item.anterior.menudeo > 0 ? fmtMx(item.anterior.menudeo) : '—'}</td>
+                                            <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{item.nuevo.menudeo > 0 ? fmtMx(item.nuevo.menudeo) : '—'}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -266,29 +266,29 @@ export default async function ResumenLotePage(props: {
             {/* Tabla de Descontinuados */}
             {descontinuados.length > 0 && (
                 <section className="px-8 pb-8">
-                    <h2 className="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <Minus className="w-4 h-4 text-rose-500" />
+                    <h2 className="text-base font-bold text-[var(--text)] mb-3 flex items-center gap-2">
+                        <Minus className="w-4 h-4 text-[var(--err)]" />
                         Descontinuados / Ausentes ({descontinuados.length.toLocaleString()})
                     </h2>
-                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] overflow-hidden shadow-sm">
                         <div className="overflow-x-auto max-h-72 overflow-y-auto">
                             <table className="w-full text-xs">
-                                <thead className="bg-slate-50 sticky top-0">
-                                    <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                                <thead className="bg-[var(--bg)] sticky top-0">
+                                    <tr className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)]">
                                         <th className="py-3 px-4 text-left">SKU / Descripción</th>
                                         <th className="py-3 px-4 text-right">Último Dist.</th>
                                         <th className="py-3 px-4 text-right">Último Menudeo</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100">
+                                <tbody className="divide-y divide-[var(--border)]">
                                     {descontinuados.slice(0, 200).map((item, i) => (
-                                        <tr key={i} className="hover:bg-rose-50/30 opacity-70">
+                                        <tr key={i} className="hover:bg-[var(--err)]/10/30 opacity-70">
                                             <td className="py-2.5 px-4">
-                                                <span className="font-mono font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{item.sku}</span>
-                                                <p className="text-slate-400 mt-0.5 line-clamp-1">{item.descripcion}</p>
+                                                <span className="font-mono font-bold text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{item.sku}</span>
+                                                <p className="text-[var(--text-faint)] mt-0.5 line-clamp-1">{item.descripcion}</p>
                                             </td>
-                                            <td className="py-2.5 px-4 text-right text-slate-500">{item.distribuidor > 0 ? fmtMx(item.distribuidor) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right text-slate-500">{item.menudeo > 0 ? fmtMx(item.menudeo) : '—'}</td>
+                                            <td className="py-2.5 px-4 text-right text-[var(--text-muted)]">{item.distribuidor > 0 ? fmtMx(item.distribuidor) : '—'}</td>
+                                            <td className="py-2.5 px-4 text-right text-[var(--text-muted)]">{item.menudeo > 0 ? fmtMx(item.menudeo) : '—'}</td>
                                         </tr>
                                     ))}
                                 </tbody>

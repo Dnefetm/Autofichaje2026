@@ -214,7 +214,7 @@ export default function PricingAuditCard({
                     <button 
                         onClick={handleForceRecalculate} 
                         disabled={recalculating || loading}
-                        className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold bg-[var(--accent)]/10 text-[var(--accent)] border border-indigo-200 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/10 transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/10 transition-colors disabled:opacity-50"
                     >
                         <RefreshCw className={cn("w-3 h-3", recalculating && "animate-spin")} />
                         Recalcular Ahora

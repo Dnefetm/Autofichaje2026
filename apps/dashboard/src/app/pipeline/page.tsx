@@ -57,11 +57,11 @@ export default function PipelinePage() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold">Salud del Pipeline de Precios</h1>
-        <button onClick={cargar} className="flex items-center gap-2 px-3 py-2 rounded bg-blue-600 text-white text-sm">
+        <button onClick={cargar} className="flex items-center gap-2 px-3 py-2 rounded bg-blue-600 text-[var(--accent-ink)] text-sm">
           <RefreshCw className={loading ? "w-4 h-4 animate-spin" : "w-4 h-4"} /> Actualizar
         </button>
       </div>
-      <p className="text-sm text-gray-500 mb-6">Flujo del proveedor al marketplace. Verde = con datos, rojo = vacio (revisar). Ultima lectura: {actualizado || "..."}</p>
+      <p className="text-sm text-[var(--text-muted)] mb-6">Flujo del proveedor al marketplace. Verde = con datos, rojo = vacio (revisar). Ultima lectura: {actualizado || "..."}</p>
 
       <div className="space-y-3">
         {ETAPAS.map((e) => {
@@ -71,17 +71,17 @@ export default function PipelinePage() {
           const error = n === -1;
           const color = error ? "border-yellow-400 bg-yellow-50" : vacio ? "border-red-400 bg-red-50" : "border-green-400 bg-green-50";
           return (
-            <div key={e.orden} className={"flex items-center justify-between border rounded-lg p-4 " + (cargando ? "border-gray-200 bg-gray-50" : color)}>
+            <div key={e.orden} className={"flex items-center justify-between border rounded-lg p-4 " + (cargando ? "border-[var(--border)] bg-[var(--bg)]" : color)}>
               <div className="flex items-center gap-3">
-                {cargando ? <RefreshCw className="w-5 h-5 text-gray-400 animate-spin" /> : error ? <AlertTriangle className="w-5 h-5 text-yellow-500" /> : vacio ? <XCircle className="w-5 h-5 text-red-500" /> : <CheckCircle2 className="w-5 h-5 text-green-600" />}
+                {cargando ? <RefreshCw className="w-5 h-5 text-[var(--text-faint)] animate-spin" /> : error ? <AlertTriangle className="w-5 h-5 text-yellow-500" /> : vacio ? <XCircle className="w-5 h-5 text-red-500" /> : <CheckCircle2 className="w-5 h-5 text-green-600" />}
                 <div>
                   <div className="font-semibold">{e.orden}. {e.nombre} {e.critica && <span className="text-xs text-red-600">(critica)</span>}</div>
-                  <div className="text-xs text-gray-500">{e.descripcion}</div>
+                  <div className="text-xs text-[var(--text-muted)]">{e.descripcion}</div>
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-lg font-bold">{cargando ? "..." : error ? "error" : n.toLocaleString("es-MX")}</div>
-                <div className="text-xs text-gray-500">filas</div>
+                <div className="text-xs text-[var(--text-muted)]">filas</div>
               </div>
             </div>
           );
