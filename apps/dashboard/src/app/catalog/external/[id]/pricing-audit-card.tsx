@@ -239,7 +239,7 @@ export default function PricingAuditCard({
                     </div>
 
                     {/* Fila 2: Precio Draft y Fórmula Transparente */}
-                    {draftPrice && draftPrice !== currentPrice && (
+                    {draftPrice != null && draftPrice !== currentPrice && (
                         <div className="bg-[var(--surface)] border   rounded-[var(--radius)] p-4">
                             <div className="flex items-start justify-between mb-3 border-b border-[var(--warn)]/30 pb-3">
                                 <div>
