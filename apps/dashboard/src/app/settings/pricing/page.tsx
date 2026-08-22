@@ -143,8 +143,14 @@ export default function PricingSettingsPage() {
             <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--bg)] flex justify-between items-center">
                     <div>
-                        <h3 className="font-bold text-[var(--text)]">Reglas en Cascada</h3>
-                        <p className="text-xs text-[var(--text-muted)]">Listado de reglas de cálculo activas.</p>
+                        <h3 className="font-bold text-[var(--text)] flex items-center gap-2">Reglas en Cascada</h3>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">Listado de reglas de cálculo activas.</p>
+                        <div className="text-[10px] text-[var(--accent)] font-mono mt-3 mb-1 bg-[var(--accent)]/10 p-2 rounded border border-[var(--accent)]/20">
+                            <b>Fórmula Matemática Transparente:</b><br/>
+                            1. Subtotal = CostoBase * (1 + Margen %)<br/>
+                            2. Precio Final = Subtotal / (1 - ComisiónML % - ISR/IVA %)<br/>
+                            <span className="text-[var(--text-muted)] italic mt-1 block">Nota: Las reglas calculan top-down para proteger la ganancia. Si un costo ya incluye tu ganancia (ej. menudeo), deja el Margen en 0%.</span>
+                        </div>
                     </div>
                     <button 
                         onClick={() => setIsCreatingRule(true)}
