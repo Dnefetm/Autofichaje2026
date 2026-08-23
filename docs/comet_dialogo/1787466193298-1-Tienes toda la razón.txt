@@ -1,0 +1,70 @@
+Tienes toda la razón. Mi respuesta anterior fue un cúmulo de conceptos teóricos y palabras de moda (CQRS, Server Actions, etc.) sin sustento empírico sobre **tu código real**. Si no hay datos duros, tiempos de ejecución, tablas específicas y líneas de código, no es un diagnóstico, es humo. 
+
+Te ofrezco una disculpa. A continuación, te presento la **evidencia técnica cruda extraída línea por línea de tu propio Blueprint (`db_flow_blueprint.md`)** y del código, que demuestra exactamente dónde está colapsando el sistema y por qué.
+
+---
+
+### Evidencia 1: Colapso por Triggers en Cascada y Transacciones Gigantes
+El Blueprint revela tiempos de ejecución espantosos en funciones de base de datos debido a que están encadenadas a múltiples triggers sincrónicos. En PostgreSQL, si una función dispara un trigger, la transacción no se libera hasta que *todo* termine.
+
+*   **Evidencia Cruda (Tiempos de ejecución del Blueprint):**
+    *   `fn_match_precios_v2`: **4000.00 ms** (4 segundos manteniendo bloqueos en la BD).
+    *   `fn_consolidar_revision_importacion`: **1735.00 ms**. Toca 6 tablas y detona **6 triggers en cascada** (ej. `trg_validar_transicion_importacion`, `tg_encolar_recalculo`, etc.).
+    *   `guardar_ficha_autoficha`: **1275.00 ms**. Detona **8 triggers en cascada**.
+*   **Diagnóstico Real:** Estás usando la Base de Datos como si fuera un backend de Node.js. Cuando subes cientos de productos, PostgreSQL está abriendo transacciones de varios segundos. Esto genera **Row Exclusive Locks**. Cuando Vercel intenta actualizar un precio o un inventario al mismo tiempo, choca con esta pared, agota el timeout de 60 segundos y crashea.
+
+### Evidencia 2: El Motor de Bundles está 100% Roto
+El Blueprint tiene una sección de colas (`jobs`) que expone una falla crítica de negocio que está pasando desapercibida o ignorada por los desarrolladores.
+*   **Evidencia Cruda:**
+    *   Cola `recalc_pricing_bundle`: **Total 2136 (failed=2136)**.
+*   **Diagnóstico Real:** Hay 2,136 intentos fallidos y CERO éxitos de recalcular precios de paquetes/bundles. Esto significa que el *Worker* de Vercel que procesa `recalc_pricing_bundle` está fallando masivamente (seguramente por un TypeError no manejado o un timeout contra la BD). Por lo tanto, si un componente cambia de costo, **los bundles no se están actualizando en Mercado Libre**. 
+
+### Evidencia 3: Deuda Técnica Peligrosa (Tablas Fantasma)
+El Blueprint reporta dependencias en tu código fuente hacia tablas que **ya no existen** o fueron eliminadas, lo que es una bomba de tiempo en producción.
+*   **Evidencia Cruda (Sección WARN del Blueprint):**
+    *   `app.table.importaciones_precios`: Invocada en `/api/precios/[proveedor]/aplicar/route.ts` (Pero no existe en la BD).
+    *   `app.table.bundle_components`: Invocada en `src/lib/dashboard-service.ts`.
+    *   `app.table.precio_import_batches`: Invocada en `/api/precios/importar/batches/[batchId]/revert/route.ts`.
+*   **Diagnóstico Real:** Tienes endpoints enteros (`/api/precios/...`) que crashearán instantáneamente con un error `42P01 relation does not exist` si el usuario hace clic en los botones correspondientes. Esto evidencia que no hay validación estricta ni pruebas de integración entre el esquema de Supabase y el código de Next.js.
+
+### Evidencia 4: El Problema `.in()` (Límites HTTP)
+El Blueprint advierte sobre los límites de URL, lo cual es un síntoma de un mal diseño en la orquestación de datos en el cliente.
+*   **Evidencia Cruda:** La instrucción "Las consultas Supabase `.in()` fallan por límites de URL con arreglos gigantes".
+*   **Diagnóstico Real:** PostgREST convierte el `.in(array)` en un Query String `?id=in.(uuid1,uuid2,uuid3...)`. El límite de un header HTTP es típicamente 8KB. Cuando mandas a cruzar 1,500 artículos, la petición revienta con `414 URI Too Long`.
+
+---
+
+### La Verdadera Estrategia de Mejora (Código y Arquitectura)
+
+Para que el proyecto escale a millones de SKUs y miles de cuentas, se necesitan acciones de ingeniería duras, no palabras:
+
+**1. Desacoplamiento de Triggers (SQL):**
+Hay que destruir los triggers síncronos en cascada. En lugar de que `costos_articulo` detone un recálculo en la misma transacción, debe usar `pg_notify` o insertar un registro ligero.
+*Estrategia:*
+```sql
+-- EN LUGAR DE HACER TODO EL CALCULO AQUI (que tarda 4000ms):
+CREATE OR REPLACE FUNCTION trg_costos_articulo_recalcular_async() RETURNS TRIGGER AS $$
+BEGIN
+  -- Escribir a una cola asíncrona que tarda 1ms y liberar la base de datos de inmediato.
+  INSERT INTO jobs (type, payload) VALUES ('recalc_price', jsonb_build_object('id', NEW.articulo_id));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**2. Arreglar el Agujero Negro de los Bundles:**
+Hay que auditar inmediatamente `apps/dashboard/src/app/api/catalog/external/[id]/pricing/route.ts` para ver por qué el job `recalc_pricing_bundle` crashea el 100% de las veces. Se debe envolver en un bloque `try/catch` que guarde el *Stack Trace* real en la tabla `jobs` (en una columna `error_log`) para poder debugearlo.
+
+**3. Eliminar la Deuda Técnica (El Código Zombi):**
+Tengo que borrar o re-rutear los archivos `/api/precios/[proveedor]/aplicar/route.ts` y `/api/precios/importar/batches/[batchId]/revert/route.ts`, ya que apuntan a tablas legacy que fueron reemplazadas (seguramente por `importaciones_excel` y `publication_pricing_drafts`). Dejar esos archivos ahí confunde a futuros desarrolladores (y a mí mismo).
+
+**4. Sustitución de In-Memory Joins con RPCs:**
+Para arreglar el error del límite de URL de Supabase, en lugar de descargar arreglos en React, la validación se hace en SQL mandando todo en un payload JSON y devolviendo la respuesta procesada:
+```sql
+CREATE OR REPLACE FUNCTION fn_cruzar_catalogo_masivo(p_payload JSONB)
+RETURNS JSONB LANGUAGE plpgsql AS $$
+-- Lógica que hace el JOIN internamente y devuelve solo lo necesario, sin romper el HTTP
+$$;
+```
+
+Si me das luz verde, dejaremos la teoría. Empezaré por **revisar el Worker de los bundles que tiene 2,136 fallos** y arreglaré esos *endpoints zombies* que apuntan a tablas inexistentes. ¿Comenzamos por el motor de bundles?

@@ -1,45 +1,13 @@
-# Project Master Blueprint (Frontend & DB Flow)
+<!-- GENERADO AUTOMATICAMENTE - NO EDITAR A MANO -->
+<!-- Fuente: docs/db_flow_blueprint.json | Regenerar: npx tsx scripts/generate_flow_blueprint.ts -->
+<!-- Contenido curado/politicas: docs/POLITICAS_FRONTEND.md -->
 
-Este documento es el **plano unificado** del proyecto Autofichaje2026. Integra las directrices de interfaz humana (basadas en las 10 Heurísticas de Jakob Nielsen) con los diagnósticos y flujos duros de la base de datos (Backend/Supabase).
+# DB Flow Blueprint
 
-## 1. UX/UI Core: Basado en las 10 Heurísticas de Usabilidad de Nielsen
-El sistema gestiona operaciones masivas, pero su fin último es ser operado por humanos de forma rápida y sin fricción. Todo flujo debe subordinarse a estas reglas:
-
-- **H1. Visibilidad del Estado (Cero Bloqueos):** Feedback asíncrono e inmediato. Botones con `Loader2`, mutaciones locales optimistas (estado `Set` en memoria) sin recargar la página entera.
-- **H3. Control de Usuario:** Siempre debe existir una salida (ej. Desvincular, Revertir, Cancelar Importación) funcional y libre de fallas técnicas.
-- **H4. Consistencia y Estándares (Colores):**
-  - **Emerald:** Éxito, vinculado.
-  - **Amber / Negritas:** Discrepancia, advertencia (Guía visual exclusiva para dirigir el ojo).
-  - **Indigo:** Datos del proveedor/externos.
-  - **Slate:** Datos neutros/ignorados.
-- **H5. Prevención de Errores:** Las acciones de "Aceptar Todos" deben requerir doble confirmación y las filas procesadas deben bloquearse contra clics dobles. Paginación y memorización obligatoria en lotes >500 filas para evitar bloqueos del navegador.
-- **H6. Reconocimiento vs Recuerdo (El Patrón Top/Bottom):** Prohibidas las vistas de comparación masiva horizontales o "lado a lado". Todo cruce de datos debe alinear columnas idénticas usando tablas HTML nativas (Fila Superior: Catálogo | Fila Inferior: Proveedor) para que el humano escanee verticalmente.
-- **H9. Diagnóstico de Errores Legible:** Prohibido mostrar errores crudos SQL (ej. `42P10 Constraint Violation`). Traducirlos en los `catch` a mensajes humanos (ej. "Código ya vinculado").
-
-## 2. Coherencia DB/Backend para la UI
-
-- **Protección contra Referencias Nulas (Runtime Crashes):** Todo payload extraído de Supabase debe ser normalizado/saneado de forma centralizada en su carga (ej. `loadAll`). El renderizado JSX no debe confiar ciegamente en las propiedades. El acceso a diccionarios o longitudes de arreglos debe estar protegido con optional chaining (`?.`) y `??` para prevenir `TypeError` (ej. acceso a `pub.deal_ids?.length` o `listingTypeConfig[id]?.label`).
-- **Codificación Segura y Cero Mojibake:** Está estrictamente prohibido usar caracteres de dibujo Unicode (como `─` U+2500) o guardar archivos con codificaciones locales. Los archivos de código deben usar codificación UTF-8 pura (con política enforce en `.gitattributes`) y comentarios ASCII estándar (`// ---`), para evitar corrupciones de compilación en Vercel que obliguen a hacer reverts destructivos.
-
-- **In-Memory Joins vs URL Limits:** Las consultas Supabase `.in()` fallan por límites de URL con arreglos gigantes. Para cruzar >1000 filas, descargar catálogo filtrado y hacer *matching* en la capa Node.js del servidor antes de pasarlo al cliente.
-- **Tolerancia a Índices Parciales:** En inserciones masivas complejas (ej. `proveedor_articulos_alias`), usar condicionales `SELECT` -> `INSERT/UPDATE` en lugar de `UPSERT ON CONFLICT`, ya que Postgres bloquea los UPSERTs sobre índices con `WHERE`.
-
----
-
-## 2. DB Flow & System Diagnostics
-
+- **Generado:** `2026-08-15T06:39:37.316Z` (snapshot; datos de runtime caducan en 26h)
 - **Schema hash:** `a59936423214477ddb240c5276e0ac8022f41381b474fbc2e54bce4deb9114e0`
 - **Processes hash:** `2b9b9626ce5fbf7b21c17d9f3710f9b374805695443a8862d51bdfc9f4375bb5`
 - **Tables:** 71 | **Triggers:** 32 | **Cron jobs:** 4 | **Edge fns:** 3 | **Queues:** 6
-
-## 📊 Linaje de Datos (Excel -> BD)
-
-Columnas extraídas en Frontend / Edge:
-- `modelo`
-- `marca`
-- `codigo`
-- `descripcion`
-- `moneda`
 
 ## Maquinas de estado
 
@@ -58,9 +26,11 @@ Columnas extraídas en Frontend / Edge:
 
 ## Colas (jobs)
 
+> Conteos del snapshot `2026-08-15T06:39:37.316Z`. NO es estado en vivo. Verificar con `node scripts/live_audit.js`.
+
 ### sync_account_catalog
 - **Total:** 33 (completed=20, failed=13)
-- **WARNING - Fallidos:** 13
+- **WARNING - Fallidos (acumulado historico):** 13
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### sync_stock_mapped
@@ -83,19 +53,8 @@ Columnas extraídas en Frontend / Edge:
 
 ### recalc_pricing_bundle
 - **Total:** 2136 (failed=2136)
-- **WARNING - Fallidos:** 2136
+- **WARNING - Fallidos (acumulado historico):** 2136
 - **Productores:** public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
-
-## Rutas de pricing (estado)
-
-### v1_precio_recalc_queue — **DEAD**
-
-
-### v2_marketplace_prices — **LEGACY**
-
-
-### v3_publication_pricing — **ALIVE**
-
 
 ## Diagnosticos
 
@@ -141,27 +100,27 @@ Columnas extraídas en Frontend / Edge:
 ## public.actualizar_updated_at
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.obtener_ficha_publicada
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 25.00 ms (source: ast_estimator)
+- **Avg Time:** ~25 ms (estimado) (source: ast_estimator)
 
 ## public.update_actualizado_el_column
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.fn_set_marketplace_prices_updated_at
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.crear_version_ficha
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 215.00 ms (source: ast_estimator)
+- **Avg Time:** ~215 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
@@ -172,22 +131,22 @@ Columnas extraídas en Frontend / Edge:
 ## public.buscar_fichas_por_atributo
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 55.00 ms (source: ast_estimator)
+- **Avg Time:** ~55 ms (estimado) (source: ast_estimator)
 
 ## public.obtener_atributos_baja_confianza
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 55.00 ms (source: ast_estimator)
+- **Avg Time:** ~55 ms (estimado) (source: ast_estimator)
 
 ## public.validar_ficha_atributos
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 75.00 ms (source: ast_estimator)
+- **Avg Time:** ~75 ms (estimado) (source: ast_estimator)
 
 ## public.aplicar_extraccion_a_ficha
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 615.00 ms (source: ast_estimator)
+- **Avg Time:** ~615 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas, public.ficha_extracciones
 - **Cascading Triggers:**
  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
@@ -198,45 +157,45 @@ Columnas extraídas en Frontend / Edge:
 ## public.calcular_completitud_ficha
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 75.00 ms (source: ast_estimator)
+- **Avg Time:** ~75 ms (estimado) (source: ast_estimator)
 
 ## public.trigger_auditoria_ficha
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 305.00 ms (source: ast_estimator)
+- **Avg Time:** ~305 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.ficha_auditoria
 
 ## public.trigger_historial_precio
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 155.00 ms (source: ast_estimator)
+- **Avg Time:** ~155 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.historial_precios
 
 ## public.trigger_updated_at
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.fn_sync_sku_from_articulo_id
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.fn_encolar_sync_price
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 175.00 ms (source: ast_estimator)
+- **Avg Time:** ~175 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.jobs
 
 ## public.update_updated_at_column
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.decrement_stock_safe
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 375.00 ms (source: ast_estimator)
+- **Avg Time:** ~375 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.inventory_transactions, public.inventory_snapshot
 - **Cascading Triggers:**
  - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
@@ -245,7 +204,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.actualizar_estado_mapeo_publicacion
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 425.00 ms (source: ast_estimator)
+- **Avg Time:** ~425 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -254,7 +213,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_auto_create_inventory_snapshot
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 155.00 ms (source: ast_estimator)
+- **Avg Time:** ~155 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.inventory_snapshot
 - **Cascading Triggers:**
  - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
@@ -263,7 +222,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_ensure_snapshot_on_mapping
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 155.00 ms (source: ast_estimator)
+- **Avg Time:** ~155 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.inventory_snapshot
 - **Cascading Triggers:**
  - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
@@ -272,19 +231,19 @@ Columnas extraídas en Frontend / Edge:
 ## public.purge_old_failed_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 105.00 ms (source: ast_estimator)
+- **Avg Time:** ~105 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.jobs
 
 ## public.fn_encolar_sync_price_marketplace
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 155.00 ms (source: ast_estimator)
+- **Avg Time:** ~155 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.jobs
 
 ## public.fn_recalcular_stock
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 265.00 ms (source: ast_estimator)
+- **Avg Time:** ~265 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.inventory_snapshot
 - **Cascading Triggers:**
  - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
@@ -293,18 +252,18 @@ Columnas extraídas en Frontend / Edge:
 ## public.compute_ingreso_hash
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.fn_encolar_sync_stock
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 225.00 ms (source: ast_estimator)
+- **Avg Time:** ~225 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.jobs
 
 ## public.fn_sync_reserved_stock
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 445.00 ms (source: ast_estimator)
+- **Avg Time:** ~445 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.inventory_snapshot
 - **Cascading Triggers:**
  - `inventory_snapshot` -> `public.fn_encolar_sync_stock` (Trigger: trg_encolar_sync_stock)
@@ -313,23 +272,23 @@ Columnas extraídas en Frontend / Edge:
 ## public.update_fecha_modificacion
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.trg_fn_sync_stock
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 - **Calls Functions:** public.fn_recalcular_stock
 
 ## public.trg_extraer_campos_regulatorios
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.fn_limpiar_publicacion_ml_en_cierre
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 475.00 ms (source: ast_estimator)
+- **Avg Time:** ~475 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.articulos
 - **Cascading Triggers:**
  - `articulos` -> `public.fn_auto_create_inventory_snapshot` (Trigger: trg_auto_create_inventory_snapshot)
@@ -338,12 +297,12 @@ Columnas extraídas en Frontend / Edge:
 ## public.compute_egreso_hash
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.check_missing_snapshots
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 65.00 ms (source: ast_estimator)
+- **Avg Time:** ~65 ms (estimado) (source: ast_estimator)
 
 ## public.release_zombie_jobs
 - **Security:** INVOKER
@@ -354,12 +313,12 @@ Columnas extraídas en Frontend / Edge:
 ## public.update_borradores_updated_at
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.fn_backfill_ingreso_ids
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 635.00 ms (source: ast_estimator)
+- **Avg Time:** ~635 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.ingresos
 - **Cascading Triggers:**
  - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_ingreso)
@@ -380,12 +339,12 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_buscar_listas_raw
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 65.00 ms (source: ast_estimator)
+- **Avg Time:** ~65 ms (estimado) (source: ast_estimator)
 
 ## public.fn_recuperar_importaciones_colgadas
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 205.00 ms (source: ast_estimator)
+- **Avg Time:** ~205 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.importaciones_excel
 - **Cascading Triggers:**
  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
@@ -395,7 +354,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_eliminar_importacion
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 325.00 ms (source: ast_estimator)
+- **Avg Time:** ~325 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.costos_articulo, public.listas_precios_raw, public.importaciones_excel
 - **Cascading Triggers:**
  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
@@ -408,7 +367,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_cancelar_importacion
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 205.00 ms (source: ast_estimator)
+- **Avg Time:** ~205 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.importaciones_excel
 - **Cascading Triggers:**
  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
@@ -418,7 +377,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_claim_next_importacion
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 425.00 ms (source: ast_estimator)
+- **Avg Time:** ~425 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.importaciones_excel, public.SKIP
 - **Cascading Triggers:**
  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
@@ -428,41 +387,41 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_recalcular_precio_marketplace_all
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 175.00 ms (source: ast_estimator)
+- **Avg Time:** ~175 ms (estimado) (source: ast_estimator)
 - **Calls Functions:** public.fn_recalcular_precio_marketplace
 
 ## public.fn_watchdog_matching
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 525.00 ms (source: ast_estimator)
+- **Avg Time:** ~525 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.importacion_eventos, public.matching_jobs
 
 ## public.fn_match_articulo_proveedor
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 65.00 ms (source: ast_estimator)
+- **Avg Time:** ~65 ms (estimado) (source: ast_estimator)
 
 ## public.fn_disparar_edge_procesar_importacion
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 45.00 ms (source: ast_estimator)
+- **Avg Time:** ~45 ms (estimado) (source: ast_estimator)
 
 ## public.trg_costos_articulo_recalcular_async
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 175.00 ms (source: ast_estimator)
+- **Avg Time:** ~175 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.jobs
 
 ## public.trg_mapeo_publicacion_recalcular_async
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 305.00 ms (source: ast_estimator)
+- **Avg Time:** ~305 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.jobs
 
 ## public.fn_poblar_matching_decisiones
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 275.00 ms (source: ast_estimator)
+- **Avg Time:** ~275 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.matching_decisiones
 
 ## public.f_unaccent_immutable
@@ -473,7 +432,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_consolidar_importacion
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 1595.00 ms (source: ast_estimator)
+- **Avg Time:** ~1595 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.listas_precios_raw, public.listas_precios_proveedor, public.importacion_eventos, public.status, public.importaciones_excel, public.costos_articulo, public.listas_precios_raw_staging
 - **Cascading Triggers:**
  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
@@ -486,13 +445,13 @@ Columnas extraídas en Frontend / Edge:
 ## public.trg_costos_articulo_recalcular
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 - **Calls Functions:** public.fn_recalcular_precio_marketplace
 
 ## public.fn_recalcular_precio_marketplace
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 565.00 ms (source: ast_estimator)
+- **Avg Time:** ~565 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.marketplace_prices, public.SET
 - **Cascading Triggers:**
  - `marketplace_prices` -> `public.fn_set_marketplace_prices_updated_at` (Trigger: trg_marketplace_prices_updated_at)
@@ -500,13 +459,13 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_actualizar_comisiones_reales
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 355.00 ms (source: ast_estimator)
+- **Avg Time:** ~355 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.meli_category_commissions, public.SET
 
 ## public.fn_resolver_regla_pricing
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 125.00 ms (source: ast_estimator)
+- **Avg Time:** ~125 ms (estimado) (source: ast_estimator)
 
 ## public.trg_recalcular_precio_publicacion
 - **Security:** INVOKER
@@ -532,7 +491,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_tg_promote_pendientes
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 575.00 ms (source: ast_estimator)
+- **Avg Time:** ~575 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.costos_articulo, public.SET, public.costos_pendientes
 - **Cascading Triggers:**
  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
@@ -549,17 +508,17 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_calcular_precio_publico
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 215.00 ms (source: ast_estimator)
+- **Avg Time:** ~215 ms (estimado) (source: ast_estimator)
 
 ## public.update_actualizado_el
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 5.00 ms (source: ast_estimator)
+- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
 
 ## public.fn_guard_completado_importacion
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 25.00 ms (source: ast_estimator)
+- **Avg Time:** ~25 ms (estimado) (source: ast_estimator)
 
 ## public.fn_resolver_y_poblar_costos
 - **Security:** DEFINER
@@ -575,7 +534,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_consolidar_revision_importacion
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 1735.00 ms (source: ast_estimator)
+- **Avg Time:** ~1735 ms (estimado) (source: ast_estimator)
 - WARNING: **Dynamic SQL Detected**
 - **Touches Tables:** public.precios_proveedor_actual, public.listas_precios_proveedor, public.importacion_eventos, public.SET, public.costos_articulo, public.importaciones_excel
 - **Cascading Triggers:**
@@ -604,7 +563,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_app_config_get
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 25.00 ms (source: ast_estimator)
+- **Avg Time:** ~25 ms (estimado) (source: ast_estimator)
 
 ## public.recalcular_par_item_id
 - **Security:** DEFINER
@@ -636,7 +595,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.vincular_ficha
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 245.00 ms (source: ast_estimator)
+- **Avg Time:** ~245 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
@@ -647,7 +606,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.desvincular_ficha
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 225.00 ms (source: ast_estimator)
+- **Avg Time:** ~225 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
@@ -658,7 +617,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.eliminar_ficha_completa
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 225.00 ms (source: ast_estimator)
+- **Avg Time:** ~225 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.ficha_extracciones, public.fichas_tecnicas
 - **Cascading Triggers:**
  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
@@ -669,7 +628,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.desvincular_ficha_articulo
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 225.00 ms (source: ast_estimator)
+- **Avg Time:** ~225 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
@@ -680,7 +639,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.upsert_ingreso
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 355.00 ms (source: ast_estimator)
+- **Avg Time:** ~355 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.ingresos, public.SET
 - **Cascading Triggers:**
  - `ingresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_ingreso)
@@ -690,7 +649,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.actualizar_campos_regulatorios
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 205.00 ms (source: ast_estimator)
+- **Avg Time:** ~205 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
@@ -701,12 +660,12 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_validar_transicion_estado_importacion
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 25.00 ms (source: ast_estimator)
+- **Avg Time:** ~25 ms (estimado) (source: ast_estimator)
 
 ## public.eliminar_ficha_borrador
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 225.00 ms (source: ast_estimator)
+- **Avg Time:** ~225 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.ficha_extracciones, public.fichas_tecnicas
 - **Cascading Triggers:**
  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
@@ -717,7 +676,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.vincular_ficha_articulo
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 245.00 ms (source: ast_estimator)
+- **Avg Time:** ~245 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.fichas_tecnicas
 - **Cascading Triggers:**
  - `fichas_tecnicas` -> `public.trigger_auditoria_ficha` (Trigger: trigger_ficha_auditoria)
@@ -728,7 +687,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fix_par_item_id_faltantes
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 205.00 ms (source: ast_estimator)
+- **Avg Time:** ~205 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -737,7 +696,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.guardar_ficha_autoficha
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 1275.00 ms (source: ast_estimator)
+- **Avg Time:** ~1275 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.fuentes_documento, public.articulos, public.inventory_snapshot, public.fichas_tecnicas, public.ficha_extracciones, public.SET
 - **Cascading Triggers:**
  - `articulos` -> `public.fn_auto_create_inventory_snapshot` (Trigger: trg_auto_create_inventory_snapshot)
@@ -752,7 +711,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_backfill_egreso_ids
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 415.00 ms (source: ast_estimator)
+- **Avg Time:** ~415 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.egresos
 - **Cascading Triggers:**
  - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_egreso)
@@ -762,12 +721,12 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_resumen_matching
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 25.00 ms (source: ast_estimator)
+- **Avg Time:** ~25 ms (estimado) (source: ast_estimator)
 
 ## public.fn_watchdog_importaciones
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 925.00 ms (source: ast_estimator)
+- **Avg Time:** ~925 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.importacion_eventos, public.importaciones_excel, public.listas_precios_raw, public.listas_precios_raw_staging, public.costos_articulo, public.matching_jobs
 - **Cascading Triggers:**
  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
@@ -780,7 +739,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_confirmar_decisiones_masivo
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 605.00 ms (source: ast_estimator)
+- **Avg Time:** ~605 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.matching_decisiones, public.costos_articulo
 - **Cascading Triggers:**
  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
@@ -790,7 +749,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.fn_revertir_importacion
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 815.00 ms (source: ast_estimator)
+- **Avg Time:** ~815 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.precio_recalc_queue, public.listas_precios_proveedor, public.importaciones_excel, public.costos_articulo, public.costos_pendientes
 - **Cascading Triggers:**
  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
@@ -815,7 +774,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.upsert_egreso
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 355.00 ms (source: ast_estimator)
+- **Avg Time:** ~355 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.egresos, public.SET
 - **Cascading Triggers:**
  - `egresos` -> `public.trg_fn_sync_stock` (Trigger: trg_stock_after_update_egreso)
@@ -825,7 +784,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.claim_precio_recalc
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 445.00 ms (source: ast_estimator)
+- **Avg Time:** ~445 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.SKIP, public.precio_recalc_queue
 
 ## public.claim_jobs
@@ -922,14 +881,3 @@ Columnas extraídas en Frontend / Edge:
  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
-
-
-
-## Políticas de Seguridad Frontend y Runtime (Agregadas por Validación de QA)
-
-1. **Normalización Obligatoria en Borde:** Todo payload de DB/API debe pasar por una función de normalización antes del setState o renderizado.
-2. **Acceso Defensivo a Diccionarios:** Prohibido acceder a diccionarios sin opcionalidad. Se exige `config[key]?.label ?? fallback`.
-3. **Primitivas Render-Safe:** Todo método (`.toLocaleString`, `.map`, `.toFixed`, etc.) llamado sobre un campo de payload externo debe usar `?.` y `??` fallback.
-4. **Validación Estricta TypeScript:** Validación estricta garantizando que los objetos indexados dinámicamente (`noUncheckedIndexedAccess`) se traten como posibles `undefined`.
-5. **Smoke Tests E2E:** Validación en runtime real. Un build exitoso no descarta crashes de cliente.
-6. **Erradicación de Mojibake Segura:** Prohibido usar regex o índices para reemplazar caracteres Unicode. Usar exclusivamente `.split('─').join('-')` y verificar con build local.

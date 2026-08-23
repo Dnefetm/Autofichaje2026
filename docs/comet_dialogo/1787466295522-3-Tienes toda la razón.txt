@@ -1,0 +1,39 @@
+Tienes toda la razón. Mi error al confiar ciegamente en un documento estático demuestra exactamente por qué **un Blueprint que guarda "estados temporales" (como el número de fallos o los milisegundos de una consulta) es un peligro y destruye la confianza**. Si el documento miente, cualquier desarrollador o IA que lo lea tomará decisiones destructivas.
+
+Para que el Blueprint deje de ser un archivo de texto obsoleto y se convierta en una **herramienta de validación viva, precisa y a prueba de balas**, la estrategia debe cambiar radicalmente: el Blueprint debe dividirse en **Reglas Inmutables (Texto)** y **Auditoría Dinámica (Scripts)**.
+
+Aquí tienes la estrategia exacta para lograrlo:
+
+### 1. Limpieza Quirúrgica: Expulsar el "Estado Dinámico" del Markdown
+El principal problema del `db_flow_blueprint.md` actual es que intenta ser un *Dashboard* en formato texto.
+*   **Lo que debe eliminarse hoy:** Borrar cualquier mención a "Total: 2136 failed", tiempos de ejecución en ms, o hashes del esquema. Todo eso caduca en 1 minuto.
+*   **Por qué reemplazarlo:** En lugar de anotar el número de fallos, el Blueprint debe documentar **cómo consultarlo en tiempo real**. 
+    *   *Incorrecto:* "La cola recalc_pricing tiene 0 fallos".
+    *   *Correcto:* "Regla: La cola de jobs debe estar en 0. Para validar, ejecuta `npm run audit:queues`".
+
+### 2. Automatización del Blueprint (Scripts de Diagnóstico Real)
+El Blueprint debe dejar de "avisar" de errores manualmente y pasar a **detectarlos automáticamente**. Te propongo crear una suite de comandos locales (ej. `npm run blueprint:check`) que ejecute validaciones en vivo:
+*   **Detector de Tablas Zombis (Validación de Esquema):** Un script en Node.js que escanee todos los archivos `/api/**/*.ts` buscando las expresiones `.from('nombre_tabla')` y las cruce contra la base de datos real o contra los tipos generados de Supabase (`database.types.ts`). Si un archivo invoca `importaciones_precios` y no existe, el script falla y marca el error.
+*   **Detector de Cuellos de Botella HTTP:** Un script que lea el código fuente y levante una alerta si detecta `await supabaseAdmin.rpc(...)` dentro de rutas de API que no sean Webhooks o Workers, previniendo el error de bloqueo de Vercel que vimos con `fn_match_precios_v2`.
+
+### 3. La Nueva Estructura del Documento `db_flow_blueprint.md`
+El archivo Markdown debe ser reescrito para contener únicamente la **arquitectura, límites y flujos**. Debería tener solo 4 secciones estrictas:
+
+1.  **Glosario y Core Architecture (Verdad Absoluta):** Cuál es el motor oficial (Ej. "El motor de precios es ÚNICAMENTE `pricing_rule_v3`. Prohibido crear tablas paralelas de configuración"). Esto hubiera evitado mi error inicial.
+2.  **Límites Duros (Restricciones del Sistema):**
+    *   "Prohibido usar `.in()` con más de 200 elementos por riesgo de Límite de URL HTTP (8KB). Usar RPCs".
+    *   "Prohibido retornar peticiones HTTP con procesos SQL mayores a 5 segundos. Enviar a tabla `jobs`".
+3.  **Flujos de Datos (Data Lineage):** Un mapa de qué tabla alimenta a qué tabla (Ej. Excel -> `listas_precios_raw` -> `fn_match` -> `costos_articulo`).
+4.  **Comandos de Telemetría (No datos estáticos):** Los comandos de terminal para que el desarrollador (o la IA) auditen el estado actual antes de tocar el código.
+
+### 4. CI/CD: El Blueprint como un "Gatekeeper"
+Si el Blueprint es solo un archivo de texto, nadie lo va a respetar. Las reglas descritas arriba deben convertirse en reglas de **ESLint** (ej. prohibir ciertas importaciones o patrones de código) y ejecutarse automáticamente cada vez que intentas hacer un `git push`. 
+
+---
+
+### ¿Cómo avanzamos para recuperar la confianza?
+No te pido que confíes en mí a ciegas; te pido que confíes en el código que construyamos juntos. Si me lo permites, mi primera acción útil y demostrable será:
+
+**Crear el script `blueprint-auditor.js`:** Un pequeño programa que lee tu código fuente, cruza tus llamadas `.from('tabla')` contra la base de datos y te imprime en consola los endpoints reales que están rotos (como los zombies que vimos). Así, el "diagnóstico" no saldrá de mí, sino de tu propio código. 
+
+¿Quieres que te prepare este script para empezar a purgar las mentiras del sistema?

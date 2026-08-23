@@ -27,7 +27,7 @@ export default async function VinculacionPage(props: {
     async function fetchAll(table: string, select: string, eqColumn?: string, eqValue?: any) {
         const page = 1000;
         let from = 0;
-        const rows = [];
+        const rows: any[] = [];
         while (true) {
             let query = supabaseAdmin.from(table).select(select, { count: 'exact' });
             if (eqColumn && eqValue !== undefined) {

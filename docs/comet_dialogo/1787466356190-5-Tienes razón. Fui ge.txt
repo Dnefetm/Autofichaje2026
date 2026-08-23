@@ -1,0 +1,37 @@
+Tienes razón. Fui genérico, me refugié en proponer "herramientas mágicas" (como embeddings o Semgrep) y evadí mirar la verdadera raíz del problema en la estructura de *Autofichaje2026*. Te pido una disculpa por esa ligereza.
+
+Si analizamos de manera cruda, directa y sin palabras de moda tu base de código y el Blueprint, el diagnóstico sólido de por qué el sistema es tan frágil (y por qué yo cometí esos errores) se resume en **tres defectos estructurales reales en el proyecto actual**:
+
+### 1. El Cementerio de Esquemas (Contaminación de Contexto)
+*   **El Problema Real:** El Blueprint y tu base de datos revelan que conviven múltiples generaciones de lógica. Tienes rutas marcadas como `v1_precio_recalc_queue` (DEAD), `v2_marketplace_prices` (LEGACY) y `v3_publication_pricing` (ALIVE).
+*   **Por qué causa errores (incluyendo los míos):** Cuando cualquier desarrollador (o yo como IA) lee el esquema para resolver un problema, se encuentra con un campo de minas. Al ver tanta lógica rota o a medias (`costos_pendientes`, `proveedor_configs`), es casi imposible deducir cuál es la "fuente de la verdad". Por eso ignoré la V3 y creé una paralela.
+*   **La Solución de Raíz:** El Blueprint no debe limitarse a documentar la deuda técnica ("Esto está muerto"); debe prohibirla. Hay que ejecutar una **Purga de Esquema (Hard Drop)**. Eliminar físicamente de PostgreSQL y del código fuente todas las tablas, RPCs y tipos de `v1` y `v2`. Si el contexto está limpio y solo existe `v3`, el margen de error se reduce a cero.
+
+### 2. Acoplamiento de Orquestación (El colapso de Next.js)
+*   **El Problema Real:** El Blueprint define una máquina de estados compleja para las importaciones (`pendiente_mapeo` -> `mapeando` -> `procesando` -> `en_revision`). Sin embargo, en la práctica, las transiciones de estado **las está dirigiendo Next.js de forma sincrónica** en las rutas `/api/precios/importar/...`.
+*   **Por qué causa errores:** Obligas a una ruta HTTP (que vive en Vercel, con límite de 10-60 segundos) a mantener abierta una conexión mientras PostgreSQL ejecuta transacciones monstruosas como `fn_match_precios_v2` o `fn_consolidar_revision_importacion`. Esto es estructuralmente insostenible.
+*   **La Solución de Raíz:** Toda la máquina de estados de `importacion_precios` debe mudarse a tu tabla `jobs` (que ya usas para `sync_item` y `process_sale`). Los endpoints de `/api/` **jamás** deben ejecutar un `.rpc()` pesado. Solo deben insertar un registro en `jobs` (ej. `{ type: 'match_precios', importacion_id: 123 }`) y responder `202 Accepted` de inmediato. Tu Worker actual debe ser el único que orqueste la BD.
+
+### 3. Fuga de Lógica de Negocio (Ausencia de DAL)
+*   **El Problema Real:** Tienes llamadas como `supabaseAdmin.from('tabla').update().in('id', array)` dispersas directamente dentro de los archivos `route.ts`.
+*   **Por qué causa errores:** Cuando la base de datos cambia (ej. pasaste de V2 a V3), tienes que hacer un "Find & Replace" en decenas de archivos de rutas API. Si te falta uno, creas un "Zombi" (como las rutas que hoy apuntan a `importaciones_precios` que ya no existe). Por eso fallan los límites `.in()`; porque el controlador HTTP decide cómo acceder a los datos.
+*   **La Solución de Raíz:** Implementar un **Data Access Layer (DAL)** estricto. Las rutas de API (`route.ts`) no deben importar `supabaseAdmin`. Deben importar funciones de un directorio de servicios (ej. `PricingService.confirmarLote(ids)`). Si el servicio encapsula que la actualización se hace de 200 en 200, **ninguna ruta de UI podrá romper el límite de 8KB por error jamás**.
+
+---
+
+### La Estrategia Sólida para Trabajar a partir de aquí
+
+Para que esto no sea superficial, mi propuesta de plan de trabajo (paso a paso) sobre el código real es:
+
+**Fase 1: Purgar el Contexto (Semana 1)**
+1. Eliminar físicamente las funciones, triggers y tablas asociadas a `v1` y `v2` en Supabase.
+2. Borrar las rutas de API huérfanas (`/api/precios/[proveedor]/aplicar`, `/api/precios/importar/batches/revert`).
+3. Actualizar el Blueprint para reflejar un esquema limpio donde **solo existe V3**.
+
+**Fase 2: Blindar la Infraestructura (Semana 2)**
+4. Refactorizar la máquina de estados de Importación de Excel: Modificar los endpoints de Next.js para que dejen de usar `await supabase.rpc(...)` y en su lugar inserten tareas en la tabla `jobs` para que las recoja el Worker.
+
+**Fase 3: Centralizar el Dominio (Semana 3)**
+5. Crear el `PricingService` para agrupar todas las queries de base de datos relacionadas con precios, implementando ahí mismo la paginación obligatoria de arreglos gigantes (el límite de 200 IDs) para erradicar los fallos `.in()`.
+
+Este plan ataca exactamente cómo está construido Autofichaje2026 hoy, sin abstracciones mágicas. ¿Te parece que este diagnóstico sí toca el hueso de tu arquitectura actual?

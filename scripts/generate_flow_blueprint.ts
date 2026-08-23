@@ -538,7 +538,10 @@ const outJsonPath = path.join(rootDir, 'docs', 'db_flow_blueprint.json');
 fs.writeFileSync(outJsonPath, JSON.stringify(blueprint, null, 2));
 console.log(`Guardado JSON en: ${outJsonPath}`);
 
-let md = `# DB Flow Blueprint & System Diagnostics\n\n`;
+let md = `<!-- GENERADO AUTOMATICAMENTE - NO EDITAR A MANO -->\n`;
+md += `<!-- Fuente: docs/db_flow_blueprint.json | Contenido curado/politicas: docs/POLITICAS_FRONTEND.md -->\n\n`;
+md += `# DB Flow Blueprint & System Diagnostics\n\n`;
+md += `- **Generado:** \`${blueprint.generated_at}\` (snapshot; datos de runtime caducan en 26h. Verificar en vivo: node scripts/live_audit.js)\n`;
 md += `- **Schema hash:** \`${blueprint.schema_hash}\`\n`;
 md += `- **Processes hash:** \`${blueprint.processes_hash}\`\n`;
 md += `- **Tables:** ${Object.keys(blueprint.tables).length} | **Triggers:** ${blueprint.triggers.length} | **Cron jobs:** ${blueprint.cron_jobs.length} | **Edge fns:** ${blueprint.edge_functions.length} | **Queues:** ${Object.keys(blueprint.queues).length}\n\n`;
@@ -568,12 +571,13 @@ md += '\n';
 
 if (Object.keys(blueprint.queues).length > 0) {
 md += `## Colas (jobs)\n\n`;
+md += `> Conteos del snapshot \`${blueprint.generated_at}\`. NO es estado en vivo; los 'failed' son acumulado historico (nunca se purgan). Verificar en vivo: \`node scripts/live_audit.js\`.\n\n`;
 for (const [qName, q] of Object.entries(blueprint.queues)) {
 const counts = Object.entries(q.status_counts).map(([s, n]) => `${s}=${n}`).join(', ');
 md += `### ${qName}\n`;
 md += `- **Total:** ${q.total} (${counts})\n`;
 if (q.pending > 0) md += `- **Pendientes:** ${q.pending}\n`;
-if (q.failed > 0) md += `- **WARNING - Fallidos:** ${q.failed}\n`;
+if (q.failed > 0) md += `- **WARNING - Fallidos (acumulado historico):** ${q.failed}\n`;
 if (q.producers.length > 0) md += `- **Productores:** ${q.producers.join(', ')}\n`;
 md += '\n';
 }

@@ -201,7 +201,7 @@ export default function PricingAuditCard({
         return { color: 'bg-[var(--surface-2)]0 text-[var(--text)] border-[var(--border)]', text: status, icon: null };
     };
 
-    const ui = getStatusUI(pricingStatus, draftStatus);
+    const ui = getStatusUI(pricingStatus, draftStatus ?? null);
 
     return (
         <div className="bg-[var(--surface)] rounded-[var(--radius)]   overflow-hidden flex flex-col h-full">
