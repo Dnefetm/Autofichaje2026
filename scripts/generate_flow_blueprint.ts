@@ -118,11 +118,34 @@ if (fs.existsSync(limitsPath)) { external_limits = JSON.parse(fs.readFileSync(li
 let hints: Record<string, FlowHint> = {};
 let declaredProcesses: Record<string, ProcessDef> = {};
 let pipelineRoutes: Record<string, any> = {};
+let blockerChecks: Record<string, { check_sql: string; resuelto_si: string }> = {};
 if (fs.existsSync(hintsPath)) {
 const parsedHints = yaml.parse(fs.readFileSync(hintsPath, 'utf8'));
 if (parsedHints && parsedHints.hints) { hints = parsedHints.hints; }
 if (parsedHints && parsedHints.processes) { declaredProcesses = parsedHints.processes; }
 if (parsedHints && parsedHints.pipeline_routes) { pipelineRoutes = parsedHints.pipeline_routes; }
+// Bloqueos declarados con verificacion en vivo (check_sql + resuelto_si)
+for (const [k, v] of Object.entries<any>(parsedHints || {})) {
+if (v && typeof v === 'object' && typeof v.check_sql === 'string' && typeof v.resuelto_si === 'string') {
+blockerChecks[k] = { check_sql: v.check_sql, resuelto_si: v.resuelto_si };
+}
+}
+}
+
+// === Auto-expiracion de bloqueos: verificar contra la BD en vivo ===
+// Si un bloqueo declarado en flow_hints.yaml ya no se sostiene, se marca
+// RESUELTO y se emite STALE_BLOCKER en lugar de propagarlo como verdad.
+const resolvedBlockers: Record<string, number> = {};
+for (const [bName, chk] of Object.entries(blockerChecks)) {
+try {
+const r = await client.query(chk.check_sql);
+const n = Number(r.rows[0]?.n ?? 0);
+const m = chk.resuelto_si.match(/^\s*n\s*(>=|<=|==|>|<)\s*(\d+)\s*$/);
+if (!m) { console.warn(`[blocker] ${bName}: resuelto_si '${chk.resuelto_si}' no parseable; se omite.`); continue; }
+const op = m[1]; const target = Number(m[2]);
+const resolved = op === '>' ? n > target : op === '>=' ? n >= target : op === '<' ? n < target : op === '<=' ? n <= target : n === target;
+if (resolved) { resolvedBlockers[bName] = n; console.log(`[blocker] ${bName}: RESUELTO en vivo (n=${n}).`); }
+} catch (e) { console.warn(`[blocker] ${bName}: no se pudo verificar (${(e as Error).message}); se mantiene declarado.`); }
 }
 
 const rolesRes = await client.query(`SELECT rolname, rolconfig FROM pg_roles WHERE rolname IN ('authenticated', 'anon', 'service_role')`);
@@ -283,6 +306,9 @@ try {
 }
 
 const diagnostics: Diagnostic[] = [];
+for (const [bName, n] of Object.entries(resolvedBlockers)) {
+diagnostics.push({ scope: `blockers.${bName}`, severity: 'warn', code: 'STALE_BLOCKER', message: `El bloqueo declarado '${bName}' ya no se sostiene: la verificacion en vivo devolvio n=${n}.`, hint: 'Actualiza o elimina este bloqueo en docs/flow_hints.yaml.', evidence: { runtime: true, yaml: true } });
+}
 console.log("Corriendo Analizador Estatico de TypeScript (AST)...");
 const tsResult = runStaticAppAnalysis(rootDir);
 
@@ -505,7 +531,7 @@ for (const [procName, proc] of Object.entries<any>(declaredProcesses)) {
             const isProducible = producerHints.length > 0;
             if (hasRuntime) return;
             if (hasHandler || isProducible) {
-                diagnostics.push({ scope: `processes.${procName}.downstream`, severity: expectRuntime ? 'warn' : 'info', code: 'QUEUE_NO_RUNTIME', message: `cola '${job}' sin filas observadas en public.jobs`, hint: d.blocked_by ? `Bloqueo conocido: ${d.blocked_by}. No es fallo estructural.` : 'La cola es valida pero aun no tiene trafico observado.', evidence: { runtime: false, handler: handlers, producer: producerHints, yaml: true } });
+                diagnostics.push({ scope: `processes.${procName}.downstream`, severity: expectRuntime ? 'warn' : 'info', code: 'QUEUE_NO_RUNTIME', message: `cola '${job}' sin filas observadas en public.jobs`, hint: d.blocked_by ? (resolvedBlockers[d.blocked_by] !== undefined ? `El bloqueo '${d.blocked_by}' esta RESUELTO en vivo; esta cola deberia empezar a tener trafico.` : `Bloqueo conocido: ${d.blocked_by}. No es fallo estructural.`) : 'La cola es valida pero aun no tiene trafico observado.', evidence: { runtime: false, handler: handlers, producer: producerHints, yaml: true } });
             } else {
                 diagnostics.push({ scope: `processes.${procName}.downstream`, severity: 'error', code: 'QUEUE_ORPHAN', message: `cola '${job}' sin runtime, sin consumidor detectable y sin productor detectable`, hint: `Agrega el handler en route.ts o corrige el nombre en flow_hints.yaml.`, evidence: { runtime: false, handler: handlers, producer: producerHints, yaml: true } });
             }

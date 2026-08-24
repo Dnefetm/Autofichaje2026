@@ -16,6 +16,24 @@ process.exit(1);
 const blueprint = JSON.parse(fs.readFileSync(blueprintPath, 'utf8'));
 const limits = fs.existsSync(limitsPath) ? JSON.parse(fs.readFileSync(limitsPath, 'utf8')) : {};
 
+// --- Guardia de obsolescencia (Fase 1, 2026-08-23) ---
+// Un blueprint con mas de 26h ya no es verdad vigente: los datos de runtime
+// (colas, tiempos) son un snapshot viejo. Mejor fallar que diagnosticar con mentiras.
+const STALE_LIMIT_MS = 26 * 60 * 60 * 1000;
+const genAtMs = Date.parse(blueprint.generated_at || '');
+if (Number.isNaN(genAtMs)) {
+console.error("[STALE_BLUEPRINT] El blueprint no tiene generated_at valido. Regenera con generate_flow_blueprint.ts.");
+process.exit(1);
+}
+const ageH = (Date.now() - genAtMs) / 3600000;
+if (Date.now() - genAtMs > STALE_LIMIT_MS) {
+console.error(`[STALE_BLUEPRINT] El blueprint tiene ${ageH.toFixed(1)}h de antiguedad (limite: 26h).`);
+console.error(" - Los conteos de colas y tiempos son un snapshot viejo, NO el estado actual.");
+console.error(" - Regenera: npx tsx scripts/generate_flow_blueprint.ts | En vivo: node scripts/live_audit.js");
+process.exit(1);
+}
+console.log(`[stale-guard] Blueprint fresco (${ageH.toFixed(1)}h de antiguedad, limite 26h).`);
+
 // --- Comprobacion de schema_hash (detecta obsolescencia) ---
 const currentHash: string | null = blueprint.schema_hash || null;
 if (currentHash) {

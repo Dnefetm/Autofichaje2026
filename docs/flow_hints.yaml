@@ -78,6 +78,11 @@ recalc_pricing_bundle_fix:
 # BLOQUEANTE DE DATOS confirmado por validacion (transaccion con ROLLBACK, sin mutar prod)
 # ====================================================================
 pricing_data_blocker:
+  # Verificacion en vivo (Fase 1, 2026-08-23): el generador ejecuta check_sql
+  # contra la BD real; si se cumple resuelto_si, el bloqueo se auto-expira
+  # (diagnostico STALE_BLOCKER) en lugar de propagarse como verdad.
+  check_sql: "SELECT count(*)::int AS n FROM costos_articulo WHERE vigente = true"
+  resuelto_si: "n > 0"
   costos_articulo_total: 0
   costos_articulo_vigentes: 0
   articulos_mapeados_distintos: 88
