@@ -191,7 +191,7 @@ COALESCE(json_agg(json_build_object('column', a.attname, 'type', format_type(a.a
 FROM pg_class c
 JOIN pg_namespace n ON c.relnamespace = n.oid
 LEFT JOIN pg_attribute a ON a.attrelid = c.oid
-WHERE n.nspname = 'public' AND c.relkind IN ('r','v','m') -- tablas, vistas y vistas materializadas (Fase 1: evita falsos TABLE_NOT_FOUND)
+WHERE n.nspname = 'public' AND c.relkind IN ('r','v','m','p','f') -- tablas, vistas, matviews, particionadas y foraneas (Fase 1: evita falsos TABLE_NOT_FOUND)
 GROUP BY c.relname, c.relrowsecurity
 `);
 const tables: Record<string, any> = {};
