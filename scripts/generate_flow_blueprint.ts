@@ -80,6 +80,7 @@ recovery?: any;
 
 interface Blueprint {
 generated_at: string;
+source_db: { host: string; project_ref: string | null; expected_project_ref: string | null; verified: boolean };
 schema_hash: string | null;
 processes_hash: string | null;
 roles: Record<string, any>;
@@ -99,15 +100,33 @@ diagnostics: Diagnostic[];
 // Deduplica preservando orden
 function dedup(arr: string[]): string[] { return Array.from(new Set(arr)); }
 
+// === Identidad de la BD (Fase 4, 2026-08-25) ===
+// Extrae el project ref de Supabase desde la URL de conexion SIN conectar.
+// Soporta: conexion directa (db.<ref>.supabase.co / <ref>.supabase.co) y
+// pooler (aws-X-region.pooler.supabase.com con usuario postgres.<ref>).
+// Razon: el secret SUPABASE_DB_URL del CI apuntaba a OTRA base de datos y el
+// blueprint describia un sistema que no era produccion. Nunca mas en silencio.
+function extractDbIdentity(dbUrl: string): { host: string; projectRef: string | null } {
+try {
+const u = new URL(dbUrl);
+const host = u.hostname;
+const mHost = host.match(/^(?:db\.)?([a-z0-9]{20})\.supabase\.co$/);
+if (mHost) return { host, projectRef: mHost[1] };
+const user = decodeURIComponent(u.username || '');
+const mUser = user.match(/^postgres\.([a-z0-9]{20})$/);
+if (mUser) return { host, projectRef: mUser[1] };
+return { host, projectRef: null };
+} catch {
+return { host: '(URL no parseable)', projectRef: null };
+}
+}
+
 async function main() {
 const dbUrl = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 if (!dbUrl) {
 console.error("ERROR: DATABASE_URL o SUPABASE_DB_URL no configurada.");
 process.exit(1);
 }
-const client = new Client({ connectionString: dbUrl });
-await client.connect();
-console.log("Conectado a la base de datos. Extrayendo catalogos...");
 
 const rootDir = path.resolve(__dirname, '..');
 const limitsPath = path.join(rootDir, 'infra_limits.json');
@@ -121,12 +140,14 @@ let declaredProcesses: Record<string, ProcessDef> = {};
 let pipelineRoutes: Record<string, any> = {};
 let blockerChecks: Record<string, { check_sql: string; resuelto_si: string }> = {};
 let tableNotFoundWhitelist: string[] = [];
+let expectedDbProjectRef: string | null = null;
 if (fs.existsSync(hintsPath)) {
 const parsedHints = yaml.parse(fs.readFileSync(hintsPath, 'utf8'));
 if (parsedHints && parsedHints.hints) { hints = parsedHints.hints; }
 if (parsedHints && parsedHints.processes) { declaredProcesses = parsedHints.processes; }
 if (parsedHints && parsedHints.pipeline_routes) { pipelineRoutes = parsedHints.pipeline_routes; }
 if (parsedHints && Array.isArray(parsedHints.table_not_found_whitelist)) { tableNotFoundWhitelist = parsedHints.table_not_found_whitelist.map((x: any) => String(x)); }
+if (parsedHints && parsedHints.expected_db_project_ref) { expectedDbProjectRef = String(parsedHints.expected_db_project_ref); }
 // Bloqueos declarados con verificacion en vivo (check_sql + resuelto_si)
 for (const [k, v] of Object.entries<any>(parsedHints || {})) {
 if (v && typeof v === 'object' && typeof v.check_sql === 'string' && typeof v.resuelto_si === 'string') {
@@ -134,6 +155,28 @@ blockerChecks[k] = { check_sql: v.check_sql, resuelto_si: v.resuelto_si };
 }
 }
 }
+
+// === Verificacion de identidad de la BD ANTES de conectar (Fase 4) ===
+// Si el secret apunta a otra base, el blueprint entero seria una mentira
+// bien formateada. Mejor fallar ruidoso que publicar datos de un sistema ajeno.
+const dbIdentity = extractDbIdentity(dbUrl);
+if (expectedDbProjectRef) {
+if (dbIdentity.projectRef !== expectedDbProjectRef) {
+console.error(`\n[DB-IDENTITY] ABORTANDO: la URL apunta al proyecto '${dbIdentity.projectRef ?? 'desconocido'}' (${dbIdentity.host})`);
+console.error(`pero flow_hints.yaml exige '${expectedDbProjectRef}'.`);
+console.error(" - Causa probable: el secret SUPABASE_DB_URL apunta a OTRA base de datos.");
+console.error(" - Corrige el secret (Settings > Secrets > Actions > SUPABASE_DB_URL) y vuelve a correr.");
+console.error(" - Ningun dato fue extraido ni publicado.\n");
+process.exit(1);
+}
+console.log(`[db-identity] OK: extrayendo de '${dbIdentity.projectRef}' (${dbIdentity.host}), coincide con expected_db_project_ref.`);
+} else {
+console.warn(`[db-identity] ADVERTENCIA: no hay expected_db_project_ref en flow_hints.yaml; no se puede garantizar que esta BD (${dbIdentity.host}) sea produccion.`);
+}
+
+const client = new Client({ connectionString: dbUrl });
+await client.connect();
+console.log("Conectado a la base de datos. Extrayendo catalogos...");
 
 // === Auto-expiracion de bloqueos: verificar contra la BD en vivo ===
 // Si un bloqueo declarado en flow_hints.yaml ya no se sostiene, se marca
@@ -337,6 +380,12 @@ console.log(`[ast-analysis] ${appDiagnostics.length} diagnosticos del analizador
 
 const blueprint: Blueprint = {
 generated_at: new Date().toISOString(),
+source_db: {
+host: dbIdentity.host,
+project_ref: dbIdentity.projectRef,
+expected_project_ref: expectedDbProjectRef,
+verified: expectedDbProjectRef !== null && dbIdentity.projectRef === expectedDbProjectRef
+},
 schema_hash,
 processes_hash: null,
 roles,
@@ -591,6 +640,7 @@ let md = `<!-- GENERADO AUTOMATICAMENTE - NO EDITAR A MANO -->\n`;
 md += `<!-- Fuente: docs/db_flow_blueprint.json | Contenido curado/politicas: docs/POLITICAS_FRONTEND.md -->\n\n`;
 md += `# DB Flow Blueprint & System Diagnostics\n\n`;
 md += `- **Generado:** \`${blueprint.generated_at}\` (snapshot; datos de runtime caducan en 26h. Verificar en vivo: node scripts/live_audit.js)\n`;
+md += `- **Fuente de extraccion:** proyecto \`${blueprint.source_db.project_ref || 'desconocido'}\` (${blueprint.source_db.host}) — identidad ${blueprint.source_db.verified ? '**VERIFICADA** contra expected_db_project_ref' : '**NO VERIFICADA** (falta expected_db_project_ref en flow_hints.yaml)'}\n`;
 md += `- **Schema hash:** \`${blueprint.schema_hash}\`\n`;
 md += `- **Processes hash:** \`${blueprint.processes_hash}\`\n`;
 md += `- **Tables:** ${Object.keys(blueprint.tables).length} | **Triggers:** ${blueprint.triggers.length} | **Cron jobs:** ${blueprint.cron_jobs.length} | **Edge fns:** ${blueprint.edge_functions.length} | **Queues:** ${Object.keys(blueprint.queues).length}\n\n`;

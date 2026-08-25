@@ -1,3 +1,12 @@
+# ====================================================================
+# IDENTIDAD DE BD ESPERADA (Fase 4, 2026-08-25)
+# El generador ABORTA y el guardian de CI FALLA si la URL de conexion no
+# apunta a este proyecto. Razon: el secret SUPABASE_DB_URL de GitHub Actions
+# apuntaba a OTRA base de datos y el blueprint describia un sistema ajeno.
+# Si migras de proyecto, actualiza este valor a conciencia.
+# ====================================================================
+expected_db_project_ref: ryxdqnzyvnrwalylqyvm
+
 hints:
   public.fn_preparar_importacion_revision:
     estimated_time_ms: 2500

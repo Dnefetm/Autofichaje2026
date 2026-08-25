@@ -16,6 +16,29 @@ process.exit(1);
 const blueprint = JSON.parse(fs.readFileSync(blueprintPath, 'utf8'));
 const limits = fs.existsSync(limitsPath) ? JSON.parse(fs.readFileSync(limitsPath, 'utf8')) : {};
 
+// --- Identidad de la BD de origen (Fase 4, 2026-08-25) ---
+// El artefacto debe declarar de que BD salio y debe coincidir con la esperada.
+// Sin esto, un "CI verde" puede describir una base que NO es produccion.
+const yaml = require('yaml');
+const hintsForIdentityPath = path.join(rootDir, 'docs', 'flow_hints.yaml');
+let expectedDbRef: string | null = null;
+if (fs.existsSync(hintsForIdentityPath)) {
+const parsedHints = yaml.parse(fs.readFileSync(hintsForIdentityPath, 'utf8'));
+if (parsedHints && parsedHints.expected_db_project_ref) expectedDbRef = String(parsedHints.expected_db_project_ref);
+}
+const srcDb = blueprint.source_db;
+if (!srcDb || !srcDb.project_ref) {
+console.error("[DB-IDENTITY] El blueprint no declara su BD de origen (source_db). Artefacto viejo o corrupto: regenera con generate_flow_blueprint.ts.");
+process.exit(1);
+}
+if (expectedDbRef && srcDb.project_ref !== expectedDbRef) {
+console.error(`[DB-IDENTITY] El blueprint se extrajo del proyecto '${srcDb.project_ref}' (${srcDb.host}) pero se esperaba '${expectedDbRef}'.`);
+console.error(" - Causa probable: el secret SUPABASE_DB_URL apunta a OTRA base de datos.");
+console.error(" - Este blueprint NO describe tu produccion. Corrige el secret y regenera.");
+process.exit(1);
+}
+console.log(`[db-identity] Artefacto extraido de '${srcDb.project_ref}' (${srcDb.host}) — coincide con expected_db_project_ref.`);
+
 // --- Guardia de obsolescencia (Fase 1, 2026-08-23) ---
 // Un blueprint con mas de 26h ya no es verdad vigente: los datos de runtime
 // (colas, tiempos) son un snapshot viejo. Mejor fallar que diagnosticar con mentiras.
