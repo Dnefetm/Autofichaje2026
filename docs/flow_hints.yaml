@@ -85,6 +85,21 @@ recalc_pricing_bundle_fix:
 
 
 # ====================================================================
+# WHITELIST TABLE_NOT_FOUND (Fase 1.6, 2026-08-25)
+# Estas tablas EXISTEN en produccion (verificado via PostgREST el 2026-08-23/24)
+# pero NO en el catalogo que extrae el CI, porque el secret SUPABASE_DB_URL
+# apunta a otra base de datos. Mientras el secret no se corrija, TABLE_NOT_FOUND
+# sobre estas tablas queda en 'warn'; para cualquier otra tabla es ERROR (rompe CI).
+# TODO: retirar esta whitelist en cuanto se corrija el secret de GitHub Actions.
+# ====================================================================
+table_not_found_whitelist:
+  - documentos-fuente
+  - importaciones_precios
+  - precio_import_batches
+  - precios_historial_proveedor
+  - bundle_components
+
+# ====================================================================
 # PROCESOS (pipelines de negocio) - consumido por generate_flow_blueprint.ts
 # Capa declarativa curada: define ORDEN logico + fronteras externas que la
 # introspeccion de Postgres no expone. El generador valida que cada 'fn' y
@@ -130,3 +145,65 @@ processes:
       desde: error
       rutas: [mapeando, procesando, completado]
       motivo: Resuelve error 23514; el lote en error reintenta hasta completado sin intervencion.
+
+  # ==================================================================
+  # Procesos declarados (Fase 2.9, 2026-08-25). Cada fn esta validada
+  # contra el catalogo real: si deja de existir, el CI falla (FN_MISSING).
+  # ==================================================================
+  sync_stock_inventario:
+    descripcion: Sincronizacion de stock hacia MeLi tras movimientos de inventario (ingresos/egresos/ajustes).
+    trigger: Cambios en ingresos/egresos (trg_stock_after_*) o en inventory_snapshot (trg_encolar_sync_stock)
+    steps:
+      - fn: public.trg_fn_sync_stock
+      - fn: public.fn_recalcular_stock
+        tabla_destino: inventory_snapshot
+      - fn: public.fn_encolar_sync_stock
+        tabla_destino: jobs
+    downstream:
+      - job: sync_stock
+        consumidor: apps/dashboard/src/app/api/worker/process/route.ts
+        expect_runtime: true
+      - job: sync_stock_mapped
+        consumidor: apps/dashboard/src/components/mapping-modal.tsx
+        expect_runtime: true
+
+  proceso_venta_meli:
+    descripcion: Procesamiento de venta de Mercado Libre y decremento seguro de stock.
+    trigger: Webhook MeLi (POST /api/webhooks/meli)
+    steps:
+      - fn: public.decrement_stock_safe
+        tabla_destino: inventory_snapshot
+    downstream:
+      - job: process_sale
+        consumidor: apps/dashboard/src/app/api/webhooks/meli/route.ts
+        expect_runtime: true
+      - job: sync_stock
+        consumidor: apps/dashboard/src/app/api/worker/process/route.ts
+        expect_runtime: true
+
+  pricing_publicacion_v3:
+    descripcion: Recalculo de precio de publicacion (ruta v3, unica ALIVE) y propagacion a MeLi.
+    trigger: Cambios en publicaciones_externas (trg_recalcular_precio_publicacion) o job recalc_pricing_bundle
+    steps:
+      - fn: public.fn_recalcular_precio_publicacion
+        tabla_destino: publication_pricing_history
+      - fn: public.fn_resolver_regla_pricing
+    downstream:
+      - job: recalc_pricing_bundle
+        consumidor: apps/dashboard/src/app/api/worker/process/route.ts#handleRecalcPricingBundle
+        expect_runtime: true
+      - job: sync_price
+        consumidor: apps/dashboard/src/app/api/worker/process/route.ts#handleSyncPrice
+        expect_runtime: false
+        # Sin trafico por guardas de negocio (sync_disabled / pricing_status != 'ok')
+
+  autoficha_fichas:
+    descripcion: Creacion y edicion de fichas tecnicas con extraccion, auditoria y campos regulatorios.
+    trigger: UI de autoficha (guardar/editar ficha)
+    steps:
+      - fn: public.guardar_ficha_autoficha
+        tabla_destino: fichas_tecnicas
+      - fn: public.trigger_auditoria_ficha
+        tabla_destino: ficha_auditoria
+      - fn: public.crear_version_ficha
+        tabla_destino: fichas_tecnicas

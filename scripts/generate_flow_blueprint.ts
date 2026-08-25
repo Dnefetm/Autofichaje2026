@@ -58,6 +58,7 @@ status_counts: Record<string, number>;
 total: number;
 pending: number;
 failed: number;
+failed_24h: number;
 producers: string[];
 }
 
@@ -119,11 +120,13 @@ let hints: Record<string, FlowHint> = {};
 let declaredProcesses: Record<string, ProcessDef> = {};
 let pipelineRoutes: Record<string, any> = {};
 let blockerChecks: Record<string, { check_sql: string; resuelto_si: string }> = {};
+let tableNotFoundWhitelist: string[] = [];
 if (fs.existsSync(hintsPath)) {
 const parsedHints = yaml.parse(fs.readFileSync(hintsPath, 'utf8'));
 if (parsedHints && parsedHints.hints) { hints = parsedHints.hints; }
 if (parsedHints && parsedHints.processes) { declaredProcesses = parsedHints.processes; }
 if (parsedHints && parsedHints.pipeline_routes) { pipelineRoutes = parsedHints.pipeline_routes; }
+if (parsedHints && Array.isArray(parsedHints.table_not_found_whitelist)) { tableNotFoundWhitelist = parsedHints.table_not_found_whitelist.map((x: any) => String(x)); }
 // Bloqueos declarados con verificacion en vivo (check_sql + resuelto_si)
 for (const [k, v] of Object.entries<any>(parsedHints || {})) {
 if (v && typeof v === 'object' && typeof v.check_sql === 'string' && typeof v.resuelto_si === 'string') {
@@ -246,19 +249,26 @@ console.log(`[state-machine] importacion: ${enumStates.length} estados, ${Object
 const queues: Record<string, Queue> = {};
 try {
 const jobsRes = await client.query(`SELECT type, status, count(*)::int AS n FROM public.jobs GROUP BY type, status`);
+// Fallidos recientes (ventana 24h): el acumulado historico nunca se purga y no refleja la salud actual (Fase 2)
+let failed24hByType: Record<string, number> = {};
+try {
+const f24 = await client.query(`SELECT type, count(*)::int AS n FROM public.jobs WHERE status = 'failed' AND created_at > now() - interval '24 hours' GROUP BY type`);
+f24.rows.forEach((r: any) => { failed24hByType[r.type] = r.n; });
+} catch (e) { console.warn("[queues] No se pudo calcular failed_24h.", (e as Error).message); }
 // Productores: funciones/triggers cuyo prosrc inserta en la cola jobs.
 // Se intenta asociar por tipo si el prosrc menciona el literal del tipo; si no, se marca como productor generico.
 const producerRows = funcsRes.rows.filter((f: any) => /INSERT\s+INTO\s+(?:public\.)?jobs\b/i.test(f.prosrc || ''));
 for (const row of jobsRes.rows) {
 const t = row.type as string;
 if (!queues[t]) {
-queues[t] = { type: t, status_counts: {}, total: 0, pending: 0, failed: 0, producers: [] };
+queues[t] = { type: t, status_counts: {}, total: 0, pending: 0, failed: 0, failed_24h: 0, producers: [] };
 }
 queues[t].status_counts[row.status] = row.n;
 queues[t].total += row.n;
 if (row.status === 'pending') queues[t].pending += row.n;
 if (row.status === 'failed') queues[t].failed += row.n;
 }
+for (const t of Object.keys(queues)) { queues[t].failed_24h = failed24hByType[t] || 0; }
 // Asociar productores: si el prosrc del productor menciona el tipo, se lista en esa cola; ademas se listan como genericos.
 const genericProducers: string[] = producerRows.map((f: any) => `${f.schema}.${f.proname}`);
 for (const t of Object.keys(queues)) {
@@ -286,7 +296,7 @@ try {
             const queueName = `${row.table_name}`;
             
             if (!queues[queueName]) {
-                queues[queueName] = { type: queueName, status_counts: {}, total: 0, pending: 0, failed: 0, producers: [row.tgname] };
+                queues[queueName] = { type: queueName, status_counts: {}, total: 0, pending: 0, failed: 0, failed_24h: 0, producers: [row.tgname] };
             } else {
                 if (!queues[queueName].producers.includes(row.tgname)) queues[queueName].producers.push(row.tgname);
             }
@@ -451,12 +461,25 @@ const appDiagnosticsPostDB = validateCrossReferences(tsResult, blueprint.functio
 appDiagnosticsPostDB.forEach(d => {
     // Evitar duplicados del primer parseo ciego
     if (!diagnostics.find(existing => existing.code === d.code && existing.scope === d.scope)) {
+        // Fase 1.6: TABLE_NOT_FOUND es ERROR (rompe CI) salvo whitelist justificada en flow_hints.yaml
+        let severity = d.severity;
+        let extraHint = '';
+        if (d.code === 'TABLE_NOT_FOUND') {
+            const tbl = String(d.scope || '').replace(/^app\.table\./, '');
+            if (tableNotFoundWhitelist.includes(tbl)) {
+                severity = 'warn';
+                extraHint = ' (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)';
+            } else {
+                severity = 'error';
+                extraHint = ' (error estructural: la app referencia una relacion inexistente en el catalogo; crea la migracion o agrega whitelist justificada)';
+            }
+        }
         diagnostics.push({
             scope: d.scope,
-            severity: d.severity,
+            severity,
             code: d.code,
             message: d.message,
-            hint: d.file ? `En archivo: ${d.file}` : undefined,
+            hint: ((d.file ? `En archivo: ${d.file}` : '') + extraHint) || undefined,
             evidence: { runtime: false }
         });
     }
@@ -603,7 +626,7 @@ const counts = Object.entries(q.status_counts).map(([s, n]) => `${s}=${n}`).join
 md += `### ${qName}\n`;
 md += `- **Total:** ${q.total} (${counts})\n`;
 if (q.pending > 0) md += `- **Pendientes:** ${q.pending}\n`;
-if (q.failed > 0) md += `- **WARNING - Fallidos (acumulado historico):** ${q.failed}\n`;
+if (q.failed > 0) md += `- **WARNING - Fallidos (acumulado historico):** ${q.failed} | **Fallidos ultimas 24h:** ${q.failed_24h ?? 0}\n`;
 if (q.producers.length > 0) md += `- **Productores:** ${q.producers.join(', ')}\n`;
 md += '\n';
 }

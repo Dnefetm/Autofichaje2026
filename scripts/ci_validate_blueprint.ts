@@ -34,6 +34,34 @@ process.exit(1);
 }
 console.log(`[stale-guard] Blueprint fresco (${ageH.toFixed(1)}h de antiguedad, limite 26h).`);
 
+// --- Integridad del artefacto .md (Fase 3.14, 2026-08-25) ---
+// El md es 100% generado: debe ser UTF-8 puro, llevar el encabezado GENERADO
+// y estar sincronizado con el JSON (mismo generated_at). Una edicion manual
+// (ej. Add-Content de PowerShell) corrompe la codificacion o desincroniza.
+const mdPath = path.join(rootDir, 'docs', 'db_flow_blueprint.md');
+if (!fs.existsSync(mdPath)) {
+console.error("[MD_INTEGRITY] Falta docs/db_flow_blueprint.md. Regenera con generate_flow_blueprint.ts.");
+process.exit(1);
+}
+const mdBuf = fs.readFileSync(mdPath);
+try {
+new TextDecoder('utf-8', { fatal: true }).decode(mdBuf);
+} catch (e) {
+console.error("[MD_INTEGRITY] db_flow_blueprint.md NO es UTF-8 valido (posible corrupcion por edicion manual/PowerShell).");
+console.error(" - Reparar: node scripts/fase0_reparar_blueprint.py o regenerar con el CI.");
+process.exit(1);
+}
+const mdText = mdBuf.toString('utf8');
+if (!mdText.includes('GENERADO AUTOMATICAMENTE - NO EDITAR A MANO')) {
+console.error("[MD_INTEGRITY] db_flow_blueprint.md no tiene el encabezado GENERADO; pudo ser editado a mano o reemplazado.");
+process.exit(1);
+}
+if (blueprint.generated_at && !mdText.includes(blueprint.generated_at)) {
+console.error("[MD_INTEGRITY] El md y el JSON estan desincronizados (generated_at distinto). Regenera ambos.");
+process.exit(1);
+}
+console.log("[md-integrity] db_flow_blueprint.md integro: UTF-8 valido, encabezado presente, sincronizado con JSON.");
+
 // --- Comprobacion de schema_hash (detecta obsolescencia) ---
 const currentHash: string | null = blueprint.schema_hash || null;
 if (currentHash) {
