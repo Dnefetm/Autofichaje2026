@@ -60,9 +60,10 @@ pipeline_routes:
 
 # ====================================================================
 # CIERRE DE BRECHA recalc_pricing_bundle (auditoria + fix 2026-08-10)
+# VERIFICADO EN VIVO 2026-08-23/25: 4,030+ jobs completed, 0 failed (snapshot CI).
 # ====================================================================
 recalc_pricing_bundle_fix:
-  estado: IMPLEMENTADO
+  estado: IMPLEMENTADO_Y_VERIFICADO
   commit: e1e57f8 (branch Dnefetm-patch-2)
   archivo: apps/dashboard/src/app/api/worker/process/route.ts
   productor_real: trg_costos_articulo_recalcular_async  # AST/pg_proc: dispara al cambiar costos_articulo (vigente=true)
@@ -75,30 +76,12 @@ recalc_pricing_bundle_fix:
   flujo_end_to_end: costos_articulo -> trg_costos_articulo_recalcular_async -> job recalc_pricing_bundle -> route.ts/handleRecalcPricingBundle -> fn_recalcular_precio_publicacion -> publicaciones_externas + publication_pricing_history -> job sync_price -> MeliAdapter.updatePrice
 
 # ====================================================================
-# BLOQUEANTE DE DATOS confirmado por validacion (transaccion con ROLLBACK, sin mutar prod)
+# pricing_data_blocker: RESUELTO — ELIMINADO 2026-08-24
+# La auto-expiracion del generador (Fase 1) verifico en vivo que
+# costos_articulo tiene 10,252 filas vigentes (n=10252). Las afirmaciones
+# historicas de "tabla vacia / 0 vigentes" quedaron invalidadas y se retiran
+# para no propagar verdades obsoletas. Referencia: commit cb6283f.
 # ====================================================================
-pricing_data_blocker:
-  # Verificacion en vivo (Fase 1, 2026-08-23): el generador ejecuta check_sql
-  # contra la BD real; si se cumple resuelto_si, el bloqueo se auto-expira
-  # (diagnostico STALE_BLOCKER) en lugar de propagarse como verdad.
-  check_sql: "SELECT count(*)::int AS n FROM costos_articulo WHERE vigente = true"
-  resuelto_si: "n > 0"
-  costos_articulo_total: 0
-  costos_articulo_vigentes: 0
-  articulos_mapeados_distintos: 88
-  articulos_mapeados_con_costo_vigente: 0
-  publicaciones_mapeadas: 155        # 154 pending + 1 estimated_params, 0 en 'ok'
-  recalc_masivo_simulado: missing_cost=155   # correr fn_recalcular_precio_publicacion sobre las 155 -> TODAS missing_cost
-  conclusion: >-
-    El worker path esta completo y verificado a nivel RPC, pero la tabla costos_articulo
-    esta VACIA. Sin costos vigentes, fn_recalcular_precio_publicacion devuelve missing_cost
-    (no escribe history, no encola sync_price). Por eso nunca han existido jobs recalc_pricing_bundle.
-  siguiente_paso_datos: >-
-    Poblar costos_articulo (import de proveedor / fn_resolver_y_poblar_costos) para los 88 articulos
-    mapeados. Es operacion de datos controlada por el owner; no se ejecuta automaticamente.
-  nota_gap_previo: >-
-    El gap_critico de v3_publication_pricing queda RESUELTO en codigo (handler agregado).
-    Correccion: el productor real es trg_costos_articulo_recalcular_async (no trg_mapeo_publicacion_recalcular_async).
 
 
 # ====================================================================
@@ -140,7 +123,8 @@ processes:
         consumidor: apps/dashboard/src/app/api/worker/process/route.ts#handleSyncPrice
         productor: recalc_pricing_bundle
         expect_runtime: false
-        blocked_by: pricing_data_blocker
+        # blocked_by eliminado 2026-08-24: pricing_data_blocker RESUELTO en vivo (10,252 costos vigentes).
+        # Sin trafico observado aun por guardas de negocio (sync_disabled / pricing_status != 'ok').
     state_machine: importacion
     recovery:
       desde: error

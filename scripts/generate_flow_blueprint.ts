@@ -191,7 +191,7 @@ COALESCE(json_agg(json_build_object('column', a.attname, 'type', format_type(a.a
 FROM pg_class c
 JOIN pg_namespace n ON c.relnamespace = n.oid
 LEFT JOIN pg_attribute a ON a.attrelid = c.oid
-WHERE n.nspname = 'public' AND c.relkind = 'r'
+WHERE n.nspname = 'public' AND c.relkind IN ('r','v','m') -- tablas, vistas y vistas materializadas (Fase 1: evita falsos TABLE_NOT_FOUND)
 GROUP BY c.relname, c.relrowsecurity
 `);
 const tables: Record<string, any> = {};
@@ -706,7 +706,7 @@ for (const [funcName, data] of Object.entries(blueprint.functions)) {
 md += `## ${funcName}\n`;
 md += `- **Security:** ${data.security}\n`;
 md += `- **Timeout Override:** ${data.statement_timeout_override || 'None'}\n`;
-md += `- **Avg Time:** ${data.avg_time_ms ? data.avg_time_ms.toFixed(2) + ' ms' : 'Unknown'} (source: ${data.timing_source})\n`;
+md += `- **Avg Time:** ${data.avg_time_ms ? (data.timing_source === 'ast_estimator' ? `~${Math.round(data.avg_time_ms)} ms (estimado)` : `${data.avg_time_ms.toFixed(2)} ms`) : 'Unknown'} (source: ${data.timing_source})\n`;
 if (data.dynamic_sql) md += `- WARNING: **Dynamic SQL Detected**\n`;
 if (data.calls_tables.length > 0) md += `- **Touches Tables:** ${data.calls_tables.join(', ')}\n`;
 if (data.calls_functions.length > 0) md += `- **Calls Functions:** ${data.calls_functions.join(', ')}\n`;
