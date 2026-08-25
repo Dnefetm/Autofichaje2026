@@ -9,12 +9,15 @@ on:
       - 'supabase/migrations/**'
       - 'scripts/generate_flow_blueprint.ts'
       - 'docs/flow_hints.yaml'
+      - '.github/workflows/blueprint.yml'
   pull_request:
     paths:
       - 'supabase/migrations/**'
+      - 'docs/db_flow_blueprint.json'
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   generate-and-validate:
@@ -39,20 +42,44 @@ jobs:
       - name: Validate Blueprint Timings & Limits
         run: npx tsx scripts/ci_validate_blueprint.ts
 
-      # Fase 4 (2026-08-25): el blueprint regenerado se commitea DIRECTO a main.
-      # Antes se abria un PR a chore/update-blueprint que nadie mergeaba, y la
-      # copia en main quedaba obsoleta (mentira visible). Los archivos generados
-      # no estan en los paths del trigger, asi que no hay loop; [skip ci] es
-      # seguridad adicional.
-      - name: Commit updated blueprint to main
+      # Fase 4 (2026-08-25): el blueprint regenerado debe llegar a main.
+      # El bot github-actions NO puede bypassear la proteccion de main (GH006),
+      # asi que: 1) si existe el secret BLUEPRINT_PAT (PAT del owner, que si
+      # bypassa), push directo a main; 2) si no, fallback a PR automatico.
+      - name: Commit updated blueprint
         if: github.event_name != 'pull_request'
+        id: commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/db_flow_blueprint.json docs/db_flow_blueprint.md docs/.blueprint_schema_hash docs/.blueprint_processes_hash
           if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "Sin cambios en el blueprint."
             exit 0
           fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
           git commit -m "chore(db): auto-update DB Flow Blueprint [skip ci]"
+
+      - name: Push directo a main (con BLUEPRINT_PAT si existe)
+        if: github.event_name != 'pull_request' && steps.commit.outputs.changed == 'true'
+        id: push
+        continue-on-error: true
+        env:
+          BP_PAT: ${{ secrets.BLUEPRINT_PAT }}
+        run: |
+          if [ -n "$BP_PAT" ]; then
+            git remote set-url origin "https://x-access-token:${BP_PAT}@github.com/${{ github.repository }}.git"
+          fi
           git push origin HEAD:main
+
+      - name: Fallback - PR automatico si el push directo falla
+        if: github.event_name != 'pull_request' && steps.commit.outputs.changed == 'true' && steps.push.outcome != 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push --force origin HEAD:chore/update-blueprint
+          gh pr create --base main --head chore/update-blueprint \
+            --title "chore(db): Auto-update DB Flow Blueprint" \
+            --body "Blueprint regenerado. Para push directo a main sin PR, crea el secret BLUEPRINT_PAT (PAT con contents:write). Este PR existe porque el bot no puede bypassear la proteccion de main." \
+            || echo "PR ya existente."
