@@ -1,13 +1,22 @@
 <!-- GENERADO AUTOMATICAMENTE - NO EDITAR A MANO -->
-<!-- Fuente: docs/db_flow_blueprint.json | Regenerar: npx tsx scripts/generate_flow_blueprint.ts -->
-<!-- Contenido curado/politicas: docs/POLITICAS_FRONTEND.md -->
+<!-- Fuente: docs/db_flow_blueprint.json | Contenido curado/politicas: docs/POLITICAS_FRONTEND.md -->
 
-# DB Flow Blueprint
+# DB Flow Blueprint & System Diagnostics
 
-- **Generado:** `2026-08-15T06:39:37.316Z` (snapshot; datos de runtime caducan en 26h)
-- **Schema hash:** `a59936423214477ddb240c5276e0ac8022f41381b474fbc2e54bce4deb9114e0`
-- **Processes hash:** `2b9b9626ce5fbf7b21c17d9f3710f9b374805695443a8862d51bdfc9f4375bb5`
-- **Tables:** 71 | **Triggers:** 32 | **Cron jobs:** 4 | **Edge fns:** 3 | **Queues:** 6
+- **Generado:** `2026-08-25T23:15:47.804Z` (snapshot; datos de runtime caducan en 26h. Verificar en vivo: node scripts/live_audit.js)
+- **Fuente de extraccion:** proyecto `ryxdqnzyvnrwalylqyvm` (aws-1-us-east-2.pooler.supabase.com) — identidad **VERIFICADA** contra expected_db_project_ref
+- **Schema hash:** `2ffddd0c143e1b2d6a51d4405be82d3b8cc7f14b567e44bf9a7d45867c6308af`
+- **Processes hash:** `ed8155e66273739d34f8d17187d2b80b530b3a2f58a1562e638ad8c95a69796e`
+- **Tables:** 84 | **Triggers:** 32 | **Cron jobs:** 5 | **Edge fns:** 3 | **Queues:** 7
+
+## 📊 Linaje de Datos (Excel -> BD)
+
+Columnas extraídas en Frontend / Edge:
+- `modelo`
+- `marca`
+- `codigo`
+- `descripcion`
+- `moneda`
 
 ## Maquinas de estado
 
@@ -15,60 +24,78 @@
 - **Estados:** pendiente_mapeo, mapeando, procesando, en_revision, completado, error, cancelado, matching_completo
 - **Recuperacion desde error ->** cancelado, completado, en_revision, mapeando, matching_completo, pendiente_mapeo, procesando
 - **Transiciones:**
- - `pendiente_mapeo` -> cancelado, error, mapeando
+ - `pendiente_mapeo` -> cancelado, en_revision, error, mapeando, procesando
  - `mapeando` -> cancelado, completado, en_revision, error, matching_completo, pendiente_mapeo, procesando
  - `procesando` -> cancelado, completado, en_revision, error, matching_completo
  - `completado` -> cancelado, en_revision, mapeando
  - `error` -> cancelado, completado, en_revision, mapeando, matching_completo, pendiente_mapeo, procesando
  - `cancelado` -> pendiente_mapeo
- - `en_revision` -> cancelado, completado, error
+ - `en_revision` -> cancelado, completado, error, procesando
  - `matching_completo` -> cancelado, completado, en_revision, error
 
 ## Colas (jobs)
 
-> Conteos del snapshot `2026-08-15T06:39:37.316Z`. NO es estado en vivo. Verificar con `node scripts/live_audit.js`.
-
-### sync_account_catalog
-- **Total:** 33 (completed=20, failed=13)
-- **WARNING - Fallidos (acumulado historico):** 13
-- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
+> Conteos del snapshot `2026-08-25T23:15:47.804Z`. NO es estado en vivo; los 'failed' son acumulado historico (nunca se purgan). Verificar en vivo: `node scripts/live_audit.js`.
 
 ### sync_stock_mapped
-- **Total:** 302 (completed=302)
+- **Total:** 227 (failed=3, completed=224)
+- **WARNING - Fallidos (acumulado historico):** 3 | **Fallidos ultimas 24h:** 0
 - **Productores:** public.fn_encolar_sync_stock
 
-### sync_stock
-- **Total:** 5 (completed=5)
-- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
-
-### sync_item
-- **Total:** 7125 (completed=7119, pending=6)
-- **Pendientes:** 6
-- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
+### recalc_pricing_bundle
+- **Total:** 1908 (completed=1908)
+- **Productores:** public.trg_mapeo_publicacion_recalcular_async, public.trg_costos_articulo_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### process_sale
-- **Total:** 2082 (pending=1, completed=2081)
-- **Pendientes:** 1
-- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
+- **Total:** 2108 (failed=2, pending=12, completed=2094)
+- **Pendientes:** 12
+- **WARNING - Fallidos (acumulado historico):** 2 | **Fallidos ultimas 24h:** 1
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_mapeo_publicacion_recalcular_async, public.trg_costos_articulo_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match, public.fn_aprobar_precios_draft
 
-### recalc_pricing_bundle
-- **Total:** 2136 (failed=2136)
-- **WARNING - Fallidos (acumulado historico):** 2136
-- **Productores:** public.trg_costos_articulo_recalcular_async, public.trg_mapeo_publicacion_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
+### sync_account_catalog
+- **Total:** 26 (completed=13, failed=13)
+- **WARNING - Fallidos (acumulado historico):** 13 | **Fallidos ultimas 24h:** 3
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_mapeo_publicacion_recalcular_async, public.trg_costos_articulo_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match, public.fn_aprobar_precios_draft
+
+### sync_stock
+- **Total:** 4 (completed=4)
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_mapeo_publicacion_recalcular_async, public.trg_costos_articulo_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match, public.fn_aprobar_precios_draft
+
+### sync_item
+- **Total:** 8009 (completed=7972, pending=18, failed=19)
+- **Pendientes:** 18
+- **WARNING - Fallidos (acumulado historico):** 19 | **Fallidos ultimas 24h:** 5
+- **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_mapeo_publicacion_recalcular_async, public.trg_costos_articulo_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match, public.fn_aprobar_precios_draft
+
+### importaciones_excel
+- **Total:** 0 ()
+- **Productores:** trg_disparar_worker_importacion
+
+## Rutas de pricing (estado)
+
+### v1_precio_recalc_queue — **DEAD**
+
+
+### v2_marketplace_prices — **LEGACY**
+
+
+### v3_publication_pricing — **ALIVE**
+
 
 ## Diagnosticos
 
 ### WARN
 
-- [TABLE_NOT_FOUND] `app.table.documentos-fuente`: La app hace referencia a una tabla/vista 'documentos-fuente' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/autoficha/route.ts
-- [TABLE_NOT_FOUND] `app.table.importaciones_precios`: La app hace referencia a una tabla/vista 'importaciones_precios' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/[proveedor]/aplicar/route.ts
-- [TABLE_NOT_FOUND] `app.table.precios_historial_proveedor`: La app hace referencia a una tabla/vista 'precios_historial_proveedor' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts
-- [TABLE_NOT_FOUND] `app.table.precio_import_batches`: La app hace referencia a una tabla/vista 'precio_import_batches' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts
-- [TABLE_NOT_FOUND] `app.table.bundle_components`: La app hace referencia a una tabla/vista 'bundle_components' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/lib/dashboard-service.ts
+- [TABLE_NOT_FOUND] `app.table.documentos-fuente`: La app hace referencia a una tabla/vista 'documentos-fuente' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/autoficha/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)
+- [TABLE_NOT_FOUND] `app.table.importaciones_precios`: La app hace referencia a una tabla/vista 'importaciones_precios' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/[proveedor]/aplicar/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)
+- [TABLE_NOT_FOUND] `app.table.precios_historial_proveedor`: La app hace referencia a una tabla/vista 'precios_historial_proveedor' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)
+- [TABLE_NOT_FOUND] `app.table.precio_import_batches`: La app hace referencia a una tabla/vista 'precio_import_batches' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)
+- [TABLE_NOT_FOUND] `app.table.bundle_components`: La app hace referencia a una tabla/vista 'bundle_components' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/lib/dashboard-service.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)
 
 ### INFO
 
-- [QUEUE_NO_RUNTIME] `processes.importacion_precios.downstream`: cola 'sync_price' sin filas observadas en public.jobs — Bloqueo conocido: pricing_data_blocker. No es fallo estructural.
+- [QUEUE_NO_RUNTIME] `processes.importacion_precios.downstream`: cola 'sync_price' sin filas observadas en public.jobs — La cola es valida pero aun no tiene trafico observado.
+- [QUEUE_NO_RUNTIME] `processes.pricing_publicacion_v3.downstream`: cola 'sync_price' sin filas observadas en public.jobs — La cola es valida pero aun no tiene trafico observado.
 
 ## Procesos declarados
 
@@ -86,16 +113,54 @@
   - trigger=`trg_costos_articulo_recalcular_async` | tabla=`costos_articulo`
   - job=`recalc_pricing_bundle` | handler=`/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/external/[id]/pricing/route.ts`, `/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/components/mapping-modal.tsx` | expect_runtime=`true`
   - fn=`public.fn_recalcular_precio_publicacion` | destino=`publication_pricing_history`
-  - job=`sync_price` | handler=`/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts` | expect_runtime=`false` | blocked_by=`pricing_data_blocker`
+  - job=`sync_price` | handler=`/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts` | expect_runtime=`false`
 - Recovery: desde `error` -> [`mapeando`, `procesando`, `completado`]
+
+### sync_stock_inventario
+
+- Trigger: `Cambios en ingresos/egresos (trg_stock_after_*) o en inventory_snapshot (trg_encolar_sync_stock)`
+- Steps:
+  - fn=`public.trg_fn_sync_stock`
+  - fn=`public.fn_recalcular_stock` | tabla_destino=`inventory_snapshot`
+  - fn=`public.fn_encolar_sync_stock` | tabla_destino=`jobs`
+- Downstream:
+  - job=`sync_stock` | handler=`/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/lib/dashboard-service.ts` | expect_runtime=`true`
+  - job=`sync_stock_mapped` | handler=`/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/components/mapping-modal.tsx` | expect_runtime=`true`
+
+### proceso_venta_meli
+
+- Trigger: `Webhook MeLi (POST /api/webhooks/meli)`
+- Steps:
+  - fn=`public.decrement_stock_safe` | tabla_destino=`inventory_snapshot`
+- Downstream:
+  - job=`process_sale` | handler=`/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/webhooks/meli/route.ts` | expect_runtime=`true`
+  - job=`sync_stock` | handler=`/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/lib/dashboard-service.ts` | expect_runtime=`true`
+
+### pricing_publicacion_v3
+
+- Trigger: `Cambios en publicaciones_externas (trg_recalcular_precio_publicacion) o job recalc_pricing_bundle`
+- Steps:
+  - fn=`public.fn_recalcular_precio_publicacion` | tabla_destino=`publication_pricing_history`
+  - fn=`public.fn_resolver_regla_pricing`
+- Downstream:
+  - job=`recalc_pricing_bundle` | handler=`/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/external/[id]/pricing/route.ts`, `/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/components/mapping-modal.tsx` | expect_runtime=`true`
+  - job=`sync_price` | handler=`/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts` | expect_runtime=`false`
+
+### autoficha_fichas
+
+- Trigger: `UI de autoficha (guardar/editar ficha)`
+- Steps:
+  - fn=`public.guardar_ficha_autoficha` | tabla_destino=`fichas_tecnicas`
+  - fn=`public.trigger_auditoria_ficha` | tabla_destino=`ficha_auditoria`
+  - fn=`public.crear_version_ficha` | tabla_destino=`fichas_tecnicas`
 
 ## Salud del blueprint
 
-- Procesos declarados: 1
+- Procesos declarados: 5
 - Handlers de jobs detectados en worker: 11
 - Diagnosticos error: 0
 - Diagnosticos warn: 5
-- Diagnosticos info: 1
+- Diagnosticos info: 2
 
 ## public.actualizar_updated_at
 - **Security:** INVOKER
@@ -307,7 +372,7 @@
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 82.21 ms (source: pg_stat_statements)
+- **Avg Time:** 119.86 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -328,12 +393,12 @@
 ## public.buscar_publicaciones
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 887.34 ms (source: pg_stat_statements)
+- **Avg Time:** 268.35 ms (source: pg_stat_statements)
 
 ## public.fn_pop_matching_job
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 7.57 ms (source: pg_stat_statements)
+- **Avg Time:** 14.54 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.matching_jobs
 
 ## public.fn_buscar_listas_raw
@@ -406,12 +471,6 @@
 - **Timeout Override:** None
 - **Avg Time:** ~45 ms (estimado) (source: ast_estimator)
 
-## public.trg_costos_articulo_recalcular_async
-- **Security:** INVOKER
-- **Timeout Override:** None
-- **Avg Time:** ~175 ms (estimado) (source: ast_estimator)
-- **Touches Tables:** public.jobs
-
 ## public.trg_mapeo_publicacion_recalcular_async
 - **Security:** INVOKER
 - **Timeout Override:** None
@@ -423,6 +482,12 @@
 - **Timeout Override:** None
 - **Avg Time:** ~275 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.matching_decisiones
+
+## public.trg_costos_articulo_recalcular_async
+- **Security:** INVOKER
+- **Timeout Override:** None
+- **Avg Time:** 3.95 ms (source: pg_stat_statements)
+- **Touches Tables:** public.jobs
 
 ## public.f_unaccent_immutable
 - **Security:** INVOKER
@@ -445,7 +510,7 @@
 ## public.trg_costos_articulo_recalcular
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** ~5 ms (estimado) (source: ast_estimator)
+- **Avg Time:** 3.95 ms (source: pg_stat_statements)
 - **Calls Functions:** public.fn_recalcular_precio_marketplace
 
 ## public.fn_recalcular_precio_marketplace
@@ -462,31 +527,21 @@
 - **Avg Time:** ~355 ms (estimado) (source: ast_estimator)
 - **Touches Tables:** public.meli_category_commissions, public.SET
 
-## public.fn_resolver_regla_pricing
-- **Security:** INVOKER
-- **Timeout Override:** None
-- **Avg Time:** ~125 ms (estimado) (source: ast_estimator)
-
 ## public.trg_recalcular_precio_publicacion
 - **Security:** INVOKER
 - **Timeout Override:** None
 - **Avg Time:** 0.29 ms (source: pg_stat_statements)
 - **Calls Functions:** public.fn_recalcular_precio_publicacion
 
-## public.fn_recalcular_precio_publicacion
+## public.fn_resolver_regla_pricing
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 522.56 ms (source: pg_stat_statements)
-- **Touches Tables:** public.publication_pricing_history, public.publicaciones_externas
-- **Calls Functions:** public.fn_resolver_regla_pricing
-- **Cascading Triggers:**
- - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
- - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
+- **Avg Time:** 42.14 ms (source: pg_stat_statements)
 
 ## public.fn_parse_precio
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 45.82 ms (source: pg_stat_statements)
+- **Avg Time:** 83.71 ms (source: pg_stat_statements)
 
 ## public.fn_tg_promote_pendientes
 - **Security:** DEFINER
@@ -524,7 +579,7 @@
 - **Security:** DEFINER
 - **Timeout Override:** statement_timeout=180s
 - **Avg Time:** 3500.00 ms (source: yaml_hint)
-- **Touches Tables:** public.costos_articulo, public.costos_pendientes, public.SET
+- **Touches Tables:** public.costos_articulo, public.precio_recalc_queue, public.costos_pendientes, public.SET
 - **Calls Functions:** public.f_unaccent_immutable
 - **Cascading Triggers:**
  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
@@ -549,7 +604,7 @@
 - **Security:** DEFINER
 - **Timeout Override:** statement_timeout=180s
 - **Avg Time:** 4000.00 ms (source: yaml_hint)
-- **Touches Tables:** public.costos_articulo, public.costos_pendientes, public.matching_jobs, public.SET, public.proveedor_articulos_alias, public.importaciones_excel, public.listas_precios_raw_staging
+- **Touches Tables:** public.costos_articulo, public.costos_pendientes, public.matching_jobs, public.SET, public.proveedor_articulos_alias, public.importaciones_excel
 - **Calls Functions:** public.f_unaccent_immutable, public.fn_parse_precio, public.fn_marcar_vigente
 - **Cascading Triggers:**
  - `costos_articulo` -> `public.fn_tg_encolar_recalculo` (Trigger: tg_encolar_recalculo)
@@ -568,7 +623,7 @@
 ## public.recalcular_par_item_id
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 218.07 ms (source: pg_stat_statements)
+- **Avg Time:** 12.81 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -577,7 +632,7 @@
 ## public.recalcular_catalog_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 60.95 ms (source: pg_stat_statements)
+- **Avg Time:** 5.63 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -586,7 +641,7 @@
 ## public.recalcular_associated_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 49.80 ms (source: pg_stat_statements)
+- **Avg Time:** 3.51 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -790,7 +845,7 @@
 ## public.claim_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 8.69 ms (source: pg_stat_statements)
+- **Avg Time:** 9.80 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.jobs
 
 ## public.fn_recalcular_lote
@@ -802,7 +857,7 @@
 ## public.procesar_import_job
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 17.82 ms (source: pg_stat_statements)
+- **Avg Time:** 20.10 ms (source: pg_stat_statements)
 - **Touches Tables:** public.SKIP, public.import_jobs, public.importaciones_excel
 - **Calls Functions:** public.fn_preparar_importacion_revision
 - **Cascading Triggers:**
@@ -881,3 +936,33 @@
  - `importaciones_excel` -> `public.fn_validar_transicion_estado_importacion` (Trigger: trg_validar_transicion_importacion)
  - `importaciones_excel` -> `public.fn_guard_completado_importacion` (Trigger: trg_guard_completado_importacion)
  - `importaciones_excel` -> `public.fn_disparar_edge_procesar_importacion` (Trigger: trg_disparar_worker_importacion)
+
+## public.fn_aprobar_precios_draft
+- **Security:** DEFINER
+- **Timeout Override:** None
+- **Avg Time:** 15.20 ms (source: pg_stat_statements)
+- **Touches Tables:** public.jobs, public.publicaciones_externas, public.publication_pricing_drafts
+- **Cascading Triggers:**
+ - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
+ - `publicaciones_externas` -> `public.fn_limpiar_publicacion_ml_en_cierre` (Trigger: trg_limpiar_publicacion_ml)
+
+## public.fn_vincular_lote
+- **Security:** DEFINER
+- **Timeout Override:** None
+- **Avg Time:** 36.09 ms (source: pg_stat_statements)
+- **Touches Tables:** public.proveedor_articulos_alias
+- **Cascading Triggers:**
+ - `proveedor_articulos_alias` -> `public.fn_tg_promote_pendientes` (Trigger: tg_promote_pendientes)
+
+## public.fn_recalcular_precio_publicacion
+- **Security:** DEFINER
+- **Timeout Override:** None
+- **Avg Time:** 39.32 ms (source: pg_stat_statements)
+- **Touches Tables:** public.publication_pricing_drafts, public.SET
+- **Calls Functions:** public.fn_resolver_regla_pricing
+
+## public.fn_validar_matching_completo
+- **Security:** DEFINER
+- **Timeout Override:** None
+- **Avg Time:** 31.43 ms (source: pg_stat_statements)
+
