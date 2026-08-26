@@ -35,6 +35,8 @@ jobs:
         run: npm ci
 
       - name: Generate DB Flow Blueprint
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: npx tsx scripts/generate_flow_blueprint.ts
 
       - name: Detect changes
