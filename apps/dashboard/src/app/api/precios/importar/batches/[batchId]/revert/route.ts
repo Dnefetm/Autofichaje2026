@@ -7,96 +7,36 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// =============================================================================
+// FEATURE NO IMPLEMENTADO (correccion 2026-08-25, auditoria blueprint Fase 4)
+// Este endpoint referenciaba las tablas `precio_import_batches` y
+// `precios_historial_proveedor`, que NUNCA han existido en produccion
+// (verificado via PostgREST y via extraccion directa de pg_class el 2026-08-25).
+// Ademas ninguna ruta crea batches: el frontend nunca recibe batch_id, por lo
+// que el boton "Revertir ultimo lote" jamas se renderiza. Era codigo muerto
+// que, de ejecutarse, habria fallado con error 500 (tabla inexistente).
+// Para habilitarlo de verdad hace falta:
+//   1. Aplicar supabase/migrations/v79_consolidar_tablas_fuera_de_banda.sql
+//      (crea precio_import_batches + precios_historial_proveedor).
+//   2. Cablear la creacion del batch y sus movimientos en la ruta /confirmar.
+// Hasta entonces, responder 501 honesto en lugar de un 500 confuso.
+// =============================================================================
 export async function DELETE(req: Request, props: { params: Promise<{ batchId: string }> }) {
-  try {
-    const { batchId } = await props.params;
-    const headerList = await headers();
-    const token = headerList.get('authorization')?.split('Bearer ')[1];
-
-    if (!token) {
-      return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 });
-    }
-
-    const { data: { user }, error: userErr } = await supabaseAdmin.auth.getUser(token);
-    if (userErr || !user) {
-      return NextResponse.json({ ok: false, error: 'Usuario inválido' }, { status: 401 });
-    }
-
-    // El revert busca el batch, lee sus `precios_historial_proveedor`, restaura los "valor_antiguo" al `costos_articulo`
-    // y finalmente elimina el batch (o lo marca revertido).
-    
-    // Primero buscar los movimientos
-    const { data: movimientos, error: movErr } = await supabaseAdmin
-        .from('precios_historial_proveedor')
-        .select('*')
-        .eq('batch_id', batchId);
-        
-    if (movErr) {
-        return NextResponse.json({ ok: false, error: movErr.message }, { status: 500 });
-    }
-    
-    if (!movimientos || movimientos.length === 0) {
-        // Nada que revertir, borramos el batch de todos modos si estuviera huérfano
-        await supabaseAdmin.from('precio_import_batches').delete().eq('id', batchId);
-        return NextResponse.json({ ok: true, message: 'Batch eliminado, no tenía histótico' });
-    }
-    
-    let revertidos = 0;
-    const errores = [];
-    
-    // Revertir
-    for (const mov of movimientos) {
-        if (!mov.costo_articulo_id) continue;
-        
-        // Si había valor antiguo, revertimos. Si valor_antiguo era null (es decir, fue inserción nueva), hay decisiones: 
-        // desactivarlo o marcar vigente: false. El modelo de precios asume que "vigente: false" significa desactivado.
-        
-        const updateData: any = { estado_match: 'sugerido' }; // Se regresa a sugerido
-        if (mov.valor_antiguo !== null && mov.valor_antiguo !== undefined) {
-            updateData.valor = mov.valor_antiguo; 
-            updateData.vigente = true;
-        } else {
-            // El costo es nuevo enteramente
-            updateData.vigente = false; 
-        }
-        
-        const { error: updErr } = await supabaseAdmin
-            .from('costos_articulo')
-            .update(updateData)
-            .eq('id', mov.costo_articulo_id);
-            
-        if (updErr) {
-            errores.push(mov.costo_articulo_id);
-        } else {
-            revertidos++;
-        }
-    }
-    
-    const { data: batch } = await supabaseAdmin
-      .from('precio_import_batches')
-      .select('importacion_excel_id')
-      .eq('id', batchId)
-      .single();
-    
-    // Borrar el batch cascadea y borra de historial
-    const { error: delErr } = await supabaseAdmin.from('precio_import_batches').delete().eq('id', batchId);
-    if(delErr) {
-       console.error("No se pudo borrar el batch_id después de revertir", delErr);
-    } else if (batch?.importacion_excel_id) {
-      const { error: rawErr } = await supabaseAdmin
-        .from('listas_precios_raw')
-        .update({ revertido_at: new Date().toISOString() })
-        .eq('importacion_id', batch.importacion_excel_id)
-        .is('revertido_at', null);
-      if (rawErr) {
-        console.error('Error marcando listas_precios_raw como revertidas:', rawErr.message);
-      }
-    }
-    
-    console.log(JSON.stringify({ event: 'batch_reverted', batchId: batchId, user: user.id, revertidos }));
-    
-    return NextResponse.json({ ok: true, revertidos, errores });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  const headerList = await headers();
+  const token = headerList.get('authorization')?.split('Bearer ')[1];
+  if (!token) {
+    return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 });
   }
+  const { data: { user }, error: userErr } = await supabaseAdmin.auth.getUser(token);
+  if (userErr || !user) {
+    return NextResponse.json({ ok: false, error: 'Usuario inválido' }, { status: 401 });
+  }
+
+  return NextResponse.json(
+    {
+      ok: false,
+      error: 'Revertir lote NO esta implementado: las tablas de batches nunca fueron creadas en produccion y ninguna importacion genera batch_id. Ver comentario en este archivo para el plan de habilitacion.'
+    },
+    { status: 501 }
+  );
 }

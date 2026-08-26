@@ -23,9 +23,14 @@ export async function POST(req: Request, props: { params: Promise<{ proveedor: s
         if (err1) throw err1;
 
         // Mark importacion as completada
+        // Correccion 2026-08-25 (auditoria Fase 4): la tabla real es
+        // `importaciones_excel` (no `importaciones_precios`, que nunca existio)
+        // y no tiene columna `completado_el`; el timestamp de actividad es
+        // `ultima_actividad`. Antes este update fallaba con 404 y toda la
+        // ruta devolvia 500 AUNQUE los costos ya se hubieran aplicado.
         const { error: err2 } = await supabaseAdmin
-            .from('importaciones_precios')
-            .update({ estado: 'completado', completado_el: new Date().toISOString() })
+            .from('importaciones_excel')
+            .update({ estado: 'completado', ultima_actividad: new Date().toISOString() })
             .eq('id', importacion_id);
 
         if (err2) throw err2;

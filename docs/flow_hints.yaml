@@ -94,18 +94,24 @@ recalc_pricing_bundle_fix:
 
 
 # ====================================================================
-# WHITELIST TABLE_NOT_FOUND (Fase 1.6, 2026-08-25)
-# Estas tablas EXISTEN en produccion (verificado via PostgREST el 2026-08-23/24)
-# pero NO en el catalogo que extrae el CI, porque el secret SUPABASE_DB_URL
-# apunta a otra base de datos. Mientras el secret no se corrija, TABLE_NOT_FOUND
-# sobre estas tablas queda en 'warn'; para cualquier otra tabla es ERROR (rompe CI).
-# TODO: retirar esta whitelist en cuanto se corrija el secret de GitHub Actions.
+# WHITELIST TABLE_NOT_FOUND (corregida 2026-08-25, auditoria Fase 4)
+# ERRATA: la version anterior afirmaba que estas 5 tablas "EXISTEN en
+# produccion". FALSO. Verificado el 2026-08-25 por DOS vias independientes
+# (extraccion directa de pg_class en el proyecto correcto ryxdqnzyvnrwalylqyvm
+# y PostgREST): ninguna existia. El secret NUNCA fue el problema de fondo.
+# Correcciones aplicadas en la raiz:
+#   - documentos-fuente:  era un BUCKET de Storage (si existe); el analizador
+#     ya no lo confunde con tabla (fix en validate_data_pipeline.ts).
+#   - importaciones_precios: bug real en api/precios/[proveedor]/aplicar
+#     (devolvia 500 tras aplicar costos); corregido a importaciones_excel.
+#   - precio_import_batches / precios_historial_proveedor: feature "revertir
+#     lote" era codigo muerto inalcanzable; la ruta ahora responde 501 honesto.
+# Unico remanente REAL:
+#   - bundle_components: la pagina de bundles (apps/catalog/bundles) la usa y
+#     NO existe en prod. Remedio: aplicar supabase/migrations/v79_*.sql en
+#     produccion (DDL ya listo). Retirar de esta whitelist tras aplicarla.
 # ====================================================================
 table_not_found_whitelist:
-  - documentos-fuente
-  - importaciones_precios
-  - precio_import_batches
-  - precios_historial_proveedor
   - bundle_components
 
 # ====================================================================

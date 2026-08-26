@@ -147,8 +147,12 @@ walkAst(sourceFile, (node) => {
                         
                         // Detectar .from('...')
                         if (propName === 'from' && node.arguments.length > 0) {
+                            // Falso positivo corregido (2026-08-25): supabase.storage.from('bucket')
+                            // referencia un BUCKET de Storage, no una tabla del esquema public.
+                            const recv = node.expression.expression;
+                            const isStorageBucket = ts.isPropertyAccessExpression(recv) && recv.name.text === 'storage';
                             const arg0 = node.arguments[0];
-                            if (ts.isStringLiteral(arg0)) {
+                            if (ts.isStringLiteral(arg0) && !isStorageBucket) {
                                 const tableName = arg0.text;
                                 if (!result.touchedTables.has(tableName)) result.touchedTables.set(tableName, []);
                                 if (!result.touchedTables.get(tableName)!.includes(filePath)) {

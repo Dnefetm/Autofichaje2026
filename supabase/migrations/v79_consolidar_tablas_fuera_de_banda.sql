@@ -1,19 +1,23 @@
 -- =============================================================================
--- MIGRACION v79: Consolidacion de tablas creadas FUERA DE BANDA (2026-08-25)
+-- MIGRACION v79: Crear tablas que el codigo referencia pero NUNCA se crearon
+-- en produccion (corregido 2026-08-25, auditoria Fase 4)
 -- =============================================================================
--- Contexto (ver docs/diagnostico_blueprint_2026-08-23.md, hallazgo H2):
--- Estas tablas existen en produccion pero fueron creadas fuera de
--- supabase/migrations/ (via packages/db/ o SQL directo), lo que generaba
--- falsos TABLE_NOT_FOUND en el blueprint y deuda de esquema.
--- Esta migracion las registra en la fuente oficial. Es IDEMPOTENTE
--- (IF NOT EXISTS): en produccion no cambia nada; en ambientes nuevos las crea.
+-- ERRATA sobre el encabezado original: afirmaba que estas tablas "existen en
+-- produccion pero fueron creadas fuera de banda". FALSO. Verificado el
+-- 2026-08-25 por extraccion directa de pg_class y por PostgREST: NINGUNA
+-- existia en prod (proyecto ryxdqnzyvnrwalylqyvm). Sus DDL viven en
+-- packages/db/ (fuera de banda) y nunca se aplicaron.
 --
--- PENDIENTE (no se consolidan por no tener definicion en el repo):
---   - public.importaciones_precios  (usada en api/precios/[proveedor]/aplicar)
---   - public."documentos-fuente"    (usada en api/autoficha, nombre con guion)
--- Antes de consolidarlas, exportar su DDL real desde produccion:
---   pg_dump --schema-only --table=public.importaciones_precios ...
--- NO inventar el esquema.
+-- Que hace esta migracion (IDEMPOTENTE, IF NOT EXISTS):
+--   - bundle_components: REQUERIDA. La pagina de bundles la usa hoy y falla.
+--   - precio_import_batches / precios_historial_proveedor: OPCIONALES. Solo
+--     son necesarias si se implementa el feature "revertir lote" (hoy la ruta
+--     responde 501; ninguna importacion genera batch_id). Se incluyen porque
+--     el DDL real ya existia en packages/db/migrations/v62.
+--
+-- NO incluir aqui: importaciones_precios (era un bug de nombre; el codigo ya
+-- usa importaciones_excel) ni "documentos-fuente" (es un bucket de Storage,
+-- no una tabla).
 -- =============================================================================
 
 -- 1. Batches de importacion de precios (definicion: packages/db/migrations/v62)
