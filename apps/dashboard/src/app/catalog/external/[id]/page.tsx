@@ -958,33 +958,34 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             </Section>
                         )}
 
-                        {/* Auditoría de Precios V2 */}
-                        <div className="h-96">
-                            <PricingAuditCard 
-                                publicacionId={id}
-                                salePriceCalculated={pub.sale_price_calculated}
-                                currentPrice={pub.precio_venta}
-                                draftPrice={(() => {
-                                    const drafts = pub.publication_pricing_drafts;
-                                    const draft = Array.isArray(drafts) ? drafts[0] : drafts;
-                                    return draft?.pricing_review_status === 'pending' ? draft.draft_price : null;
-                                })()}
-                                draftStatus={(() => {
-                                    const drafts = pub.publication_pricing_drafts;
-                                    const draft = Array.isArray(drafts) ? drafts[0] : drafts;
-                                    return draft?.pricing_status || null;
-                                })()}
-                                draftDetails={(() => {
-                                    const drafts = pub.publication_pricing_drafts;
-                                    const draft = Array.isArray(drafts) ? drafts[0] : drafts;
-                                    return draft?.details || null;
-                                })()}
-                                pricingStatus={pub.pricing_status}
-                                lastCalcAt={pub.last_calc_at}
-                                onOverrideUpdated={loadAll}
-                            />
-                        </div>
                     </div>
+                </div>
+
+                {/* Nueva Fila Completa para Auditoría de Precios V2 */}
+                <div className="lg:col-span-3 mt-4">
+                    <PricingAuditCard 
+                        publicacionId={id}
+                        salePriceCalculated={pub.sale_price_calculated}
+                        currentPrice={pub.precio_venta}
+                        draftPrice={(() => {
+                            const drafts = pub.publication_pricing_drafts;
+                            const draft = Array.isArray(drafts) ? drafts[0] : drafts;
+                            return draft?.pricing_review_status === 'pending' ? draft.draft_price : null;
+                        })()}
+                        draftStatus={(() => {
+                            const drafts = pub.publication_pricing_drafts;
+                            const draft = Array.isArray(drafts) ? drafts[0] : drafts;
+                            return draft?.pricing_status || null;
+                        })()}
+                        draftDetails={(() => {
+                            const drafts = pub.publication_pricing_drafts;
+                            const draft = Array.isArray(drafts) ? drafts[0] : drafts;
+                            return draft?.details || null;
+                        })()}
+                        pricingStatus={pub.pricing_status}
+                        lastCalcAt={pub.last_calc_at}
+                        onOverrideUpdated={loadAll}
+                    />
                 </div>
             </div>
 
