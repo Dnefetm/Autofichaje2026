@@ -3,10 +3,10 @@
 
 # DB Flow Blueprint & System Diagnostics
 
-- **Generado:** `2026-08-25T23:15:47.804Z` (snapshot; datos de runtime caducan en 26h. Verificar en vivo: node scripts/live_audit.js)
+- **Generado:** `2026-08-26T04:28:57.764Z` (snapshot; datos de runtime caducan en 26h. Verificar en vivo: node scripts/live_audit.js)
 - **Fuente de extraccion:** proyecto `ryxdqnzyvnrwalylqyvm` (aws-1-us-east-2.pooler.supabase.com) — identidad **VERIFICADA** contra expected_db_project_ref
 - **Schema hash:** `2ffddd0c143e1b2d6a51d4405be82d3b8cc7f14b567e44bf9a7d45867c6308af`
-- **Processes hash:** `ed8155e66273739d34f8d17187d2b80b530b3a2f58a1562e638ad8c95a69796e`
+- **Processes hash:** `18e13877931f175d88ca7f748785708cb485c1a8287d8bc152de05cdda401b85`
 - **Tables:** 84 | **Triggers:** 32 | **Cron jobs:** 5 | **Edge fns:** 3 | **Queues:** 7
 
 ## 📊 Linaje de Datos (Excel -> BD)
@@ -35,21 +35,21 @@ Columnas extraídas en Frontend / Edge:
 
 ## Colas (jobs)
 
-> Conteos del snapshot `2026-08-25T23:15:47.804Z`. NO es estado en vivo; los 'failed' son acumulado historico (nunca se purgan). Verificar en vivo: `node scripts/live_audit.js`.
+> Conteos del snapshot `2026-08-26T04:28:57.764Z`. NO es estado en vivo; los 'failed' son acumulado historico (nunca se purgan). Verificar en vivo: `node scripts/live_audit.js`.
 
 ### sync_stock_mapped
-- **Total:** 227 (failed=3, completed=224)
+- **Total:** 221 (failed=3, completed=218)
 - **WARNING - Fallidos (acumulado historico):** 3 | **Fallidos ultimas 24h:** 0
 - **Productores:** public.fn_encolar_sync_stock
 
 ### recalc_pricing_bundle
-- **Total:** 1908 (completed=1908)
+- **Total:** 53 (completed=53)
 - **Productores:** public.trg_mapeo_publicacion_recalcular_async, public.trg_costos_articulo_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match
 
 ### process_sale
-- **Total:** 2108 (failed=2, pending=12, completed=2094)
-- **Pendientes:** 12
-- **WARNING - Fallidos (acumulado historico):** 2 | **Fallidos ultimas 24h:** 1
+- **Total:** 2095 (failed=2, pending=5, completed=2088)
+- **Pendientes:** 5
+- **WARNING - Fallidos (acumulado historico):** 2 | **Fallidos ultimas 24h:** 0
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_mapeo_publicacion_recalcular_async, public.trg_costos_articulo_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match, public.fn_aprobar_precios_draft
 
 ### sync_account_catalog
@@ -58,12 +58,12 @@ Columnas extraídas en Frontend / Edge:
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_mapeo_publicacion_recalcular_async, public.trg_costos_articulo_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match, public.fn_aprobar_precios_draft
 
 ### sync_stock
-- **Total:** 4 (completed=4)
+- **Total:** 5 (completed=5)
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_mapeo_publicacion_recalcular_async, public.trg_costos_articulo_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match, public.fn_aprobar_precios_draft
 
 ### sync_item
-- **Total:** 8009 (completed=7972, pending=18, failed=19)
-- **Pendientes:** 18
+- **Total:** 8137 (completed=8087, pending=31, failed=19)
+- **Pendientes:** 31
 - **WARNING - Fallidos (acumulado historico):** 19 | **Fallidos ultimas 24h:** 5
 - **Productores:** public.fn_encolar_sync_price, public.fn_encolar_sync_price_marketplace, public.fn_encolar_sync_stock, public.trg_mapeo_publicacion_recalcular_async, public.trg_costos_articulo_recalcular_async, public.fn_tg_encolar_recalculo, public.fn_drain_costos_pendientes_sin_match, public.fn_aprobar_precios_draft
 
@@ -86,10 +86,6 @@ Columnas extraídas en Frontend / Edge:
 
 ### WARN
 
-- [TABLE_NOT_FOUND] `app.table.documentos-fuente`: La app hace referencia a una tabla/vista 'documentos-fuente' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/autoficha/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)
-- [TABLE_NOT_FOUND] `app.table.importaciones_precios`: La app hace referencia a una tabla/vista 'importaciones_precios' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/[proveedor]/aplicar/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)
-- [TABLE_NOT_FOUND] `app.table.precios_historial_proveedor`: La app hace referencia a una tabla/vista 'precios_historial_proveedor' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)
-- [TABLE_NOT_FOUND] `app.table.precio_import_batches`: La app hace referencia a una tabla/vista 'precio_import_batches' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)
 - [TABLE_NOT_FOUND] `app.table.bundle_components`: La app hace referencia a una tabla/vista 'bundle_components' que no fue encontrada en la extracción de public. — En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/lib/dashboard-service.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)
 
 ### INFO
@@ -159,7 +155,7 @@ Columnas extraídas en Frontend / Edge:
 - Procesos declarados: 5
 - Handlers de jobs detectados en worker: 11
 - Diagnosticos error: 0
-- Diagnosticos warn: 5
+- Diagnosticos warn: 1
 - Diagnosticos info: 2
 
 ## public.actualizar_updated_at
@@ -372,7 +368,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.release_zombie_jobs
 - **Security:** INVOKER
 - **Timeout Override:** None
-- **Avg Time:** 119.86 ms (source: pg_stat_statements)
+- **Avg Time:** 119.92 ms (source: pg_stat_statements)
 - **Touches Tables:** public.jobs
 
 ## public.update_borradores_updated_at
@@ -623,7 +619,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.recalcular_par_item_id
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 12.81 ms (source: pg_stat_statements)
+- **Avg Time:** 12.56 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -632,7 +628,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.recalcular_catalog_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 5.63 ms (source: pg_stat_statements)
+- **Avg Time:** 5.50 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
@@ -641,7 +637,7 @@ Columnas extraídas en Frontend / Edge:
 ## public.recalcular_associated_count
 - **Security:** DEFINER
 - **Timeout Override:** None
-- **Avg Time:** 3.51 ms (source: pg_stat_statements)
+- **Avg Time:** 3.40 ms (source: pg_stat_statements)
 - **Touches Tables:** public.publicaciones_externas
 - **Cascading Triggers:**
  - `publicaciones_externas` -> `public.trg_recalcular_precio_publicacion` (Trigger: trg_recalcular_precio_publicacion)
