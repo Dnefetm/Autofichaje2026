@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T23:15:47.804Z",
+  "generated_at": "2026-08-26T04:28:57.764Z",
   "source_db": {
     "host": "aws-1-us-east-2.pooler.supabase.com",
     "project_ref": "ryxdqnzyvnrwalylqyvm",
@@ -7,7 +7,7 @@
     "verified": true
   },
   "schema_hash": "2ffddd0c143e1b2d6a51d4405be82d3b8cc7f14b567e44bf9a7d45867c6308af",
-  "processes_hash": "ed8155e66273739d34f8d17187d2b80b530b3a2f58a1562e638ad8c95a69796e",
+  "processes_hash": "18e13877931f175d88ca7f748785708cb485c1a8287d8bc152de05cdda401b85",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -665,7 +665,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 119.862418666492,
+      "avg_time_ms": 119.91795669969,
       "p95_time_ms": 4992.243662,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -1481,7 +1481,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 12.8103124162358,
+      "avg_time_ms": 12.557012007405,
       "p95_time_ms": 962.825994,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -1508,7 +1508,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 5.63284143243708,
+      "avg_time_ms": 5.50254516194461,
       "p95_time_ms": 242.971555,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -1535,7 +1535,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 3.51314656963117,
+      "avg_time_ms": 3.40105452189312,
       "p95_time_ms": 164.751721,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -2218,7 +2218,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 9.7998077038667,
+      "avg_time_ms": 9.79722134119392,
       "p95_time_ms": 2135.343701,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -2272,7 +2272,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 20.102176489424,
+      "avg_time_ms": 20.0983928690457,
       "p95_time_ms": 1136.663906,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -8455,9 +8455,9 @@
       "type": "sync_stock_mapped",
       "status_counts": {
         "failed": 3,
-        "completed": 224
+        "completed": 218
       },
-      "total": 227,
+      "total": 221,
       "pending": 0,
       "failed": 3,
       "failed_24h": 0,
@@ -8468,9 +8468,9 @@
     "recalc_pricing_bundle": {
       "type": "recalc_pricing_bundle",
       "status_counts": {
-        "completed": 1908
+        "completed": 53
       },
-      "total": 1908,
+      "total": 53,
       "pending": 0,
       "failed": 0,
       "failed_24h": 0,
@@ -8485,13 +8485,13 @@
       "type": "process_sale",
       "status_counts": {
         "failed": 2,
-        "pending": 12,
-        "completed": 2094
+        "pending": 5,
+        "completed": 2088
       },
-      "total": 2108,
-      "pending": 12,
+      "total": 2095,
+      "pending": 5,
       "failed": 2,
-      "failed_24h": 1,
+      "failed_24h": 0,
       "producers": [
         "public.fn_encolar_sync_price",
         "public.fn_encolar_sync_price_marketplace",
@@ -8527,9 +8527,9 @@
     "sync_stock": {
       "type": "sync_stock",
       "status_counts": {
-        "completed": 4
+        "completed": 5
       },
-      "total": 4,
+      "total": 5,
       "pending": 0,
       "failed": 0,
       "failed_24h": 0,
@@ -8547,12 +8547,12 @@
     "sync_item": {
       "type": "sync_item",
       "status_counts": {
-        "completed": 7972,
-        "pending": 18,
+        "completed": 8087,
+        "pending": 31,
         "failed": 19
       },
-      "total": 8009,
-      "pending": 18,
+      "total": 8137,
+      "pending": 31,
       "failed": 19,
       "failed_24h": 5,
       "producers": [
@@ -8778,46 +8778,6 @@
     ]
   },
   "diagnostics": [
-    {
-      "scope": "app.table.documentos-fuente",
-      "severity": "warn",
-      "code": "TABLE_NOT_FOUND",
-      "message": "La app hace referencia a una tabla/vista 'documentos-fuente' que no fue encontrada en la extracción de public.",
-      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/autoficha/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)",
-      "evidence": {
-        "runtime": false
-      }
-    },
-    {
-      "scope": "app.table.importaciones_precios",
-      "severity": "warn",
-      "code": "TABLE_NOT_FOUND",
-      "message": "La app hace referencia a una tabla/vista 'importaciones_precios' que no fue encontrada en la extracción de public.",
-      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/[proveedor]/aplicar/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)",
-      "evidence": {
-        "runtime": false
-      }
-    },
-    {
-      "scope": "app.table.precios_historial_proveedor",
-      "severity": "warn",
-      "code": "TABLE_NOT_FOUND",
-      "message": "La app hace referencia a una tabla/vista 'precios_historial_proveedor' que no fue encontrada en la extracción de public.",
-      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)",
-      "evidence": {
-        "runtime": false
-      }
-    },
-    {
-      "scope": "app.table.precio_import_batches",
-      "severity": "warn",
-      "code": "TABLE_NOT_FOUND",
-      "message": "La app hace referencia a una tabla/vista 'precio_import_batches' que no fue encontrada en la extracción de public.",
-      "hint": "En archivo: /home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/precios/importar/batches/[batchId]/revert/route.ts (whitelisted en flow_hints.yaml: verificado en prod; retirar al corregir SUPABASE_DB_URL del CI)",
-      "evidence": {
-        "runtime": false
-      }
-    },
     {
       "scope": "app.table.bundle_components",
       "severity": "warn",
