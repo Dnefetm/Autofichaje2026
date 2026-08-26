@@ -1,21 +1,21 @@
 name: Blueprint DB Guardian
 on:
-workflow_dispatch:
-schedule:
-- cron: '0 * * * *'
-push:
-paths:
-- 'supabase/migrations/**'
-- 'scripts/generate_flow_blueprint.ts'
-- 'docs/flow_hints.yaml'
-- '.github/workflows/blueprint.yml'
-pull_request:
-paths:
-- 'supabase/migrations/**'
-- 'docs/db_flow_blueprint.json'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'
+  push:
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/generate_flow_blueprint.ts'
+      - 'docs/flow_hints.yaml'
+      - '.github/workflows/blueprint.yml'
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'docs/db_flow_blueprint.json'
 
 jobs:
-  guardian:
+  generate-and-validate:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -47,15 +47,12 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Configure git
+      - name: Configure git and commit
         if: steps.commit.outputs.changed == 'true'
         run: |
           git config user.name "blueprint-bot"
           git config user.email "blueprint-bot@users.noreply.github.com"
-
-      - name: Commit blueprint
-        if: steps.commit.outputs.changed == 'true'
-        run: git commit -m "chore(db): auto-update DB Flow Blueprint [skip ci]"
+          git commit -m "chore(db): auto-update DB Flow Blueprint"
 
       - name: Push directo a main (con BLUEPRINT_PAT si existe)
         if: github.event_name != 'pull_request' && steps.commit.outputs.changed == 'true'
@@ -75,9 +72,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git push --force origin HEAD:chore/update-blueprint
-          gh pr create --base main --head chore/update-blueprint \
-            --title "chore(db): Auto-update DB Flow Blueprint" \
-            --body "Blueprint regenerado automaticamente." \
-            || echo "PR ya existente."
-          gh pr merge chore/update-blueprint --auto --squash \
-            || echo "Auto-merge ya configurado."
+          gh pr create --base main --head chore/update-blueprint --title "chore(db): Auto-update DB Flow Blueprint" --body "Blueprint regenerado automaticamente." || echo "PR ya existente."
+          gh pr merge chore/update-blueprint --auto --squash || echo "Auto-merge ya configurado."
