@@ -9,7 +9,6 @@ export async function POST(request: NextRequest) {
     try {
         console.log("Iniciando ingesta de comisiones...");
         
-        // 1. Obtener categorias unicas y un marketplace_id activo
         const { data: catData, error: catError } = await supabaseAdmin
             .from('publicaciones_externas')
             .select('category_id, marketplace_id')
@@ -34,11 +33,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No se encontro un marketplace_id valido.' }, { status: 400 });
         }
         
-        // 2. Obtener Token
         const { data: tokenRow } = await supabaseAdmin
             .from('marketplace_tokens')
             .select('access_token')
             .eq('marketplace_id', validMarketplaceId)
+            .not('access_token', 'is', null)
             .limit(1)
             .single();
             
@@ -47,7 +46,6 @@ export async function POST(request: NextRequest) {
         }
         const token = decrypt(tokenRow.access_token);
         
-        // 3. Procesar categorias en lotes
         const results = { procesadas: 0, errores: 0, creadas: 0 };
         const batchSize = 10;
         
@@ -63,16 +61,23 @@ export async function POST(request: NextRequest) {
                     const rowsToInsert = [];
                     for (const priceObj of response || []) {
                         if (priceObj.listing_type_id === 'gold_pro' || priceObj.listing_type_id === 'gold_special') {
-                            const pct = (priceObj.fee_amount / 10000) * 100;
-                            rowsToInsert.push({
-                                category_id: categoryId,
-                                listing_type_id: priceObj.listing_type_id,
-                                commission_real: pct,
-                                commission_estimated: pct,
-                                withholding_real: null,
-                                withholding_estimated: 10.0,
-                                is_current: true
-                            });
+                            // Extraer fee_amount desde fee_details
+                            const feeDetails = priceObj.fee_details || [];
+                            const categoryFee = feeDetails.find((f: any) => f.fee_id === 'categoryId') || feeDetails[0];
+                            const feeAmount = categoryFee ? categoryFee.fee_amount : null;
+                            
+                            if (feeAmount != null) {
+                                const pct = (feeAmount / 10000) * 100;
+                                rowsToInsert.push({
+                                    category_id: categoryId,
+                                    listing_type_id: priceObj.listing_type_id,
+                                    commission_real: pct,
+                                    commission_estimated: pct,
+                                    withholding_real: null,
+                                    withholding_estimated: 10.0,
+                                    is_current: true
+                                });
+                            }
                         }
                     }
                     
@@ -82,6 +87,8 @@ export async function POST(request: NextRequest) {
                             .upsert(rowsToInsert, { onConflict: 'category_id, listing_type_id, is_current' });
                         if (insErr) {
                             console.error(`Error DB para ${categoryId}:`, insErr.message);
+                            // Ahora si sumamos errores de DB a las estadisticas para saber si falla!
+                            results.errores++;
                         } else {
                             results.creadas += rowsToInsert.length;
                         }
