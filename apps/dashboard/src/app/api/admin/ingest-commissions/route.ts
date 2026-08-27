@@ -61,13 +61,13 @@ export async function POST(request: NextRequest) {
                     const rowsToInsert = [];
                     for (const priceObj of response || []) {
                         if (priceObj.listing_type_id === 'gold_pro' || priceObj.listing_type_id === 'gold_special') {
-                            // Extraer fee_amount desde fee_details
-                            const feeDetails = priceObj.fee_details || [];
-                            const categoryFee = feeDetails.find((f: any) => f.fee_id === 'categoryId') || feeDetails[0];
-                            const feeAmount = categoryFee ? categoryFee.fee_amount : null;
+                            
+                            // API de MercadoLibre moderna devuelve sale_fee_amount
+                            const feeAmount = priceObj.sale_fee_amount;
                             
                             if (feeAmount != null) {
-                                const pct = (feeAmount / 10000) * 100;
+                                // price=10000, entonces fee=1250 significa 12.5%
+                                const pct = feeAmount / 100;
                                 rowsToInsert.push({
                                     category_id: categoryId,
                                     listing_type_id: priceObj.listing_type_id,
@@ -87,7 +87,6 @@ export async function POST(request: NextRequest) {
                             .upsert(rowsToInsert, { onConflict: 'category_id, listing_type_id, is_current' });
                         if (insErr) {
                             console.error(`Error DB para ${categoryId}:`, insErr.message);
-                            // Ahora si sumamos errores de DB a las estadisticas para saber si falla!
                             results.errores++;
                         } else {
                             results.creadas += rowsToInsert.length;
