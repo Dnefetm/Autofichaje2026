@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { decrypt } from '@gestor/shared';
+import { MeliAdapter } from '@/../../../packages/adapters/meli';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,8 +10,14 @@ export async function GET(request: NextRequest) {
         const path = searchParams.get('path');
         if(!path) return NextResponse.json({error: 'no path'});
         
-        const { data: tokenRow } = await supabaseAdmin.from('marketplace_tokens').select('access_token').not('access_token', 'is', null).limit(1).single();
-        const token = decrypt(tokenRow.access_token);
+        const adapter = new MeliAdapter();
+        const { data: mTokens } = await supabaseAdmin.from('marketplace_tokens')
+            .select('marketplace_id')
+            .not('access_token', 'is', null)
+            .order('expires_at', { ascending: false })
+            .limit(1)
+            .single();
+        const token = await adapter.getAccessToken(mTokens.marketplace_id);
         
         const res = await fetch(`https://api.mercadolibre.com${path}`, {
             headers: { Authorization: `Bearer ${token}` }
