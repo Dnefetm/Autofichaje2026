@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
                                 rowsToInsert.push({
                                     category_id: categoryId,
                                     listing_type_id: priceObj.listing_type_id,
+                                    commission_percentage: pct,
                                     commission_real: pct,
                                     commission_estimated: pct,
                                     withholding_real: null,
