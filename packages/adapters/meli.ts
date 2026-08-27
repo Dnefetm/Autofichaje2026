@@ -853,6 +853,42 @@ export class MeliAdapter implements MarketplaceAdapter {
             logger.warn({ accountId, error: visitErr.message }, 'V27: error en enriquecimiento de visitas');
         }
 
+        // -- Costo de envio (free shipping) ---
+        try {
+            const { data: mkp } = await supabase.from('marketplace_configs').select('settings').eq('id', accountId).single();
+            const sellerId = mkp?.settings?.seller_id;
+            
+            if (sellerId) {
+                for (let i = 0; i < itemIds.length; i += CONCURRENCY) {
+                    const chunk = itemIds.slice(i, i + CONCURRENCY);
+                    await Promise.all(chunk.map(async (itemId: string) => {
+                        try {
+                            const shipResp = await axios.get(
+                                `https://autofichaje2026-dashboard-1img.vercel.app/api/admin/debug-meli?account_id=${accountId}&path=/users/${sellerId}/shipping_options/free?item_id=${itemId}`
+                            );
+                            const listCost = shipResp.data?.coverage?.all_country?.list_cost;
+                            if (listCost != null) {
+                                await supabase
+                                    .from('publicaciones_externas')
+                                    .update({ shipping_cost_monto: listCost })
+                                    .eq('marketplace_id', accountId)
+                                    .eq('external_item_id', itemId);
+                            } else if (shipResp.data?.status === 403) {
+                                logger.error({ accountId, itemId, error: shipResp.data }, 'V31: ML bloqueó la petición de envíos (403 PolicyAgent)');
+                            } else if (shipResp.data?.error) {
+                                logger.error({ accountId, itemId, error: shipResp.data.error }, 'V31: Error reportado por el proxy');
+                            }
+                        } catch (err: any) {
+                            logger.error({ accountId, itemId, error: err.message }, 'V31: Fallo al obtener shipping_options/free');
+                        }
+                    }));
+                }
+                logger.debug({ accountId, items: itemIds.length }, 'V31: costos de envio enriquecidos');
+            }
+        } catch (shipErr: any) {
+            logger.warn({ accountId, error: shipErr.message }, 'V31: error en enriquecimiento de envios');
+        }
+
         // -- Descripciones (solo items sin descripción previa, máx 20) --------
         try {
             const { data: withoutDesc } = await supabase

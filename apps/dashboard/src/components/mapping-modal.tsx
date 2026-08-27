@@ -371,162 +371,247 @@ onClose();
 finally { setSaving(false); }
 }
 const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel => sel.sku === s.articulo_id));
-return (
-<div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-<div className="bg-[var(--surface)] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-<div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] bg-gradient-to-r from-indigo-50 to-white">
-<div>
-<h2 className="text-lg font-bold text-[var(--text)]">Mapear a Bodega Fisica</h2>
-<p className="text-xs text-[var(--text-muted)]">Vincula esta vitrina con 1 o mas productos reales.</p>
-</div>
-<button onClick={onClose} className="p-2 hover:bg-[var(--surface-2)] rounded-lg transition-colors"><X size={20} /></button>
-</div>
-<div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-<div className="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl p-4 border border-[var(--border)]">
-<div className="flex gap-4">
-{listing.url_imagen && (<img src={listing.url_imagen} alt="Producto" className="w-20 h-20 object-contain rounded-lg bg-[var(--surface)] border border-[var(--border)] flex-shrink-0" />)}
-<div className="flex-1 min-w-0">
-<div className="flex items-center gap-2 mb-1">
-<span className="text-[10px] font-bold text-[var(--accent)] bg-[var(--accent)]/20 px-2 py-0.5 rounded-full">Publicacion Venta</span>
-{listing.condition && <span className="text-[10px] text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border">{listing.condition === 'new' ? 'Nuevo' : 'Usado'}</span>}
-</div>
-<h3 className="font-semibold text-sm text-[var(--text)] leading-tight truncate">{listing.titulo}</h3>
-<p className="text-xs text-[var(--text-muted)] mt-0.5">{listing.external_item_id} - ${listing.precio_venta}</p>
-<div className="flex flex-wrap gap-1.5 mt-2">
-{pubSku && (<span className="inline-flex items-center gap-1 text-[10px] bg-[var(--warn)]/10 text-[var(--warn)] border border-[var(--warn)]/30 px-2 py-0.5 rounded-md font-mono"><Tag size={10} /> SKU: {pubSku}</span>)}
-{pubEan && (<span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono"><Barcode size={10} /> EAN: {pubEan}</span>)}
-{pubGtin && pubGtin !== pubEan && (<span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono"><Barcode size={10} /> GTIN: {pubGtin}</span>)}
-{pubUpc && pubUpc !== pubEan && pubUpc !== pubGtin && (<span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md font-mono">UPC: {pubUpc}</span>)}
-<span className={`text-[10px] px-2 py-0.5 rounded-md ${pubBrand ? 'bg-[var(--surface-2)] text-[var(--text-muted)]' : 'bg-[var(--err)]/10 text-[var(--err)] border border-[var(--err)]/30'}`}>Marca: {pubBrand || '⚠️ Ausente en ML'}</span>
-<span className={`text-[10px] px-2 py-0.5 rounded-md ${pubModel ? 'bg-[var(--surface-2)] text-[var(--text-muted)]' : 'bg-[var(--err)]/10 text-[var(--err)] border border-[var(--err)]/30'}`}>Modelo: {pubModel || '⚠️ Ausente en ML'}</span>
-{listing.domain_id && (<span className="text-[10px] bg-[var(--surface-2)] text-[var(--text-muted)] px-2 py-0.5 rounded-md">{listing.domain_id}</span>)}
-</div>
-</div>
-</div>
-</div>
-{isBlockedCatalog && (
-<div className="bg-[var(--warn)]/10 border border-amber-300 rounded-xl p-4 flex gap-3">
-<Info size={18} className="text-[var(--warn)] shrink-0 mt-0.5" />
-<div>
-<p className="text-sm font-bold text-amber-800">Este catalogo hereda el stock de su publicacion tradicional</p>
-<p className="text-xs text-[var(--warn)] mt-1">
-Para que el stock se sincronice correctamente, mapea la publicacion <strong>tradicional hermana</strong>
-{listing.par_item_id ? ` (${listing.par_item_id})` : ''} - este catalogo se actualizara automaticamente.
-</p>
-</div>
-</div>
-)}
-{!isBlockedCatalog && siblings.length > 0 && (
-<div className="bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-indigo-700">
-<Info size={12} className="shrink-0" />
-Al guardar, podras propagar el mapeo a <strong className="mx-1">{siblings.length}</strong> publicacion{siblings.length !== 1 ? 'es' : ''} hermana{siblings.length !== 1 ? 's' : ''} con el mismo producto de catalogo.
-</div>
-)}
-{(suggestionsLoading || filteredSuggestions.length > 0) && (
-<div className="bg-green-50 border border-green-200 rounded-xl p-3">
-<h4 className="text-xs font-bold text-green-800 flex items-center gap-1.5 mb-2">
-<RefreshCw size={12} className={suggestionsLoading ? 'animate-spin' : ''} />
-{suggestionsLoading ? 'Buscando coincidencias...' : `${filteredSuggestions.length} sugerencia${filteredSuggestions.length !== 1 ? 's' : ''} por similitud`}
-</h4>
-{!suggestionsLoading && filteredSuggestions.slice(0, 15).map(res => (
-<button key={res.articulo_id} onClick={() => handleAddSku(res)} className="w-full text-left p-2 mb-1 rounded-lg hover:bg-green-100 border border-transparent hover:border-green-300 transition-all flex items-center justify-between group">
-<div className="flex-1 min-w-0">
-<p className="text-xs font-medium text-[var(--text)] truncate">{res.nombre}</p>
-<div className="flex flex-wrap gap-1 mt-0.5">
-{res.marca && <span className="text-[10px] text-[var(--text-muted)]">{res.marca}</span>}
-{res.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {res.codigo_universal}</span>}
-{res.modelo && <span className="text-[10px] text-[var(--text-faint)]">Mod: {res.modelo}</span>}
-{res.variante && <span className="text-[10px] text-[var(--text-faint)]">Var: {res.variante}</span>}
-{res.caja_madre && <span className="text-[10px] text-[var(--text-faint)]">Caja: {res.caja_madre}</span>}
-</div>
-</div>
-<div className="flex items-center gap-2">
-{res._score >= 3 && <span className="text-[9px] bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full font-bold">Alta</span>}
-{res._score >= 1.5 && res._score < 3 && <span className="text-[9px] bg-amber-100 text-[var(--warn)] px-1.5 py-0.5 rounded-full">Media</span>}
-{res._score < 1.5 && <span className="text-[9px] bg-[var(--surface-2)] text-[var(--text-muted)] px-1.5 py-0.5 rounded-full">Baja</span>}
-{costMap.get(res.articulo_id) ? (
-<span className="inline-block px-1.5 py-0.5 text-[10px] rounded bg-emerald-100 text-[var(--ok)] font-semibold ml-1">
-costo vigente
-</span>
-) : (
-<span className="inline-block px-1.5 py-0.5 text-[10px] rounded bg-rose-100 text-[var(--err)] font-semibold ml-1" title="El articulo no tiene costo vigente. Importa la lista de precios del proveedor.">
-sin costo
-</span>
-)}
-<span className="text-[10px] font-mono text-[var(--text-faint)]">{res.articulo_id}</span>
-<Plus size={14} className="text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-</div>
-</button>
-))}
-</div>
-)}
-<div>
-<label className="text-xs font-semibold text-[var(--text-muted)] mb-1.5 block">Buscar en tu Bodega (Catalogo Real)</label>
-<div className="relative">
-<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={16} />
-<input type="text" className="w-full pl-10 pr-4 py-2.5 bg-[var(--surface)] border border-slate-300 rounded-lg focus:ring-2 focus:ring-[var(--accent)] focus:border-[var(--accent)] transition-all" placeholder="Busca por nombre, marca, modelo, SKU, codigo universal..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-</div>
-{searchResults.length > 0 && (
-<div className="mt-2 border border-[var(--border)] rounded-lg bg-[var(--surface)] shadow-lg max-h-48 overflow-y-auto">
-{searchResults.map(res => (
-<button key={res.articulo_id} className="w-full text-left px-3 py-2.5 hover:bg-[var(--accent)]/10 border-b border-[var(--border)] last:border-0 transition-colors flex items-center justify-between" onClick={() => handleAddSku(res)}>
-<div className="flex-1 min-w-0">
-<p className="text-xs font-medium text-[var(--text)] truncate">{res.nombre}</p>
-<div className="flex flex-wrap gap-1 mt-0.5">
-{res.marca && <span className="text-[10px] text-[var(--text-muted)]">{res.marca}</span>}
-{res.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {res.codigo_universal}</span>}
-{res.modelo && <span className="text-[10px] text-[var(--text-faint)]">Mod: {res.modelo}</span>}
-{res.variante && <span className="text-[10px] text-[var(--text-faint)]">Var: {res.variante}</span>}
-{res.caja_madre && <span className="text-[10px] text-[var(--text-faint)]">Caja: {res.caja_madre}</span>}
-</div>
-</div>
-<span className="text-[10px] font-mono text-[var(--text-faint)] ml-2 flex-shrink-0">{res.articulo_id}</span>
-</button>
-))}
-</div>
-)}
-</div>
-<div>
-<h4 className="text-xs font-bold text-[var(--text-muted)] flex items-center gap-1.5 mb-2"><Package size={14} /> Articulos que se descontaran por cada venta (Ensamble)</h4>
-{loading ? (
-<div className="text-center py-4 text-sm text-[var(--text-faint)]"><RefreshCw size={16} className="inline animate-spin mr-2" />Cargando mapeos previos...</div>
-) : selectedSkus.length === 0 ? (
-<div className="text-center py-6 text-sm text-[var(--text-faint)] bg-[var(--bg)] rounded-lg border-2 border-dashed border-[var(--border)]">No has agregado articulos reales. Usa el buscador o las sugerencias.</div>
-) : (
-selectedSkus.map(s => (
-<div key={s.sku} className="flex items-center gap-3 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-lg mb-2 hover:shadow-sm transition-shadow">
-<div className="flex-1 min-w-0">
-<p className="text-xs font-semibold text-[var(--text)] truncate">{s.name}</p>
-<div className="flex flex-wrap gap-1 mt-0.5">
-{s.marca && <span className="text-[10px] text-[var(--text-muted)]">{s.marca}</span>}
-{s.modelo && <span className="text-[10px] text-[var(--text-faint)]">Mod: {s.modelo}</span>}
-{s.variante && <span className="text-[10px] text-[var(--text-faint)]">Var: {s.variante}</span>}
-{s.caja_madre && <span className="text-[10px] text-[var(--text-faint)]">Caja: {s.caja_madre}</span>}
-{s.codigo_universal && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded">Cod: {s.codigo_universal}</span>}
-</div>
-<span className="text-[10px] font-mono text-[var(--text-faint)] mt-0.5 block">{s.sku}</span>
-</div>
-<button onClick={() => handleRemoveSku(s.sku)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
-<div className="text-center">
-<span className="text-[10px] text-[var(--text-faint)] block mb-1">Cantidad</span>
-<div className="flex items-center border border-[var(--border)] rounded-lg overflow-hidden">
-<button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="px-2 py-1 text-[var(--text-muted)] hover:bg-slate-200 font-bold">-</button>
-<input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, parseInt(e.target.value) || 1)} className="w-12 text-center text-sm font-semibold bg-transparent border-none appearance-none p-0 focus:ring-0" />
-<button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="px-2 py-1 text-[var(--text-muted)] hover:bg-slate-200 font-bold">+</button>
-</div>
-</div>
-</div>
-))
-)}
-</div>
-</div>
-<div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--bg)]">
-<button onClick={onClose} className="px-4 py-2 text-sm font-medium text-[var(--text-muted)] bg-[var(--surface)] border border-slate-300 rounded-lg hover:bg-[var(--bg)]">Cancelar</button>
-<button onClick={handleSave} disabled={saving || selectedSkus.length === 0} className="px-5 py-2 text-sm font-semibold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:brightness-110 disabled:opacity-40 flex items-center gap-2">
-{saving ? (<><RefreshCw size={14} className="animate-spin" />Guardando...</>) : <><Save size={14} />Guardar y Enlazar</>}
-</button>
-</div>
-</div>
-</div>
-);
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                {/* Header del Modal */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] bg-[var(--surface-2)]">
+                    <div>
+                        <h2 className="text-lg font-bold text-[var(--text)]">Mapear a Bodega Física</h2>
+                        <p className="text-xs text-[var(--text-muted)]">Vincula esta vitrina con 1 o más productos reales.</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] rounded-lg transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+                    {/* Tarjeta de Publicación MeLi */}
+                    <div className="bg-[var(--surface-2)]/70 rounded-xl p-4 border border-[var(--border)]">
+                        <div className="flex gap-4">
+                            {listing.url_imagen && (
+                                <img src={listing.url_imagen} alt="Producto" className="w-20 h-20 object-contain rounded-lg bg-[var(--surface)] border border-[var(--border)] flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/15 px-2.5 py-0.5 rounded-full border border-[var(--accent)]/30">
+                                        Publicación Venta
+                                    </span>
+                                    {listing.condition && (
+                                        <span className="text-xs text-[var(--text-muted)] bg-[var(--surface)] px-2 py-0.5 rounded border border-[var(--border)]">
+                                            {listing.condition === 'new' ? 'Nuevo' : 'Usado'}
+                                        </span>
+                                    )}
+                                </div>
+                                <h3 className="font-semibold text-base text-[var(--text)] leading-tight truncate">{listing.titulo}</h3>
+                                <p className="text-xs text-[var(--text-muted)] mt-1 font-mono">{listing.external_item_id} — <strong className="text-[var(--text)]">${listing.precio_venta}</strong></p>
+                                
+                                <div className="flex flex-wrap gap-1.5 mt-2.5">
+                                    {pubSku && (
+                                        <span className="inline-flex items-center gap-1 text-xs bg-[var(--warn)]/10 text-[var(--warn)] border border-[var(--warn)]/30 px-2 py-0.5 rounded-md font-mono">
+                                            <Tag size={12} /> SKU: {pubSku}
+                                        </span>
+                                    )}
+                                    {pubEan && (
+                                        <span className="inline-flex items-center gap-1 text-xs bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] px-2 py-0.5 rounded-md font-mono">
+                                            <Barcode size={12} /> EAN: {pubEan}
+                                        </span>
+                                    )}
+                                    {pubGtin && pubGtin !== pubEan && (
+                                        <span className="inline-flex items-center gap-1 text-xs bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] px-2 py-0.5 rounded-md font-mono">
+                                            <Barcode size={12} /> GTIN: {pubGtin}
+                                        </span>
+                                    )}
+                                    {pubUpc && pubUpc !== pubEan && pubUpc !== pubGtin && (
+                                        <span className="text-xs bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] px-2 py-0.5 rounded-md font-mono">
+                                            UPC: {pubUpc}
+                                        </span>
+                                    )}
+                                    <span className={`text-xs px-2 py-0.5 rounded-md border ${pubBrand ? 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)]' : 'bg-[var(--err)]/10 text-[var(--err)] border-[var(--err)]/30'}`}>
+                                        Marca: {pubBrand || '⚠️ Ausente en ML'}
+                                    </span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-md border ${pubModel ? 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)]' : 'bg-[var(--err)]/10 text-[var(--err)] border-[var(--err)]/30'}`}>
+                                        Modelo: {pubModel || '⚠️ Ausente en ML'}
+                                    </span>
+                                    {listing.domain_id && (
+                                        <span className="text-xs bg-[var(--surface)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded-md">
+                                            {listing.domain_id}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {isBlockedCatalog && (
+                        <div className="bg-[var(--warn)]/10 border border-[var(--warn)]/40 rounded-xl p-4 flex gap-3 text-[var(--text)]">
+                            <Info size={18} className="text-[var(--warn)] shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-bold text-[var(--warn)]">Este catálogo hereda el stock de su publicación tradicional</p>
+                                <p className="text-xs text-[var(--text-muted)] mt-1">
+                                    Para que el stock se sincronice correctamente, mapea la publicación <strong>tradicional hermana</strong>
+                                    {listing.par_item_id ? ` (${listing.par_item_id})` : ''} - este catálogo se actualizará automáticamente.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {!isBlockedCatalog && siblings.length > 0 && (
+                        <div className="bg-[var(--accent)]/15 border border-[var(--accent)]/40 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-[var(--text)]">
+                            <Info size={14} className="shrink-0 text-[var(--accent)]" />
+                            <span>Al guardar, podrás propagar el mapeo a <strong className="text-[var(--accent)]">{siblings.length}</strong> publicación{siblings.length !== 1 ? 'es' : ''} hermana{siblings.length !== 1 ? 's' : ''} con el mismo producto de catálogo.</span>
+                        </div>
+                    )}
+
+                    {/* Sugerencias Inteligentes */}
+                    {(suggestionsLoading || filteredSuggestions.length > 0) && (
+                        <div className="bg-[var(--surface-2)]/80 border border-[var(--border)] rounded-xl p-3.5 space-y-2">
+                            <h4 className="text-xs font-bold text-[var(--text)] flex items-center gap-1.5 mb-2">
+                                <RefreshCw size={12} className={suggestionsLoading ? 'animate-spin text-[var(--accent)]' : 'text-[var(--accent)]'} />
+                                {suggestionsLoading ? 'Buscando coincidencias...' : `${filteredSuggestions.length} sugerencia${filteredSuggestions.length !== 1 ? 's' : ''} por similitud`}
+                            </h4>
+
+                            {!suggestionsLoading && filteredSuggestions.slice(0, 15).map(res => (
+                                <button
+                                    key={res.articulo_id}
+                                    onClick={() => handleAddSku(res)}
+                                    className="w-full text-left p-2.5 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--accent)] transition-all flex items-center justify-between group"
+                                >
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-[var(--text)] truncate">{res.nombre}</p>
+                                        <div className="flex flex-wrap gap-1.5 mt-1">
+                                            {res.marca && <span className="text-xs text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{res.marca}</span>}
+                                            {res.codigo_universal && (
+                                                <span className="text-xs font-mono text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/20 px-1.5 py-0.5 rounded">
+                                                    Cod: {res.codigo_universal}
+                                                </span>
+                                            )}
+                                            {res.modelo && <span className="text-xs text-[var(--text-faint)]">Mod: {res.modelo}</span>}
+                                            {res.variante && <span className="text-xs text-[var(--text-faint)]">Var: {res.variante}</span>}
+                                            {res.caja_madre && <span className="text-xs text-[var(--text-faint)]">Caja: {res.caja_madre}</span>}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 ml-3">
+                                        {res._score >= 3 && <span className="text-xs bg-[var(--ok)]/20 text-[var(--ok)] border border-[var(--ok)]/40 px-2 py-0.5 rounded-full font-bold">Alta</span>}
+                                        {res._score >= 1.5 && res._score < 3 && <span className="text-xs bg-[var(--warn)]/20 text-[var(--warn)] border border-[var(--warn)]/40 px-2 py-0.5 rounded-full font-semibold">Media</span>}
+                                        {res._score < 1.5 && <span className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded-full">Baja</span>}
+                                        {costMap.get(res.articulo_id) ? (
+                                            <span className="inline-block px-2 py-0.5 text-xs rounded bg-[var(--ok)]/15 text-[var(--ok)] border border-[var(--ok)]/30 font-semibold">
+                                                costo vigente
+                                            </span>
+                                        ) : (
+                                            <span className="inline-block px-2 py-0.5 text-xs rounded bg-[var(--err)]/15 text-[var(--err)] border border-[var(--err)]/30 font-semibold" title="El articulo no tiene costo vigente.">
+                                                sin costo
+                                            </span>
+                                        )}
+                                        <span className="text-xs font-mono text-[var(--text-faint)]">{res.articulo_id}</span>
+                                        <Plus size={16} className="text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Buscador en Catálogo Interno */}
+                    <div>
+                        <label className="text-xs font-semibold text-[var(--text-muted)] mb-1.5 block">Buscar en tu Bodega (Catálogo Real)</label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={16} />
+                            <input
+                                type="text"
+                                className="w-full pl-10 pr-4 py-2.5 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] focus:border-[var(--accent)] transition-all outline-none text-sm placeholder:text-[var(--text-faint)]"
+                                placeholder="Busca por nombre, marca, modelo, SKU, código universal..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        {searchResults.length > 0 && (
+                            <div className="mt-2 border border-[var(--border)] rounded-lg bg-[var(--surface)] shadow-xl max-h-48 overflow-y-auto">
+                                {searchResults.map(res => (
+                                    <button
+                                        key={res.articulo_id}
+                                        className="w-full text-left px-3 py-2.5 hover:bg-[var(--accent)]/10 border-b border-[var(--border)] last:border-0 transition-colors flex items-center justify-between group"
+                                        onClick={() => handleAddSku(res)}
+                                    >
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-[var(--text)] truncate">{res.nombre}</p>
+                                            <div className="flex flex-wrap gap-1.5 mt-1">
+                                                {res.marca && <span className="text-xs text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{res.marca}</span>}
+                                                {res.codigo_universal && (
+                                                    <span className="text-xs font-mono text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded border border-[var(--accent)]/20">
+                                                        Cod: {res.codigo_universal}
+                                                    </span>
+                                                )}
+                                                {res.modelo && <span className="text-xs text-[var(--text-faint)]">Mod: {res.modelo}</span>}
+                                                {res.variante && <span className="text-xs text-[var(--text-faint)]">Var: {res.variante}</span>}
+                                                {res.caja_madre && <span className="text-xs text-[var(--text-faint)]">Caja: {res.caja_madre}</span>}
+                                            </div>
+                                        </div>
+                                        <span className="text-xs font-mono text-[var(--text-faint)] ml-2 flex-shrink-0">{res.articulo_id}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Artículos Seleccionados (Ensamble) */}
+                    <div>
+                        <h4 className="text-xs font-bold text-[var(--text-muted)] flex items-center gap-1.5 mb-2">
+                            <Package size={14} /> Artículos que se descontarán por cada venta (Ensamble)
+                        </h4>
+                        {loading ? (
+                            <div className="text-center py-4 text-sm text-[var(--text-faint)]">
+                                <RefreshCw size={16} className="inline animate-spin mr-2" />Cargando mapeos previos...
+                            </div>
+                        ) : selectedSkus.length === 0 ? (
+                            <div className="text-center py-6 text-sm text-[var(--text-faint)] bg-[var(--surface-2)]/40 rounded-lg border-2 border-dashed border-[var(--border)]">
+                                No has agregado artículos reales. Usa el buscador o las sugerencias.
+                            </div>
+                        ) : (
+                            selectedSkus.map(s => (
+                                <div key={s.sku} className="flex items-center gap-3 p-3 bg-[var(--surface-2)]/60 border border-[var(--border)] rounded-lg mb-2 hover:border-[var(--accent)]/40 transition-colors">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-[var(--text)] truncate">{s.name}</p>
+                                        <div className="flex flex-wrap gap-1.5 mt-1">
+                                            {s.marca && <span className="text-xs text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded">{s.marca}</span>}
+                                            {s.modelo && <span className="text-xs text-[var(--text-faint)]">Mod: {s.modelo}</span>}
+                                            {s.variante && <span className="text-xs text-[var(--text-faint)]">Var: {s.variante}</span>}
+                                            {s.caja_madre && <span className="text-xs text-[var(--text-faint)]">Caja: {s.caja_madre}</span>}
+                                            {s.codigo_universal && (
+                                                <span className="text-xs font-mono text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded border border-[var(--accent)]/20">
+                                                    Cod: {s.codigo_universal}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="text-xs font-mono text-[var(--text-faint)] mt-1 block">{s.sku}</span>
+                                    </div>
+                                    <button onClick={() => handleRemoveSku(s.sku)} className="p-2 text-[var(--err)] hover:bg-[var(--err)]/15 rounded-lg transition-colors" title="Eliminar">
+                                        <Trash2 size={16} />
+                                    </button>
+                                    <div className="text-center">
+                                        <span className="text-xs text-[var(--text-faint)] block mb-1">Cantidad</span>
+                                        <div className="flex items-center border border-[var(--border)] bg-[var(--surface)] rounded-lg overflow-hidden">
+                                            <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="px-2.5 py-1 text-[var(--text)] hover:bg-[var(--surface-2)] font-bold transition-colors">-</button>
+                                            <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, parseInt(e.target.value) || 1)} className="w-12 text-center text-sm font-semibold bg-transparent border-none appearance-none p-0 focus:ring-0 text-[var(--text)]" />
+                                            <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="px-2.5 py-1 text-[var(--text)] hover:bg-[var(--surface-2)] font-bold transition-colors">+</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer del Modal */}
+                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--surface-2)]">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)] hover:text-[var(--text)] transition-colors">
+                        Cancelar
+                    </button>
+                    <button onClick={handleSave} disabled={saving || selectedSkus.length === 0} className="px-5 py-2 text-sm font-semibold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:brightness-110 disabled:opacity-40 flex items-center gap-2 transition-all shadow-sm">
+                        {saving ? (<><RefreshCw size={14} className="animate-spin" />Guardando...</>) : <><Save size={14} />Guardar y Enlazar</>}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 }

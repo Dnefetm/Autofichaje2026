@@ -581,8 +581,8 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                 </span>
                                 <TipoBadge tipo={rel.tipo_publicacion} />
                                 {rel.esta_mapeado
-                                    ? <span className="text-[9px] text-[var(--ok)] font-medium">Mapeado</span>
-                                    : <span className="text-[9px] text-[var(--err)] font-medium">Sin mapear</span>
+                                    ? <span className="text-xs text-[var(--ok)] font-semibold">Mapeado</span>
+                                    : <span className="text-xs text-[var(--err)] font-semibold">Sin mapear</span>
                                 }
                             </div>
                         </td>

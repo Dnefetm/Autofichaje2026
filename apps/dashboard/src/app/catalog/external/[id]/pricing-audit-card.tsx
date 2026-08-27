@@ -287,7 +287,7 @@ export default function PricingAuditCard({
                                             <tr>
                                                 <td className="py-1.5 text-[var(--text-muted)] font-medium">
                                                     Comisión ML {draftDetails.comision_pct != null ? `(${draftDetails.comision_pct}%)` : ''}
-                                                    {draftDetails.listing_type_id && <span className="block text-[9px] text-[var(--text-faint)] uppercase">{draftDetails.listing_type_id.replace('_', ' ')}</span>}
+                                                    {draftDetails.listing_type_id && <span className="block text-xs text-[var(--text-faint)] uppercase">{draftDetails.listing_type_id.replace('_', ' ')}</span>}
                                                 </td>
                                                 <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
                                                     {draftDetails.comision_fee != null ? fmt(draftDetails.comision_fee) : 'Incluida en Cálculo'}
@@ -323,7 +323,7 @@ export default function PricingAuditCard({
                                             </tr>
                                             {draftDetails.reason && (
                                                 <tr>
-                                                    <td colSpan={2} className="pt-1 text-[9px] text-[var(--text-faint)] font-mono text-right">Nota: {draftDetails.reason}</td>
+                                                    <td colSpan={2} className="pt-1 text-xs text-[var(--text-faint)] font-mono text-right">Nota: {draftDetails.reason}</td>
                                                 </tr>
                                             )}
                                         </tfoot>

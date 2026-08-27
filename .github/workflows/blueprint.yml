@@ -15,6 +15,21 @@ on:
       - 'docs/db_flow_blueprint.json'
 
 jobs:
+
+  validate-schema:
+    name: Validate DB Schema
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start Ephemeral DB & Verify Migrations
+        run: supabase db start
+
+
   generate-and-validate:
     runs-on: ubuntu-latest
     permissions:

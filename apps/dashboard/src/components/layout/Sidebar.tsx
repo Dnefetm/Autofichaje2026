@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import {
@@ -12,7 +13,9 @@ import {
 } from 'lucide-react';
 
 export default function Sidebar() {
+    const pathname = usePathname();
     const [pendingCount, setPendingCount] = useState<number | null>(null);
+    const [collapsed, setCollapsed] = useState(false);
 
     useEffect(() => {
         let cancel = false;
@@ -32,6 +35,18 @@ export default function Sidebar() {
         };
     }, []);
 
+    // Persistir preferencia en localStorage
+    useEffect(() => {
+        const saved = localStorage.getItem('sidebar-collapsed');
+        if (saved === 'true') setCollapsed(true);
+    }, []);
+
+    function toggle() {
+        const next = !collapsed;
+        setCollapsed(next);
+        localStorage.setItem('sidebar-collapsed', String(next));
+    }
+
     const menuItems = [
         { name: 'Dashboard',        icon: LayoutDashboard, href: '/' },
         { name: 'Catálogo Maestro', icon: Package,         href: '/catalog' },
@@ -45,64 +60,96 @@ export default function Sidebar() {
         { name: 'Cuentas',          icon: Settings,        href: '/settings' },
     ];
 
-    const [collapsed, setCollapsed] = useState(false);
-
-    // Persistir preferencia en localStorage
-    useEffect(() => {
-        const saved = localStorage.getItem('sidebar-collapsed');
-        if (saved === 'true') setCollapsed(true);
-    }, []);
-
-    function toggle() {
-        const next = !collapsed;
-        setCollapsed(next);
-        localStorage.setItem('sidebar-collapsed', String(next));
-    }
+    const isPendientesActive = pathname === '/catalog/external/pendientes';
 
     return (
         <aside className={cn(
-            'bg-[var(--surface-2)] text-[var(--accent-ink)] flex-shrink-0 flex flex-col h-full border-r border-slate-800 transition-all duration-200',
-            collapsed ? 'w-16' : 'w-64'
+            'bg-[var(--surface-2)] text-[var(--text)] flex-shrink-0 flex flex-col h-full border-r border-[var(--border)] transition-all duration-200 select-none',
+            collapsed ? 'w-16' : 'w-56'
         )}>
-            {/* Logo */}
-            <div className={cn('p-4 flex items-center gap-3', collapsed && 'justify-center')}>
-                <div className="w-8 h-8 shrink-0 bg-[var(--accent)]/100 rounded-lg flex items-center justify-center">
-                    <RefreshCcw className="w-5 h-5" />
+            {/* Header con Logo y Botón Toggle Integrado */}
+            <div className={cn(
+                'p-3 border-b border-[var(--border)] flex items-center',
+                collapsed ? 'justify-center flex-col gap-2' : 'justify-between'
+            )}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 shrink-0 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg flex items-center justify-center shadow-sm">
+                        <RefreshCcw className="w-4 h-4" />
+                    </div>
+                    {!collapsed && (
+                        <span className="text-base font-bold tracking-tight text-[var(--text)] truncate">
+                            GESTOR
+                        </span>
+                    )}
                 </div>
-                {!collapsed && <h1 className="text-xl font-bold tracking-tight">GESTOR</h1>}
+
+                <button
+                    onClick={toggle}
+                    title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+                    className="p-1.5 rounded-md hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+                >
+                    {collapsed
+                        ? <ChevronRight className="w-4 h-4" />
+                        : <ChevronLeft  className="w-4 h-4" />
+                    }
+                </button>
             </div>
 
-            {/* Nav */}
-            <nav className="flex-1 px-2 py-4 space-y-1">
-                {menuItems.map((item) => (
-                    <Link
-                        key={item.name}
-                        href={item.href}
-                        title={item.name}
-                        className={cn(
-                            'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md hover:bg-[var(--surface)] transition-colors group',
-                            collapsed && 'justify-center'
-                        )}
-                    >
-                        <item.icon className="w-4 h-4 shrink-0 text-[var(--text-faint)] group-hover:text-indigo-400" />
-                        {!collapsed && <span>{item.name}</span>}
-                    </Link>
-                ))}
-                
+            {/* Navegación con Scroll Automático si es necesario */}
+            <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
+                {menuItems.map((item) => {
+                    const isActive = item.href === '/'
+                        ? pathname === '/'
+                        : pathname.startsWith(item.href) && !pathname.startsWith('/catalog/external/pendientes');
+
+                    return (
+                        <Link
+                            key={item.name}
+                            href={item.href}
+                            title={collapsed ? item.name : undefined}
+                            className={cn(
+                                'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors group',
+                                collapsed && 'justify-center px-2',
+                                isActive
+                                    ? 'bg-[var(--accent)] text-[var(--accent-ink)] font-semibold shadow-sm'
+                                    : 'text-[var(--text-muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]'
+                            )}
+                        >
+                            <item.icon className={cn(
+                                'w-4 h-4 shrink-0 transition-colors',
+                                isActive ? 'text-[var(--accent-ink)]' : 'text-[var(--text-faint)] group-hover:text-[var(--text)]'
+                            )} />
+                            {!collapsed && <span className="truncate">{item.name}</span>}
+                        </Link>
+                    );
+                })}
+
+                {/* Enlace de Pendientes con Notificación */}
                 <Link
                     href="/catalog/external/pendientes"
-                    title="Pendientes"
+                    title={collapsed ? `Pendientes (${pendingCount ?? 0})` : undefined}
                     className={cn(
-                        'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md hover:bg-[var(--surface)] transition-colors group',
-                        collapsed && 'justify-center'
+                        'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors group relative',
+                        collapsed && 'justify-center px-2',
+                        isPendientesActive
+                            ? 'bg-[var(--accent)] text-[var(--accent-ink)] font-semibold shadow-sm'
+                            : 'text-[var(--text-muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]'
                     )}
                 >
-                    <ClipboardList className="w-4 h-4 shrink-0 text-amber-400 group-hover:text-amber-300" />
+                    <div className="relative">
+                        <ClipboardList className={cn(
+                            'w-4 h-4 shrink-0 transition-colors',
+                            isPendientesActive ? 'text-[var(--accent-ink)]' : 'text-amber-400 group-hover:text-amber-300'
+                        )} />
+                        {collapsed && pendingCount !== null && pendingCount > 0 && (
+                            <span className="absolute -top-1 -right-1.5 w-2.5 h-2.5 bg-[var(--warn)] rounded-full ring-2 ring-[var(--surface-2)]" />
+                        )}
+                    </div>
                     {!collapsed && (
-                        <div className="flex items-center justify-between flex-1">
-                            <span>Pendientes</span>
+                        <div className="flex items-center justify-between flex-1 min-w-0">
+                            <span className="truncate">Pendientes</span>
                             {pendingCount !== null && pendingCount > 0 && (
-                                <span className="px-2 py-0.5 rounded-full bg-[var(--warn)]/100 text-[var(--accent-ink)] text-[10px] font-bold">
+                                <span className="px-2 py-0.5 rounded-full bg-[var(--warn)] text-slate-950 text-xs font-bold shadow-xs">
                                     {pendingCount.toLocaleString()}
                                 </span>
                             )}
@@ -111,32 +158,20 @@ export default function Sidebar() {
                 </Link>
             </nav>
 
-            {/* Usuario */}
-            <div className="p-3 border-t border-slate-800">
-                <div className={cn('flex items-center gap-3 px-2 py-2', collapsed && 'justify-center')}>
-                    <div className="w-8 h-8 shrink-0 bg-slate-700 rounded-full flex items-center justify-center text-xs">
+            {/* Usuario / Footer */}
+            <div className="p-3 border-t border-[var(--border)]">
+                <div className={cn('flex items-center gap-3 px-1.5 py-1', collapsed && 'justify-center')}>
+                    <div className="w-8 h-8 shrink-0 bg-[var(--surface)] border border-[var(--border)] rounded-full flex items-center justify-center text-xs font-semibold text-[var(--text)]">
                         OP
                     </div>
                     {!collapsed && (
-                        <div>
-                            <p className="text-sm font-medium">Operador 1</p>
-                            <p className="text-xs text-[var(--text-muted)]">Cerrar sesión</p>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-[var(--text)] truncate">Operador 1</p>
+                            <p className="text-xs text-[var(--text-muted)] truncate">Sesión activa</p>
                         </div>
                     )}
                 </div>
             </div>
-
-            {/* Botón toggle */}
-            <button
-                onClick={toggle}
-                title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-                className="flex items-center justify-center py-3 border-t border-slate-800 hover:bg-[var(--surface)] transition-colors text-[var(--text-faint)] hover:text-[var(--accent-ink)]"
-            >
-                {collapsed
-                    ? <ChevronRight className="w-4 h-4" />
-                    : <ChevronLeft  className="w-4 h-4" />
-                }
-            </button>
         </aside>
     );
 }
