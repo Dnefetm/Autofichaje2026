@@ -9,20 +9,32 @@ export async function POST(request: NextRequest) {
     try {
         console.log("Iniciando ingesta de comisiones...");
         
-        const { data: catData, error: catError } = await supabaseAdmin
-            .from('publicaciones_externas')
-            .select('category_id, marketplace_id')
-            .not('category_id', 'is', null);
-            
-        if (catError) throw catError;
-        
         const categories = new Set<string>();
         let validMarketplaceId = null;
+        let from = 0;
+        const step = 1000;
+        let keepGoing = true;
         
-        for (const row of catData) {
-            categories.add(row.category_id);
-            if (!validMarketplaceId && row.marketplace_id) {
-                validMarketplaceId = row.marketplace_id;
+        while (keepGoing) {
+            const { data: catData, error: catError } = await supabaseAdmin
+                .from('publicaciones_externas')
+                .select('category_id, marketplace_id')
+                .not('category_id', 'is', null)
+                .range(from, from + step - 1);
+                
+            if (catError) throw catError;
+            
+            for (const row of catData) {
+                categories.add(row.category_id);
+                if (!validMarketplaceId && row.marketplace_id) {
+                    validMarketplaceId = row.marketplace_id;
+                }
+            }
+            
+            if (catData.length < step) {
+                keepGoing = false;
+            } else {
+                from += step;
             }
         }
         
@@ -36,8 +48,8 @@ export async function POST(request: NextRequest) {
         const { data: tokenRow } = await supabaseAdmin
             .from('marketplace_tokens')
             .select('access_token')
-            .eq('marketplace_id', validMarketplaceId)
             .not('access_token', 'is', null)
+            .order('expires_at', { ascending: false })
             .limit(1)
             .single();
             
