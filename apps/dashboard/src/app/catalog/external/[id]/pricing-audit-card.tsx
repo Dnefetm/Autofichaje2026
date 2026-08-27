@@ -271,6 +271,14 @@ export default function PricingAuditCard({
                                     <table className="w-full text-xs">
                                         <tbody className="divide-y divide-[var(--border)]">
                                             <tr>
+                                                <td className="py-1.5 text-[var(--text-muted)] font-medium capitalize">
+                                                    Costo Base {draftDetails.costo_tipo ? `(${draftDetails.costo_tipo})` : ''}
+                                                </td>
+                                                <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
+                                                    {draftDetails.costo_base != null ? fmt(draftDetails.costo_base) : '—'}
+                                                </td>
+                                            </tr>
+                                            <tr>
                                                 <td className="py-1.5 text-[var(--text-muted)] font-medium">Margen Esperado</td>
                                                 <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
                                                     {draftDetails.margen_pct != null ? `${draftDetails.margen_pct}%` : draftDetails.margin != null ? `${draftDetails.margin}%` : '—'}
@@ -279,15 +287,17 @@ export default function PricingAuditCard({
                                             <tr>
                                                 <td className="py-1.5 text-[var(--text-muted)] font-medium">
                                                     Comisión ML {draftDetails.comision_pct != null ? `(${draftDetails.comision_pct}%)` : ''}
+                                                    {draftDetails.listing_type_id && <span className="block text-[9px] text-[var(--text-faint)] uppercase">{draftDetails.listing_type_id.replace('_', ' ')}</span>}
                                                 </td>
                                                 <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
                                                     {draftDetails.comision_fee != null ? fmt(draftDetails.comision_fee) : 'Incluida en Cálculo'}
                                                 </td>
                                             </tr>
-                                            {/* Espacio reservado para escalabilidad (Envío, Peso, Volumen, Premium vs Clásica) */}
                                             <tr>
-                                                <td className="py-1.5 text-[var(--text-faint)] italic text-[10px]">Cargos de envío / logística (próximamente)</td>
-                                                <td className="py-1.5 text-right font-mono text-[var(--text-faint)] tabular-nums">N/A</td>
+                                                <td className="py-1.5 text-[var(--text-muted)] font-medium">Envío ML</td>
+                                                <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
+                                                    {draftDetails.shipping_cost != null ? fmt(draftDetails.shipping_cost) : fmt(0)}
+                                                </td>
                                             </tr>
                                         </tbody>
                                         <tfoot className="border-t border-[var(--border)] mt-1">
