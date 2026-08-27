@@ -299,6 +299,22 @@ export default function PricingAuditCard({
                                                     {draftDetails.shipping_cost != null ? fmt(draftDetails.shipping_cost) : fmt(0)}
                                                 </td>
                                             </tr>
+                                            <tr>
+                                                <td className="py-1.5 text-[var(--text-muted)] font-medium">
+                                                    Retenciones ML {draftDetails.withholding_pct != null ? `(${draftDetails.withholding_pct}%)` : ''}
+                                                </td>
+                                                <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
+                                                    {draftDetails.withholding_fee != null ? fmt(draftDetails.withholding_fee) : 'Incluida en Cálculo'}
+                                                </td>
+                                            </tr>
+                                            {draftPrice != null && draftDetails.costo_base != null && draftDetails.comision_fee != null && (
+                                            <tr>
+                                                <td className="py-1.5 text-[var(--text-muted)] font-medium">Ajuste por Redondeo</td>
+                                                <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
+                                                    {fmt(draftPrice - (draftDetails.costo_base + draftDetails.comision_fee + (draftDetails.withholding_fee || 0) + (draftDetails.shipping_cost || 0)))}
+                                                </td>
+                                            </tr>
+                                            )}
                                         </tbody>
                                         <tfoot className="border-t border-[var(--border)] mt-1">
                                             <tr>
