@@ -1,8 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { DollarSign, ShieldCheck, AlertCircle, Clock, Save, X, Edit2, Loader2, ArrowRight, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { 
+    DollarSign, ShieldCheck, AlertCircle, Clock, Save, X, 
+    Edit2, Loader2, ArrowRight, RefreshCw, CheckCircle2, 
+    Sliders, Sparkles, HelpCircle, ChevronDown, ChevronUp, Check, Info
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { calculateFullPriceBreakdown, PricingModifiers, FullPriceBreakdown } from '@/lib/magic-rounding';
 
 interface PricingAuditCardProps {
     publicacionId: string;
@@ -32,6 +37,7 @@ export default function PricingAuditCard({
     const [history, setHistory] = useState<any[]>([]);
     const [allRules, setAllRules] = useState<any[]>([]);
     
+    // Edit general override (fixed price, custom margin, force rule)
     const [isEditing, setIsEditing] = useState(false);
     const [editType, setEditType] = useState<string>('fixed_price');
     const [editValue, setEditValue] = useState<string>('');
@@ -39,7 +45,25 @@ export default function PricingAuditCard({
     const [recalculating, setRecalculating] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     
-    // New states for apply functionality
+    // Modifiers panel & custom toggles
+    const [showModifiersPanel, setShowModifiersPanel] = useState(false);
+    const [modifiers, setModifiers] = useState<PricingModifiers>({
+        aplicar_margen: true,
+        margen_pct: 0,
+        aplicar_comision: true,
+        comision_pct: 16,
+        aplicar_envio: true,
+        shipping_cost_monto: 0,
+        aplicar_retenciones: true,
+        retenciones_pct: 9,
+        aplicar_redondeo_magico: true,
+        redondeo_target_pct: -10,
+        redondeo_min_pct: 9,
+        redondeo_max_pct: 14,
+        redondeo_modo: 'magic'
+    });
+
+    // Apply functionality
     const [applying, setApplying] = useState(false);
     const [confirmingDelta, setConfirmingDelta] = useState<null | { delta: number; price: number }>(null);
     const [editablePrice, setEditablePrice] = useState<string>('');
@@ -47,6 +71,28 @@ export default function PricingAuditCard({
     useEffect(() => {
         loadData();
     }, [publicacionId]);
+
+    useEffect(() => {
+        if (draftDetails) {
+            const mods = draftDetails.modifiers || {};
+            setModifiers({
+                aplicar_margen: mods.aplicar_margen !== false,
+                margen_pct: mods.margen_pct ?? draftDetails.margen_pct ?? 0,
+                aplicar_comision: mods.aplicar_comision !== false,
+                comision_pct: mods.comision_pct ?? draftDetails.comision_pct ?? 16,
+                aplicar_envio: mods.aplicar_envio !== false,
+                shipping_cost_monto: mods.shipping_cost_monto ?? draftDetails.shipping_cost ?? 0,
+                envio_fijo: mods.envio_fijo ?? draftDetails.envio_fijo ?? 0,
+                aplicar_retenciones: mods.aplicar_retenciones !== false,
+                retenciones_pct: mods.retenciones_pct ?? draftDetails.retenciones_pct ?? 9,
+                aplicar_redondeo_magico: mods.aplicar_redondeo_magico !== false,
+                redondeo_target_pct: mods.redondeo_target_pct ?? -10,
+                redondeo_min_pct: mods.redondeo_range?.min ?? 9,
+                redondeo_max_pct: mods.redondeo_range?.max ?? 14,
+                redondeo_modo: mods.redondeo_modo || 'magic'
+            });
+        }
+    }, [draftDetails]);
 
     const loadData = async () => {
         setLoading(true);
@@ -58,11 +104,14 @@ export default function PricingAuditCard({
             setAllRules(data.allRules || []);
             
             if (data.override) {
-                setEditType(data.override.override_type);
+                setEditType(data.override.override_type || 'fixed_price');
                 if (data.override.override_type === 'force_rule') {
                     setEditValue(data.override.force_rule_id || '');
-                } else {
-                    setEditValue(String(data.override.value || ''));
+                } else if (data.override.value != null) {
+                    setEditValue(String(data.override.value));
+                }
+                if (data.override.modifiers_override) {
+                    setModifiers(prev => ({ ...prev, ...data.override.modifiers_override }));
                 }
             }
         } catch (err) {
@@ -72,7 +121,7 @@ export default function PricingAuditCard({
         }
     };
 
-    const handleSave = async () => {
+    const handleSaveGeneralOverride = async () => {
         setSaving(true);
         setErrorMsg('');
         try {
@@ -82,7 +131,7 @@ export default function PricingAuditCard({
             if (editType === 'force_rule') {
                 if (!editValue) throw new Error("Debes seleccionar una regla");
                 force_rule_id = editValue;
-                val = 0; // Value is ignored but required for not deleting
+                val = 0;
             } else {
                 val = parseFloat(editValue);
                 if (isNaN(val) || val <= 0) throw new Error("Valor numérico inválido");
@@ -110,13 +159,36 @@ export default function PricingAuditCard({
         }
     };
 
+    const handleSaveModifiersOverride = async (updatedMods: PricingModifiers) => {
+        setSaving(true);
+        try {
+            const res = await fetch(`/api/catalog/external/${publicacionId}/pricing`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    modifiers_override: updatedMods
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            
+            await loadData();
+            onOverrideUpdated();
+        } catch (err: any) {
+            console.error(err);
+            alert('Error guardando modificadores: ' + err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const handleDelete = async () => {
         setSaving(true);
         try {
             await fetch(`/api/catalog/external/${publicacionId}/pricing`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ override_type: null, value: null })
+                body: JSON.stringify({ override_type: null, value: null, modifiers_override: null })
             });
             setIsEditing(false);
             setEditValue('');
@@ -161,8 +233,6 @@ export default function PricingAuditCard({
             if (data.requires_confirmation) {
                 setConfirmingDelta({ delta: data.delta_percent, price: finalPrice });
             } else if (data.success) {
-                
-                // Si aprobamos un draft exitosamente usando el apply nativo, llamamos al nuevo batch approve por si acaso
                 if (draftPrice && !editablePrice) {
                     await fetch(`/api/pricing/approve-drafts`, {
                         method: 'POST',
@@ -170,7 +240,6 @@ export default function PricingAuditCard({
                         body: JSON.stringify({ publicaciones: [publicacionId] })
                     });
                 }
-
                 setEditablePrice('');
                 onOverrideUpdated();
             } else if (data.error) {
@@ -185,332 +254,393 @@ export default function PricingAuditCard({
     };
 
     const fmt = (n: number | null | undefined) => 
-        n != null ? `$${Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—';
+        n != null ? `$${Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
         
     const formatDate = (d: string) => new Date(d).toLocaleString('es-MX', { 
         day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' 
     });
 
     const getStatusUI = (status: string | null, dStatus: string | null) => {
-        if (dStatus === 'valid') return { color: 'bg-[var(--warn)]/10  text-[var(--warn)] ', text: '📝 Borrador: Cálculo Exitoso', icon: <ShieldCheck className="w-3.5 h-3.5"/> };
-        if (!status || status === 'pending') return { color: 'bg-[var(--surface-2)]0 text-[var(--text)] border-[var(--border)]', text: 'Pendiente', icon: <Clock className="w-3.5 h-3.5"/> };
-        if (status === 'valid') return { color: 'bg-[var(--ok)]/10  text-[var(--ok)] ', text: 'Cálculo Exitoso', icon: <ShieldCheck className="w-3.5 h-3.5"/> };
-        if (status === 'override_active') return { color: 'bg-[var(--info)]/10  text-[var(--info)] border-purple-200', text: 'Excepción Manual', icon: <Edit2 className="w-3.5 h-3.5"/> };
-        if (status === 'error_no_cost') return { color: 'bg-[var(--err)]/10  text-[var(--err)] ', text: 'Falta Costo Base', icon: <AlertCircle className="w-3.5 h-3.5"/> };
-        if (status === 'error_negative_margin') return { color: 'bg-[var(--warn)]/10  text-[var(--warn)] ', text: 'Riesgo Margen', icon: <AlertCircle className="w-3.5 h-3.5"/> };
-        return { color: 'bg-[var(--surface-2)]0 text-[var(--text)] border-[var(--border)]', text: status, icon: null };
+        if (dStatus === 'valid') return { color: 'bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30', text: '📝 Borrador: Cálculo Exitoso', icon: <ShieldCheck className="w-3.5 h-3.5"/> };
+        if (!status || status === 'pending') return { color: 'bg-[var(--surface-2)] text-[var(--text)] border-[var(--border)]', text: 'Pendiente', icon: <Clock className="w-3.5 h-3.5"/> };
+        if (status === 'valid') return { color: 'bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30', text: 'Cálculo Exitoso', icon: <ShieldCheck className="w-3.5 h-3.5"/> };
+        if (status === 'override_active') return { color: 'bg-[var(--accent)]/15 text-[var(--accent)] border-[var(--accent)]/30', text: 'Excepción Manual', icon: <Edit2 className="w-3.5 h-3.5"/> };
+        if (status === 'error_no_cost' || status === 'missing_cost') return { color: 'bg-[var(--err)]/10 text-[var(--err)] border-[var(--err)]/30', text: 'Falta Costo Base', icon: <AlertCircle className="w-3.5 h-3.5"/> };
+        if (status === 'error_negative_margin') return { color: 'bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30', text: 'Riesgo Margen', icon: <AlertCircle className="w-3.5 h-3.5"/> };
+        return { color: 'bg-[var(--surface-2)] text-[var(--text)] border-[var(--border)]', text: status, icon: null };
     };
 
     const ui = getStatusUI(pricingStatus, draftStatus ?? null);
 
+    // Calcular desglose inmediato en cliente si draftDetails tiene la información
+    const detailsMods = draftDetails?.modifiers;
+    const subtotalCalculado = detailsMods?.subtotal_sin_redondeo ?? draftDetails?.subtotal ?? null;
+    const ajusteRedondeo = detailsMods?.redondeo_ajuste ?? (draftPrice && subtotalCalculado ? draftPrice - subtotalCalculado : null);
+
     return (
-        <div className="bg-[var(--surface)] rounded-[var(--radius)]   overflow-hidden flex flex-col h-full">
+        <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] overflow-hidden flex flex-col h-full shadow-sm">
+            {/* Header */}
             <div className="px-5 py-3 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-2)]">
                 <div className="flex items-center gap-2.5 shrink-0">
-                    <div className="text-[var(--text-faint)]"><DollarSign className="w-4 h-4" /></div>
+                    <div className="text-[var(--accent)]"><DollarSign className="w-4 h-4" /></div>
                     <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider whitespace-nowrap">Auditoría de Precio</h2>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                     <button 
                         onClick={handleForceRecalculate} 
                         disabled={recalculating || loading}
-                        className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/10 transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/25 transition-colors disabled:opacity-50"
                     >
-                        <RefreshCw className={cn("w-3 h-3", recalculating && "animate-spin")} />
-                        Recalcular Ahora
+                        <RefreshCw className={cn("w-3.5 h-3.5", recalculating && "animate-spin")} />
+                        Recalcular
                     </button>
                     {pricingStatus && (
-                        <span className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[var(--radius-sm)] text-[10px] font-bold border', ui.color)}>
+                        <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-sm)] text-xs font-bold border', ui.color)}>
                             {ui.icon} {ui.text}
                         </span>
                     )}
                 </div>
             </div>
             
-            <div className="p-5 flex-1 flex flex-col">
-                <div className="flex flex-col gap-4 mb-4">
-                    {/* Fila 1: Precio Actual ML */}
-                    <div className="bg-[var(--surface-2)] rounded-[var(--radius)] p-3 ">
-                        <p className="text-xs text-[var(--text-muted)] uppercase font-semibold mb-1">Precio Actual Mercado Libre</p>
-                        <p className="text-2xl font-bold text-[var(--text)]">{fmt(currentPrice)}</p>
-                        <p className="text-[10px] text-[var(--text-faint)] mt-1">
-                            El precio vigente en la plataforma.
-                        </p>
+            <div className="p-5 flex-1 flex flex-col space-y-4">
+                {/* Precios Principales */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Precio Actual */}
+                    <div className="bg-[var(--surface-2)]/60 border border-[var(--border)] rounded-[var(--radius)] p-3.5">
+                        <p className="text-xs text-[var(--text-muted)] uppercase font-semibold mb-1">Precio Actual MeLi</p>
+                        <p className="text-2xl font-bold text-[var(--text)] font-mono">{fmt(currentPrice)}</p>
+                        <p className="text-xs text-[var(--text-faint)] mt-1">Precio publicado en la plataforma.</p>
                     </div>
 
-                    {/* Fila 2: Precio Draft y Fórmula Transparente */}
-                    {draftPrice != null && (
-                        <div className="bg-[var(--surface)] border   rounded-[var(--radius)] p-4">
-                            <div className="flex items-start justify-between mb-3 border-b border-[var(--warn)]/30 pb-3">
-                                <div>
-                                    <p className="text-xs text-[var(--warn)] uppercase font-bold mb-1 flex items-center gap-1.5">
-                                        <AlertCircle className="w-3.5 h-3.5" /> Borrador Pendiente de Aprobación
-                                    </p>
-                                    <p className="text-[10px] text-[var(--text-muted)] font-medium max-w-sm leading-tight mt-1">
-                                        El motor sugiere un nuevo precio basado en cambios de costos o reglas. Revisa el desglose matemático antes de aplicar.
-                                    </p>
-                                </div>
-                                <div className="text-right">
-                                    <div className="flex items-center gap-3 justify-end">
-                                        <p className="text-2xl font-bold text-[var(--warn)] tabular-nums">{fmt(draftPrice)}</p>
-                                        {currentPrice && (
-                                            <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded-[var(--radius-sm)]", 
-                                                draftPrice > currentPrice ? "text-[var(--ok)] bg-[var(--ok)]/10 " : "text-[var(--err)] bg-[var(--err)]/10 ")}>
-                                                {draftPrice > currentPrice ? '↑' : '↓'} {Math.abs(((draftPrice - currentPrice) / currentPrice) * 100).toFixed(1)}%
-                                            </span>
-                                        )}
-                                    </div>
-                                    <p className="text-[10px] text-[var(--text-faint)] mt-1 uppercase font-semibold">Precio Sugerido</p>
-                                </div>
-                            </div>
-                            
-                            {/* Fórmula Transparente (Escalable) */}
-                            {draftDetails && (
-                                <div className="bg-[var(--surface-2)] rounded-[var(--radius-sm)]  p-3 mt-2">
-                                    <p className="text-[10px] uppercase tracking-wider font-bold text-[var(--text-muted)] mb-2">Desglose de la Fórmula</p>
-                                    <table className="w-full text-xs">
-                                        <tbody className="divide-y divide-[var(--border)]">
-                                            <tr>
-                                                <td className="py-1.5 text-[var(--text-muted)] font-medium capitalize">
-                                                    Costo Base {draftDetails.costo_tipo ? `(${draftDetails.costo_tipo})` : ''}
-                                                </td>
-                                                <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
-                                                    {draftDetails.costo_base != null ? fmt(draftDetails.costo_base) : '—'}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="py-1.5 text-[var(--text-muted)] font-medium">Margen Esperado</td>
-                                                <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
-                                                    {draftDetails.margen_pct != null ? `${draftDetails.margen_pct}%` : draftDetails.margin != null ? `${draftDetails.margin}%` : '—'}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="py-1.5 text-[var(--text-muted)] font-medium">
-                                                    Comisión ML {draftDetails.comision_pct != null ? `(${draftDetails.comision_pct}%)` : ''}
-                                                    {draftDetails.listing_type_id && <span className="block text-xs text-[var(--text-faint)] uppercase">{draftDetails.listing_type_id.replace('_', ' ')}</span>}
-                                                </td>
-                                                <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
-                                                    {draftDetails.comision_fee != null ? fmt(draftDetails.comision_fee) : 'Incluida en Cálculo'}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="py-1.5 text-[var(--text-muted)] font-medium">Envío ML</td>
-                                                <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
-                                                    {draftDetails.shipping_cost != null ? fmt(draftDetails.shipping_cost) : fmt(0)}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="py-1.5 text-[var(--text-muted)] font-medium">
-                                                    Retenciones ML {draftDetails.withholding_pct != null ? `(${draftDetails.withholding_pct}%)` : ''}
-                                                </td>
-                                                <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
-                                                    {draftDetails.withholding_fee != null ? fmt(draftDetails.withholding_fee) : 'Incluida en Cálculo'}
-                                                </td>
-                                            </tr>
-                                            {draftPrice != null && draftDetails.costo_base != null && draftDetails.comision_fee != null && (
-                                            <tr>
-                                                <td className="py-1.5 text-[var(--text-muted)] font-medium">Ajuste por Redondeo</td>
-                                                <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
-                                                    {fmt(draftPrice - (draftDetails.costo_base + draftDetails.comision_fee + (draftDetails.withholding_fee || 0) + (draftDetails.shipping_cost || 0)))}
-                                                </td>
-                                            </tr>
-                                            )}
-                                        </tbody>
-                                        <tfoot className="border-t border-[var(--border)] mt-1">
-                                            <tr>
-                                                <td className="pt-2 text-[var(--text)] font-bold">Precio Final Calculado</td>
-                                                <td className="pt-2 text-right font-bold text-[var(--accent)] tabular-nums text-sm">{fmt(draftPrice)}</td>
-                                            </tr>
-                                            {draftDetails.reason && (
-                                                <tr>
-                                                    <td colSpan={2} className="pt-1 text-xs text-[var(--text-faint)] font-mono text-right">Nota: {draftDetails.reason}</td>
-                                                </tr>
-                                            )}
-                                        </tfoot>
-                                    </table>
-                                </div>
+                    {/* Precio Sugerido (Draft) */}
+                    <div className="bg-[var(--surface-2)]/90 border border-[var(--warn)]/40 rounded-[var(--radius)] p-3.5">
+                        <div className="flex items-center justify-between">
+                            <p className="text-xs text-[var(--warn)] uppercase font-bold flex items-center gap-1">
+                                <Sparkles className="w-3.5 h-3.5" /> Precio Sugerido
+                            </p>
+                            {currentPrice && draftPrice && (
+                                <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded", 
+                                    draftPrice > currentPrice ? "text-[var(--ok)] bg-[var(--ok)]/15" : "text-[var(--err)] bg-[var(--err)]/15")}>
+                                    {draftPrice > currentPrice ? '↑' : '↓'} {Math.abs(((draftPrice - currentPrice) / currentPrice) * 100).toFixed(1)}%
+                                </span>
                             )}
                         </div>
-                    )}
+                        <p className="text-2xl font-bold text-[var(--warn)] font-mono mt-1">{fmt(draftPrice)}</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">Con Redondeo Mágico aplicado.</p>
+                    </div>
                 </div>
 
-                {/* Apply section */}
-                <div className="mb-4 border-t border-[var(--border)] pt-4">
-                    <label className="text-xs text-[var(--text-muted)] font-semibold mb-2 block">Acción / Sobreescritura</label>
-                    <div className="flex gap-2 items-center">
+                {/* TABLA TRANSPARENTE: DESGLOSE DE FÓRMULA Y MODIFICADORES */}
+                {draftDetails && (
+                    <div className="bg-[var(--surface-2)]/50 border border-[var(--border)] rounded-[var(--radius)] p-4 space-y-3">
+                        <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
+                            <div className="flex items-center gap-2">
+                                <Sliders className="w-4 h-4 text-[var(--accent)]" />
+                                <h3 className="text-xs uppercase font-bold text-[var(--text)] tracking-wider">Fórmula Transparente y Modificadores</h3>
+                            </div>
+                            <button
+                                onClick={() => setShowModifiersPanel(!showModifiersPanel)}
+                                className="text-xs font-semibold text-[var(--accent)] hover:underline flex items-center gap-1"
+                            >
+                                {showModifiersPanel ? 'Ocultar Modificadores' : 'Personalizar Variables'}
+                                {showModifiersPanel ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                        </div>
+
+                        {/* PANEL INTERACTIVO DE MODIFICADORES POR PUBLICACIÓN */}
+                        {showModifiersPanel && (
+                            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3.5 space-y-3 animate-in fade-in duration-150">
+                                <p className="text-xs font-bold text-[var(--text)]">Control Específico de Modificadores (Override Individual)</p>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                                    {/* 1. Margen */}
+                                    <label className="flex items-center justify-between p-2 rounded bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer">
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={modifiers.aplicar_margen}
+                                                onChange={(e) => setModifiers(prev => ({ ...prev, aplicar_margen: e.target.checked }))}
+                                                className="rounded text-[var(--accent)]"
+                                            />
+                                            <span className="text-[var(--text)] font-medium">Margen / Rentabilidad</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <input 
+                                                type="number"
+                                                value={modifiers.margen_pct}
+                                                disabled={!modifiers.aplicar_margen}
+                                                onChange={(e) => setModifiers(prev => ({ ...prev, margen_pct: parseFloat(e.target.value) || 0 }))}
+                                                className="w-14 text-right p-1 bg-[var(--surface)] border border-[var(--border)] rounded font-mono text-xs disabled:opacity-40"
+                                            />
+                                            <span className="text-[var(--text-muted)]">%</span>
+                                        </div>
+                                    </label>
+
+                                    {/* 2. Comisión */}
+                                    <label className="flex items-center justify-between p-2 rounded bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer">
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={modifiers.aplicar_comision}
+                                                onChange={(e) => setModifiers(prev => ({ ...prev, aplicar_comision: e.target.checked }))}
+                                                className="rounded text-[var(--accent)]"
+                                            />
+                                            <span className="text-[var(--text)] font-medium">Comisión ML</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <span className="font-mono text-[var(--text)]">{modifiers.comision_pct}%</span>
+                                        </div>
+                                    </label>
+
+                                    {/* 3. Envío */}
+                                    <label className="flex items-center justify-between p-2 rounded bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer">
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={modifiers.aplicar_envio}
+                                                onChange={(e) => setModifiers(prev => ({ ...prev, aplicar_envio: e.target.checked }))}
+                                                className="rounded text-[var(--accent)]"
+                                            />
+                                            <span className="text-[var(--text)] font-medium">Costo de Envío</span>
+                                        </div>
+                                        <span className="font-mono text-[var(--text)]">{fmt(modifiers.shipping_cost_monto)}</span>
+                                    </label>
+
+                                    {/* 4. Retenciones */}
+                                    <label className="flex items-center justify-between p-2 rounded bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer">
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={modifiers.aplicar_retenciones}
+                                                onChange={(e) => setModifiers(prev => ({ ...prev, aplicar_retenciones: e.target.checked }))}
+                                                className="rounded text-[var(--accent)]"
+                                            />
+                                            <span className="text-[var(--text)] font-medium">Retención Fiscal (ISR/IVA)</span>
+                                        </div>
+                                        <span className="font-mono text-[var(--text)]">{modifiers.retenciones_pct}%</span>
+                                    </label>
+
+                                    {/* 5. Redondeo Mágico */}
+                                    <label className="sm:col-span-2 flex items-center justify-between p-2 rounded bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer">
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={modifiers.aplicar_redondeo_magico}
+                                                onChange={(e) => setModifiers(prev => ({ ...prev, aplicar_redondeo_magico: e.target.checked }))}
+                                                className="rounded text-[var(--accent)]"
+                                            />
+                                            <span className="text-[var(--text)] font-medium">Redondeo Mágico Estratégico (Prioridad: 1, 7, 4, 2...)</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[var(--text-muted)] text-[11px]">Objetivo:</span>
+                                            <span className="font-mono font-bold text-[var(--accent)]">{modifiers.redondeo_target_pct}%</span>
+                                            <span className="text-[var(--text-faint)] text-[11px]">(Rango {modifiers.redondeo_min_pct}% a {modifiers.redondeo_max_pct}%)</span>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">
+                                    <button
+                                        onClick={() => setShowModifiersPanel(false)}
+                                        className="px-3 py-1 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={() => handleSaveModifiersOverride(modifiers)}
+                                        disabled={saving}
+                                        className="px-4 py-1 bg-[var(--accent)] text-[var(--accent-ink)] rounded text-xs font-bold flex items-center gap-1.5 hover:brightness-110 disabled:opacity-50"
+                                    >
+                                        {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                        Guardar y Recalcular
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TABLA DE ELEMENTOS UTILIZADOS */}
+                        <table className="w-full text-xs">
+                            <tbody className="divide-y divide-[var(--border)]">
+                                <tr>
+                                    <td className="py-1.5 text-[var(--text-muted)] font-medium">
+                                        1. Costo Base de Referencia <span className="text-[var(--text-faint)] font-mono">({draftDetails.cost_basis || 'menudeo'})</span>
+                                    </td>
+                                    <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums font-semibold">
+                                        {fmt(draftDetails.costo_base)}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="py-1.5 text-[var(--text-muted)] font-medium flex items-center gap-1.5">
+                                        2. Rentabilidad / Margen {detailsMods?.aplicar_margen === false ? <span className="text-[var(--err)] text-[10px] uppercase">(Desactivado)</span> : `(${detailsMods?.margen_pct ?? draftDetails.margen_pct}%)`}
+                                    </td>
+                                    <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
+                                        {detailsMods?.aplicar_margen === false ? '$0.00' : fmt(detailsMods?.margen_monto ?? (draftDetails.costo_base * (draftDetails.margen_pct / 100)))}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="py-1.5 text-[var(--text-muted)] font-medium">
+                                        3. Comisión Marketplace {detailsMods?.aplicar_comision === false ? <span className="text-[var(--err)] text-[10px] uppercase">(Desactivada)</span> : `(${detailsMods?.comision_pct ?? draftDetails.comision_pct}%)`}
+                                    </td>
+                                    <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
+                                        {detailsMods?.aplicar_comision === false ? '$0.00' : fmt(detailsMods?.comision_fee ?? draftDetails.comision_fee)}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="py-1.5 text-[var(--text-muted)] font-medium">
+                                        4. Costo de Envío {detailsMods?.aplicar_envio === false ? <span className="text-[var(--err)] text-[10px] uppercase">(Desactivado)</span> : ''}
+                                    </td>
+                                    <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
+                                        {detailsMods?.aplicar_envio === false ? '$0.00' : fmt(detailsMods?.shipping_cost_final ?? draftDetails.shipping_cost)}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="py-1.5 text-[var(--text-muted)] font-medium">
+                                        5. Retención de Impuestos {detailsMods?.aplicar_retenciones === false ? <span className="text-[var(--err)] text-[10px] uppercase">(Desactivada)</span> : `(${detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct}%)`}
+                                    </td>
+                                    <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
+                                        {detailsMods?.aplicar_retenciones === false ? '$0.00' : fmt(detailsMods?.withholding_fee ?? draftDetails.withholding_fee)}
+                                    </td>
+                                </tr>
+                                
+                                {/* Subtotal de Equilibrio */}
+                                <tr className="bg-[var(--surface-2)]/80 font-bold border-t border-[var(--border)]">
+                                    <td className="py-2 text-[var(--text)]">
+                                        Subtotal de Equilibrio (Antes de Redondeo)
+                                    </td>
+                                    <td className="py-2 text-right font-mono text-[var(--text)] tabular-nums">
+                                        {fmt(subtotalCalculado)}
+                                    </td>
+                                </tr>
+
+                                {/* Ajuste por Redondeo Mágico */}
+                                <tr>
+                                    <td className="py-1.5 text-[var(--accent)] font-medium flex items-center gap-1">
+                                        <Sparkles className="w-3 h-3" /> Ajuste Redondeo Mágico (Objetivo {detailsMods?.redondeo_target_pct ?? -10}%)
+                                    </td>
+                                    <td className="py-1.5 text-right font-mono text-[var(--accent)] tabular-nums font-bold">
+                                        {ajusteRedondeo != null ? (ajusteRedondeo >= 0 ? `+${fmt(ajusteRedondeo)}` : `-${fmt(Math.abs(ajusteRedondeo))}`) : '—'}
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tfoot className="border-t-2 border-[var(--border)]">
+                                <tr>
+                                    <td className="pt-2.5 text-sm font-bold text-[var(--text)]">
+                                        Precio Final Sugerido
+                                    </td>
+                                    <td className="pt-2.5 text-right font-bold text-base text-[var(--warn)] font-mono tabular-nums">
+                                        {fmt(draftPrice)}
+                                    </td>
+                                </tr>
+                                {draftDetails.reason && (
+                                    <tr>
+                                        <td colSpan={2} className="pt-1.5 text-xs text-[var(--text-faint)] font-mono text-right">
+                                            Origen: {draftDetails.reason}
+                                        </td>
+                                    </tr>
+                                )}
+                            </tfoot>
+                        </table>
+
+                        {/* Fórmula explicativa textual */}
+                        {draftDetails.formula_humana && (
+                            <div className="p-2 bg-[var(--surface)] border border-[var(--border)] rounded text-[11px] text-[var(--text-muted)] font-mono break-all">
+                                <span className="font-bold text-[var(--text)]">Ecuación: </span>
+                                {draftDetails.formula_humana}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Sección de Aprobación y Aplicación */}
+                <div className="border-t border-[var(--border)] pt-4 space-y-3">
+                    <label className="text-xs text-[var(--text-muted)] font-semibold block">Acción de Precio</label>
+                    <div className="flex flex-wrap gap-2 items-center">
                         <input
                             type="number"
                             placeholder={String(draftPrice || currentPrice || salePriceCalculated || '')}
                             value={editablePrice}
                             onChange={(e) => setEditablePrice(e.target.value)}
-                            className=" rounded-[var(--radius-sm)] px-3 py-2 w-32 text-sm outline-none focus:border-[var(--accent)]"
+                            className="bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] rounded-[var(--radius-sm)] px-3 py-2 w-36 text-sm outline-none focus:border-[var(--accent)] font-mono"
                         />
                         <button
                             disabled={applying || (draftPrice ? (draftStatus !== 'valid' && draftStatus !== 'estimated_params' && draftStatus !== 'override_active') : (pricingStatus !== 'valid' && pricingStatus !== 'estimated_params' && pricingStatus !== 'override_active'))}
                             onClick={() => handleApply(false)}
-                            className="bg-[var(--accent)] hover:bg-[var(--accent)] text-[var(--accent-ink)] px-4 py-2 rounded-[var(--radius-sm)] flex items-center gap-1.5 text-xs font-bold transition-colors disabled:opacity-50"
+                            className="bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] px-4 py-2 rounded-[var(--radius-sm)] flex items-center gap-1.5 text-xs font-bold transition-all disabled:opacity-50 shadow-sm"
                         >
                             {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                            {draftPrice && !editablePrice ? 'Aprobar Borrador' : 'Aplicar Precio'}
+                            {draftPrice && !editablePrice ? 'Aprobar Borrador' : 'Aplicar Precio Manual'}
                         </button>
                     </div>
-                    {pricingStatus === 'estimated_params' && (
-                        <p className="text-[var(--warn)] text-[10px] mt-2">
-                            ⚠️ Comisión y retenciones son estimadas.
-                        </p>
-                    )}
-                    {pricingStatus === 'missing_cost' && (
-                        <p className="text-[var(--err)] text-[10px] mt-2">
-                            ❌ Sin costo menudeo vigente.
-                        </p>
-                    )}
-                </div>
 
-                {/* Overrides */}
-                <div className="bg-[var(--surface-2)]  rounded-[var(--radius)] p-3 mb-4">
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-bold text-[var(--text)]">Regla Excepcional (Override)</p>
-                        {!isEditing && (
-                            <button 
-                                onClick={() => setIsEditing(true)} 
-                                className="text-xs text-[var(--accent)] hover:text-[var(--accent)] font-semibold"
+                    {/* Excepciones Manuales (Override Fijo / Regla Forzada) */}
+                    <div className="flex items-center justify-between text-xs pt-1">
+                        <button
+                            onClick={() => setIsEditing(!isEditing)}
+                            className="text-[var(--accent)] hover:underline flex items-center gap-1 font-medium"
+                        >
+                            <Edit2 className="w-3 h-3" />
+                            {override ? 'Modificar Excepción de Regla' : 'Configurar Precio Fijo Forzado'}
+                        </button>
+                        {override && (
+                            <button
+                                onClick={handleDelete}
+                                className="text-[var(--err)] hover:underline"
                             >
-                                {override ? 'Editar' : '+ Añadir regla'}
+                                Eliminar Excepción
                             </button>
                         )}
                     </div>
-                    
-                    {isEditing ? (
-                        <div className="space-y-2">
-                            <div className="flex flex-col gap-2">
-                                <select 
-                                    className="w-full text-xs  rounded-[var(--radius-sm)] px-2 py-2 outline-none focus:border-[var(--accent)] bg-[var(--surface)]"
-                                    value={editType}
-                                    onChange={e => { setEditType(e.target.value); setEditValue(''); }}
-                                >
-                                    <option value="fixed_price">Precio Fijo Exacto</option>
-                                    <option value="custom_margin">Margen Personalizado (%)</option>
-                                    <option value="force_rule">Forzar Regla Específica</option>
-                                </select>
-                                
-                                {editType === 'force_rule' ? (
-                                    <select
-                                        className="w-full text-xs  rounded-[var(--radius-sm)] px-2 py-2 outline-none focus:border-[var(--accent)] bg-[var(--surface)]"
-                                        value={editValue}
-                                        onChange={e => setEditValue(e.target.value)}
-                                    >
-                                        <option value="">Selecciona regla...</option>
-                                        {allRules.map(r => (
-                                            <option key={r.id} value={r.id}>#{r.priority} {r.name}</option>
-                                        ))}
-                                    </select>
-                                ) : (
-                                    <input 
-                                        type="number" 
-                                        className="w-full text-xs  rounded-[var(--radius-sm)] px-2 py-2 outline-none focus:border-[var(--accent)]"
-                                        placeholder="Valor"
-                                        value={editValue}
-                                        onChange={e => setEditValue(e.target.value)}
-                                    />
-                                )}
-                            </div>
-                            {errorMsg && <p className="text-[10px] text-[var(--err)]">{errorMsg}</p>}
-                            <div className="flex items-center gap-2 pt-1">
-                                <button onClick={handleSave} disabled={saving} className="flex items-center gap-1 px-3 py-1 bg-[var(--accent)] hover:bg-[var(--accent)] text-[var(--accent-ink)] text-[10px] font-bold rounded-[var(--radius-sm)] transition-colors disabled:opacity-50">
-                                    {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Guardar
-                                </button>
-                                {override && (
-                                    <button onClick={handleDelete} disabled={saving} className="px-3 py-1 bg-[var(--err)]/10  hover:bg-rose-200 text-[var(--err)] text-[10px] font-bold rounded-[var(--radius-sm)] transition-colors disabled:opacity-50">
-                                        Eliminar regla
-                                    </button>
-                                )}
-                                <button onClick={() => { setIsEditing(false); setErrorMsg(''); }} disabled={saving} className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-[var(--text)] text-[10px] font-bold rounded-[var(--radius-sm)] transition-colors disabled:opacity-50">
-                                    Cancelar
-                                </button>
-                            </div>
-                        </div>
-                    ) : override ? (
-                        <div className="flex items-center justify-between bg-[var(--surface)]  rounded-[var(--radius-sm)] p-2">
-                            <div className="flex items-center gap-2">
-                                <span className="px-1.5 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] text-[10px] font-bold rounded-[var(--radius-sm)] uppercase">
-                                    {override.override_type === 'fixed_price' ? 'Precio Fijo' 
-                                     : override.override_type === 'force_rule' ? 'Regla Forzada' 
-                                     : 'Margen'}
-                                </span>
-                                <span className="text-xs font-semibold text-[var(--text)]">
-                                    {override.override_type === 'fixed_price' ? fmt(override.value) 
-                                     : override.override_type === 'force_rule' ? (allRules.find(r => r.id === override.force_rule_id)?.name || 'Desconocida') 
-                                     : `${override.value}%`}
-                                </span>
-                            </div>
-                        </div>
-                    ) : (
-                        <p className="text-[11px] text-[var(--text-muted)] italic">No hay excepciones manuales para esta publicación. Usa la fórmula global.</p>
-                    )}
-                </div>
 
-                {/* History */}
-                <div className="flex-1 overflow-hidden flex flex-col">
-                    <p className="text-xs font-bold text-[var(--text)] mb-2">Últimos Cambios en Motor V2</p>
-                    {loading ? (
-                        <div className="flex-1 flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-[var(--text-faint)]" /></div>
-                    ) : history.length === 0 ? (
-                        <p className="text-[11px] text-[var(--text-faint)] italic">No hay historial de cálculos aún.</p>
-                    ) : (
-                        <div className="overflow-y-auto pr-1 space-y-2 flex-1">
-                            {history.map(h => (
-                                <div key={h.id} className="text-[11px] bg-[var(--surface)]  rounded-[var(--radius-sm)] p-2 ">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <span className="font-semibold text-[var(--text)]">{formatDate(h.created_at)}</span>
-                                        <span className={cn('px-1.5 rounded-[var(--radius-sm)] text-[9px] font-bold', 
-                                            h.status === 'valid' ? 'bg-[var(--ok)]/10  text-[var(--ok)]' : 
-                                            h.status === 'error_no_cost' ? 'bg-[var(--err)]/10  text-[var(--err)]' :
-                                            h.status === 'override_active' ? 'bg-[var(--info)]/10  text-[var(--info)]' : 'bg-[var(--surface-2)]0 text-[var(--text-muted)]'
-                                        )}>
-                                            {h.status}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-[var(--text-muted)] mb-1">
-                                        <span className="line-through text-[var(--text-faint)]">{fmt(h.old_price)}</span>
-                                        <ArrowRight className="w-3 h-3 text-[var(--text-faint)]" />
-                                        <span className="font-bold text-[var(--accent)]">{fmt(h.new_price)}</span>
-                                    </div>
-                                    <p className="text-[10px] text-[var(--text-muted)] truncate" title={h.reason}>{h.reason}</p>
-                                </div>
-                            ))}
+                    {isEditing && (
+                        <div className="p-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg space-y-3 animate-in fade-in">
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                <button
+                                    onClick={() => setEditType('fixed_price')}
+                                    className={cn("p-2 rounded border font-medium text-center", editType === 'fixed_price' ? "bg-[var(--accent)] text-[var(--accent-ink)] border-[var(--accent)]" : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)]")}
+                                >
+                                    Precio Fijo
+                                </button>
+                                <button
+                                    onClick={() => setEditType('force_rule')}
+                                    className={cn("p-2 rounded border font-medium text-center", editType === 'force_rule' ? "bg-[var(--accent)] text-[var(--accent-ink)] border-[var(--accent)]" : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)]")}
+                                >
+                                    Forzar Otra Regla
+                                </button>
+                            </div>
+
+                            {editType === 'fixed_price' ? (
+                                <input
+                                    type="number"
+                                    placeholder="Precio fijo manual..."
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    className="w-full p-2 bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] rounded text-xs outline-none"
+                                />
+                            ) : (
+                                <select
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    className="w-full p-2 bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] rounded text-xs outline-none"
+                                >
+                                    <option value="">Selecciona una regla...</option>
+                                    {allRules.map(r => (
+                                        <option key={r.id} value={r.id}>{r.name} (Prioridad {r.priority})</option>
+                                    ))}
+                                </select>
+                            )}
+
+                            {errorMsg && <p className="text-xs text-[var(--err)]">{errorMsg}</p>}
+
+                            <div className="flex justify-end gap-2">
+                                <button onClick={() => setIsEditing(false)} className="px-3 py-1 text-xs text-[var(--text-muted)]">Cancelar</button>
+                                <button onClick={handleSaveGeneralOverride} disabled={saving} className="px-4 py-1 bg-[var(--accent)] text-[var(--accent-ink)] rounded text-xs font-bold">
+                                    {saving ? 'Guardando...' : 'Guardar'}
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
             </div>
-
-            {/* Modal de confirmación para variaciones grandes */}
-            {confirmingDelta && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-[var(--surface)] rounded-[var(--radius)] p-5 max-w-sm ">
-                        <h3 className="font-bold text-[var(--text)] mb-2">Variación grande detectada</h3>
-                        <p className="text-sm text-[var(--text-muted)] mb-4">
-                            El nuevo precio cambia un <span className="font-bold">{confirmingDelta.delta.toFixed(1)}%</span> respecto al actual. ¿Confirmas este cambio?
-                        </p>
-                        <div className="flex justify-end gap-2">
-                            <button 
-                                onClick={() => setConfirmingDelta(null)}
-                                className="px-4 py-2  rounded-[var(--radius-sm)] text-sm font-semibold text-[var(--text-muted)] hover:bg-[var(--surface-2)]"
-                            >
-                                Cancelar
-                            </button>
-                            <button 
-                                onClick={() => { 
-                                    setConfirmingDelta(null); 
-                                    handleApply(true); 
-                                }}
-                                className="bg-[var(--err)] text-[var(--accent-ink)] px-4 py-2 rounded-[var(--radius-sm)] text-sm font-semibold hover:bg-rose-700"
-                            >
-                                Sí, aplicar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

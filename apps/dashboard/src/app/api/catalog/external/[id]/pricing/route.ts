@@ -31,33 +31,37 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     
     try {
         const body = await req.json();
-        const { override_type, value, force_rule_id, valido_hasta } = body;
+        const { override_type, value, force_rule_id, valido_hasta, modifiers_override } = body;
         
-        if (!override_type || (override_type !== 'force_rule' && value == null) || (override_type === 'force_rule' && !force_rule_id)) {
+        if (!override_type && !modifiers_override && value == null && !force_rule_id) {
             // Delete override
             const { error } = await supabaseAdmin.from('publication_pricing_overrides').delete().eq('publicacion_id', id);
             if (error) throw error;
         } else {
             // Upsert override
-            const { error } = await supabaseAdmin.from('publication_pricing_overrides').upsert({
+            const updatePayload: any = {
                 publicacion_id: id,
-                override_type,
-                value: value || 0,
-                force_rule_id: force_rule_id || null,
-                valido_hasta: valido_hasta || null,
                 updated_at: new Date().toISOString()
-            }, { onConflict: 'publicacion_id' });
+            };
+            if (override_type !== undefined) updatePayload.override_type = override_type;
+            if (value !== undefined) updatePayload.value = value || 0;
+            if (force_rule_id !== undefined) updatePayload.force_rule_id = force_rule_id;
+            if (valido_hasta !== undefined) updatePayload.valido_hasta = valido_hasta;
+            if (modifiers_override !== undefined) updatePayload.modifiers_override = modifiers_override;
+
+            const { error } = await supabaseAdmin.from('publication_pricing_overrides').upsert(
+                updatePayload, 
+                { onConflict: 'publicacion_id' }
+            );
             if (error) throw error;
         }
         
-        // Encolar recálculo asíncrono
-        const { error: jobErr } = await supabaseAdmin.from('jobs').insert({
-            type: 'recalc_pricing_bundle',
-            payload: { publicacion_id: id },
-            status: 'pending'
-        });
-        
-        if (jobErr) throw jobErr;
+        // Ejecutar recálculo síncrono para feedback instantáneo
+        try {
+            await supabaseAdmin.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id: id });
+        } catch (recalcErr) {
+            console.error('Error recalculando post-override:', recalcErr);
+        }
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
