@@ -859,12 +859,26 @@ export class MeliAdapter implements MarketplaceAdapter {
             const sellerId = mkp?.settings?.seller_id;
             
             if (sellerId) {
+                const { data: pubRows } = await supabase
+                    .from('publicaciones_externas')
+                    .select('external_item_id, free_shipping')
+                    .eq('marketplace_id', accountId)
+                    .in('external_item_id', itemIds);
+
+                const freeShippingMap = new Map<string, boolean>();
+                (pubRows || []).forEach(p => {
+                    freeShippingMap.set(p.external_item_id, p.free_shipping === true);
+                });
+
                 for (let i = 0; i < itemIds.length; i += CONCURRENCY) {
                     const chunk = itemIds.slice(i, i + CONCURRENCY);
                     await Promise.all(chunk.map(async (itemId: string) => {
                         try {
+                            const isFree = freeShippingMap.get(itemId) ?? false;
+                            const queryParam = isFree ? '&free_shipping=true' : '';
+                            const path = `/users/${sellerId}/shipping_options/free?item_id=${itemId}${queryParam}`;
                             const shipResp = await axios.get(
-                                `https://autofichaje2026-dashboard-1img.vercel.app/api/admin/debug-meli?account_id=${accountId}&path=/users/${sellerId}/shipping_options/free?item_id=${itemId}`
+                                `https://autofichaje2026-dashboard-1img.vercel.app/api/admin/debug-meli?account_id=${accountId}&path=${encodeURIComponent(path)}`
                             );
                             const listCost = shipResp.data?.coverage?.all_country?.list_cost;
                             if (listCost != null) {
