@@ -496,6 +496,3 @@ function WebhookControlPanel() {
     );
 }
 
-
-function ProveedorConfigPanel() {
-    const [configs, setConfigs] = useState<any[]>([]);
