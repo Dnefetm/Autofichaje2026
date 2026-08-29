@@ -69,8 +69,10 @@ export default function PricingSettingsPage() {
     const RuleForm = ({ initialData, onCancel }: { initialData?: any, onCancel: () => void }) => {
         const [formData, setFormData] = useState(initialData || {
             name: '', priority: 100, is_active: true, cost_basis: 'menudeo', 
-            margen_objetivo: 20, redondeo: '99', envio_fijo: 0,
-            marca: '', category_id: '', articulo_id: ''
+            margen_objetivo: 20, redondeo: 'magic', envio_fijo: 0,
+            marca: '', category_id: '', articulo_id: '',
+            aplicar_margen: true, aplicar_comision: true, aplicar_envio: true, aplicar_retenciones: true,
+            aplicar_redondeo_magico: true, redondeo_target_pct: -10, redondeo_min_pct: 9, redondeo_max_pct: 14
         });
 
         return (
@@ -112,15 +114,32 @@ export default function PricingSettingsPage() {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Redondeo</label>
+                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Estrategia Redondeo</label>
                         <select className="w-full border rounded px-3 py-1.5 text-sm" value={formData.redondeo} onChange={e=>setFormData({...formData, redondeo: e.target.value})}>
-                            <option value="none">Sin redondeo</option>
+                            <option value="none">Sin redondeo exacto</option>
+                            <option value="magic">Mágico Estratégico</option>
                             <option value="99">A .99</option>
                             <option value="00">A .00</option>
                         </select>
                     </div>
                 </div>
 
+                {formData.redondeo === 'magic' && (
+                    <div className="grid grid-cols-3 gap-4 bg-[var(--surface-2)] p-3 rounded border border-[var(--border)]">
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--accent)] mb-1">Objetivo Reducción (%)</label>
+                            <input type="number" step="0.1" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.redondeo_target_pct} onChange={e=>setFormData({...formData, redondeo_target_pct: parseFloat(e.target.value)})} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--accent)] mb-1">Tolerancia Mínima (%)</label>
+                            <input type="number" step="0.1" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.redondeo_min_pct} onChange={e=>setFormData({...formData, redondeo_min_pct: parseFloat(e.target.value)})} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-[var(--accent)] mb-1">Tolerancia Máxima (%)</label>
+                            <input type="number" step="0.1" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.redondeo_max_pct} onChange={e=>setFormData({...formData, redondeo_max_pct: parseFloat(e.target.value)})} />
+                        </div>
+                    </div>
+                )}
                 <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">
                     <button onClick={onCancel} className="px-4 py-1.5 rounded text-sm font-semibold text-[var(--text-muted)] hover:bg-slate-200">Cancelar</button>
                     <button onClick={() => saveRule(formData)} disabled={saving || !formData.name} className="px-4 py-1.5 rounded text-sm font-semibold text-[var(--accent-ink)] bg-[var(--accent)] hover:brightness-110 disabled:opacity-50 flex items-center gap-1">

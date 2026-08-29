@@ -280,10 +280,10 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [enrichData, setEnrichData] = useState<{ health: any; costs: any; visits: any } | null>(null);
     const [enrichLoading, setEnrichLoading] = useState(false);
 
-    useEffect(() => { loadAll(); }, [id]);
+    useEffect(() => { loadAll(false); }, [id]);
 
-    async function loadAll() {
-        setLoading(true);
+    async function loadAll(silent = false) {
+        if (!silent) setLoading(true);
         try {
             const { data: pubData } = await supabase
                 .from('publicaciones_externas')
@@ -505,7 +505,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <Link2 className="w-4 h-4" />
                                 {pub.esta_mapeado ? 'Editar Mapeo' : 'Crear Mapeo'}
                             </button>
-                            <button onClick={loadAll} className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text)] text-sm font-medium rounded-[var(--radius)] transition-colors">
+                            <button onClick={() => loadAll(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text)] text-sm font-medium rounded-[var(--radius)] transition-colors">
                                 <RefreshCw className="w-4 h-4" />
                                 Recargar
                             </button>
@@ -984,7 +984,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         })()}
                         pricingStatus={pub.pricing_status}
                         lastCalcAt={pub.last_calc_at}
-                        onOverrideUpdated={loadAll}
+                        onOverrideUpdated={() => loadAll(true)}
                     />
                 </div>
             </div>

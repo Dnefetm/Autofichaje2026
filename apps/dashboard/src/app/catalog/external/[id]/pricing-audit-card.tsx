@@ -421,8 +421,8 @@ export default function PricingAuditCard({
                                     </label>
 
                                     {/* 5. Redondeo Mágico */}
-                                    <label className="sm:col-span-2 flex items-center justify-between p-2 rounded bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer">
-                                        <div className="flex items-center gap-2">
+                                    <label className="sm:col-span-2 flex flex-col gap-2 p-2 rounded bg-[var(--surface-2)] border border-[var(--border)]">
+                                        <div className="flex items-center gap-2 cursor-pointer">
                                             <input 
                                                 type="checkbox" 
                                                 checked={modifiers.aplicar_redondeo_magico}
@@ -431,11 +431,37 @@ export default function PricingAuditCard({
                                             />
                                             <span className="text-[var(--text)] font-medium">Redondeo Mágico Estratégico (Prioridad: 1, 7, 4, 2...)</span>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[var(--text-muted)] text-[11px]">Objetivo:</span>
-                                            <span className="font-mono font-bold text-[var(--accent)]">{modifiers.redondeo_target_pct}%</span>
-                                            <span className="text-[var(--text-faint)] text-[11px]">(Rango {modifiers.redondeo_min_pct}% a {modifiers.redondeo_max_pct}%)</span>
-                                        </div>
+                                        {modifiers.aplicar_redondeo_magico && (
+                                            <div className="grid grid-cols-3 gap-2 pl-6 mt-1">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold">Objetivo (%)</span>
+                                                    <input 
+                                                        type="number"
+                                                        value={modifiers.redondeo_target_pct}
+                                                        onChange={(e) => setModifiers(prev => ({ ...prev, redondeo_target_pct: parseFloat(e.target.value) || 0 }))}
+                                                        className="w-full text-right p-1 bg-[var(--surface)] border border-[var(--border)] rounded font-mono text-xs font-bold text-[var(--accent)]"
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[var(--text-faint)] text-[10px] uppercase font-bold">Mínimo (%)</span>
+                                                    <input 
+                                                        type="number"
+                                                        value={modifiers.redondeo_min_pct}
+                                                        onChange={(e) => setModifiers(prev => ({ ...prev, redondeo_min_pct: parseFloat(e.target.value) || 0 }))}
+                                                        className="w-full text-right p-1 bg-[var(--surface)] border border-[var(--border)] rounded font-mono text-xs"
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[var(--text-faint)] text-[10px] uppercase font-bold">Máximo (%)</span>
+                                                    <input 
+                                                        type="number"
+                                                        value={modifiers.redondeo_max_pct}
+                                                        onChange={(e) => setModifiers(prev => ({ ...prev, redondeo_max_pct: parseFloat(e.target.value) || 0 }))}
+                                                        className="w-full text-right p-1 bg-[var(--surface)] border border-[var(--border)] rounded font-mono text-xs"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </label>
                                 </div>
 
@@ -458,96 +484,85 @@ export default function PricingAuditCard({
                             </div>
                         )}
 
-                        {/* TABLA DE ELEMENTOS UTILIZADOS */}
-                        <table className="w-full text-xs">
-                            <tbody className="divide-y divide-[var(--border)]">
-                                <tr>
-                                    <td className="py-1.5 text-[var(--text-muted)] font-medium">
-                                        1. Costo Base de Referencia <span className="text-[var(--text-faint)] font-mono">({draftDetails.cost_basis || 'menudeo'})</span>
-                                    </td>
-                                    <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums font-semibold">
-                                        {fmt(draftDetails.costo_base)}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td className="py-1.5 text-[var(--text-muted)] font-medium flex items-center gap-1.5">
-                                        2. Rentabilidad / Margen {detailsMods?.aplicar_margen === false ? <span className="text-[var(--err)] text-[10px] uppercase">(Desactivado)</span> : `(${detailsMods?.margen_pct ?? draftDetails.margen_pct}%)`}
-                                    </td>
-                                    <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
-                                        {detailsMods?.aplicar_margen === false ? '$0.00' : fmt(detailsMods?.margen_monto ?? (draftDetails.costo_base * (draftDetails.margen_pct / 100)))}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td className="py-1.5 text-[var(--text-muted)] font-medium">
-                                        3. Comisión Marketplace {detailsMods?.aplicar_comision === false ? <span className="text-[var(--err)] text-[10px] uppercase">(Desactivada)</span> : `(${detailsMods?.comision_pct ?? draftDetails.comision_pct}%)`}
-                                    </td>
-                                    <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
-                                        {detailsMods?.aplicar_comision === false ? '$0.00' : fmt(detailsMods?.comision_fee ?? draftDetails.comision_fee)}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td className="py-1.5 text-[var(--text-muted)] font-medium">
-                                        4. Costo de Envío {detailsMods?.aplicar_envio === false ? <span className="text-[var(--err)] text-[10px] uppercase">(Desactivado)</span> : ''}
-                                    </td>
-                                    <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
-                                        {detailsMods?.aplicar_envio === false ? '$0.00' : fmt(detailsMods?.shipping_cost_final ?? draftDetails.shipping_cost)}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td className="py-1.5 text-[var(--text-muted)] font-medium">
-                                        5. Retención de Impuestos {detailsMods?.aplicar_retenciones === false ? <span className="text-[var(--err)] text-[10px] uppercase">(Desactivada)</span> : `(${detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct}%)`}
-                                    </td>
-                                    <td className="py-1.5 text-right font-mono text-[var(--text)] tabular-nums">
-                                        {detailsMods?.aplicar_retenciones === false ? '$0.00' : fmt(detailsMods?.withholding_fee ?? draftDetails.withholding_fee)}
-                                    </td>
-                                </tr>
-                                
-                                {/* Subtotal de Equilibrio */}
-                                <tr className="bg-[var(--surface-2)]/80 font-bold border-t border-[var(--border)]">
-                                    <td className="py-2 text-[var(--text)]">
-                                        Subtotal de Equilibrio (Antes de Redondeo)
-                                    </td>
-                                    <td className="py-2 text-right font-mono text-[var(--text)] tabular-nums">
-                                        {fmt(subtotalCalculado)}
-                                    </td>
-                                </tr>
-
-                                {/* Ajuste por Redondeo Mágico */}
-                                <tr>
-                                    <td className="py-1.5 text-[var(--accent)] font-medium flex items-center gap-1">
-                                        <Sparkles className="w-3 h-3" /> Ajuste Redondeo Mágico (Objetivo {detailsMods?.redondeo_target_pct ?? -10}%)
-                                    </td>
-                                    <td className="py-1.5 text-right font-mono text-[var(--accent)] tabular-nums font-bold">
-                                        {ajusteRedondeo != null ? (ajusteRedondeo >= 0 ? `+${fmt(ajusteRedondeo)}` : `-${fmt(Math.abs(ajusteRedondeo))}`) : '—'}
-                                    </td>
-                                </tr>
-                            </tbody>
-                            <tfoot className="border-t-2 border-[var(--border)]">
-                                <tr>
-                                    <td className="pt-2.5 text-sm font-bold text-[var(--text)]">
-                                        Precio Final Sugerido
-                                    </td>
-                                    <td className="pt-2.5 text-right font-bold text-base text-[var(--warn)] font-mono tabular-nums">
-                                        {fmt(draftPrice)}
-                                    </td>
-                                </tr>
-                                {draftDetails.reason && (
-                                    <tr>
-                                        <td colSpan={2} className="pt-1.5 text-xs text-[var(--text-faint)] font-mono text-right">
-                                            Origen: {draftDetails.reason}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tfoot>
-                        </table>
-
-                        {/* Fórmula explicativa textual */}
-                        {draftDetails.formula_humana && (
-                            <div className="p-2 bg-[var(--surface)] border border-[var(--border)] rounded text-[11px] text-[var(--text-muted)] font-mono break-all">
-                                <span className="font-bold text-[var(--text)]">Ecuación: </span>
-                                {draftDetails.formula_humana}
+                        {/* DESGLOSE MATEMÁTICO TRANSPARENTE EN PASOS */}
+                        <div className="space-y-3 mt-2">
+                            {/* PASO 1: Costos de Recuperación (Numerador) */}
+                            <div className="bg-[var(--bg)] border border-[var(--border)] rounded p-3 flex flex-col gap-2">
+                                <div className="text-[10px] uppercase font-bold text-[var(--text-faint)]">1. Costos de Recuperación Directa</div>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-3">
+                                    <div className="flex flex-col">
+                                        <span className="text-[var(--text-muted)]">Costo {draftDetails.cost_basis || 'Base'} + Margen ({detailsMods?.margen_pct ?? draftDetails.margen_pct}%)</span>
+                                        <span className="font-mono text-[var(--text)] font-semibold">{fmt(draftDetails.costo_base)} + {fmt(detailsMods?.margen_monto ?? (draftDetails.costo_base * ((draftDetails.margen_pct || 0) / 100)))}</span>
+                                    </div>
+                                    <div className="hidden sm:block text-[var(--text-faint)]">+</div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[var(--text-muted)]">Costo Envío Real MeLi</span>
+                                        <span className="font-mono text-[var(--text)] font-semibold">{fmt(detailsMods?.shipping_cost_final ?? draftDetails.shipping_cost ?? 0)}</span>
+                                    </div>
+                                    <div className="hidden sm:block text-[var(--text-faint)]">=</div>
+                                    <div className="flex flex-col sm:items-end">
+                                        <span className="text-[var(--text-muted)]">Monto Neto a Recuperar</span>
+                                        <span className="font-mono text-[var(--text)] font-bold">
+                                            {fmt(
+                                                (draftDetails.costo_base + (detailsMods?.margen_monto ?? (draftDetails.costo_base * ((draftDetails.margen_pct || 0) / 100)))) + 
+                                                (detailsMods?.shipping_cost_final ?? draftDetails.shipping_cost ?? 0)
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
-                        )}
+
+                            {/* PASO 2: Factor de Deducciones (Denominador) */}
+                            <div className="bg-[var(--bg)] border border-[var(--border)] rounded p-3 flex flex-col gap-2">
+                                <div className="text-[10px] uppercase font-bold text-[var(--text-faint)]">2. Factor de Retención Marketplace</div>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-3">
+                                    <div className="flex flex-col">
+                                        <span className="text-[var(--text-muted)]">Comisión ML + Retención Fiscal</span>
+                                        <span className="font-mono text-[var(--text)] font-semibold">
+                                            {detailsMods?.comision_pct ?? draftDetails.comision_pct}% + {detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct}% = {(detailsMods?.comision_pct ?? draftDetails.comision_pct) + (detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct)}%
+                                        </span>
+                                    </div>
+                                    <div className="hidden sm:block text-[var(--text-faint)]">→</div>
+                                    <div className="flex flex-col sm:items-end">
+                                        <span className="text-[var(--text-muted)]">Multiplicador (1 - Deducciones)</span>
+                                        <span className="font-mono text-[var(--text)] font-bold">
+                                            {(1 - (((detailsMods?.comision_pct ?? draftDetails.comision_pct) + (detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct)) / 100)).toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* PASO 3: Equilibrio y Redondeo */}
+                            <div className="bg-[var(--surface)] border-2 border-[var(--border)] rounded p-3 flex flex-col gap-2 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-[var(--accent)]/5 rounded-bl-full -z-0"></div>
+                                <div className="text-[10px] uppercase font-bold text-[var(--text-faint)] relative z-10 flex justify-between">
+                                    <span>3. Precio de Equilibrio y Optimización Mágica</span>
+                                    {draftDetails.rule_name && (
+                                        <span className="text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded font-mono">
+                                            Perfil: {draftDetails.rule_name}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-4 relative z-10 mt-1">
+                                    <div className="flex flex-col bg-[var(--surface-2)] p-2 rounded border border-[var(--border)]">
+                                        <span className="text-[var(--text-muted)]">Subtotal Exacto</span>
+                                        <span className="font-mono text-[var(--text)] font-bold text-sm">{fmt(subtotalCalculado)}</span>
+                                    </div>
+                                    <div className="flex flex-col items-center text-[var(--accent)] px-2">
+                                        <span className="text-[10px] uppercase font-bold flex items-center gap-1">
+                                            <Sparkles className="w-3 h-3"/> Ajuste Redondeo ({detailsMods?.redondeo_target_pct ?? -10}%)
+                                        </span>
+                                        <span className="font-mono font-bold text-sm">
+                                            {ajusteRedondeo != null ? (ajusteRedondeo >= 0 ? `+${fmt(ajusteRedondeo)}` : `-${fmt(Math.abs(ajusteRedondeo))}`) : '—'}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-col sm:items-end bg-[var(--warn)]/10 p-2 rounded border border-[var(--warn)]/30">
+                                        <span className="text-[var(--warn)] font-bold uppercase text-[10px]">Precio Sugerido</span>
+                                        <span className="font-mono text-[var(--warn)] font-bold text-xl leading-none">{fmt(draftPrice)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
