@@ -378,9 +378,9 @@ finally { setSaving(false); }
 const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel => sel.sku === s.articulo_id));
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] max-h-[850px] overflow-hidden flex flex-col">
                 {/* Header del Modal */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] bg-[var(--surface-2)]">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0">
                     <div>
                         <h2 className="text-lg font-bold text-[var(--text)]">Mapear a Bodega Física</h2>
                         <p className="text-xs text-[var(--text-muted)]">Vincula esta vitrina con 1 o más productos reales.</p>
@@ -390,231 +390,227 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-                    {/* Tarjeta de Publicación MeLi */}
-                    <div className="bg-[var(--surface-2)]/70 rounded-xl p-4 border border-[var(--border)]">
-                        <div className="flex gap-4">
-                            {listing.url_imagen && (
-                                <img src={listing.url_imagen} alt="Producto" className="w-20 h-20 object-contain rounded-lg bg-[var(--surface)] border border-[var(--border)] flex-shrink-0" />
+                {/* 2-Column Grid */}
+                <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-[var(--surface)]">
+                    
+                    {/* LEFT COLUMN: Reference & Search (60%) */}
+                    <div className="w-full md:w-[60%] flex flex-col border-r border-[var(--border)] overflow-hidden">
+                        {/* Reference / MeLi Card (Sticky Top) */}
+                        <div className="p-5 border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0 space-y-4">
+                            <div className="bg-[var(--surface)] rounded-xl p-3 border border-[var(--border)] shadow-sm">
+                                <div className="flex gap-4">
+                                    {listing.thumbnail && (
+                                        <img src={listing.thumbnail} alt="Thumbnail" className="w-20 h-20 object-contain rounded-lg bg-white border border-[var(--border)] shrink-0" />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30">
+                                                {listing.domain_id === 'MLM-CARS_AND_LIGHT_TRUCKS' ? 'Vehículo' : 'Publicación Venta'}
+                                            </span>
+                                            {listing.condition === 'new' && <span className="text-[10px] bg-[var(--surface-2)] text-[var(--text-muted)] px-2 py-0.5 rounded border border-[var(--border)]">Nuevo</span>}
+                                        </div>
+                                        <h3 className="text-sm font-bold text-[var(--text)] leading-tight mb-1 truncate" title={listing.titulo}>{listing.titulo}</h3>
+                                        <div className="flex flex-wrap items-center gap-2 text-xs mb-2">
+                                            <span className="text-[var(--text-muted)] font-mono">{listing.external_item_id}</span>
+                                            <span className="text-[var(--text-faint)]">—</span>
+                                            <span className="font-bold text-[var(--text)]">${listing.precio?.toLocaleString('es-MX')}</span>
+                                            {listing.domain_id && (
+                                                <span className="text-[10px] bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)] px-1.5 py-0.5 rounded-md ml-auto">
+                                                    {listing.domain_id}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {pubSku && (
+                                                <span className="text-xs bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30 px-2 py-0.5 rounded flex items-center gap-1 font-mono">
+                                                    <Tag size={12} /> SKU: {pubSku}
+                                                </span>
+                                            )}
+                                            {pubGtin && (
+                                                <span className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded flex items-center gap-1 font-mono">
+                                                    <Barcode size={12} /> GTIN: {pubGtin}
+                                                </span>
+                                            )}
+                                            {pubBrand && <span className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded">Marca: {pubBrand}</span>}
+                                            {pubModel && <span className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded">Modelo: {pubModel}</span>}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {isBlockedCatalog && (
+                                <div className="bg-[var(--warn)]/10 border border-[var(--warn)]/40 rounded-lg p-3 flex gap-2 text-[var(--text)] text-xs">
+                                    <Info size={16} className="text-[var(--warn)] shrink-0" />
+                                    <div>
+                                        <strong className="text-[var(--warn)] block mb-0.5">Catálogo bloqueado (hereda stock)</strong>
+                                        <span className="text-[var(--text-muted)]">Mapea la publicación hermana {listing.par_item_id ? `(${listing.par_item_id})` : ''} para sincronizar stock correctamente.</span>
+                                    </div>
+                                </div>
                             )}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/15 px-2.5 py-0.5 rounded-full border border-[var(--accent)]/30">
-                                        Publicación Venta
-                                    </span>
-                                    {listing.condition && (
-                                        <span className="text-xs text-[var(--text-muted)] bg-[var(--surface)] px-2 py-0.5 rounded border border-[var(--border)]">
-                                            {listing.condition === 'new' ? 'Nuevo' : 'Usado'}
-                                        </span>
-                                    )}
+
+                            {!isBlockedCatalog && siblings.length > 0 && (
+                                <div className="bg-[var(--accent)]/15 border border-[var(--accent)]/40 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-[var(--text)]">
+                                    <Info size={14} className="shrink-0 text-[var(--accent)]" />
+                                    <span>Al guardar, propagarás a <strong className="text-[var(--accent)]">{siblings.length}</strong> publicación hermana(s).</span>
                                 </div>
-                                <h3 className="font-semibold text-base text-[var(--text)] leading-tight truncate">{listing.titulo}</h3>
-                                <p className="text-xs text-[var(--text-muted)] mt-1 font-mono">{listing.external_item_id} — <strong className="text-[var(--text)]">${listing.precio_venta}</strong></p>
-                                
-                                <div className="flex flex-wrap gap-1.5 mt-2.5">
-                                    {pubSku && (
-                                        <span className="inline-flex items-center gap-1 text-xs bg-[var(--warn)]/10 text-[var(--warn)] border border-[var(--warn)]/30 px-2 py-0.5 rounded-md font-mono">
-                                            <Tag size={12} /> SKU: {pubSku}
-                                        </span>
-                                    )}
-                                    {pubEan && (
-                                        <span className="inline-flex items-center gap-1 text-xs bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] px-2 py-0.5 rounded-md font-mono">
-                                            <Barcode size={12} /> EAN: {pubEan}
-                                        </span>
-                                    )}
-                                    {pubGtin && pubGtin !== pubEan && (
-                                        <span className="inline-flex items-center gap-1 text-xs bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] px-2 py-0.5 rounded-md font-mono">
-                                            <Barcode size={12} /> GTIN: {pubGtin}
-                                        </span>
-                                    )}
-                                    {pubUpc && pubUpc !== pubEan && pubUpc !== pubGtin && (
-                                        <span className="text-xs bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] px-2 py-0.5 rounded-md font-mono">
-                                            UPC: {pubUpc}
-                                        </span>
-                                    )}
-                                    <span className={`text-xs px-2 py-0.5 rounded-md border ${pubBrand ? 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)]' : 'bg-[var(--err)]/10 text-[var(--err)] border-[var(--err)]/30'}`}>
-                                        Marca: {pubBrand || '⚠️ Ausente en ML'}
-                                    </span>
-                                    <span className={`text-xs px-2 py-0.5 rounded-md border ${pubModel ? 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)]' : 'bg-[var(--err)]/10 text-[var(--err)] border-[var(--err)]/30'}`}>
-                                        Modelo: {pubModel || '⚠️ Ausente en ML'}
-                                    </span>
-                                    {listing.domain_id && (
-                                        <span className="text-xs bg-[var(--surface)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded-md">
-                                            {listing.domain_id}
-                                        </span>
-                                    )}
+                            )}
+                        </div>
+
+                        {/* Search Input (Sticky Mid) */}
+                        <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-sm relative z-10">
+                            <label className="text-xs font-semibold text-[var(--text-muted)] mb-1.5 block">Buscar en Catálogo Real</label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={16} />
+                                <input
+                                    type="text"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] focus:border-[var(--accent)] transition-all outline-none text-sm placeholder:text-[var(--text-faint)]"
+                                    placeholder="Busca por nombre, marca, modelo, SKU, código universal..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Suggestions / Results (Scrollable Bottom) */}
+                        <div className="flex-1 overflow-y-auto p-5 bg-[var(--surface)] space-y-4">
+                            {searchResults.length > 0 ? (
+                                <div className="space-y-2">
+                                    <h4 className="text-xs font-bold text-[var(--text)] mb-2">Resultados de búsqueda</h4>
+                                    {searchResults.map(res => (
+                                        <button
+                                            key={res.articulo_id}
+                                            className="w-full text-left p-3 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--accent)]/10 border border-[var(--border)] hover:border-[var(--accent)]/50 transition-all flex items-center justify-between group"
+                                            onClick={() => handleAddSku(res)}
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-[var(--text)] truncate">{res.nombre}</p>
+                                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                    {res.marca && <span className="text-[10px] text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">{res.marca}</span>}
+                                                    {res.codigo_universal && (
+                                                        <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">
+                                                            Cod: {res.codigo_universal}
+                                                        </span>
+                                                    )}
+                                                    {res.modelo && <span className="text-[10px] text-[var(--text-faint)]">Mod: {res.modelo}</span>}
+                                                    {res.variante && <span className="text-[10px] text-[var(--text-faint)]">Var: {res.variante}</span>}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 ml-3">
+                                                <span className="text-[10px] font-mono text-[var(--text-faint)]">{res.articulo_id}</span>
+                                                <div className="w-6 h-6 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center group-hover:bg-[var(--accent)] group-hover:border-[var(--accent)] transition-colors">
+                                                    <Plus size={12} className="text-[var(--text-muted)] group-hover:text-white" />
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {isBlockedCatalog && (
-                        <div className="bg-[var(--warn)]/10 border border-[var(--warn)]/40 rounded-xl p-4 flex gap-3 text-[var(--text)]">
-                            <Info size={18} className="text-[var(--warn)] shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-sm font-bold text-[var(--warn)]">Este catálogo hereda el stock de su publicación tradicional</p>
-                                <p className="text-xs text-[var(--text-muted)] mt-1">
-                                    Para que el stock se sincronice correctamente, mapea la publicación <strong>tradicional hermana</strong>
-                                    {listing.par_item_id ? ` (${listing.par_item_id})` : ''} - este catálogo se actualizará automáticamente.
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {!isBlockedCatalog && siblings.length > 0 && (
-                        <div className="bg-[var(--accent)]/15 border border-[var(--accent)]/40 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-[var(--text)]">
-                            <Info size={14} className="shrink-0 text-[var(--accent)]" />
-                            <span>Al guardar, podrás propagar el mapeo a <strong className="text-[var(--accent)]">{siblings.length}</strong> publicación{siblings.length !== 1 ? 'es' : ''} hermana{siblings.length !== 1 ? 's' : ''} con el mismo producto de catálogo.</span>
-                        </div>
-                    )}
-
-                    {/* Artículos Seleccionados (Ensamble) */}
-                    <div>
-                        <h4 className="text-xs font-bold text-[var(--text-muted)] flex items-center gap-1.5 mb-2">
-                            <Package size={14} /> Artículos que se descontarán por cada venta (Ensamble)
-                        </h4>
-                        {loading ? (
-                            <div className="text-center py-4 text-sm text-[var(--text-faint)]">
-                                <RefreshCw size={16} className="inline animate-spin mr-2" />Cargando mapeos previos...
-                            </div>
-                        ) : selectedSkus.length === 0 ? (
-                            <div className="text-center py-6 text-sm text-[var(--text-faint)] bg-[var(--surface-2)]/40 rounded-lg border-2 border-dashed border-[var(--border)]">
-                                No has agregado artículos reales. Usa el buscador o las sugerencias.
-                            </div>
-                        ) : (
-                            selectedSkus.map(s => (
-                                <div key={s.sku} className="flex items-center gap-3 p-3 bg-[var(--surface-2)]/60 border border-[var(--border)] rounded-lg mb-2 hover:border-[var(--accent)]/40 transition-colors">
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-[var(--text)] truncate">{s.name}</p>
-                                        <div className="flex flex-wrap gap-1.5 mt-1">
-                                            {s.marca && <span className="text-xs text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded">{s.marca}</span>}
-                                            {s.modelo && <span className="text-xs text-[var(--text-faint)]">Mod: {s.modelo}</span>}
-                                            {s.variante && <span className="text-xs text-[var(--text-faint)]">Var: {s.variante}</span>}
-                                            {s.caja_madre && <span className="text-xs text-[var(--text-faint)]">Caja: {s.caja_madre}</span>}
-                                            {s.codigo_universal && (
-                                                <span className="text-xs font-mono text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded border border-[var(--accent)]/20">
-                                                    Cod: {s.codigo_universal}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <span className="text-xs font-mono text-[var(--text-faint)] mt-1 block">{s.sku}</span>
-                                    </div>
-                                    <button onClick={() => handleRemoveSku(s.sku)} className="p-2 text-[var(--err)] hover:bg-[var(--err)]/15 rounded-lg transition-colors" title="Eliminar">
-                                        <Trash2 size={16} />
-                                    </button>
-                                    <div className="text-center">
-                                        <span className="text-xs text-[var(--text-faint)] block mb-1">Cantidad</span>
-                                        <div className="flex items-center border border-[var(--border)] bg-[var(--surface)] rounded-lg overflow-hidden">
-                                            <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="px-2.5 py-1 text-[var(--text)] hover:bg-[var(--surface-2)] font-bold transition-colors">-</button>
-                                            <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, parseInt(e.target.value) || 1)} className="w-12 text-center text-sm font-semibold bg-transparent border-none appearance-none p-0 focus:ring-0 text-[var(--text)]" />
-                                            <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="px-2.5 py-1 text-[var(--text)] hover:bg-[var(--surface-2)] font-bold transition-colors">+</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                    {/* Sugerencias Inteligentes */}
-                    {(suggestionsLoading || filteredSuggestions.length > 0) && (
-                        <div className="bg-[var(--surface-2)]/80 border border-[var(--border)] rounded-xl p-3.5 space-y-2">
-                            <h4 className="text-xs font-bold text-[var(--text)] flex items-center gap-1.5 mb-2">
-                                <RefreshCw size={12} className={suggestionsLoading ? 'animate-spin text-[var(--accent)]' : 'text-[var(--accent)]'} />
-                                {suggestionsLoading ? 'Buscando coincidencias...' : `${filteredSuggestions.length} sugerencia${filteredSuggestions.length !== 1 ? 's' : ''} por similitud`}
-                            </h4>
-
-                            {!suggestionsLoading && filteredSuggestions.slice(0, 15).map(res => (
-                                <button
-                                    key={res.articulo_id}
-                                    onClick={() => handleAddSku(res)}
-                                    className="w-full text-left p-2.5 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--accent)] transition-all flex items-center justify-between group"
-                                >
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-[var(--text)] truncate">{res.nombre}</p>
-                                        <div className="flex flex-wrap gap-1.5 mt-1">
-                                            {res.marca && <span className="text-xs text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{res.marca}</span>}
-                                            {res.codigo_universal && (
-                                                <span className="text-xs font-mono text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/20 px-1.5 py-0.5 rounded">
-                                                    Cod: {res.codigo_universal}
-                                                </span>
-                                            )}
-                                            {res.modelo && <span className="text-xs text-[var(--text-faint)]">Mod: {res.modelo}</span>}
-                                            {res.variante && <span className="text-xs text-[var(--text-faint)]">Var: {res.variante}</span>}
-                                            {res.caja_madre && <span className="text-xs text-[var(--text-faint)]">Caja: {res.caja_madre}</span>}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 ml-3">
-                                        {res._score >= 3 && <span className="text-xs bg-[var(--ok)]/20 text-[var(--ok)] border border-[var(--ok)]/40 px-2 py-0.5 rounded-full font-bold">Alta</span>}
-                                        {res._score >= 1.5 && res._score < 3 && <span className="text-xs bg-[var(--warn)]/20 text-[var(--warn)] border border-[var(--warn)]/40 px-2 py-0.5 rounded-full font-semibold">Media</span>}
-                                        {res._score < 1.5 && <span className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded-full">Baja</span>}
-                                        {costMap.get(res.articulo_id) ? (
-                                            <span className="inline-block px-2 py-0.5 text-xs rounded bg-[var(--ok)]/15 text-[var(--ok)] border border-[var(--ok)]/30 font-semibold">
-                                                costo vigente
-                                            </span>
-                                        ) : (
-                                            <span className="inline-block px-2 py-0.5 text-xs rounded bg-[var(--err)]/15 text-[var(--err)] border border-[var(--err)]/30 font-semibold" title="El articulo no tiene costo vigente.">
-                                                sin costo
-                                            </span>
-                                        )}
-                                        <span className="text-xs font-mono text-[var(--text-faint)]">{res.articulo_id}</span>
-                                        <Plus size={16} className="text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Buscador en Catálogo Interno */}
-                    <div>
-                        <label className="text-xs font-semibold text-[var(--text-muted)] mb-1.5 block">Buscar en tu Bodega (Catálogo Real)</label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={16} />
-                            <input
-                                type="text"
-                                className="w-full pl-10 pr-4 py-2.5 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] focus:border-[var(--accent)] transition-all outline-none text-sm placeholder:text-[var(--text-faint)]"
-                                placeholder="Busca por nombre, marca, modelo, SKU, código universal..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                        {searchResults.length > 0 && (
-                            <div className="mt-2 border border-[var(--border)] rounded-lg bg-[var(--surface)] shadow-xl max-h-48 overflow-y-auto">
-                                {searchResults.map(res => (
-                                    <button
-                                        key={res.articulo_id}
-                                        className="w-full text-left px-3 py-2.5 hover:bg-[var(--accent)]/10 border-b border-[var(--border)] last:border-0 transition-colors flex items-center justify-between group"
-                                        onClick={() => handleAddSku(res)}
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-[var(--text)] truncate">{res.nombre}</p>
-                                            <div className="flex flex-wrap gap-1.5 mt-1">
-                                                {res.marca && <span className="text-xs text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{res.marca}</span>}
-                                                {res.codigo_universal && (
-                                                    <span className="text-xs font-mono text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded border border-[var(--accent)]/20">
-                                                        Cod: {res.codigo_universal}
-                                                    </span>
+                            ) : (suggestionsLoading || filteredSuggestions.length > 0) ? (
+                                <div className="space-y-2">
+                                    <h4 className="text-xs font-bold text-[var(--text-muted)] flex items-center gap-1.5 mb-2">
+                                        <RefreshCw size={12} className={suggestionsLoading ? 'animate-spin' : ''} />
+                                        {suggestionsLoading ? 'Analizando similitudes...' : `${filteredSuggestions.length} sugerencias inteligentes`}
+                                    </h4>
+                                    {!suggestionsLoading && filteredSuggestions.map(res => (
+                                        <button
+                                            key={res.articulo_id}
+                                            onClick={() => handleAddSku(res)}
+                                            className="w-full text-left p-3 rounded-lg bg-[var(--surface-2)]/50 hover:bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--accent)]/50 transition-all flex items-center justify-between group"
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-[var(--text)] truncate">{res.nombre}</p>
+                                                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                                    {res._score >= 3 && <span className="text-[10px] bg-[var(--ok)]/20 text-[var(--ok)] border border-[var(--ok)]/40 px-1.5 py-0.5 rounded-full font-bold">Match Alto</span>}
+                                                    {res._score >= 1.5 && res._score < 3 && <span className="text-[10px] bg-[var(--warn)]/20 text-[var(--warn)] border border-[var(--warn)]/40 px-1.5 py-0.5 rounded-full font-semibold">Match Medio</span>}
+                                                    {res.marca && <span className="text-[10px] text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">{res.marca}</span>}
+                                                    {res.codigo_universal && (
+                                                        <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">
+                                                            Cod: {res.codigo_universal}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 ml-3">
+                                                {costMap.get(res.articulo_id) ? (
+                                                    <span className="text-[10px] bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/20 px-1.5 py-0.5 rounded">Costo OK</span>
+                                                ) : (
+                                                    <span className="text-[10px] bg-[var(--err)]/10 text-[var(--err)] border border-[var(--err)]/20 px-1.5 py-0.5 rounded">Sin Costo</span>
                                                 )}
-                                                {res.modelo && <span className="text-xs text-[var(--text-faint)]">Mod: {res.modelo}</span>}
-                                                {res.variante && <span className="text-xs text-[var(--text-faint)]">Var: {res.variante}</span>}
-                                                {res.caja_madre && <span className="text-xs text-[var(--text-faint)]">Caja: {res.caja_madre}</span>}
+                                                <div className="w-6 h-6 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center group-hover:bg-[var(--accent)] group-hover:border-[var(--accent)] transition-colors">
+                                                    <Plus size={12} className="text-[var(--text-muted)] group-hover:text-white" />
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 text-[var(--text-faint)]">
+                                    <Search size={32} className="mx-auto mb-3 opacity-20" />
+                                    <p className="text-sm">Usa el buscador para encontrar artículos en tu bodega.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* RIGHT COLUMN: Cart / Selected (40%) */}
+                    <div className="w-full md:w-[40%] flex flex-col bg-[var(--surface-2)]/30 border-t md:border-t-0 md:border-l border-[var(--border)]">
+                        <div className="p-5 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0 shadow-sm relative z-10">
+                            <h4 className="text-sm font-bold text-[var(--text)] flex items-center gap-2">
+                                <Package size={16} className="text-[var(--accent)]" /> 
+                                Artículos del Ensamble
+                                <span className="bg-[var(--accent)] text-[var(--accent-ink)] text-xs px-2 py-0.5 rounded-full ml-auto">
+                                    {selectedSkus.length}
+                                </span>
+                            </h4>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">Estos productos se descontarán por cada venta.</p>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-5 space-y-3 relative">
+                            {loading ? (
+                                <div className="text-center py-10 text-[var(--text-faint)]">
+                                    <RefreshCw size={24} className="mx-auto mb-3 animate-spin opacity-50" />
+                                    <p className="text-sm">Cargando ensamble actual...</p>
+                                </div>
+                            ) : selectedSkus.length === 0 ? (
+                                <div className="text-center py-12 text-[var(--text-faint)] border-2 border-dashed border-[var(--border)] rounded-xl bg-[var(--surface)]/50">
+                                    <Package size={32} className="mx-auto mb-3 opacity-20" />
+                                    <p className="text-sm px-4">No hay artículos vinculados.<br/>Selecciona productos desde el catálogo (izquierda).</p>
+                                </div>
+                            ) : (
+                                selectedSkus.map(s => (
+                                    <div key={s.sku} className="p-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm hover:border-[var(--accent)]/50 transition-colors relative group">
+                                        <button onClick={() => handleRemoveSku(s.sku)} className="absolute top-2 right-2 p-1.5 text-[var(--text-faint)] hover:text-[var(--err)] hover:bg-[var(--err)]/10 rounded-md transition-colors" title="Quitar del ensamble">
+                                            <X size={14} />
+                                        </button>
+                                        
+                                        <p className="text-sm font-semibold text-[var(--text)] pr-6 leading-tight mb-2">{s.name}</p>
+                                        
+                                        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                                            <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded border border-[var(--border)]">{s.sku}</span>
+                                            {s.marca && <span className="text-[10px] text-[var(--text-faint)]">Marca: {s.marca}</span>}
+                                        </div>
+
+                                        <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">
+                                            <span className="text-xs font-medium text-[var(--text-muted)]">Multiplicador</span>
+                                            <div className="flex items-center border border-[var(--border)] bg-[var(--surface-2)] rounded-lg overflow-hidden h-7">
+                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="w-7 h-full flex items-center justify-center text-[var(--text)] hover:bg-[var(--surface)] font-bold transition-colors">-</button>
+                                                <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, parseInt(e.target.value) || 1)} className="w-10 h-full text-center text-xs font-bold bg-transparent border-none appearance-none p-0 focus:ring-0 text-[var(--text)]" />
+                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="w-7 h-full flex items-center justify-center text-[var(--text)] hover:bg-[var(--surface)] font-bold transition-colors">+</button>
                                             </div>
                                         </div>
-                                        <span className="text-xs font-mono text-[var(--text-faint)] ml-2 flex-shrink-0">{res.articulo_id}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
-
-
                 </div>
 
                 {/* Footer del Modal */}
-                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--surface-2)]">
-                    <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)] hover:text-[var(--text)] transition-colors">
+                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-20">
+                    <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-[var(--text-muted)] bg-[var(--surface-2)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)]/80 hover:text-[var(--text)] transition-colors">
                         Cancelar
                     </button>
-                    <button onClick={handleSave} disabled={saving} className={`px-5 py-2 text-sm font-semibold rounded-lg hover:brightness-110 disabled:opacity-40 flex items-center gap-2 transition-all shadow-sm ${selectedSkus.length === 0 ? 'text-[var(--err)] bg-[var(--err)]/15 border border-[var(--err)]/30' : 'text-[var(--accent-ink)] bg-[var(--accent)]'}`}>
-                        {saving ? (<><RefreshCw size={14} className="animate-spin" />Guardando...</>) : selectedSkus.length === 0 ? (<><Trash2 size={14} />Desvincular Todo</>) : (<><Save size={14} />Guardar y Enlazar</>)}
+                    <button onClick={handleSave} disabled={saving} className={`px-6 py-2.5 text-sm font-semibold rounded-lg hover:brightness-110 disabled:opacity-40 flex items-center gap-2 transition-all shadow-sm ${selectedSkus.length === 0 ? 'text-[var(--err)] bg-[var(--err)]/15 border border-[var(--err)]/30' : 'text-[var(--accent-ink)] bg-[var(--accent)]'}`}>
+                        {saving ? (<><RefreshCw size={16} className="animate-spin" />Guardando...</>) : selectedSkus.length === 0 ? (<><Trash2 size={16} />Desvincular Todo</>) : (<><Save size={16} />Guardar Mapeo</>)}
                     </button>
                 </div>
             </div>
