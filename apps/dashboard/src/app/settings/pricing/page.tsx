@@ -123,6 +123,27 @@ export default function PricingSettingsPage() {
                         </select>
                     </div>
                 </div>
+                <div className="bg-[var(--surface-2)] p-3 rounded border border-[var(--border)] mt-2">
+                    <h5 className="text-xs font-bold text-[var(--text-muted)] mb-2 uppercase tracking-wider">Modificadores de Fórmula</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                            <input type="checkbox" className="rounded text-[var(--accent)]" checked={formData.aplicar_margen} onChange={e=>setFormData({...formData, aplicar_margen: e.target.checked})} />
+                            Aplicar Margen
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                            <input type="checkbox" className="rounded text-[var(--accent)]" checked={formData.aplicar_comision} onChange={e=>setFormData({...formData, aplicar_comision: e.target.checked})} />
+                            Comisión MeLi
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                            <input type="checkbox" className="rounded text-[var(--accent)]" checked={formData.aplicar_retenciones} onChange={e=>setFormData({...formData, aplicar_retenciones: e.target.checked})} />
+                            Retenciones (ISR/IVA)
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                            <input type="checkbox" className="rounded text-[var(--accent)]" checked={formData.aplicar_envio} onChange={e=>setFormData({...formData, aplicar_envio: e.target.checked})} />
+                            Costo Envío
+                        </label>
+                    </div>
+                </div>
 
                 {formData.redondeo === 'magic' && (
                     <div className="grid grid-cols-3 gap-4 bg-[var(--surface-2)] p-3 rounded border border-[var(--border)]">
