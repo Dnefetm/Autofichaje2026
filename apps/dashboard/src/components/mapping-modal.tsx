@@ -314,11 +314,16 @@ setSiblingsLoading(false);
 }
 }
 async function handleSave() {
-if (selectedSkus.length === 0) { alert('Debes seleccionar al menos un articulo del catalogo real.'); return; }
 setSaving(true);
 try {
 const { error: delError } = await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', listing.id);
 if (delError) throw delError;
+if (selectedSkus.length === 0) {
+await supabase.from('publicaciones_externas').update({ esta_mapeado: false }).eq('id', listing.id);
+onSuccess();
+onClose();
+return;
+}
 const snapshotUpserts = selectedSkus.map(s => ({ sku: s.sku, physical_stock: 0, updated_at: new Date().toISOString() }));
 await supabase.from('inventory_snapshot').upsert(snapshotUpserts, { onConflict: 'sku', ignoreDuplicates: true });
 const inserts = selectedSkus.map(s => ({ publicacion_id: listing.id, articulo_id: s.sku, cantidad_requerida: s.quantity }));
@@ -607,8 +612,8 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)] hover:text-[var(--text)] transition-colors">
                         Cancelar
                     </button>
-                    <button onClick={handleSave} disabled={saving || selectedSkus.length === 0} className="px-5 py-2 text-sm font-semibold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:brightness-110 disabled:opacity-40 flex items-center gap-2 transition-all shadow-sm">
-                        {saving ? (<><RefreshCw size={14} className="animate-spin" />Guardando...</>) : <><Save size={14} />Guardar y Enlazar</>}
+                    <button onClick={handleSave} disabled={saving} className={`px-5 py-2 text-sm font-semibold rounded-lg hover:brightness-110 disabled:opacity-40 flex items-center gap-2 transition-all shadow-sm ${selectedSkus.length === 0 ? 'text-[var(--err)] bg-[var(--err)]/15 border border-[var(--err)]/30' : 'text-[var(--accent-ink)] bg-[var(--accent)]'}`}>
+                        {saving ? (<><RefreshCw size={14} className="animate-spin" />Guardando...</>) : selectedSkus.length === 0 ? (<><Trash2 size={14} />Desvincular Todo</>) : (<><Save size={14} />Guardar y Enlazar</>)}
                     </button>
                 </div>
             </div>
