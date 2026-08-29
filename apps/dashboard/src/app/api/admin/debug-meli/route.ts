@@ -21,9 +21,10 @@ export async function GET(request: NextRequest) {
                 .order('expires_at', { ascending: false })
                 .limit(1)
                 .single();
+            if (!mTokens) return NextResponse.json({ error: 'no tokens found' });
             finalAccountId = mTokens.marketplace_id;
         }
-        const token = await adapter.getAccessToken(finalAccountId);
+        const token = await (adapter as any).getAccessToken(finalAccountId!);
         
         const res = await fetch(`https://api.mercadolibre.com${path}`, {
             headers: { Authorization: `Bearer ${token}` }
