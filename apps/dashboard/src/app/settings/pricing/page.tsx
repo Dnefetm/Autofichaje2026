@@ -33,12 +33,17 @@ export default function PricingSettingsPage() {
     async function saveRule(ruleData: any) {
         setSaving(true);
         try {
+            const dataToSave = { ...ruleData };
+            if (dataToSave.redondeo === 'magic') {
+                dataToSave.redondeo = null;
+            }
+
             await fetch('/api/settings/pricing', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: 'upsert_rule_v3',
-                    data: ruleData
+                    data: dataToSave
                 })
             });
             setIsEditingRule(null);
@@ -204,47 +209,55 @@ export default function PricingSettingsPage() {
                     {isCreatingRule && <RuleForm onCancel={() => setIsCreatingRule(false)} />}
 
                     <div className="mt-4 flex flex-col gap-3">
-                        {rules.map((rule) => (
-                            <div key={rule.id} className="border border-[var(--border)] rounded-lg p-4 hover:border-[var(--accent)]/50 transition-colors bg-[var(--surface)] shadow-sm flex flex-col md:flex-row md:items-center gap-4">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="px-2 py-0.5 rounded bg-[var(--surface-2)] text-[var(--text-muted)] font-mono text-[10px] font-bold border border-[var(--border)]">
-                                            #{rule.priority}
-                                        </span>
-                                        <h4 className="font-bold text-[var(--text)]">{rule.name}</h4>
-                                        {!rule.is_active && <span className="px-2 py-0.5 bg-rose-100 text-[var(--err)] text-[10px] font-bold rounded">INACTIVA</span>}
+                        {rules.map((rule) => {
+                            if (isEditingRule === rule.id) {
+                                return (
+                                    <div key={rule.id} className="border-2 border-[var(--accent)] rounded-lg bg-[var(--surface)] shadow-md overflow-hidden animate-in fade-in zoom-in-95">
+                                        <RuleForm 
+                                            initialData={{...rule, redondeo: rule.redondeo ?? 'magic'}} 
+                                            onCancel={() => setIsEditingRule(null)} 
+                                        />
                                     </div>
-                                    <div className="flex flex-wrap gap-2 text-[11px] text-[var(--text-muted)] mt-2">
-                                        {rule.marca && <span className="bg-[var(--accent)]/10 text-indigo-700 px-1.5 rounded">Marca: {rule.marca}</span>}
-                                        {rule.category_id && <span className="bg-[var(--accent)]/10 text-indigo-700 px-1.5 rounded">Categoría: {rule.category_id}</span>}
-                                        {!rule.marca && !rule.category_id && <span className="text-[var(--text-faint)] italic">Global (Aplica a todo)</span>}
+                                );
+                            }
+
+                            return (
+                                <div key={rule.id} className="border border-[var(--border)] rounded-lg p-4 hover:border-[var(--accent)]/50 transition-colors bg-[var(--surface)] shadow-sm flex flex-col md:flex-row md:items-center gap-4">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="px-2 py-0.5 rounded bg-[var(--surface-2)] text-[var(--text-muted)] font-mono text-[10px] font-bold border border-[var(--border)]">
+                                                #{rule.priority}
+                                            </span>
+                                            <h4 className="font-bold text-[var(--text)]">{rule.name}</h4>
+                                            {!rule.is_active && <span className="px-2 py-0.5 bg-rose-100 text-[var(--err)] text-[10px] font-bold rounded">INACTIVA</span>}
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 text-[11px] text-[var(--text-muted)] mt-2">
+                                            {rule.marca && <span className="bg-[var(--accent)]/10 text-[var(--accent)] px-1.5 rounded font-medium">Marca: {rule.marca}</span>}
+                                            {rule.category_id && <span className="bg-[var(--accent)]/10 text-[var(--accent)] px-1.5 rounded font-medium">Categoría: {rule.category_id}</span>}
+                                            {!rule.marca && !rule.category_id && <span className="text-[var(--text-faint)] italic">Global (Aplica a todo)</span>}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-6 md:border-l md:border-[var(--border)] md:pl-6">
+                                        <div className="text-center">
+                                            <p className="text-[10px] uppercase text-[var(--text-faint)] font-bold mb-0.5">Margen</p>
+                                            <p className="font-bold text-[var(--text)] text-lg">{rule.margen_objetivo}%</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-[10px] uppercase text-[var(--text-faint)] font-bold mb-0.5">Costo</p>
+                                            <p className="font-semibold text-[var(--text-muted)] text-sm capitalize">{rule.cost_basis}</p>
+                                        </div>
+                                        <div className="flex gap-1 ml-2">
+                                            <button onClick={() => setIsEditingRule(rule.id)} className="p-1.5 text-[var(--text-faint)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 rounded transition-colors" title="Editar">
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                            <button onClick={() => deleteRule(rule.id)} className="p-1.5 text-[var(--text-faint)] hover:text-[var(--err)] hover:bg-[var(--err)]/10 rounded transition-colors" title="Eliminar">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-6 md:border-l md:border-[var(--border)] md:pl-6">
-                                    <div className="text-center">
-                                        <p className="text-[10px] uppercase text-[var(--text-faint)] font-bold mb-0.5">Margen</p>
-                                        <p className="font-bold text-[var(--text)] text-lg">{rule.margen_objetivo}%</p>
-                                    </div>
-                                    <div className="text-center">
-                                        <p className="text-[10px] uppercase text-[var(--text-faint)] font-bold mb-0.5">Costo</p>
-                                        <p className="font-semibold text-[var(--text-muted)] text-sm capitalize">{rule.cost_basis}</p>
-                                    </div>
-                                    <div className="flex gap-1 ml-2">
-                                        <button onClick={() => setIsEditingRule(rule.id)} className="p-1.5 text-[var(--text-faint)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 rounded transition-colors">
-                                            <Edit2 className="w-4 h-4" />
-                                        </button>
-                                        <button onClick={() => deleteRule(rule.id)} className="p-1.5 text-[var(--text-faint)] hover:text-[var(--err)] hover:bg-[var(--err)]/10 rounded transition-colors">
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                                {isEditingRule === rule.id && (
-                                    <div className="w-full mt-4 border-t pt-4">
-                                        <RuleForm initialData={rule} onCancel={() => setIsEditingRule(null)} />
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                            );
+                        })}
                         {rules.length === 0 && !isCreatingRule && (
                             <div className="text-center py-8 text-[var(--text-faint)] italic text-sm border-2 border-dashed border-[var(--border)] rounded-lg">
                                 No hay reglas de precio configuradas. Las publicaciones arrojarán "no_rule".
