@@ -515,14 +515,25 @@ export default function PricingAuditCard({
                                         )}
                                     </span>
                                 </div>
-
                                 <div className="flex justify-between text-[var(--text-muted)] pt-3">
-                                    <span>Comisión ML ({detailsMods?.comision_pct ?? draftDetails.comision_pct}%) + ISR ({detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct}%)</span>
-                                    <span>{(detailsMods?.comision_pct ?? draftDetails.comision_pct) + (detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct)}%</span>
+                                    <span>
+                                        {((detailsMods?.aplicar_comision ?? draftDetails.aplicar_comision) ? `Comisión ML (${detailsMods?.comision_pct ?? draftDetails.comision_pct}%)` : 'Comisión ML (0%)')}
+                                        {' + '}
+                                        {((detailsMods?.aplicar_retenciones ?? draftDetails.aplicar_retenciones) ? `ISR (${detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct}%)` : 'ISR (0%)')}
+                                    </span>
+                                    <span>
+                                        {
+                                            ((detailsMods?.aplicar_comision ?? draftDetails.aplicar_comision) ? (detailsMods?.comision_pct ?? draftDetails.comision_pct) : 0) + 
+                                            ((detailsMods?.aplicar_retenciones ?? draftDetails.aplicar_retenciones) ? (detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct) : 0)
+                                        }%
+                                    </span>
                                 </div>
                                 <div className="flex justify-between text-[var(--text-muted)] border-b border-[var(--border)] pb-1.5 mb-1.5">
                                     <span>Multiplicador (1 - Deducciones)</span>
-                                    <span>÷ {(1 - (((detailsMods?.comision_pct ?? draftDetails.comision_pct) + (detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct)) / 100)).toFixed(2)}</span>
+                                    <span>÷ {(1 - (
+                                        (((detailsMods?.aplicar_comision ?? draftDetails.aplicar_comision) ? (detailsMods?.comision_pct ?? draftDetails.comision_pct) : 0) + 
+                                         ((detailsMods?.aplicar_retenciones ?? draftDetails.aplicar_retenciones) ? (detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct) : 0)) / 100
+                                    )).toFixed(2)}</span>
                                 </div>
 
                                 <div className="flex justify-between text-[var(--text)] font-semibold pt-0.5">
