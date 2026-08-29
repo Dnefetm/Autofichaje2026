@@ -484,82 +484,60 @@ export default function PricingAuditCard({
                             </div>
                         )}
 
-                        {/* DESGLOSE MATEMÁTICO TRANSPARENTE EN PASOS */}
-                        <div className="space-y-3 mt-2">
-                            {/* PASO 1: Costos de Recuperación (Numerador) */}
-                            <div className="bg-[var(--bg)] border border-[var(--border)] rounded p-3 flex flex-col gap-2">
-                                <div className="text-[10px] uppercase font-bold text-[var(--text-faint)]">1. Costos de Recuperación Directa</div>
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-3">
-                                    <div className="flex flex-col">
-                                        <span className="text-[var(--text-muted)]">Costo {draftDetails.cost_basis || 'Base'} + Margen ({detailsMods?.margen_pct ?? draftDetails.margen_pct}%)</span>
-                                        <span className="font-mono text-[var(--text)] font-semibold">{fmt(draftDetails.costo_base)} + {fmt(detailsMods?.margen_monto ?? (draftDetails.costo_base * ((draftDetails.margen_pct || 0) / 100)))}</span>
-                                    </div>
-                                    <div className="hidden sm:block text-[var(--text-faint)]">+</div>
-                                    <div className="flex flex-col">
-                                        <span className="text-[var(--text-muted)]">Costo Envío Real MeLi</span>
-                                        <span className="font-mono text-[var(--text)] font-semibold">{fmt(detailsMods?.shipping_cost_final ?? draftDetails.shipping_cost ?? 0)}</span>
-                                    </div>
-                                    <div className="hidden sm:block text-[var(--text-faint)]">=</div>
-                                    <div className="flex flex-col sm:items-end">
-                                        <span className="text-[var(--text-muted)]">Monto Neto a Recuperar</span>
-                                        <span className="font-mono text-[var(--text)] font-bold">
-                                            {fmt(
-                                                (draftDetails.costo_base + (detailsMods?.margen_monto ?? (draftDetails.costo_base * ((draftDetails.margen_pct || 0) / 100)))) + 
-                                                (detailsMods?.shipping_cost_final ?? draftDetails.shipping_cost ?? 0)
-                                            )}
-                                        </span>
-                                    </div>
+                        {/* DESGLOSE MATEMÁTICO TRANSPARENTE EN PASOS (MINIMALISTA) */}
+                        <div className="mt-3 text-xs font-mono bg-transparent border border-[var(--border)] rounded px-4 py-3 shadow-sm relative">
+                            {draftDetails.rule_name && (
+                                <div className="absolute top-2 right-2 text-[9px] uppercase tracking-wider font-bold text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded">
+                                    Perfil: {draftDetails.rule_name}
                                 </div>
-                            </div>
+                            )}
 
-                            {/* PASO 2: Factor de Deducciones (Denominador) */}
-                            <div className="bg-[var(--bg)] border border-[var(--border)] rounded p-3 flex flex-col gap-2">
-                                <div className="text-[10px] uppercase font-bold text-[var(--text-faint)]">2. Factor de Retención Marketplace</div>
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-3">
-                                    <div className="flex flex-col">
-                                        <span className="text-[var(--text-muted)]">Comisión ML + Retención Fiscal</span>
-                                        <span className="font-mono text-[var(--text)] font-semibold">
-                                            {detailsMods?.comision_pct ?? draftDetails.comision_pct}% + {detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct}% = {(detailsMods?.comision_pct ?? draftDetails.comision_pct) + (detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct)}%
-                                        </span>
-                                    </div>
-                                    <div className="hidden sm:block text-[var(--text-faint)]">→</div>
-                                    <div className="flex flex-col sm:items-end">
-                                        <span className="text-[var(--text-muted)]">Multiplicador (1 - Deducciones)</span>
-                                        <span className="font-mono text-[var(--text)] font-bold">
-                                            {(1 - (((detailsMods?.comision_pct ?? draftDetails.comision_pct) + (detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct)) / 100)).toFixed(2)}
-                                        </span>
-                                    </div>
+                            <div className="space-y-1.5 w-full sm:w-2/3 lg:w-1/2">
+                                <div className="flex justify-between text-[var(--text-muted)]">
+                                    <span>Costo Base ({draftDetails.cost_basis || 'menudeo'})</span>
+                                    <span>{fmt(draftDetails.costo_base)}</span>
                                 </div>
-                            </div>
+                                <div className="flex justify-between text-[var(--text-muted)]">
+                                    <span>Rentabilidad ({detailsMods?.margen_pct ?? draftDetails.margen_pct}%)</span>
+                                    <span>{fmt(detailsMods?.margen_monto ?? (draftDetails.costo_base * ((draftDetails.margen_pct || 0) / 100)))}</span>
+                                </div>
+                                <div className="flex justify-between text-[var(--text-muted)] border-b border-[var(--border)] pb-1.5 mb-1.5">
+                                    <span>Envío Real MeLi</span>
+                                    <span>{fmt(detailsMods?.shipping_cost_final ?? draftDetails.shipping_cost ?? 0)}</span>
+                                </div>
+                                
+                                <div className="flex justify-between text-[var(--text)] font-semibold pt-0.5">
+                                    <span>Subtotal a Recuperar</span>
+                                    <span>
+                                        {fmt(
+                                            (draftDetails.costo_base + (detailsMods?.margen_monto ?? (draftDetails.costo_base * ((draftDetails.margen_pct || 0) / 100)))) + 
+                                            (detailsMods?.shipping_cost_final ?? draftDetails.shipping_cost ?? 0)
+                                        )}
+                                    </span>
+                                </div>
 
-                            {/* PASO 3: Equilibrio y Redondeo */}
-                            <div className="bg-[var(--surface)] border-2 border-[var(--border)] rounded p-3 flex flex-col gap-2 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-24 h-24 bg-[var(--accent)]/5 rounded-bl-full -z-0"></div>
-                                <div className="text-[10px] uppercase font-bold text-[var(--text-faint)] relative z-10 flex justify-between">
-                                    <span>3. Precio de Equilibrio y Optimización Mágica</span>
-                                    {draftDetails.rule_name && (
-                                        <span className="text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded font-mono">
-                                            Perfil: {draftDetails.rule_name}
-                                        </span>
-                                    )}
+                                <div className="flex justify-between text-[var(--text-muted)] pt-3">
+                                    <span>Comisión ML ({detailsMods?.comision_pct ?? draftDetails.comision_pct}%) + ISR ({detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct}%)</span>
+                                    <span>{(detailsMods?.comision_pct ?? draftDetails.comision_pct) + (detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct)}%</span>
                                 </div>
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-4 relative z-10 mt-1">
-                                    <div className="flex flex-col bg-[var(--surface-2)] p-2 rounded border border-[var(--border)]">
-                                        <span className="text-[var(--text-muted)]">Subtotal Exacto</span>
-                                        <span className="font-mono text-[var(--text)] font-bold text-sm">{fmt(subtotalCalculado)}</span>
-                                    </div>
-                                    <div className="flex flex-col items-center text-[var(--accent)] px-2">
-                                        <span className="text-[10px] uppercase font-bold flex items-center gap-1">
-                                            <Sparkles className="w-3 h-3"/> Ajuste Redondeo ({detailsMods?.redondeo_target_pct ?? -10}%)
-                                        </span>
-                                        <span className="font-mono font-bold text-sm">
-                                            {ajusteRedondeo != null ? (ajusteRedondeo >= 0 ? `+${fmt(ajusteRedondeo)}` : `-${fmt(Math.abs(ajusteRedondeo))}`) : '—'}
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-col sm:items-end bg-[var(--warn)]/10 p-2 rounded border border-[var(--warn)]/30">
-                                        <span className="text-[var(--warn)] font-bold uppercase text-[10px]">Precio Sugerido</span>
-                                        <span className="font-mono text-[var(--warn)] font-bold text-xl leading-none">{fmt(draftPrice)}</span>
-                                    </div>
+                                <div className="flex justify-between text-[var(--text-muted)] border-b border-[var(--border)] pb-1.5 mb-1.5">
+                                    <span>Multiplicador (1 - Deducciones)</span>
+                                    <span>÷ {(1 - (((detailsMods?.comision_pct ?? draftDetails.comision_pct) + (detailsMods?.retenciones_pct ?? draftDetails.retenciones_pct)) / 100)).toFixed(2)}</span>
+                                </div>
+
+                                <div className="flex justify-between text-[var(--text)] font-semibold pt-0.5">
+                                    <span>Equilibrio Matemático Exacto</span>
+                                    <span>{fmt(subtotalCalculado)}</span>
+                                </div>
+
+                                <div className="flex justify-between text-[var(--accent)] pt-1 border-b border-[var(--border)] pb-1.5 mb-1.5">
+                                    <span><Sparkles className="w-3 h-3 inline mr-1 -mt-0.5"/>Redondeo Mágico ({detailsMods?.redondeo_target_pct ?? -10}%)</span>
+                                    <span>{ajusteRedondeo != null ? (ajusteRedondeo >= 0 ? `+${fmt(ajusteRedondeo)}` : `-${fmt(Math.abs(ajusteRedondeo))}`) : '—'}</span>
+                                </div>
+
+                                <div className="flex justify-between text-[var(--warn)] font-bold text-sm pt-1">
+                                    <span>PRECIO SUGERIDO</span>
+                                    <span>{fmt(draftPrice)}</span>
                                 </div>
                             </div>
                         </div>
