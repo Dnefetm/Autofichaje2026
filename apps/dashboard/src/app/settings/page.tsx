@@ -156,9 +156,6 @@ function SettingsContent() {
                 </div>
             </div>
 
-            {/* -- Panel de Proveedores -- */}
-            <ProveedorConfigPanel />
-
             {/* -- Panel de control de Webhooks -- */}
             <WebhookControlPanel />
         </div>
@@ -487,6 +484,201 @@ function WebhookControlPanel() {
                                         <strong>Con ventana:</strong> si el mismo producto se modifica 20 veces en 3 min, se crea 1 solo job en lugar de 20. Reduce costos.
                                     </span>
                                 </div>
+            });
+            if (!res.ok) throw new Error('Error guardando');
+            await loadData();
+            setPendingChanges(prev => { const n = { ...prev }; delete n[topic]; return n; });
+        } catch (err) {
+            console.error(err);
+            alert('Error al guardar la configuración.');
+        } finally {
+            setSaving(null);
+        }
+    }
+
+    const totalJobsEvitados = metrics.reduce((acc, m) => acc + (m.jobs_evitados ?? 0), 0);
+    const totalEventos = metrics.reduce((acc, m) => acc + (m.total_events ?? 0), 0);
+    const totalPending = Object.values(jobsEnCola).reduce((a, b) => a + b, 0);
+
+    const DEFAULT_TOPICS: WebhookConfigRow[] = [
+        { topic: 'orders_v2', label: 'Órdenes y pagos',              window_seconds: 0,   dispatch_immediate: true,  enabled: true, updated_at: '' },
+        { topic: 'items',     label: 'Publicaciones (precio, stock)', window_seconds: 180, dispatch_immediate: false, enabled: true, updated_at: '' },
+        { topic: 'questions', label: 'Preguntas y mensajes',          window_seconds: 300, dispatch_immediate: false, enabled: true, updated_at: '' },
+        { topic: 'payments',  label: 'Pagos',                         window_seconds: 0,   dispatch_immediate: true,  enabled: true, updated_at: '' },
+    ];
+    const allTopics = DEFAULT_TOPICS.map(def => configs.find(c => c.topic === def.topic) ?? def);
+
+    return (
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
+            {/* Header colapsable */}
+            <button
+                onClick={() => setExpanded(e => !e)}
+                className="w-full flex items-center justify-between p-6 hover:bg-[var(--bg)] transition-colors"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-[var(--accent)]/20 rounded-xl flex items-center justify-center">
+                        <Zap className="w-4 h-4 text-[var(--accent)]" />
+                    </div>
+                    <div className="text-left">
+                        <h3 className="font-bold text-[var(--text)] text-base">Webhooks — Velocidad de reacción</h3>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                            Controla qué tan rápido procesa cada tipo de notificación de MeLi
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4">
+                    {!loading && (
+                        <div className="hidden md:flex items-center gap-4 text-xs text-[var(--text-muted)]">
+                            <span className="flex items-center gap-1">
+                                <Activity className="w-3.5 h-3.5 text-[var(--accent)]" />
+                                {totalEventos} eventos (24h)
+                            </span>
+                            <span className="flex items-center gap-1 text-[var(--ok)] font-semibold">
+                                {totalJobsEvitados} jobs evitados
+                            </span>
+                            {totalPending > 0 && (
+                                <span className="flex items-center gap-1 text-[var(--warn)] font-semibold">
+                                    {totalPending} en cola
+                                </span>
+                            )}
+                        </div>
+                    )}
+                    {expanded ? <ChevronDown className="w-4 h-4 text-[var(--text-faint)]" /> : <ChevronRight className="w-4 h-4 text-[var(--text-faint)]" />}
+                </div>
+            </button>
+
+            {expanded && (
+                <div className="border-t border-[var(--border)]">
+                    {loading ? (
+                        <div className="p-8 text-center text-[var(--text-faint)] text-sm">Cargando configuración...</div>
+                    ) : (
+                        <>
+                            <div className="divide-y divide-[var(--border)]">
+                                {allTopics.map(def => {
+                                    const topic = def.topic;
+                                    const enabled = getVal(topic, 'enabled', def.enabled);
+                                    const windowSecs = getVal(topic, 'window_seconds', def.window_seconds);
+                                    const isImmediate = getVal(topic, 'dispatch_immediate', def.dispatch_immediate);
+                                    const isDirty = !!pendingChanges[topic];
+                                    const metric = metrics.find(m => m.topic === topic);
+
+                                    return (
+                                        <div key={topic} className={cn("px-6 py-5 flex flex-col gap-3", !enabled && "opacity-40")}>
+
+                                            {/* Fila 1: habilitar + nombre + métricas */}
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        id={`toggle-${topic}`}
+                                                        onClick={() => handleChange(topic, 'enabled', !enabled)}
+                                                        title={enabled ? 'Deshabilitar' : 'Habilitar'}
+                                                        className="shrink-0"
+                                                    >
+                                                        {enabled
+                                                            ? <ToggleRight className="w-6 h-6 text-emerald-500" />
+                                                            : <ToggleLeft className="w-6 h-6 text-slate-300" />}
+                                                    </button>
+                                                    <div>
+                                                        <p className="font-semibold text-sm text-[var(--text)]">{def.label}</p>
+                                                        <p className="text-[10px] text-[var(--text-faint)] font-mono mt-0.5">{topic}</p>
+                                                    </div>
+                                                </div>
+                                                {metric && (
+                                                    <div className="flex items-center gap-3 text-xs text-[var(--text-faint)] shrink-0">
+                                                        <span>{metric.total_events} recibidos</span>
+                                                        <span className="text-[var(--ok)] font-semibold">{metric.jobs_evitados} jobs evitados</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Fila 2: selector de modo + control de ventana */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pl-9">
+
+                                                {/* Segmented control — dos opciones claras y clicables */}
+                                                <div className="flex rounded-lg border border-[var(--border)] overflow-hidden shrink-0 text-xs font-semibold">
+                                                    <button
+                                                        id={`mode-immediate-${topic}`}
+                                                        onClick={() => handleChange(topic, 'dispatch_immediate', true)}
+                                                        disabled={!enabled}
+                                                        title="Procesar en cuanto llega la notificación"
+                                                        className={cn(
+                                                            "flex items-center gap-1.5 px-3 py-2 transition-colors",
+                                                            isImmediate
+                                                                ? "bg-[var(--ok)]/100 text-[var(--accent-ink)]"
+                                                                : "bg-[var(--surface)] text-[var(--text-muted)] hover:bg-[var(--bg)]"
+                                                        )}
+                                                    >
+                                                        <Zap className="w-3.5 h-3.5" /> Inmediato
+                                                    </button>
+                                                    <button
+                                                        id={`mode-window-${topic}`}
+                                                        onClick={() => handleChange(topic, 'dispatch_immediate', false)}
+                                                        disabled={!enabled}
+                                                        title="Acumular notificaciones y crear un solo job por producto"
+                                                        className={cn(
+                                                            "flex items-center gap-1.5 px-3 py-2 border-l border-[var(--border)] transition-colors",
+                                                            !isImmediate
+                                                                ? "bg-[var(--accent)] text-[var(--accent-ink)]"
+                                                                : "bg-[var(--surface)] text-[var(--text-muted)] hover:bg-[var(--bg)]"
+                                                        )}
+                                                    >
+                                                        <Clock className="w-3.5 h-3.5" /> Con ventana
+                                                    </button>
+                                                </div>
+
+                                                {/* Descripción y control según modo seleccionado */}
+                                                {isImmediate ? (
+                                                    <p className="text-xs text-[var(--text-muted)] italic">
+                                                        Se procesa en cuanto llega la notificación — mayor gasto de Edge Requests.
+                                                    </p>
+                                                ) : (
+                                                    <div className="flex items-center gap-3 flex-1">
+                                                        <input
+                                                            id={`window-${topic}`}
+                                                            type="range"
+                                                            min={1}
+                                                            max={30}
+                                                            step={1}
+                                                            value={Math.max(1, Math.round(windowSecs / 60))}
+                                                            onChange={e => handleChange(topic, 'window_seconds', Number(e.target.value) * 60)}
+                                                            className="flex-1 accent-indigo-600"
+                                                            disabled={!enabled}
+                                                        />
+                                                        <span className="text-sm font-bold text-[var(--text-muted)] w-44 shrink-0 tabular-nums">
+                                                            {`Consolidar ${Math.max(1, Math.round(windowSecs / 60))} min`}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {isDirty && (
+                                                    <button
+                                                        id={`save-${topic}`}
+                                                        onClick={() => saveTopic(topic)}
+                                                        disabled={saving === topic}
+                                                        className="flex items-center gap-1.5 px-3 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-xs font-bold rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                                                    >
+                                                        {saving === topic ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                                        Guardar
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Footer con explicación en lenguaje de negocio */}
+                            <div className="px-6 py-4 bg-[var(--bg)] border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-4 text-xs text-[var(--text-muted)]">
+                                <div className="flex flex-wrap gap-x-6 gap-y-2">
+                                    <span className="flex items-center gap-1.5">
+                                        <Zap className="w-3.5 h-3.5 text-emerald-500" />
+                                        <strong>Inmediato:</strong> el worker se activa al instante — ideal para órdenes y pagos.
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5 text-[var(--accent)]" />
+                                        <strong>Con ventana:</strong> si el mismo producto se modifica 20 veces en 3 min, se crea 1 solo job en lugar de 20. Reduce costos.
+                                    </span>
+                                </div>
                                 <button onClick={loadData} className="flex items-center gap-1 text-[var(--text-faint)] hover:text-[var(--text-muted)] transition-colors shrink-0">
                                     <RefreshCw className="w-3 h-3" /> Actualizar
                                 </button>
@@ -498,107 +690,3 @@ function WebhookControlPanel() {
         </div>
     );
 }
-
-
-function ProveedorConfigPanel() {
-    const [configs, setConfigs] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState<string | null>(null);
-
-    useEffect(() => { loadData(); }, []);
-
-    async function loadData() {
-        setLoading(true);
-        try {
-            const res = await fetch("/api/settings/proveedores");
-            if (res.ok) {
-                const data = await res.json();
-                setConfigs(data);
-            }
-        } catch(e) { console.error("Error", e); }
-        setLoading(false);
-    }
-
-    async function handleSave(prov: string, currentConfig: any) {
-        setSaving(prov);
-        try {
-            await fetch("/api/settings/proveedores", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(currentConfig)
-            });
-        } catch(e) { console.error("Error", e); }
-        setSaving(null);
-    }
-
-    if (loading) return null;
-    if (configs.length === 0) return null; // no proveedores
-
-    return (
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden mb-8">
-            <div className="bg-[var(--surface-2)] px-6 py-4 border-b border-[var(--border)]">
-                <h3 className="font-bold text-[var(--text)] flex items-center gap-2">
-                    <Database className="w-5 h-5 text-indigo-500" />
-                    Configuraci�n de Costos por Proveedor
-                </h3>
-                <p className="text-xs text-[var(--text-faint)] mt-1">
-                    Selecciona qu� tipo de costo se usar� por defecto para cada proveedor al calcular precios y si se debe sumar el Margen adicional.
-                </p>
-            </div>
-            <div className="p-0">
-                <table className="w-full text-sm text-left">
-                    <thead className="text-xs uppercase bg-[var(--surface-2)] text-[var(--text-faint)] border-b border-[var(--border)]">
-                        <tr>
-                            <th className="px-6 py-3 font-bold">Proveedor</th>
-                            <th className="px-6 py-3 font-bold">Tipo Costo Preferido</th>
-                            <th className="px-6 py-3 font-bold text-center">Aplicar Margen (%)</th>
-                            <th className="px-6 py-3 font-bold"></th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--border)]">
-                        {configs.map(c => {
-                            const isSaving = saving === c.proveedor;
-                            return (
-                                <tr key={c.proveedor} className="hover:bg-[var(--surface-2)] transition-colors">
-                                    <td className="px-6 py-4 font-bold text-[var(--text)]">{c.proveedor}</td>
-                                    <td className="px-6 py-4">
-                                        <select 
-                                            value={c.tipo_costo_preferido || ""} 
-                                            onChange={(e) => setConfigs(prev => prev.map(p => p.proveedor === c.proveedor ? {...p, tipo_costo_preferido: e.target.value} : p))}
-                                            className="w-full bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                                        >
-                                            <option value="">-- Autom�tico (Mayor Costo) --</option>
-                                            <option value="distribuidor">Distribuidor</option>
-                                            <option value="mayoreo">Mayoreo</option>
-                                            <option value="menudeo">Menudeo</option>
-                                            <option value="subdistribuidor">Subdistribuidor</option>
-                                        </select>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <button 
-                                            onClick={() => setConfigs(prev => prev.map(p => p.proveedor === c.proveedor ? {...p, aplica_regla_margen: !p.aplica_regla_margen} : p))}
-                                            className="inline-flex items-center"
-                                        >
-                                            {c.aplica_regla_margen ? <ToggleRight className="w-8 h-8 text-[var(--ok)]" /> : <ToggleLeft className="w-8 h-8 text-slate-300" />}
-                                        </button>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button 
-                                            onClick={() => handleSave(c.proveedor, c)}
-                                            disabled={isSaving}
-                                            className="bg-[var(--surface-2)] hover:bg-[var(--accent)] hover:text-white border border-[var(--border)] text-[var(--text)] px-3 py-1.5 rounded-md flex items-center gap-2 transition-colors disabled:opacity-50 ml-auto"
-                                        >
-                                            {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                            {isSaving ? "Guardando..." : "Guardar"}
-                                        </button>
-                                    </td>
-                                </tr>
-                            )
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-}
-
