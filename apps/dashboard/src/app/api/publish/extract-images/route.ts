@@ -15,6 +15,7 @@ const SKIP_PATTERNS = [
     /twitter/i, /linkedin/i, /pinterest/i, /telegram/i, /\bsocial\b/i,
     /\bmail\b/i, /email/i, /arroba/i,
     /flag[-_]/i, /badge/i, /seal/i, /ssl/i, /secure/i,
+    /\/menu\//i, /snowdog/i, /navigation/i, /\/nav\//i, /category[-_]?image/i,
 ];
 
 function isLikelyProductImage(url: string): boolean {
@@ -61,12 +62,15 @@ export async function POST(req: NextRequest) {
     };
 
     // Normaliza a tamaño completo: quita redimensionados de Magento (/cache/{hash}/),
-    // Shopify (?width=/?height=), y parámetros w/h comunes.
+    // y parámetros de optimización/resize (optimize, fit, canvas, bg-color, width, height, w, h).
     const toFullSize = (raw: string): string => {
         let u = raw.replace(/\/cache\/[0-9a-f]{6,}\//i, '/');
         try {
             const p = new URL(u);
-            ['width', 'height', 'w', 'h'].forEach(k => p.searchParams.delete(k));
+            const RESIZE = ['optimize', 'fit', 'canvas', 'bg-color', 'width', 'height', 'w', 'h'];
+            if (RESIZE.some(k => p.searchParams.has(k))) {
+                RESIZE.forEach(k => p.searchParams.delete(k));
+            }
             u = p.toString();
         } catch {}
         return u;
@@ -89,6 +93,25 @@ export async function POST(req: NextRequest) {
                     if (imgUrl) { const r = resolveUrl(imgUrl); if (r) primary.add(decodeNextImage(r)); }
                 }
             }
+        } catch {}
+    });
+
+    // Galería Magento (x-magento-init / fotorama): extrae TODOS los "full"/"img" de la config de galería
+    $('script[type="text/x-magento-init"]').each((_, el) => {
+        try {
+            const cfg = JSON.parse($(el).html() || '{}');
+            const walk = (node: any): void => {
+                if (!node || typeof node !== 'object') return;
+                const gallery = node?.['mage/gallery/gallery'];
+                if (gallery?.data && Array.isArray(gallery.data)) {
+                    for (const item of gallery.data) {
+                        const full = item?.full || item?.img || item?.image || item?.src;
+                        if (full) { const r = resolveUrl(String(full)); if (r) primary.add(decodeNextImage(r)); }
+                    }
+                }
+                for (const v of Object.values(node)) walk(v);
+            };
+            walk(cfg);
         } catch {}
     });
 
