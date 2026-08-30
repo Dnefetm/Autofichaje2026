@@ -218,9 +218,46 @@ export async function POST(req: NextRequest) {
             trace.paso_1_articulo.advertencia = `Ya tiene publicacion_ml: ${articulo.publicacion_ml}. Verificando estado real en BD...`;
         }
 
+        // -- 1.4 Reconciliar estado real de publicaciones enlazadas -------------
+        // MeLi es la fuente de verdad: si el usuario eliminó un item, lo marcamos
+        // "closed" localmente para que no bloquee una nueva publicación.
+        const meli = new MeliAdapter();
+        try {
+            const { data: linkedPubs } = await supabaseAdmin
+                .from('mapeo_publicacion_articulo')
+                .select('publicacion_id, publicaciones_externas!inner(external_item_id, status_externo)')
+                .eq('articulo_id', articulo_id)
+                .eq('publicaciones_externas.marketplace_id', marketplace_id);
+
+            const staleIds = (linkedPubs || [])
+                .filter((m: any) => ['active', 'paused', 'under_review'].includes(m.publicaciones_externas?.status_externo))
+                .map((m: any) => m.publicaciones_externas?.external_item_id)
+                .filter(Boolean);
+
+            if (staleIds.length > 0) {
+                const statusMap = await (meli as any).getStockAndStatusBatch(marketplace_id, staleIds);
+                let cerradas = 0;
+                for (const [itemId, st] of (statusMap as Map<string, { qty: number; status: string; sub_status: string[] }>).entries()) {
+                    if (st && ['closed', 'inactive', 'deleted'].includes(st.status)) {
+                        await supabaseAdmin
+                            .from('publicaciones_externas')
+                            .update({ status_externo: st.status, sub_status: st.sub_status || [], actualizado_el: new Date().toISOString() })
+                            .eq('marketplace_id', marketplace_id)
+                            .eq('external_item_id', itemId);
+                        cerradas++;
+                    }
+                }
+                trace.paso_1_4_reconciliacion = { revisados: staleIds.length, cerradas };
+            } else {
+                trace.paso_1_4_reconciliacion = { revisados: 0 };
+            }
+        } catch (e: any) {
+            trace.paso_1_4_reconciliacion = { error: e.message };
+        }
+
         // -- 1.5 Verificar duplicados activos en la misma cuenta ----------------
         // Fuente de verdad: publicaciones_externas + mapeo_publicacion_articulo
-        // (NO articulo.publicacion_ml, que puede apuntar a un item ya cerrado)
+        // (ya reconciliado en 1.4: los items eliminados en MeLi quedan como "closed")
         const { data: pubActiva } = await supabaseAdmin
             .from('publicaciones_externas')
             .select(`
@@ -247,8 +284,7 @@ export async function POST(req: NextRequest) {
             : { ok: true, sin_duplicados: true };
 
         // -- 2. Detectar modelo del seller -------------------------------------
-        // Soporta UP (family_name) y legacy (title). Tus cuentas son legacy.
-        const meli = new MeliAdapter();
+        // Soporta UP (family_name) y legacy (title).
         const sellerInfo = await (meli as any).detectSellerModel(marketplace_id);
         trace.paso_2_seller_model = sellerInfo;
         const isLegacy = sellerInfo.model !== 'up';

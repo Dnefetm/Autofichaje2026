@@ -1242,6 +1242,21 @@ export class MeliAdapter implements MarketplaceAdapter {
         }
     }
 
+    /**
+     * updateListingType — Cambia el tipo de publicación de un item existente
+     * (gold_special <-> gold_pro) sin crear duplicados. POST /items/{id}/listing_type.
+     */
+    async updateListingType(accountId: string, itemId: string, listingTypeId: string): Promise<any> {
+        const accessToken = await this.getAccessToken(accountId);
+        const resp = await axios.post(
+            `https://api.mercadolibre.com/items/${itemId}/listing_type`,
+            { id: listingTypeId },
+            { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+        );
+        logger.info({ accountId, itemId, listingTypeId }, 'updateListingType completado');
+        return resp.data;
+    }
+
     async refreshToken(accountId: string): Promise<void> {
         // 1. Extraer refresh_token actual
         const { data, error } = await supabase
