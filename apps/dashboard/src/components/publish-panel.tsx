@@ -47,6 +47,8 @@ interface PublishPanelProps {
     imagenesBase?: string[];
     /** Modo modal: si true, el panel arranca abierto sin el toggle header */
     modalMode?: boolean;
+    /** Código universal (EAN/UPC/GTIN) para búsqueda en catálogo MeLi */
+    codigoUniversal?: string;
 }
 
 // -- Helpers ------------------------------------------------------------------
@@ -147,7 +149,7 @@ function PublishStepper({ trace }: { trace: Record<string, any> }) {
 }
 
 // -- Componente principal ------------------------------------------------------
-export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBase = [], modalMode = false }: PublishPanelProps) {
+export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBase = [], modalMode = false, codigoUniversal = '' }: PublishPanelProps) {
     // Cuentas
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [selectedAccount, setSelectedAccount] = useState<string>('');
@@ -176,6 +178,12 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const [familyNameOverride, setFamilyNameOverride] = useState<string>('');
     const [priceOverride, setPriceOverride] = useState<string>('');
     const [descriptionOverride, setDescriptionOverride] = useState<string>('');
+    const [freeShipping, setFreeShipping] = useState(false);
+    const [shippingMode, setShippingMode] = useState('me2');
+    const [catalogResults, setCatalogResults] = useState<any[]>([]);
+    const [catalogProductId, setCatalogProductId] = useState<string | null>(null);
+    const [catalogListing, setCatalogListing] = useState(false);
+    const [searchingCatalog, setSearchingCatalog] = useState(false);
     // Atributos dinámicos al cambiar de categoría
     const [dynamicReqAttrs, setDynamicReqAttrs] = useState<any[] | null>(null);
     const [loadingAttrs, setLoadingAttrs] = useState(false);
@@ -352,6 +360,70 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         }
     }
 
+    // Completar título + descripción con IA a partir de los datos del producto
+    async function completeWithAI() {
+        setLoading(true);
+        setErrorMsg(null);
+        try {
+            const res = await fetch('/api/publish/ai-complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ articulo_id }),
+            });
+            const data = await res.json();
+            if (data.ok) {
+                if (data.title) setFamilyNameOverride(data.title);
+                if (data.description) setDescriptionOverride(data.description);
+            } else {
+                setErrorMsg(data.error || 'Error generando contenido con IA');
+            }
+        } catch (e: any) {
+            setErrorMsg(e.message || 'Error de red al llamar a la IA');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    // Buscar producto en el catálogo de MeLi por GTIN/EAN
+    async function searchCatalogByGtin() {
+        if (!selectedAccount) { setErrorMsg('Selecciona una cuenta MeLi primero'); return; }
+        if (!codigoUniversal) { setErrorMsg('Este artículo no tiene código universal (GTIN/EAN) para buscar en catálogo'); return; }
+        setSearchingCatalog(true);
+        setErrorMsg(null);
+        try {
+            const res = await fetch('/api/publish/catalog-search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gtin: codigoUniversal, marketplace_id: selectedAccount }),
+            });
+            const data = await res.json();
+            if (data.ok && data.encontrado) {
+                setCatalogResults(data.resultados);
+            } else if (data.ok && !data.encontrado) {
+                setCatalogResults([]);
+                setErrorMsg('No se encontró producto en el catálogo para este GTIN. Publica como tradicional.');
+            } else {
+                setErrorMsg(data.error || 'Error buscando en el catálogo');
+            }
+        } catch (e: any) {
+            setErrorMsg(e.message || 'Error de red al buscar en catálogo');
+        } finally {
+            setSearchingCatalog(false);
+        }
+    }
+
+    function usarCatalog(r: any) {
+        setCatalogProductId(r.catalog_product_id);
+        setCatalogListing(true);
+        setCatalogResults([]);
+    }
+
+    function omitirCatalog() {
+        setCatalogProductId(null);
+        setCatalogListing(false);
+        setCatalogResults([]);
+    }
+
     // -- Preview (dry_run) ----------------------------------------------------
     async function handlePreview() {
         if (!selectedAccount) { setErrorMsg('Selecciona una cuenta MeLi'); return; }
@@ -371,6 +443,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     category_id: categoryId || undefined,
                     listing_type_id: listingType,
                     dry_run: true,
+                    ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
                 }),
             });
             const data = await res.json();
@@ -441,6 +514,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     ...(familyNameOverride ? { family_name_override: familyNameOverride } : {}),
                     ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),
                     ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
+                    free_shipping: freeShipping,
+                    shipping_mode: shippingMode,
+                    ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
                 }),
             });
             const data = await res.json();
@@ -464,6 +540,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setPriceOverride('');
         setDescriptionOverride('');
         setExtractUrl('');
+        setCatalogResults([]);
+        setCatalogProductId(null);
+        setCatalogListing(false);
         setCurrentAttrValues(new Map());
         setDimOverrides({});
         setCatSearch('');
@@ -534,6 +613,47 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         <option key={a.id} value={a.id}>{a.account_name}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            {/* Publicar en catálogo (opcional) */}
+                            <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="text-xs">
+                                        <p className="font-semibold text-[var(--text)]">Publicar en catálogo MeLi</p>
+                                        <p className="text-[10px] text-[var(--text-faint)]">Si el producto ya existe en el catálogo, MeLi aporta la ficha. Opcional.</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={searchCatalogByGtin}
+                                        disabled={searchingCatalog || !selectedAccount || !codigoUniversal}
+                                        className="shrink-0 px-3 py-1.5 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-50"
+                                    >
+                                        {searchingCatalog ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : 'Buscar por GTIN'}
+                                    </button>
+                                </div>
+                                {!codigoUniversal && (
+                                    <p className="text-[10px] text-[var(--warn)]">Este artículo no tiene código universal (GTIN/EAN).</p>
+                                )}
+                                {catalogListing && catalogProductId && (
+                                    <div className="flex items-center justify-between gap-2 text-xs bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded p-2">
+                                        <span className="text-[var(--ok)] font-semibold">Publicando en catálogo: {catalogProductId}</span>
+                                        <button type="button" onClick={omitirCatalog} className="text-[var(--err)] font-bold hover:underline">Omitir</button>
+                                    </div>
+                                )}
+                                {catalogResults.length > 0 && (
+                                    <div className="space-y-2 max-h-56 overflow-y-auto">
+                                        {catalogResults.map((r: any) => (
+                                            <div key={r.catalog_product_id} className="flex items-center gap-2 p-2 bg-[var(--surface)] rounded border border-[var(--border)]">
+                                                {r.thumbnail && <img src={r.thumbnail} alt="" className="w-10 h-10 rounded object-cover border border-[var(--border)]" />}
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-xs font-semibold text-[var(--text)] line-clamp-2">{r.titulo}</p>
+                                                    <p className="text-[10px] font-mono text-[var(--text-faint)]">{r.catalog_product_id}</p>
+                                                </div>
+                                                <button type="button" onClick={() => usarCatalog(r)} className="shrink-0 px-2 py-1 text-[10px] font-bold text-[var(--accent)] border border-[var(--accent)]/30 rounded hover:bg-[var(--accent)]/10">Usar</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Categoría + Tipo de listado */}
@@ -878,6 +998,15 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 </button>
                                             )}
                                         </div>
+                                        {/* Completar con IA */}
+                                        <button
+                                            type="button"
+                                            onClick={completeWithAI}
+                                            disabled={loading}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-50"
+                                        >
+                                            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />} Completar título y descripción con IA
+                                        </button>
                                         {/* Family name */}
                                         <div>
                                             <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Family Name (título base)</label>
@@ -909,6 +1038,26 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 placeholder="Descripción del producto (vacío = se usa la del artículo/ficha técnica)"
                                                 className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)]"
                                             />
+                                        </div>
+                                        {/* Envío */}
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Envío</label>
+                                            <div className="space-y-2">
+                                                <label className="flex items-center gap-2 text-xs text-[var(--text)] cursor-pointer">
+                                                    <input type="checkbox" checked={freeShipping} onChange={e => setFreeShipping(e.target.checked)} className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)]" />
+                                                    Incluir envío gratis
+                                                </label>
+                                                <select value={shippingMode} onChange={e => setShippingMode(e.target.value)} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                                                    <option value="me2">Mercado Envíos (ME2)</option>
+                                                    <option value="custom">Envíos Personalizados (custom)</option>
+                                                </select>
+                                                {(() => {
+                                                    const p = Number(priceOverride || (t?.paso_9_titulo?.price_final ?? t?.paso_3_precio?.sale_price ?? 0));
+                                                    return p >= 299
+                                                        ? <p className="text-[10px] text-[var(--info)]">Precio ≥ $299: MercadoLibre aplica envío gratis automáticamente en categorías elegibles.</p>
+                                                        : <p className="text-[10px] text-[var(--text-faint)]">Precio &lt; $299: tú decides si incluir o no el envío gratis.</p>;
+                                                })()}
+                                            </div>
                                         </div>
                                         {/* Dimensiones del paquete */}
                                         <div>

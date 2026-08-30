@@ -1222,6 +1222,26 @@ export class MeliAdapter implements MarketplaceAdapter {
         return { item_id: itemId, ok: true, raw: respData };
     }
 
+    /**
+     * searchCatalog — Busca productos en el catálogo de MeLi (catalog_product_id)
+     * por GTIN/EAN o texto libre. Devuelve los resultados del product search.
+     */
+    async searchCatalog(accountId: string, query: string): Promise<{ results: any[] }> {
+        const accessToken = await this.getAccessToken(accountId);
+        try {
+            const resp = await axios.get('https://api.mercadolibre.com/products/search', {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: { status: 'active', site_id: 'MLM', q: query, limit: 5 },
+            });
+            const results = Array.isArray(resp.data?.results) ? resp.data.results : [];
+            logger.info({ accountId, query, count: results.length }, 'searchCatalog completado');
+            return { results };
+        } catch (err: any) {
+            logger.error({ accountId, query, error: err.response?.data || err.message }, 'searchCatalog falló');
+            return { results: [] };
+        }
+    }
+
     async refreshToken(accountId: string): Promise<void> {
         // 1. Extraer refresh_token actual
         const { data, error } = await supabase

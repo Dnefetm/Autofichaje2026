@@ -117,6 +117,10 @@ export async function POST(req: NextRequest) {
             family_name_override = null as string | null,
             price_override = null as number | null,
             description_override = null as string | null,
+            free_shipping = false as boolean,
+            shipping_mode = 'me2' as string,
+            catalog_product_id = null as string | null,
+            catalog_listing = false as boolean,
         } = body;
 
         trace.input = { articulo_id, marketplace_id, ficha_id, pictures_count: pictures.length, listing_type_id, dry_run };
@@ -565,6 +569,10 @@ export async function POST(req: NextRequest) {
             available_quantity: Math.max(stock, 1),
             buying_mode: 'buy_it_now',
             listing_type_id,
+            shipping: {
+                mode: shipping_mode || 'me2',
+                free_shipping: !!free_shipping,
+            },
             // legacy exige condition; UP lo deriva del catálogo
             ...(isLegacy ? { condition: 'new' } : {}),
             sale_terms: [
@@ -576,6 +584,8 @@ export async function POST(req: NextRequest) {
             // legacy: MeLi exige title (marca + modelo incluidos).
             // UP: MeLi genera el título desde family_name — no enviar title ni variations.
             ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
+            // Catálogo: publicar dentro de un catalog_product_id existente (MeLi aporta la ficha)
+            ...(catalog_listing && catalog_product_id ? { catalog_product_id, catalog_listing: true } : {}),
         };
         trace.paso_9_titulo = {
             modelo_seller: isLegacy ? 'legacy' : 'up',
@@ -591,10 +601,10 @@ export async function POST(req: NextRequest) {
 
         // -- 10. Validaciones DURAS — errores 422 bloqueantes -----------------
         const erroresDuros: string[] = [];
-        if (pictures.length === 0) erroresDuros.push('Sin imágenes: MeLi rechaza publicaciones sin pictures[]');
+        if (pictures.length === 0 && !catalog_listing) erroresDuros.push('Sin imágenes: MeLi rechaza publicaciones sin pictures[]');
         // Precio: en dry_run se permite 0 (el operador lo fijará manual); en publish real bloquea.
         if (price === 0 && !dry_run) erroresDuros.push('Precio = 0: fija un precio manual antes de publicar (el artículo no tiene costo ni regla de precio)');
-        if (stillMissing.length > 0) {
+        if (stillMissing.length > 0 && !catalog_listing) {
             erroresDuros.push(
                 `Atributos requeridos sin resolver después del AI: ${stillMissing.map((a: any) => a.id).join(', ')}`
             );

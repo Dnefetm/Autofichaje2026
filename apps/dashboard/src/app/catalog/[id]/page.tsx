@@ -45,6 +45,7 @@ export default function ArticuloDetailPage() {
     const params = useParams();
     const id = decodeURIComponent(params.id as string);
     const [product, setProduct] = useState<any>(null);
+    const [linkedPubs, setLinkedPubs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [imgError, setImgError] = useState(false);
@@ -72,6 +73,20 @@ export default function ArticuloDetailPage() {
                 setError(err.message);
             } else {
                 setProduct(data);
+                // Cargar publicaciones/vitrinas enlazadas con sus características
+                const mapeos = Array.isArray(data?.mapeo_publicacion_articulo)
+                    ? data.mapeo_publicacion_articulo
+                    : (data?.mapeo_publicacion_articulo ? [data.mapeo_publicacion_articulo] : []);
+                const pubIds = mapeos.map((m: any) => m.publicacion_id).filter(Boolean);
+                if (pubIds.length > 0) {
+                    const { data: pubs } = await supabase
+                        .from('publicaciones_externas')
+                        .select('id, external_item_id, titulo, tipo_publicacion, listing_type_id, free_shipping, status_externo, precio_venta, stock_publicado, logistic_type, permalink, marketplace_configs(account_name)')
+                        .in('id', pubIds);
+                    setLinkedPubs(pubs || []);
+                } else {
+                    setLinkedPubs([]);
+                }
             }
         } catch (e: any) {
             setError(e.message || 'Error desconocido');
@@ -319,21 +334,55 @@ export default function ArticuloDetailPage() {
                 articulo_id={product.articulo_id || id}
                 nombreArticulo={product.nombre || ''}
                 imagenesBase={Array.isArray(product.imagenes) ? product.imagenes : []}
+                codigoUniversal={product.codigo_universal || ''}
             />
 
-            {/* Marketplace Mappings */}
-            {isMapped && (
-                <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] shadow-sm p-6">
-                    <h2 className="text-lg font-bold text-[var(--text)] mb-4">Mapeos de Marketplace</h2>
-                    <div className="flex flex-wrap gap-2">
-                        {mapeos.map((m: any, i: number) => (
-                            <span key={i} className="inline-flex items-center gap-1 text-xs bg-[var(--surface-2)] text-[var(--text-muted)] font-mono font-semibold px-3 py-1.5 rounded-[var(--radius-sm)] border border-[var(--border)]">
-                                <Link2 className="w-3 h-3" /> {m.publicacion_id}
-                            </span>
-                        ))}
-                    </div>
+            {/* Publicaciones / Vitrinas enlazadas */}
+            <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-between">
+                    <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Publicaciones / Vitrinas enlazadas</h2>
+                    <span className="text-[10px] text-[var(--text-faint)] tabular-nums">{linkedPubs.length}</span>
                 </div>
-            )}
+                {linkedPubs.length === 0 ? (
+                    <div className="p-6 text-center text-[var(--text-faint)]">
+                        <p className="text-sm">Este artículo no tiene publicaciones enlazadas.</p>
+                    </div>
+                ) : (
+                    <div className="divide-y divide-[var(--border)]">
+                        {linkedPubs.map((p: any) => {
+                            const tipoLabel = ({ tradicional: 'Tradicional', catalogo: 'Catálogo', catalogo_derivada: 'Cat. Derivada', up: 'User Product' } as any)[p.tipo_publicacion] || p.tipo_publicacion || '—';
+                            const listingLabel = ({ gold_special: 'Clásica', gold_pro: 'Premium', free: 'Gratuita', silver: 'Silver' } as any)[p.listing_type_id] || p.listing_type_id || '—';
+                            const statusLabel = ({ active: 'Activa', paused: 'Pausada', under_review: 'En revisión', closed: 'Cerrada' } as any)[p.status_externo] || p.status_externo || '—';
+                            const statusTone = p.status_externo === 'active'
+                                ? 'bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30'
+                                : p.status_externo === 'paused'
+                                    ? 'bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30'
+                                    : 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]';
+                            return (
+                                <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-sm font-semibold text-[var(--text)] truncate">{p.titulo || p.external_item_id}</span>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]">{tipoLabel}</span>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]">{listingLabel}</span>
+                                            <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusTone)}>{statusLabel}</span>
+                                        </div>
+                                        <p className="text-[11px] text-[var(--text-faint)] mt-1 font-mono">
+                                            {p.marketplace_configs?.account_name || '—'} · {p.external_item_id}
+                                        </p>
+                                    </div>
+                                    <div className="shrink-0 text-right">
+                                        <p className="text-sm font-bold text-[var(--text)] tabular-nums">${Number(p.precio_venta || 0).toLocaleString('es-MX')}</p>
+                                        <p className="text-[11px] text-[var(--text-muted)]">
+                                            stock {p.stock_publicado ?? '—'} · {p.free_shipping ? 'Envío incluido' : 'Sin envío gratis'}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
 
             {/* Timestamps */}
             <div className="text-xs text-[var(--text-faint)] text-right">
