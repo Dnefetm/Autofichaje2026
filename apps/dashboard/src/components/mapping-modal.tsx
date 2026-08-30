@@ -278,10 +278,19 @@ setSearchResults(scored);
 } catch (error) { console.error('Error buscando articulos fisicos:', error); setSearchResults([]); }
 }
 function handleAddSku(product: any) {
-if (selectedSkus.find(s => s.sku === product.articulo_id)) return;
-setSelectedSkus([{ sku: product.articulo_id, }, ...selectedSkus]);
-setSearchTerm('');
-}
+        if (selectedSkus.find(s => s.sku === product.articulo_id)) return;
+        setSelectedSkus([{
+            sku: product.articulo_id,
+            name: product.nombre || 'Sin nombre',
+            marca: product.marca || '',
+            modelo: product.modelo || '',
+            variante: product.variante || '',
+            codigo_universal: product.codigo_universal || '',
+            caja_madre: product.caja_madre || '',
+            quantity: 1
+        }, ...selectedSkus]);
+        setSearchTerm('');
+    }
 function handleRemoveSku(sku: string) { setSelectedSkus(selectedSkus.filter(s => s.sku !== sku)); }
 function handleQuantityChange(sku: string, qty: number) { if (qty < 1) return; setSelectedSkus(selectedSkus.map(s => s.sku === sku ? { ...s, quantity: qty } : s)); }
 async function loadSiblings() {
@@ -379,6 +388,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4">
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] max-h-[850px] overflow-hidden flex flex-col">
+                
                 {/* Header del Modal */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0">
                     <div>
@@ -390,74 +400,56 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     </button>
                 </div>
 
-                {/* 2-Column Grid */}
-                <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-[var(--surface)]">
-                    
-                    {/* LEFT COLUMN: Reference & Search (60%) */}
-                    <div className="w-full md:w-[60%] flex flex-col border-r border-[var(--border)] overflow-hidden">
-                        {/* Reference / MeLi Card (Sticky Top) */}
-                        <div className="p-5 border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0 space-y-4">
-                            <div className="bg-[var(--surface)] rounded-xl p-3 border border-[var(--border)] shadow-sm">
-                                <div className="flex gap-4">
-                                    {listing.thumbnail && (
-                                        <img src={listing.thumbnail} alt="Thumbnail" className="w-20 h-20 object-contain rounded-lg bg-white border border-[var(--border)] shrink-0" />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30">
-                                                {listing.domain_id === 'MLM-CARS_AND_LIGHT_TRUCKS' ? 'Vehículo' : 'Publicación Venta'}
-                                            </span>
-                                            {listing.condition === 'new' && <span className="text-[10px] bg-[var(--surface-2)] text-[var(--text-muted)] px-2 py-0.5 rounded border border-[var(--border)]">Nuevo</span>}
-                                        </div>
-                                        <h3 className="text-sm font-bold text-[var(--text)] leading-tight mb-1 truncate" title={listing.titulo}>{listing.titulo}</h3>
-                                        <div className="flex flex-wrap items-center gap-2 text-xs mb-2">
-                                            <span className="text-[var(--text-muted)] font-mono">{listing.external_item_id}</span>
-                                            <span className="text-[var(--text-faint)]">—</span>
-                                            <span className="font-bold text-[var(--text)]">${listing.precio?.toLocaleString('es-MX')}</span>
-                                            {listing.domain_id && (
-                                                <span className="text-[10px] bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)] px-1.5 py-0.5 rounded-md ml-auto">
-                                                    {listing.domain_id}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {pubSku && (
-                                                <span className="text-xs bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30 px-2 py-0.5 rounded flex items-center gap-1 font-mono">
-                                                    <Tag size={12} /> SKU: {pubSku}
-                                                </span>
-                                            )}
-                                            {pubGtin && (
-                                                <span className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded flex items-center gap-1 font-mono">
-                                                    <Barcode size={12} /> GTIN: {pubGtin}
-                                                </span>
-                                            )}
-                                            {pubBrand && <span className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded">Marca: {pubBrand}</span>}
-                                            {pubModel && <span className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded">Modelo: {pubModel}</span>}
-                                        </div>
-                                    </div>
-                                </div>
+                {/* T-LAYOUT TOP: Full Width Banner para la Vitrina */}
+                <div className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
+                    <div className="px-6 py-4 flex items-center gap-4">
+                        {listing.thumbnail && (
+                            <img src={listing.thumbnail} alt="Thumbnail" className="w-16 h-16 object-contain rounded-lg bg-white border border-[var(--border)] shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30">
+                                    {listing.domain_id === 'MLM-CARS_AND_LIGHT_TRUCKS' ? 'Vehículo' : 'Publicación Venta'}
+                                </span>
+                                {listing.condition === 'new' && <span className="text-[10px] bg-[var(--surface-2)] text-[var(--text-muted)] px-2 py-0.5 rounded border border-[var(--border)]">Nuevo</span>}
+                                <span className="text-[var(--text-muted)] font-mono text-xs ml-2">{listing.external_item_id}</span>
                             </div>
-                            
+                            <h3 className="text-sm font-bold text-[var(--text)] leading-tight truncate mb-1" title={listing.titulo}>{listing.titulo}</h3>
+                            <div className="flex flex-wrap gap-2 text-xs">
+                                <span className="font-bold text-[var(--text)]">${listing.precio?.toLocaleString('es-MX')}</span>
+                                {pubSku && <span className="text-[var(--text-muted)]">| SKU: <span className="font-mono">{pubSku}</span></span>}
+                                {pubGtin && <span className="text-[var(--text-muted)]">| GTIN: <span className="font-mono">{pubGtin}</span></span>}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Alertas debajo del banner si existen */}
+                    {(isBlockedCatalog || siblings.length > 0) && (
+                        <div className="px-6 py-2 bg-[var(--surface-2)] flex flex-col gap-2 border-t border-[var(--border)]">
                             {isBlockedCatalog && (
-                                <div className="bg-[var(--warn)]/10 border border-[var(--warn)]/40 rounded-lg p-3 flex gap-2 text-[var(--text)] text-xs">
-                                    <Info size={16} className="text-[var(--warn)] shrink-0" />
-                                    <div>
-                                        <strong className="text-[var(--warn)] block mb-0.5">Catálogo bloqueado (hereda stock)</strong>
-                                        <span className="text-[var(--text-muted)]">Mapea la publicación hermana {listing.par_item_id ? `(${listing.par_item_id})` : ''} para sincronizar stock correctamente.</span>
-                                    </div>
+                                <div className="text-[var(--warn)] text-xs flex items-center gap-1.5">
+                                    <Info size={14} className="shrink-0" />
+                                    <span><strong>Catálogo bloqueado (hereda stock).</strong> Mapea la publicación hermana {listing.par_item_id ? `(${listing.par_item_id})` : ''} para sincronizar stock correctamente.</span>
                                 </div>
                             )}
-
                             {!isBlockedCatalog && siblings.length > 0 && (
-                                <div className="bg-[var(--accent)]/15 border border-[var(--accent)]/40 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-[var(--text)]">
-                                    <Info size={14} className="shrink-0 text-[var(--accent)]" />
-                                    <span>Al guardar, propagarás a <strong className="text-[var(--accent)]">{siblings.length}</strong> publicación hermana(s).</span>
+                                <div className="text-[var(--accent)] text-xs flex items-center gap-1.5">
+                                    <Info size={14} className="shrink-0" />
+                                    <span>Al guardar, propagarás a <strong>{siblings.length}</strong> publicación hermana(s).</span>
                                 </div>
                             )}
                         </div>
+                    )}
+                </div>
 
-                        {/* Search Input (Sticky Mid) */}
-                        <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-sm relative z-10">
+                {/* T-LAYOUT BODY: 2-Column Grid */}
+                <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-[var(--surface)]">
+                    
+                    {/* LEFT COLUMN: Search & Catalog (60%) */}
+                    <div className="w-full md:w-[60%] flex flex-col border-r border-[var(--border)] overflow-hidden">
+                        
+                        {/* Search Input (Sticky Top of Column) */}
+                        <div className="px-5 py-4 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-sm relative z-10">
                             <label className="text-xs font-semibold text-[var(--text-muted)] mb-1.5 block">Buscar en Catálogo Real</label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={16} />
@@ -471,7 +463,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                             </div>
                         </div>
 
-                        {/* Suggestions / Results (Scrollable Bottom) */}
+                        {/* Suggestions / Results (Scrollable Area) */}
                         <div className="flex-1 overflow-y-auto p-5 bg-[var(--surface)] space-y-4">
                             {searchResults.length > 0 ? (
                                 <div className="space-y-2">
@@ -587,6 +579,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                                             <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded border border-[var(--border)]">{s.sku}</span>
                                             {s.marca && <span className="text-[10px] text-[var(--text-faint)]">Marca: {s.marca}</span>}
+                                            {s.codigo_universal && <span className="text-[10px] font-mono text-[var(--text-faint)]">Cod: {s.codigo_universal}</span>}
                                         </div>
 
                                         <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">
