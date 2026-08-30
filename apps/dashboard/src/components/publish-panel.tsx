@@ -186,6 +186,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const [catalogProductId, setCatalogProductId] = useState<string | null>(null);
     const [catalogListing, setCatalogListing] = useState(false);
     const [searchingCatalog, setSearchingCatalog] = useState(false);
+    const [forceDuplicate, setForceDuplicate] = useState(false);
     // Atributos dinámicos al cambiar de categoría
     const [dynamicReqAttrs, setDynamicReqAttrs] = useState<any[] | null>(null);
     const [loadingAttrs, setLoadingAttrs] = useState(false);
@@ -521,6 +522,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             free_shipping: freeShipping,
                             shipping_mode: shippingMode,
                             ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
+                            ...(forceDuplicate ? { force_duplicate: true } : {}),
                         }),
                     });
                     const data = await res.json();
@@ -553,6 +555,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setCatalogResults([]);
         setCatalogProductId(null);
         setCatalogListing(false);
+        setForceDuplicate(false);
         setCurrentAttrValues(new Map());
         setDimOverrides({});
         setCatSearch('');
@@ -1108,6 +1111,13 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         {/* Stepper transparente + trace técnico colapsado */}
                                         <PublishStepper trace={t || {}} />
                                         <TraceBlock trace={t || {}} />
+
+                                        {/* Nueva condición de venta (publicación asociada) */}
+                                        <label className="flex items-center gap-2 text-xs text-[var(--text)] cursor-pointer p-2 rounded border border-[var(--border)] bg-[var(--surface-2)]">
+                                            <input type="checkbox" checked={forceDuplicate} onChange={e => setForceDuplicate(e.target.checked)} className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)]" />
+                                            <span>Crear <strong>nueva condición de venta</strong> (permite otra publicación del mismo producto con distinto tipo de listado o envío, enlazada)</span>
+                                        </label>
+
                                         {/* CTAs */}
                                         <div className="flex gap-3">
                                             <button id="publish-back-btn" onClick={resetPanel} className="flex-1 py-2.5 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-xl text-sm transition-colors">Volver</button>
