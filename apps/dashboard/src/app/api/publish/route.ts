@@ -352,9 +352,10 @@ export async function POST(req: NextRequest) {
         // Si la RPC no está aplicada o no devuelve precio, cae a marketplace_prices.
         try {
             const { data: rpcPrice, error: rpcErr } = await supabaseAdmin.rpc('fn_calcular_precio_prepublicacion', {
-                p_articulo_id:    articulo_id,
-                p_marketplace_id: marketplace_id,
-                p_category_id:    category_id,
+                p_articulo_id:     articulo_id,
+                p_marketplace_id:  marketplace_id,
+                p_category_id:     category_id,
+                p_listing_type_id: listing_type_id,
             });
             if (!rpcErr && rpcPrice?.sale_price != null && Number(rpcPrice.sale_price) > 0) {
                 price = Number(rpcPrice.sale_price);
