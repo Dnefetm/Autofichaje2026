@@ -76,11 +76,13 @@ function CatalogPageInner() {
                   marca,
                   modelo,
                   variante,
-                codigo_universal,
-                caja_madre,
+                  categoria,
+                  codigo_universal,
+                  caja_madre,
                   imagenes,
                   inventory_snapshot(physical_stock),
-                              mapeo_publicacion_articulo(publicacion_id)
+                  mapeo_publicacion_articulo(publicacion_id),
+                  fichas_tecnicas(id, estado, created_at)
                 `, { count: 'exact' })
                 .order('creado_el', { ascending: false })
             .not('nombre', 'like', '%PLACEHOLDER%');
