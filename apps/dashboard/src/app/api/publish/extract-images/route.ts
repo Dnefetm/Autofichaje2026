@@ -17,6 +17,7 @@ const SKIP_PATTERNS = [
     /flag[-_]/i, /badge/i, /seal/i, /ssl/i, /secure/i,
     /\/menu\//i, /snowdog/i, /navigation/i, /\/nav\//i, /category[-_]?image/i,
     /\/wysiwyg\//i, /\/footer\//i, /ficha[-_]?tecnica/i, /group[-_]?\d+/i,
+    /never8/i, /ecommerce/i, /ebusiness/i, /\/frontend\//i, /\/static\//i,
 ];
 
 function isLikelyProductImage(url: string): boolean {
