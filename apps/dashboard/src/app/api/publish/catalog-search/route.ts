@@ -22,10 +22,12 @@ export async function POST(req: NextRequest) {
     const resultados = results.map((r: any) => ({
         catalog_product_id: r.id,
         titulo: r.title || r.name || '',
-        thumbnail: r.thumbnail || r.pictures?.[0]?.url || '',
+        thumbnail: r.thumbnail || r.pictures?.[0]?.url || r.pictures?.[0]?.secure_url || '',
         precio_referencia: r.price ?? null,
         domain_id: r.domain_id || '',
-        atributos: (r.attributes || []).slice(0, 20).map((a: any) => ({ id: a.id, name: a.name, value_name: a.value_name })),
+        // Fotos completas del catálogo y TODOS los atributos (sin recortar)
+        pictures: (r.pictures || []).map((p: any) => p.url || p.secure_url || '').filter(Boolean),
+        atributos: (r.attributes || []).map((a: any) => ({ id: a.id, name: a.name, value_name: a.value_name })),
     }));
 
     return NextResponse.json({ ok: true, encontrado: true, resultados });

@@ -178,6 +178,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const [categoryOverride, setCategoryOverride] = useState<string>('');
     const [familyNameOverride, setFamilyNameOverride] = useState<string>('');
     const [priceOverride, setPriceOverride] = useState<string>('');
+    const [stockOverride, setStockOverride] = useState<string>('');
     const [descriptionOverride, setDescriptionOverride] = useState<string>('');
     const [freeShipping, setFreeShipping] = useState(false);
     const [shippingMode, setShippingMode] = useState('me2');
@@ -216,16 +217,13 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             });
     }, []);
 
-    // Pre-cargar sugerencias de imágenes del artículo (convierte rutas relativas a públicas)
+    // Pre-cargar sugerencias de imágenes del artículo (convierte rutas relativas a públicas).
+    // NO auto-agregar: si el artículo no tiene fotos, el campo queda vacío para subir manualmente.
     useEffect(() => {
         const validUrls = imagenesBase
             .map(getPublicImageUrl)
             .filter((u): u is string => !!u);
         setPreloadedSuggestions(validUrls);
-        // Auto-agregar la primera imagen para que el botón de preview quede habilitado
-        if (validUrls.length > 0) {
-            setImages(prev => (prev.length > 0 ? prev : [validUrls[0]]));
-        }
     }, [imagenesBase]);
 
     // Si viene ficha_id, cargar también las imágenes propias de la ficha (ficha_imagenes)
@@ -518,6 +516,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             ...(allOverrides.length > 0 ? { attribute_overrides: allOverrides } : {}),
                             ...(familyNameOverride ? { family_name_override: familyNameOverride } : {}),
                             ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),
+                    ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
                             ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
                             free_shipping: freeShipping,
                             shipping_mode: shippingMode,
@@ -525,7 +524,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                         }),
                     });
                     const data = await res.json();
-                    results.push({ account_name: nombreCuenta, status: res.status, ok: !!data.ok, item_id: data.item_id, permalink: data.permalink, error: data.error, errores: data.errores });
+                    results.push({ account_name: nombreCuenta, status: res.status, ok: !!data.ok, item_id: data.item_id, permalink: data.permalink, error: data.error, errores: data.errores, meli_error: data.meli_error });
                 } catch (e: any) {
                     results.push({ account_name: nombreCuenta, status: 0, ok: false, error: e.message });
                 }
@@ -548,6 +547,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setCategoryOverride('');
         setFamilyNameOverride('');
         setPriceOverride('');
+        setStockOverride('');
         setDescriptionOverride('');
         setExtractUrl('');
         setCatalogResults([]);
@@ -636,37 +636,22 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 </div>
                             </div>
 
-                            {/* Categoría + Tipo de listado */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">
-                                        <Tag className="w-3 h-3 inline mr-1" />Categoría MeLi
-                                    </label>
-                                    <input
-                                        id="publish-category-id"
-                                        type="text"
-                                        value={categoryId}
-                                        onChange={e => setCategoryId(e.target.value)}
-                                        placeholder="Auto-detectada por AI"
-                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)] font-mono"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">
-                                        Tipo de listado
-                                    </label>
-                                    <select
-                                        id="publish-listing-type"
-                                        value={listingType}
-                                        onChange={e => setListingType(e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)]"
-                                    >
-                                        <option value="gold_special">Gold Special (recomendado)</option>
-                                        <option value="gold_pro">Gold Pro</option>
-                                        <option value="silver">Silver</option>
-                                        <option value="free">Free</option>
-                                    </select>
-                                </div>
+                            {/* Tipo de listado */}
+                            <div>
+                                <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">
+                                    Tipo de listado
+                                </label>
+                                <select
+                                    id="publish-listing-type"
+                                    value={listingType}
+                                    onChange={e => setListingType(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)]"
+                                >
+                                    <option value="gold_special">Gold Special (recomendado)</option>
+                                    <option value="gold_pro">Gold Pro</option>
+                                    <option value="silver">Silver</option>
+                                    <option value="free">Free</option>
+                                </select>
                             </div>
 
                             {/* Error general */}
@@ -850,11 +835,16 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                             </div>
                                                             <div className="pl-1">
                                                                 <p className="text-[9px] uppercase font-bold text-[var(--text-faint)] mb-1">Catálogo MeLi</p>
-                                                                {r.thumbnail && <img src={r.thumbnail} alt="" className="w-full h-16 object-contain mb-1 rounded border border-[var(--border)]" />}
+                                                                {(r.pictures?.length ? r.pictures : (r.thumbnail ? [r.thumbnail] : [])).map((pic: string, pi: number) => (
+                                                                    <img key={pi} src={pic} alt="" className="w-full h-14 object-contain mb-1 rounded border border-[var(--border)]" />
+                                                                ))}
                                                                 <p className="text-[11px] font-semibold text-[var(--text)] line-clamp-2">{r.titulo}</p>
-                                                                <div className="mt-1 flex flex-wrap gap-1">
-                                                                    {(r.atributos || []).slice(0, 6).map((a: any) => (
-                                                                        <span key={a.id} className="text-[9px] px-1 py-0.5 rounded bg-[var(--surface-2)] text-[var(--text-muted)]">{a.value_name || a.name}</span>
+                                                                <div className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
+                                                                    {(r.atributos || []).map((a: any) => (
+                                                                        <div key={a.id} className="flex justify-between gap-1 text-[9px]">
+                                                                            <span className="text-[var(--text-faint)] shrink-0">{a.name}</span>
+                                                                            <span className="text-[var(--text-muted)] text-right">{a.value_name || '—'}</span>
+                                                                        </div>
                                                                     ))}
                                                                 </div>
                                                             </div>
@@ -981,6 +971,19 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             {(t?.paso_9_titulo?.price_final ?? t?.paso_3_precio?.sale_price ?? 0) <= 0 && (
                                                 <p className="text-[10px] text-[var(--warn)] mt-1">Sin precio configurado: escribe el precio manual para poder publicar.</p>
                                             )}
+                                        </div>
+                                        {/* Stock */}
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Stock a publicar</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={stockOverride !== '' ? stockOverride : (t?.paso_4_stock?.available_quantity ?? '')}
+                                                onChange={e => setStockOverride(e.target.value)}
+                                                placeholder="Stock (vacío = toma el del catálogo maestro)"
+                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono"
+                                            />
+                                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Vacío = usa el stock del catálogo maestro ({t?.paso_4_stock?.available_quantity ?? '—'}).</p>
                                         </div>
                                         {/* Descripción */}
                                         <div>
@@ -1141,7 +1144,17 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             {r.ok ? (
                                                 <p className="text-xs font-mono text-[var(--ok)] mt-1">{r.item_id}</p>
                                             ) : (
-                                                <p className="text-xs text-[var(--err)] mt-1">{r.error}{r.errores ? ` — ${r.errores.join('; ')}` : ''}</p>
+                                                <div className="mt-1 space-y-1">
+                                                    <p className="text-xs text-[var(--err)]">{r.error}</p>
+                                                    {r.errores?.length > 0 && <p className="text-xs text-[var(--err)] font-mono">{r.errores.join('; ')}</p>}
+                                                    {r.meli_error?.cause?.length > 0 && (
+                                                        <div className="space-y-0.5">
+                                                            {r.meli_error.cause.map((c: any, ci: number) => (
+                                                                <p key={ci} className="text-[10px] text-[var(--err)] font-mono bg-[var(--surface)] px-2 py-1 rounded">[{c.code}] {c.message}</p>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     ))}

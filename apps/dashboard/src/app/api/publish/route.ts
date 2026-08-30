@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
             shipping_mode = 'me2' as string,
             catalog_product_id = null as string | null,
             catalog_listing = false as boolean,
+            stock_override = null as number | null,
         } = body;
 
         trace.input = { articulo_id, marketplace_id, ficha_id, pictures_count: pictures.length, listing_type_id, dry_run };
@@ -381,6 +382,12 @@ export async function POST(req: NextRequest) {
             price = Number(price_override);
             priceSource = 'manual_override';
             trace.paso_5_2_precio_manual = { price, nota: 'Precio fijado manualmente por el operador' };
+
+        // -- 5.3 Stock manual: el operador puede fijar el stock a publicar ------
+        if (stock_override != null && Number(stock_override) >= 0) {
+            stock = Number(stock_override);
+            trace.paso_5_3_stock_manual = { stock, nota: 'Stock fijado manualmente por el operador' };
+        }
         }
 
         // -- 6. Obtener atributos requeridos de la categoría -------------------
@@ -562,31 +569,43 @@ export async function POST(req: NextRequest) {
             [resolved.marca, resolved.modelo, resolved.nombre].filter(Boolean).join(' ')
         ), 60);
 
-        const itemBody: any = {
-            category_id,
-            price,
-            currency_id: precio_data?.currency || 'MXN',
-            available_quantity: Math.max(stock, 1),
-            buying_mode: 'buy_it_now',
-            listing_type_id,
-            shipping: {
-                mode: shipping_mode || 'me2',
-                free_shipping: !!free_shipping,
-            },
-            // legacy exige condition; UP lo deriva del catálogo
-            ...(isLegacy ? { condition: 'new' } : {}),
-            sale_terms: [
-                { id: 'WARRANTY_TYPE', value_name: 'Garantía del vendedor' },
-                { id: 'WARRANTY_TIME', value_name: '1 mes' },
-            ],
-            pictures: pictures.map((url: string) => ({ source: url })),
-            attributes: allAttributes,
-            // legacy: MeLi exige title (marca + modelo incluidos).
-            // UP: MeLi genera el título desde family_name — no enviar title ni variations.
-            ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
-            // Catálogo: publicar dentro de un catalog_product_id existente (MeLi aporta la ficha)
-            ...(catalog_listing && catalog_product_id ? { catalog_product_id, catalog_listing: true } : {}),
-        };
+        // Catálogo: body mínimo — MeLi aporta título, fotos, descripción y atributos desde el catalog_product_id.
+        // Tradicional/UP: body completo construido por el publicador.
+        const itemBody: any = (catalog_listing && catalog_product_id)
+            ? {
+                category_id,
+                price,
+                currency_id: precio_data?.currency || 'MXN',
+                available_quantity: Math.max(stock, 1),
+                buying_mode: 'buy_it_now',
+                listing_type_id,
+                condition: 'new',
+                catalog_product_id,
+                catalog_listing: true,
+              }
+            : {
+                category_id,
+                price,
+                currency_id: precio_data?.currency || 'MXN',
+                available_quantity: Math.max(stock, 1),
+                buying_mode: 'buy_it_now',
+                listing_type_id,
+                shipping: {
+                    mode: shipping_mode || 'me2',
+                    free_shipping: !!free_shipping,
+                },
+                // legacy exige condition; UP lo deriva del catálogo
+                ...(isLegacy ? { condition: 'new' } : {}),
+                sale_terms: [
+                    { id: 'WARRANTY_TYPE', value_name: 'Garantía del vendedor' },
+                    { id: 'WARRANTY_TIME', value_name: '1 mes' },
+                ],
+                pictures: pictures.map((url: string) => ({ source: url })),
+                attributes: allAttributes,
+                // legacy: MeLi exige title (marca + modelo incluidos).
+                // UP: MeLi genera el título desde family_name — no enviar title ni variations.
+                ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
+              };
         trace.paso_9_titulo = {
             modelo_seller: isLegacy ? 'legacy' : 'up',
             title_legacy: isLegacy ? titleLegacy : null,
