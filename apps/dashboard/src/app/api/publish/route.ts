@@ -594,6 +594,13 @@ export async function POST(req: NextRequest) {
                 shipping: {
                     mode: shipping_mode || 'me2',
                     free_shipping: !!free_shipping,
+                    // dimensiones de empaque en orden correcto: largo, ancho, alto (cm) y peso (g)
+                    dimensions: {
+                        length: Math.round(resolved.largo_cm ?? 0),
+                        width:  Math.round(resolved.ancho_cm ?? 0),
+                        height: Math.round(resolved.alto_cm  ?? 0),
+                        weight: Math.round((resolved.peso_kg ?? 0) * 1000),
+                    },
                 },
                 // legacy exige condition; UP lo deriva del catálogo
                 ...(isLegacy ? { condition: 'new' } : {}),

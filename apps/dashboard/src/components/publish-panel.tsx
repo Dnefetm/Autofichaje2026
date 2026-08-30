@@ -1225,8 +1225,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 </div>
                             )}
 
-                            {/* Error genérico */}
-                            {!publishResult.data.ok && publishResult.status !== 409 && (
+                            {/* Error genérico (solo para resultado único, no multi) */}
+                            {publishResult.status !== 'multi' && !publishResult.data.ok && publishResult.status !== 409 && (
                                 <div className="p-4 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl">
                                     <div className="flex items-center gap-2 mb-1">
                                         <XCircle className="w-4 h-4 text-[var(--err)]" />
@@ -1254,7 +1254,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             {publishResult.data.trace && <TraceBlock trace={publishResult.data.trace} />}
 
                             {/* Botones de acción post-resultado */}
-                            {!publishResult.data.ok && publishResult.status !== 409 ? (
+                            {publishResult.status !== 'multi' && !publishResult.data.ok && publishResult.status !== 409 ? (
                                 <div className="flex gap-3">
                                     <button
                                         id="publish-result-back-edit-btn"

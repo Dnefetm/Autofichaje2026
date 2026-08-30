@@ -80,10 +80,15 @@ export async function POST(req: NextRequest) {
         } catch {}
     });
 
+    // Atributos comunes de galerías de producto (Magento/fotorama, Shopify, WooCommerce, custom)
+    const IMG_ATTRS = ['src', 'data-src', 'data-lazy-src', 'data-zoom-image', 'data-large', 'data-large-image', 'data-image', 'data-original', 'data-full', 'data-full-image', 'data-gallery-image', 'data-main-image'];
+
     const secondary = new Set<string>();
     $('img').each((_, el) => {
-        const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src');
-        if (src) { const r = resolveUrl(src); if (r) secondary.add(decodeNextImage(r)); }
+        for (const attr of IMG_ATTRS) {
+            const v = $(el).attr(attr);
+            if (v) { const r = resolveUrl(v); if (r) secondary.add(decodeNextImage(r)); }
+        }
         const srcset = $(el).attr('srcset');
         if (srcset) {
             for (const part of srcset.split(',')) {
@@ -92,10 +97,35 @@ export async function POST(req: NextRequest) {
             }
         }
     });
+    // <picture><source srcset> (imágenes responsive)
+    $('picture source').each((_, el) => {
+        const srcset = $(el).attr('srcset');
+        if (srcset) {
+            for (const part of srcset.split(',')) {
+                const u = part.trim().split(' ')[0];
+                if (u) { const r = resolveUrl(u); if (r) secondary.add(decodeNextImage(r)); }
+            }
+        }
+    });
+    // Enlaces <a href> a imagen (galerías que envuelven miniaturas con link a la foto grande)
+    $('a[href]').each((_, el) => {
+        const href = $(el).attr('href') || '';
+        if (/\.(jpe?g|png|webp)(\?|$)/i.test(href)) {
+            const r = resolveUrl(href);
+            if (r) secondary.add(decodeNextImage(r));
+        }
+    });
+
+    // Descartar miniaturas/íconos por patrón en la URL (no bloquea la foto grande real)
+    const THUMB_PATTERNS = [/thumb/i, /thumbnail/i, /small/i, /mini/i, /[-_]\d{2,3}x\d{2,3}[-_.]/i, /w_\d{1,3}[,_]/i, /h_\d{1,3}[,_]/i];
+    function isThumb(url: string): boolean {
+        return THUMB_PATTERNS.some((p) => p.test(url));
+    }
 
     const candidatas = [...new Set([...primary, ...secondary])]
         .filter(isLikelyProductImage)
-        .slice(0, 50);
+        .filter(u => !isThumb(u))
+        .slice(0, 60);
 
     const validImages: string[] = [];
     for (const imgUrl of candidatas) {
