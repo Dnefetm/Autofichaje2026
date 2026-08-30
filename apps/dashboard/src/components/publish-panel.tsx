@@ -159,6 +159,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     // Imágenes
     const [images, setImages] = useState<string[]>([]);
     const [newImageUrl, setNewImageUrl] = useState('');
+    const [extractUrl, setExtractUrl] = useState('');
+    const [extracting, setExtracting] = useState(false);
     const [imgInputError, setImgInputError] = useState<string | null>(null);
     const [preloadedSuggestions, setPreloadedSuggestions] = useState<string[]>([]);
 
@@ -172,6 +174,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const [attrOverrides, setAttrOverrides] = useState<Record<string, { value_name?: string; value_id?: string }>>({});
     const [categoryOverride, setCategoryOverride] = useState<string>('');
     const [familyNameOverride, setFamilyNameOverride] = useState<string>('');
+    const [priceOverride, setPriceOverride] = useState<string>('');
+    const [descriptionOverride, setDescriptionOverride] = useState<string>('');
     // Atributos dinámicos al cambiar de categoría
     const [dynamicReqAttrs, setDynamicReqAttrs] = useState<any[] | null>(null);
     const [loadingAttrs, setLoadingAttrs] = useState(false);
@@ -318,6 +322,36 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         if (!images.includes(url)) setImages(prev => [...prev, url]);
     }
 
+    // Extraer imágenes de una página de producto (galería del fabricante / web)
+    async function extractImagesFromUrl() {
+        const url = extractUrl.trim();
+        if (!url.startsWith('http')) { setImgInputError('Pega una URL válida (http...)'); return; }
+        setExtracting(true);
+        setImgInputError(null);
+        try {
+            const res = await fetch('/api/publish/extract-images', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url }),
+            });
+            const data = await res.json();
+            if (data.ok && data.imagenes?.length) {
+                setImages(prev => {
+                    const existing = new Set(prev);
+                    const added = data.imagenes.map((i: any) => i.url).filter((u: string) => !existing.has(u));
+                    return [...prev, ...added];
+                });
+                setExtractUrl('');
+            } else {
+                setImgInputError(data.advertencia || data.error || 'No se encontraron imágenes');
+            }
+        } catch (e: any) {
+            setImgInputError(e.message || 'Error extrayendo imágenes');
+        } finally {
+            setExtracting(false);
+        }
+    }
+
     // -- Preview (dry_run) ----------------------------------------------------
     async function handlePreview() {
         if (!selectedAccount) { setErrorMsg('Selecciona una cuenta MeLi'); return; }
@@ -405,6 +439,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     dry_run: false,
                     ...(allOverrides.length > 0 ? { attribute_overrides: allOverrides } : {}),
                     ...(familyNameOverride ? { family_name_override: familyNameOverride } : {}),
+                    ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),
+                    ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
                 }),
             });
             const data = await res.json();
@@ -425,6 +461,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setAttrOverrides({});
         setCategoryOverride('');
         setFamilyNameOverride('');
+        setPriceOverride('');
+        setDescriptionOverride('');
+        setExtractUrl('');
         setCurrentAttrValues(new Map());
         setDimOverrides({});
         setCatSearch('');
@@ -588,6 +627,25 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         ))}
                                     </div>
                                 )}
+
+                                {/* Extraer fotos de una página (galería del fabricante / web) */}
+                                <div className="flex gap-2">
+                                    <input
+                                        type="url"
+                                        value={extractUrl}
+                                        onChange={e => { setExtractUrl(e.target.value); setImgInputError(null); }}
+                                        onKeyDown={e => e.key === 'Enter' && extractImagesFromUrl()}
+                                        placeholder="https://... página del producto (extrae sus fotos)"
+                                        className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)]"
+                                    />
+                                    <button
+                                        onClick={extractImagesFromUrl}
+                                        disabled={extracting}
+                                        className="px-3 py-2 bg-[var(--surface)] hover:bg-slate-700 text-[var(--accent-ink)] rounded-lg text-sm font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                        {extracting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />} Extraer fotos
+                                    </button>
+                                </div>
 
                                 {/* Input URL nueva */}
                                 <div className="flex gap-2">
@@ -824,6 +882,33 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         <div>
                                             <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Family Name (título base)</label>
                                             <input type="text" value={familyNameOverride !== '' ? familyNameOverride : (t?.paso_8_ai?.family_name || '')} onChange={e => setFamilyNameOverride(e.target.value)} maxLength={60} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono" />
+                                        </div>
+                                        {/* Precio */}
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Precio de venta (MXN)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={priceOverride !== '' ? priceOverride : (t?.paso_9_titulo?.price_final ?? t?.paso_3_precio?.sale_price ?? '')}
+                                                onChange={e => setPriceOverride(e.target.value)}
+                                                placeholder="Sin precio — escribe uno manual"
+                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono"
+                                            />
+                                            {(t?.paso_9_titulo?.price_final ?? t?.paso_3_precio?.sale_price ?? 0) <= 0 && (
+                                                <p className="text-[10px] text-[var(--warn)] mt-1">Sin precio configurado: escribe el precio manual para poder publicar.</p>
+                                            )}
+                                        </div>
+                                        {/* Descripción */}
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Descripción</label>
+                                            <textarea
+                                                value={descriptionOverride}
+                                                onChange={e => setDescriptionOverride(e.target.value)}
+                                                rows={6}
+                                                placeholder="Descripción del producto (vacío = se usa la del artículo/ficha técnica)"
+                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)]"
+                                            />
                                         </div>
                                         {/* Dimensiones del paquete */}
                                         <div>

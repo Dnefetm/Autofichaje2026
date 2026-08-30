@@ -115,6 +115,8 @@ export async function POST(req: NextRequest) {
             force_duplicate = false,
             attribute_overrides = [] as Array<{ id: string; value_name?: string; value_id?: string }>,
             family_name_override = null as string | null,
+            price_override = null as number | null,
+            description_override = null as string | null,
         } = body;
 
         trace.input = { articulo_id, marketplace_id, ficha_id, pictures_count: pictures.length, listing_type_id, dry_run };
@@ -370,6 +372,12 @@ export async function POST(req: NextRequest) {
             trace.paso_5_1_precio_prepublicacion = { error: e.message, advertencia: 'Usando marketplace_prices como fallback' };
         }
 
+        // -- 5.2 Precio manual: el operador puede fijar el precio (override) ---
+        if (price_override != null && Number(price_override) > 0) {
+            price = Number(price_override);
+            priceSource = 'manual_override';
+            trace.paso_5_2_precio_manual = { price, nota: 'Precio fijado manualmente por el operador' };
+        }
 
         // -- 6. Obtener atributos requeridos de la categoría -------------------
         const attrInfo = await (meli as any).getCategoryAttributes(marketplace_id, category_id);
@@ -532,7 +540,11 @@ export async function POST(req: NextRequest) {
         const bulletsText = resolved.bullet_points.length > 0
             ? '\n\n' + resolved.bullet_points.map((b: string) => `• ${b}`).join('\n')
             : '';
-        const descripcionCompleta = ((resolved.descripcion || '') + bulletsText).slice(0, 2000);
+        const descripcionCompleta = (
+            description_override && description_override.trim()
+                ? description_override
+                : ((resolved.descripcion || '') + bulletsText)
+        ).slice(0, 50000);
 
         // Título limpio final: override manual > AI > nombre resuelto (truncado ≤60 chars)
         const familyNameFinal = family_name_override
@@ -580,7 +592,8 @@ export async function POST(req: NextRequest) {
         // -- 10. Validaciones DURAS — errores 422 bloqueantes -----------------
         const erroresDuros: string[] = [];
         if (pictures.length === 0) erroresDuros.push('Sin imágenes: MeLi rechaza publicaciones sin pictures[]');
-        if (price === 0)           erroresDuros.push('Precio = 0: MeLi rechazará la publicación');
+        // Precio: en dry_run se permite 0 (el operador lo fijará manual); en publish real bloquea.
+        if (price === 0 && !dry_run) erroresDuros.push('Precio = 0: fija un precio manual antes de publicar (el artículo no tiene costo ni regla de precio)');
         if (stillMissing.length > 0) {
             erroresDuros.push(
                 `Atributos requeridos sin resolver después del AI: ${stillMissing.map((a: any) => a.id).join(', ')}`
