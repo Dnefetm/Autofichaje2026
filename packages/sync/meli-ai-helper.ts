@@ -33,10 +33,12 @@ export interface MeliAIHelperInput {
     atributos_especificos?: any;   // JSON libre del artículo
     unresolved_attributes: MeliUnresolvedAttribute[];
     max_family_name_chars?: number; // default 50 — para no superar 60 al agregar marca+modelo
+    legacy?: boolean;               // true: genera title completo (marca+modelo); false: family_name sin marca/modelo
 }
 
 export interface MeliAIHelperOutput {
     family_name: string;
+    title: string;                  // título completo para modelo legacy
     attributes: Array<{ id: string; value_id?: string; value_name?: string }>;
     ai_used: boolean;      // false si se usó el fallback sin AI
     tokens_used?: number;
@@ -46,14 +48,23 @@ export interface MeliAIHelperOutput {
 
 function buildPrompt(input: MeliAIHelperInput): { system: string; user: string } {
     const maxChars = input.max_family_name_chars ?? 50;
+    const legacy = input.legacy === true;
+
+    const tituloField = legacy
+        ? `"title": "título completo del producto (máx ${maxChars} chars, INCLUYE marca y modelo al inicio)"`
+        : `"family_name": "nombre descriptivo del producto (máx ${maxChars} chars, SIN marca ni modelo)"`;
+
+    const tituloRule = legacy
+        ? `1. Generar un "title" completo y comercial, máximo ${maxChars} caracteres, que EMPIECE con la marca y el modelo,
+   seguido del tipo/descripción del producto (ej: "Urrea 15030 Dado de impacto 6 puntas 1-7/8 pulgadas").`
+        : `1. Generar un "family_name" descriptivo, máximo ${maxChars} caracteres, SIN marca ni modelo.
+   MercadoLibre (User Products) agrega automáticamente la marca y el modelo al título visible.
+   Debe describir claramente el producto (tipo, función, tamaño, material si aplica).`;
 
     const system = `Eres un experto en redacción de títulos y clasificación de atributos para MercadoLibre México.
-MercadoLibre en modelo "User Products" agrega automáticamente la marca y el modelo al título visible.
-Por eso el campo "family_name" NO debe incluir la marca ni el modelo.
 
 Tus tareas:
-1. Generar un "family_name" descriptivo, máximo ${maxChars} caracteres, SIN marca ni modelo.
-   Debe describir claramente el producto (tipo, función, tamaño, material si aplica).
+${tituloRule}
 2. Para cada atributo requerido sin valor, seleccionar el más apropiado de la lista de opciones.
    - Usa el nombre completo del producto (Nombre, Descripción, Atributos específicos) para elegir.
    - Elige el valor cuyo significado coincide MÁS PRECISAMENTE con el producto real, no con la categoría general.
@@ -63,7 +74,7 @@ Tus tareas:
 
 Responde SOLO con JSON sin markdown:
 {
-  "family_name": "...",
+  ${tituloField},
   "attributes": [
     { "id": "ATRIBUTO_ID", "value_id": "id_seleccionado", "value_name": "nombre_seleccionado" }
   ]
@@ -102,17 +113,24 @@ ${attrsBlock || 'Ninguno — solo generar el family_name'}`;
  */
 export async function resolvePublicationAI(input: MeliAIHelperInput): Promise<MeliAIHelperOutput> {
     const maxChars = input.max_family_name_chars ?? 50;
+    const legacy = input.legacy === true;
 
-    // Fallback sin AI: nombre truncado directo
+    // Fallbacks sin AI
     const familyNameFallback = input.nombre.slice(0, maxChars).trim();
+    const titleFallback = [input.marca, input.modelo, input.nombre]
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, maxChars)
+        .trim();
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     if (!process.env.OPENAI_API_KEY) {
         return {
             family_name: familyNameFallback,
-            attributes: [],
-            ai_used: false,
+            title:       titleFallback,
+            attributes:  [],
+            ai_used:     false,
         };
     }
 
@@ -132,10 +150,14 @@ export async function resolvePublicationAI(input: MeliAIHelperInput): Promise<Me
         const raw = JSON.parse(response.choices[0].message.content || '{}');
         const tokensUsed = response.usage?.total_tokens;
 
-        // Validar y limpiar family_name
+        // Validar y limpiar el campo de título según el modo
         let family_name = (raw.family_name || familyNameFallback).toString().trim();
-        if (family_name.length > maxChars) {
-            family_name = family_name.slice(0, maxChars).trim();
+        let title = (raw.title || titleFallback).toString().trim();
+        if (legacy) {
+            if (title.length > maxChars) title = title.slice(0, maxChars).trim();
+            // En legacy, family_name no se usa; lo dejamos como fallback del nombre descriptivo
+        } else {
+            if (family_name.length > maxChars) family_name = family_name.slice(0, maxChars).trim();
         }
 
         // Filtrar atributos que tengan al menos id
@@ -146,6 +168,7 @@ export async function resolvePublicationAI(input: MeliAIHelperInput): Promise<Me
 
         return {
             family_name,
+            title,
             attributes,
             ai_used: true,
             tokens_used: tokensUsed,
@@ -155,8 +178,9 @@ export async function resolvePublicationAI(input: MeliAIHelperInput): Promise<Me
         console.error('[meli-ai-helper] Fallo en GPT-4o-mini:', err.message);
         return {
             family_name: familyNameFallback,
-            attributes: [],
-            ai_used: false,
+            title:       titleFallback,
+            attributes:  [],
+            ai_used:     false,
         };
     }
 }

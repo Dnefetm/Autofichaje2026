@@ -56,6 +56,82 @@ function TraceBlock({ trace }: { trace: Record<string, any> }) {
     );
 }
 
+// -- Stepper transparente: convierte el trace en pasos legibles ---------------
+function PublishStepper({ trace }: { trace: Record<string, any> }) {
+    const fmtMXN = (n: any) => n != null && !isNaN(Number(n))
+        ? `$${Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+        : '—';
+
+    const steps: Array<{ label: string; detail: string; tone: 'ok' | 'warn' | 'neutral' }> = [
+        {
+            label: 'Artículo',
+            detail: trace?.paso_1_articulo
+                ? (`${trace.paso_1_articulo.marca || ''} ${trace.paso_1_articulo.nombre || ''}`.trim() || trace.paso_1_articulo.articulo_id)
+                : '—',
+            tone: 'ok',
+        },
+        {
+            label: 'Cuenta',
+            detail: trace?.paso_2_seller_model
+                ? `${trace.paso_2_seller_model.nickname || 'cuenta'} · ${trace.paso_2_seller_model.model === 'up' ? 'User Products' : 'Legacy'}`
+                : '—',
+            tone: 'neutral',
+        },
+        {
+            label: 'Precio',
+            detail: trace?.paso_9_titulo?.price_final != null
+                ? `${fmtMXN(trace.paso_9_titulo.price_final)} · ${trace.paso_9_titulo.price_source || '—'}`
+                : (trace?.paso_3_precio?.sale_price != null ? fmtMXN(trace.paso_3_precio.sale_price) : '—'),
+            tone: (Number(trace?.paso_9_titulo?.price_final ?? trace?.paso_3_precio?.sale_price ?? 0) > 0) ? 'ok' : 'warn',
+        },
+        {
+            label: 'Categoría',
+            detail: trace?.paso_5_categoria?.category_path || trace?.paso_5_categoria?.category_name || '—',
+            tone: trace?.paso_5_categoria?.category_id ? 'ok' : 'warn',
+        },
+        {
+            label: 'Atributos',
+            detail: (() => {
+                const total = trace?.paso_6_atributos?.total;
+                const faltan = trace?.paso_8_atributos_aun_faltantes?.length ?? 0;
+                return total != null ? `${total} de categoría · ${faltan} faltantes` : '—';
+            })(),
+            tone: (trace?.paso_8_atributos_aun_faltantes?.length ?? 0) === 0 ? 'ok' : 'warn',
+        },
+        {
+            label: 'Título',
+            detail: trace?.paso_9_titulo?.title_legacy || trace?.paso_9_titulo?.family_name_up || '—',
+            tone: 'neutral',
+        },
+    ];
+
+    if (trace?.paso_12_meli_create) {
+        steps.push({
+            label: 'Publicación',
+            detail: `${trace.paso_12_meli_create.item_id} · ${trace.paso_12_meli_create.status}`,
+            tone: 'ok',
+        });
+    }
+
+    return (
+        <ol className="mt-3 space-y-1.5 border-t border-[var(--border)] pt-3">
+            {steps.map((s, i) => (
+                <li key={s.label} className="flex items-start gap-2.5 text-xs">
+                    <span className="w-5 h-5 shrink-0 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-[10px] font-bold text-[var(--text-faint)] tabular-nums">
+                        {i + 1}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                        <span className="font-semibold text-[var(--text)]">{s.label}:</span>{' '}
+                        <span className={s.tone === 'ok' ? 'text-[var(--ok)]' : s.tone === 'warn' ? 'text-[var(--warn)]' : 'text-[var(--text-muted)]'}>
+                            {s.detail}
+                        </span>
+                    </span>
+                </li>
+            ))}
+        </ol>
+    );
+}
+
 // -- Componente principal ------------------------------------------------------
 export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBase = [], modalMode = false }: PublishPanelProps) {
     // Cuentas
@@ -800,7 +876,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 </div>
                                             </div>
                                         )}
-                                        {/* Trace */}
+                                        {/* Stepper transparente + trace técnico colapsado */}
+                                        <PublishStepper trace={t || {}} />
                                         <TraceBlock trace={t || {}} />
                                         {/* CTAs */}
                                         <div className="flex gap-3">

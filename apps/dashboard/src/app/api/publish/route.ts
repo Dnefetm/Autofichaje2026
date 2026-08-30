@@ -218,10 +218,10 @@ export async function POST(req: NextRequest) {
             .from('publicaciones_externas')
             .select(`
                 id, external_item_id, status_externo,
-                mapeo_publicacion_articulo!inner (sku_articulo)
+                mapeo_publicacion_articulo!inner (articulo_id)
             `)
             .eq('marketplace_id', marketplace_id)
-            .eq('mapeo_publicacion_articulo.sku_articulo', articulo_id)
+            .eq('mapeo_publicacion_articulo.articulo_id', articulo_id)
             .in('status_externo', ['active', 'paused', 'under_review'])
             .limit(1)
             .maybeSingle();
@@ -240,19 +240,11 @@ export async function POST(req: NextRequest) {
             : { ok: true, sin_duplicados: true };
 
         // -- 2. Detectar modelo del seller -------------------------------------
-        // POLÍTICA: este endpoint solo opera en modelo UP (User Products).
-        // Si la cuenta es legacy, falla aquí antes de construir el body.
+        // Soporta UP (family_name) y legacy (title). Tus cuentas son legacy.
         const meli = new MeliAdapter();
         const sellerInfo = await (meli as any).detectSellerModel(marketplace_id);
         trace.paso_2_seller_model = sellerInfo;
-
-        if (sellerInfo.model !== 'up') {
-            return NextResponse.json({
-                ok: false,
-                error: `La cuenta ${marketplace_id} opera en modelo '${sellerInfo.model}', no en User Products. Este endpoint solo soporta modelo UP.`,
-                trace,
-            }, { status: 422 });
-        }
+        const isLegacy = sellerInfo.model !== 'up';
 
         // -- 3. Obtener precio de marketplace_prices ---------------------------
         // marketplace_prices.articulo_id (renombrado desde sku en v47)
@@ -284,7 +276,8 @@ export async function POST(req: NextRequest) {
             ? { sale_price: precio_data.sale_price, base_price: precio_data.base_price, currency: precio_data.currency }
             : { advertencia: 'No se encontró precio en marketplace_prices. Se usará 0 — CORREGIR antes de publicar en producción.', sale_price: 0 };
 
-        const price = precio_data?.sale_price || 0;
+        let price = precio_data?.sale_price || 0;
+        let priceSource: string = precio_data ? 'marketplace_prices' : 'none';
 
         // -- 3.1 Resolver SKU efectivo: marketplace_prices.sku_tienda > articulos.modelo --
         // articulos.sku fue eliminada permanentemente de la BD (DROP COLUMN CASCADE).
@@ -353,6 +346,28 @@ export async function POST(req: NextRequest) {
             candidates: category_info?.candidates || [],
             alternativas: category_info?.candidates || [],
         };
+
+        // -- 5.1 Precio pre-publicación (Motor V2 orientado a proveedor) ---------
+        // Usa la MISMA fórmula que post-publicación, resuelta antes de crear el item.
+        // Si la RPC no está aplicada o no devuelve precio, cae a marketplace_prices.
+        try {
+            const { data: rpcPrice, error: rpcErr } = await supabaseAdmin.rpc('fn_calcular_precio_prepublicacion', {
+                p_articulo_id:    articulo_id,
+                p_marketplace_id: marketplace_id,
+                p_category_id:    category_id,
+            });
+            if (!rpcErr && rpcPrice?.sale_price != null && Number(rpcPrice.sale_price) > 0) {
+                price = Number(rpcPrice.sale_price);
+                priceSource = 'fn_calcular_precio_prepublicacion';
+                trace.paso_5_1_precio_prepublicacion = rpcPrice;
+            } else {
+                trace.paso_5_1_precio_prepublicacion = rpcErr
+                    ? { error: rpcErr.message, advertencia: 'Usando marketplace_prices como fallback' }
+                    : { advertencia: 'RPC sin precio válido — usando marketplace_prices', rpc: rpcPrice };
+            }
+        } catch (e: any) {
+            trace.paso_5_1_precio_prepublicacion = { error: e.message, advertencia: 'Usando marketplace_prices como fallback' };
+        }
 
 
         // -- 6. Obtener atributos requeridos de la categoría -------------------
@@ -445,7 +460,8 @@ export async function POST(req: NextRequest) {
             descripcion:            resolved.descripcion,
             atributos_especificos:  resolved.atributos_especificos,
             unresolved_attributes:  unresolvedAttrs,
-            max_family_name_chars:  50, // MeLi agrega marca+modelo ~ 10-20 chars extra
+            max_family_name_chars:  isLegacy ? 60 : 50, // legacy: título completo; UP: family_name sin marca/modelo
+            legacy:                 isLegacy,
         });
         // Limpiar family_name generado por AI también
         if (aiResult.family_name) {
@@ -510,7 +526,7 @@ export async function POST(req: NextRequest) {
             .map((a: any) => ({ id: a.id, name: a.name }));
         trace.paso_8_atributos_aun_faltantes = stillMissing;
 
-        // -- 9. Construir el body del POST /items (solo modelo UP) -------------
+        // -- 9. Construir el body del POST /items (UP o legacy) -----------------
         // Construir descripción enriquecida con bullets (máx 2000 chars)
         const bulletsText = resolved.bullet_points.length > 0
             ? '\n\n' + resolved.bullet_points.map((b: string) => `• ${b}`).join('\n')
@@ -522,24 +538,40 @@ export async function POST(req: NextRequest) {
             ? truncarTitulo(limpiarTitulo(family_name_override), 60)
             : (aiResult.family_name || truncarTitulo(resolved.nombre, 60));
 
+        // Título legacy: completo con marca + modelo (override manual > AI > compuesto)
+        const titleLegacy = truncarTitulo(limpiarTitulo(
+            family_name_override ||
+            aiResult.title ||
+            [resolved.marca, resolved.modelo, resolved.nombre].filter(Boolean).join(' ')
+        ), 60);
+
         const itemBody: any = {
-            family_name: familyNameFinal,
             category_id,
             price,
             currency_id: precio_data?.currency || 'MXN',
             available_quantity: Math.max(stock, 1),
             buying_mode: 'buy_it_now',
             listing_type_id,
+            // legacy exige condition; UP lo deriva del catálogo
+            ...(isLegacy ? { condition: 'new' } : {}),
             sale_terms: [
                 { id: 'WARRANTY_TYPE', value_name: 'Garantía del vendedor' },
                 { id: 'WARRANTY_TIME', value_name: '1 mes' },
             ],
             pictures: pictures.map((url: string) => ({ source: url })),
             attributes: allAttributes,
-            // NO enviar title — MeLi lo genera en modelo UP
-            // NO enviar variations[] — en UP cada variante es POST separado
+            // legacy: MeLi exige title (marca + modelo incluidos).
+            // UP: MeLi genera el título desde family_name — no enviar title ni variations.
+            ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
         };
-        trace.paso_9_titulo = { family_name_final: familyNameFinal, fuente: family_name_override ? 'override_manual' : aiResult.ai_used ? 'gpt_4o_mini' : 'nombre_resuelto' };
+        trace.paso_9_titulo = {
+            modelo_seller: isLegacy ? 'legacy' : 'up',
+            title_legacy: isLegacy ? titleLegacy : null,
+            family_name_up: isLegacy ? null : familyNameFinal,
+            fuente: family_name_override ? 'override_manual' : aiResult.ai_used ? 'gpt_4o_mini' : 'compuesto',
+            price_source: priceSource,
+            price_final: price,
+        };
         trace.paso_9_descripcion = { chars: descripcionCompleta.length, bullets: resolved.bullet_points.length };
 
         trace.paso_9_body = itemBody;
@@ -650,9 +682,9 @@ export async function POST(req: NextRequest) {
                 .from('mapeo_publicacion_articulo')
                 .upsert({
                     publicacion_id:    pubInserted.id,
-                    sku_articulo:      articulo_id,   // columna real: sku_articulo (DDL v14), NO articulo_id
+                    articulo_id:       articulo_id,
                     cantidad_requerida: 1,
-                }, { onConflict: 'publicacion_id,sku_articulo' });
+                }, { onConflict: 'publicacion_id,articulo_id' });
 
             trace.paso_15_mapeo = mapErr ? { error: mapErr.message } : { ok: true };
 
