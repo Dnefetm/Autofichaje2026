@@ -60,6 +60,18 @@ export async function POST(req: NextRequest) {
         return raw;
     };
 
+    // Normaliza a tamaño completo: quita redimensionados de Magento (/cache/{hash}/),
+    // Shopify (?width=/?height=), y parámetros w/h comunes.
+    const toFullSize = (raw: string): string => {
+        let u = raw.replace(/\/cache\/[0-9a-f]{6,}\//i, '/');
+        try {
+            const p = new URL(u);
+            ['width', 'height', 'w', 'h'].forEach(k => p.searchParams.delete(k));
+            u = p.toString();
+        } catch {}
+        return u;
+    };
+
     const primary = new Set<string>();
     $('meta[property="og:image"], meta[name="og:image"]').each((_, el) => {
         const c = $(el).attr('content');
@@ -122,9 +134,12 @@ export async function POST(req: NextRequest) {
         return THUMB_PATTERNS.some((p) => p.test(url));
     }
 
-    const candidatas = [...new Set([...primary, ...secondary])]
-        .filter(isLikelyProductImage)
+    // Por cada candidato, proponer su versión a tamaño completo y la original;
+    // quedarnos con la completa y descartar el redimensionado de Magento (/cache/).
+    const rawCandidatas = [...new Set([...primary, ...secondary])].filter(isLikelyProductImage);
+    const candidatas = [...new Set(rawCandidatas.flatMap(u => [toFullSize(u), u]))]
         .filter(u => !isThumb(u))
+        .filter(u => !/\/cache\/[0-9a-f]{6,}\//i.test(u))
         .slice(0, 60);
 
     const validImages: string[] = [];
