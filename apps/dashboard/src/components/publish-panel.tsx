@@ -19,6 +19,20 @@ import {
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+
+// Convierte una ruta relativa de Storage ("Bucket/file.jpg") a URL pública.
+// Las imágenes de articulos.imagenes llegan como rutas relativas, no http.
+function getPublicImageUrl(rawPath: string | null | undefined): string | null {
+    if (!rawPath) return null;
+    if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) return rawPath;
+    const slashIndex = rawPath.indexOf('/');
+    if (slashIndex === -1) return null;
+    const bucket = rawPath.substring(0, slashIndex);
+    const filePath = rawPath.substring(slashIndex + 1);
+    return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${encodeURIComponent(filePath)}`;
+}
+
 // -- Tipos --------------------------------------------------------------------
 interface Account { id: string; account_name: string; }
 
@@ -184,14 +198,21 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             .eq('is_active', true)
             .then(({ data }) => {
                 setAccounts(data || []);
-                if (data && data.length === 1) setSelectedAccount(data[0].id);
+                // Auto-seleccionar la primera cuenta (antes solo cuando había exactamente 1)
+                if (data && data.length > 0) setSelectedAccount(data[0].id);
             });
     }, []);
 
-    // Pre-cargar sugerencias de imágenes del artículo
+    // Pre-cargar sugerencias de imágenes del artículo (convierte rutas relativas a públicas)
     useEffect(() => {
-        const validUrls = imagenesBase.filter(u => u?.startsWith('http'));
+        const validUrls = imagenesBase
+            .map(getPublicImageUrl)
+            .filter((u): u is string => !!u);
         setPreloadedSuggestions(validUrls);
+        // Auto-agregar la primera imagen para que el botón de preview quede habilitado
+        if (validUrls.length > 0) {
+            setImages(prev => (prev.length > 0 ? prev : [validUrls[0]]));
+        }
     }, [imagenesBase]);
 
     // Si viene ficha_id, cargar también las imágenes propias de la ficha (ficha_imagenes)
