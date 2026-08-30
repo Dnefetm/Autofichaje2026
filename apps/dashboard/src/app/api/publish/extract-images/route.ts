@@ -16,6 +16,7 @@ const SKIP_PATTERNS = [
     /\bmail\b/i, /email/i, /arroba/i,
     /flag[-_]/i, /badge/i, /seal/i, /ssl/i, /secure/i,
     /\/menu\//i, /snowdog/i, /navigation/i, /\/nav\//i, /category[-_]?image/i,
+    /\/wysiwyg\//i, /\/footer\//i, /ficha[-_]?tecnica/i, /group[-_]?\d+/i,
 ];
 
 function isLikelyProductImage(url: string): boolean {
@@ -157,12 +158,13 @@ export async function POST(req: NextRequest) {
         return THUMB_PATTERNS.some((p) => p.test(url));
     }
 
-    // Por cada candidato, proponer su versión a tamaño completo y la original;
-    // quedarnos con la completa y descartar el redimensionado de Magento (/cache/).
+    // Quedarnos SOLO con la versión a tamaño completo (toFullSize), descartando
+    // el redimensionado (Magento /cache/ y parámetros optimize/canvas/fit).
     const rawCandidatas = [...new Set([...primary, ...secondary])].filter(isLikelyProductImage);
-    const candidatas = [...new Set(rawCandidatas.flatMap(u => [toFullSize(u), u]))]
+    const candidatas = [...new Set(rawCandidatas.map(u => toFullSize(u)))]
         .filter(u => !isThumb(u))
         .filter(u => !/\/cache\/[0-9a-f]{6,}\//i.test(u))
+        .filter(u => !/(\?|&)(optimize|canvas|fit|bg-color|width|height|w|h)=/i.test(u))
         .slice(0, 60);
 
     const validImages: string[] = [];
