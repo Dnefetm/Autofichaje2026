@@ -152,7 +152,8 @@ function PublishStepper({ trace }: { trace: Record<string, any> }) {
 export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBase = [], modalMode = false, codigoUniversal = '' }: PublishPanelProps) {
     // Cuentas
     const [accounts, setAccounts] = useState<Account[]>([]);
-    const [selectedAccount, setSelectedAccount] = useState<string>('');
+    const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+    const primaryAccount = selectedAccounts[0] || '';
 
     // Config
     const [categoryId, setCategoryId] = useState('');
@@ -210,8 +211,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             .eq('is_active', true)
             .then(({ data }) => {
                 setAccounts(data || []);
-                // Auto-seleccionar la primera cuenta (antes solo cuando había exactamente 1)
-                if (data && data.length > 0) setSelectedAccount(data[0].id);
+                // Auto-seleccionar la primera cuenta por defecto
+                if (data && data.length > 0) setSelectedAccounts([data[0].id]);
             });
     }, []);
 
@@ -248,7 +249,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
     // Re-fetch atributos requeridos cuando el usuario cambia la categoría en el preview
     useEffect(() => {
-        if (!categoryOverride || !selectedAccount || stage !== 'preview') {
+        if (!categoryOverride || !primaryAccount || stage !== 'preview') {
             setDynamicReqAttrs(null);
             setCurrentAttrValues(new Map());
             return;
@@ -265,7 +266,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setCurrentAttrValues(new Map());
         setLoadingAttrs(true);
         const originalAttrs: any[] = previewResult?.data?.trace?.paso_8_attributes_final || [];
-        fetch(`/api/publish/attributes?category_id=${encodeURIComponent(categoryOverride)}&marketplace_id=${encodeURIComponent(selectedAccount)}`)
+        fetch(`/api/publish/attributes?category_id=${encodeURIComponent(categoryOverride)}&marketplace_id=${encodeURIComponent(primaryAccount)}`)
             .then(r => r.json())
             .then(data => {
                 if (data.ok) {
@@ -293,7 +294,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             })
             .catch(() => {})
             .finally(() => setLoadingAttrs(false));
-    }, [categoryOverride, selectedAccount, stage]);
+    }, [categoryOverride, primaryAccount, stage]);
 
     // -- Gestión de imágenes --------------------------------------------------
     function addImage() {
@@ -386,7 +387,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
     // Buscar producto en el catálogo de MeLi por GTIN/EAN
     async function searchCatalogByGtin() {
-        if (!selectedAccount) { setErrorMsg('Selecciona una cuenta MeLi primero'); return; }
+        if (!primaryAccount) { setErrorMsg('Selecciona una cuenta MeLi primero'); return; }
         if (!codigoUniversal) { setErrorMsg('Este artículo no tiene código universal (GTIN/EAN) para buscar en catálogo'); return; }
         setSearchingCatalog(true);
         setErrorMsg(null);
@@ -394,7 +395,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             const res = await fetch('/api/publish/catalog-search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ gtin: codigoUniversal, marketplace_id: selectedAccount }),
+                body: JSON.stringify({ gtin: codigoUniversal, marketplace_id: primaryAccount }),
             });
             const data = await res.json();
             if (data.ok && data.encontrado) {
@@ -426,7 +427,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
     // -- Preview (dry_run) ----------------------------------------------------
     async function handlePreview() {
-        if (!selectedAccount) { setErrorMsg('Selecciona una cuenta MeLi'); return; }
+        if (!primaryAccount) { setErrorMsg('Selecciona una cuenta MeLi'); return; }
         setErrorMsg(null);
         setLoading(true);
         setPreviewResult(null);
@@ -436,7 +437,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     articulo_id,
-                    marketplace_id: selectedAccount,
+                    marketplace_id: primaryAccount,
                     pictures: images,
                     ...(ficha_id ? { ficha_id } : {}),
                     category_id: categoryId || undefined,
@@ -458,7 +459,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     // -- Re-preview con categoría forzada ---------------------------------------
     // Relanza el dry_run completo con category_id forzado. Reemplaza el trace entero.
     async function handleRePreview(forcedCategoryId: string) {
-        if (!selectedAccount || !forcedCategoryId) return;
+        if (!primaryAccount || !forcedCategoryId) return;
         setLoading(true);
         setErrorMsg(null);
         try {
@@ -467,7 +468,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     articulo_id,
-                    marketplace_id: selectedAccount,
+                    marketplace_id: primaryAccount,
                     pictures: images,
                     ...(ficha_id ? { ficha_id } : {}),
                     category_id: forcedCategoryId,
@@ -487,39 +488,49 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         }
     }
 
-    // -- Publicar real ------------------------------------------------------
+    // -- Publicar real (a todas las cuentas seleccionadas) ------------------
     async function handlePublish() {
+        if (selectedAccounts.length === 0) { setErrorMsg('Selecciona al menos una cuenta'); return; }
         setLoading(true);
         setErrorMsg(null);
         try {
             const attrOvList = Object.entries(attrOverrides).map(([id, v]) => ({ id, ...v }));
-            // Merge dimensiones: convierten a attribute_overrides con value_name
             const dimOvList = Object.entries(dimOverrides)
                 .filter(([, v]) => v.trim() !== '')
                 .map(([id, v]) => ({ id, value_name: v.trim() }));
             const allOverrides = [...attrOvList, ...dimOvList];
-            const res = await fetch('/api/publish', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    articulo_id,
-                    marketplace_id: selectedAccount,
-                    pictures: images,
-                    ...(ficha_id ? { ficha_id } : {}),
-                    category_id: categoryOverride || categoryId || undefined,
-                    listing_type_id: listingType,
-                    dry_run: false,
-                    ...(allOverrides.length > 0 ? { attribute_overrides: allOverrides } : {}),
-                    ...(familyNameOverride ? { family_name_override: familyNameOverride } : {}),
-                    ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),
-                    ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
-                    free_shipping: freeShipping,
-                    shipping_mode: shippingMode,
-                    ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
-                }),
-            });
-            const data = await res.json();
-            setPublishResult({ status: res.status, data });
+
+            const results: any[] = [];
+            for (const accountId of selectedAccounts) {
+                const nombreCuenta = accounts.find(a => a.id === accountId)?.account_name || accountId;
+                try {
+                    const res = await fetch('/api/publish', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            articulo_id,
+                            marketplace_id: accountId,
+                            pictures: images,
+                            ...(ficha_id ? { ficha_id } : {}),
+                            category_id: categoryOverride || categoryId || undefined,
+                            listing_type_id: listingType,
+                            dry_run: false,
+                            ...(allOverrides.length > 0 ? { attribute_overrides: allOverrides } : {}),
+                            ...(familyNameOverride ? { family_name_override: familyNameOverride } : {}),
+                            ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),
+                            ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
+                            free_shipping: freeShipping,
+                            shipping_mode: shippingMode,
+                            ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
+                        }),
+                    });
+                    const data = await res.json();
+                    results.push({ account_name: nombreCuenta, status: res.status, ok: !!data.ok, item_id: data.item_id, permalink: data.permalink, error: data.error, errores: data.errores });
+                } catch (e: any) {
+                    results.push({ account_name: nombreCuenta, status: 0, ok: false, error: e.message });
+                }
+            }
+            setPublishResult({ status: 'multi', data: { results } });
             setStage('result');
         } catch (e: any) {
             setErrorMsg(e.message);
@@ -549,7 +560,15 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setCatSelectedPath('');
     }
 
-    const accountName = accounts.find(a => a.id === selectedAccount)?.account_name || selectedAccount;
+    const accountName = selectedAccounts
+        .map(id => accounts.find(a => a.id === id)?.account_name || id)
+        .join(', ');
+
+    function toggleAccount(id: string) {
+        setSelectedAccounts(prev =>
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    }
 
     // -- Render -------------------------------------------------------
     // En modalMode (desde fichas), el panel arranca abierto directamente
@@ -596,22 +615,25 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     {/* -- ETAPA 1: CONFIGURACIÓN ------------------------ */}
                     {stage === 'config' && (
                         <>
-                            {/* Cuenta */}
+                            {/* Cuentas (multi-selección) */}
                             <div>
                                 <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">
-                                    <Store className="w-3 h-3 inline mr-1" />Cuenta de destino <span className="text-rose-400">*</span>
+                                    <Store className="w-3 h-3 inline mr-1" />Cuentas de destino <span className="text-rose-400">*</span>
+                                    <span className="ml-1 font-normal normal-case text-[var(--text-faint)]">puedes publicar en varias a la vez</span>
                                 </label>
-                                <select
-                                    id="publish-account-select"
-                                    value={selectedAccount}
-                                    onChange={e => setSelectedAccount(e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)]"
-                                >
-                                    <option value="">— Selecciona una cuenta —</option>
+                                <div className="space-y-1.5">
                                     {accounts.map(a => (
-                                        <option key={a.id} value={a.id}>{a.account_name}</option>
+                                        <label key={a.id} className="flex items-center gap-2 p-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] cursor-pointer hover:border-[var(--accent)]/50">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedAccounts.includes(a.id)}
+                                                onChange={() => toggleAccount(a.id)}
+                                                className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)]"
+                                            />
+                                            <span className="text-sm text-[var(--text)]">{a.account_name}</span>
+                                        </label>
                                     ))}
-                                </select>
+                                </div>
                             </div>
 
                             {/* Categoría + Tipo de listado */}
@@ -659,7 +681,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             <button
                                 id="publish-preview-btn"
                                 onClick={handlePreview}
-                                disabled={loading || !selectedAccount}
+                                disabled={loading || selectedAccounts.length === 0}
                                 className="w-full flex items-center justify-center gap-2 py-3 bg-[var(--accent)] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--accent-ink)] font-bold rounded-xl transition-all shadow-sm"
                             >
                                 {loading
@@ -885,7 +907,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                             catSearchTimer.current = setTimeout(async () => {
                                                                 setCatSearchLoading(true);
                                                                 try {
-                                                                    const r = await fetch(`/api/publish/category-search?q=${encodeURIComponent(val.trim())}&marketplace_id=${encodeURIComponent(selectedAccount || '')}`);
+                                                                    const r = await fetch(`/api/publish/category-search?q=${encodeURIComponent(val.trim())}&marketplace_id=${encodeURIComponent(primaryAccount || '')}`);
                                                                     const d = await r.json();
                                                                     setCatSearchResults(d.ok ? d.candidates : []);
                                                                 } catch { setCatSearchResults([]); }
@@ -1104,6 +1126,28 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     {/* -- ETAPA 3: RESULTADO FINAL --------------------------- */}
                     {stage === 'result' && publishResult && (
                         <div className="space-y-3">
+                            {/* Resultado multi-cuenta */}
+                            {publishResult.status === 'multi' && (
+                                <div className="space-y-2">
+                                    <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)]">
+                                        <p className="text-sm font-bold text-[var(--text)]">Publicación en {publishResult.data.results.length} cuenta(s)</p>
+                                    </div>
+                                    {publishResult.data.results.map((r: any, i: number) => (
+                                        <div key={i} className={cn("p-3 rounded-lg border", r.ok ? "bg-[var(--ok)]/10 border-[var(--ok)]/30" : "bg-[var(--err)]/10 border-[var(--err)]/30")}>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="text-sm font-semibold text-[var(--text)]">{r.account_name}</p>
+                                                {r.ok ? <CheckCircle2 className="w-4 h-4 text-[var(--ok)]" /> : <XCircle className="w-4 h-4 text-[var(--err)]" />}
+                                            </div>
+                                            {r.ok ? (
+                                                <p className="text-xs font-mono text-[var(--ok)] mt-1">{r.item_id}</p>
+                                            ) : (
+                                                <p className="text-xs text-[var(--err)] mt-1">{r.error}{r.errores ? ` — ${r.errores.join('; ')}` : ''}</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Éxito */}
                             {publishResult.status === 200 && publishResult.data.ok && (
                                 <div className="p-5 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-xl text-center">
