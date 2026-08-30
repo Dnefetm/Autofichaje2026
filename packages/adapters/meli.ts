@@ -1257,6 +1257,51 @@ export class MeliAdapter implements MarketplaceAdapter {
         return resp.data;
     }
 
+    /**
+     * getItemPrices — Obtiene los precios del item, incluyendo precios por cantidad (PxQ/mayorista).
+     * Usa el header show-all-prices: true para ver también los nodos B2B.
+     */
+    async getItemPrices(accountId: string, itemId: string): Promise<any> {
+        const accessToken = await this.getAccessToken(accountId);
+        const resp = await axios.get(`https://api.mercadolibre.com/items/${itemId}/prices`, {
+            headers: { Authorization: `Bearer ${accessToken}`, 'show-all-prices': 'true' },
+        });
+        return resp.data;
+    }
+
+    /**
+     * addPriceByQuantity — Agrega "Precios mayoristas" (precio por cantidad B2B) a una publicación.
+     * POST /items/{id}/prices con nodos "standard" y conditions.context_restrictions =
+     * ["channel_marketplace", "user_type_business"] + min_purchase_unit.
+     * Requiere vendedor con tag "business".
+     */
+    async addPriceByQuantity(
+        accountId: string,
+        itemId: string,
+        tiers: Array<{ id: string; amount: number; min_purchase_unit: number; currency_id?: string }>,
+    ): Promise<any> {
+        const accessToken = await this.getAccessToken(accountId);
+        const body = {
+            prices: tiers.map(t => ({
+                id: t.id,
+                type: 'standard',
+                amount: t.amount,
+                currency_id: t.currency_id || 'MXN',
+                conditions: {
+                    context_restrictions: ['channel_marketplace', 'user_type_business'],
+                    min_purchase_unit: t.min_purchase_unit,
+                },
+            })),
+        };
+        const resp = await axios.post(
+            `https://api.mercadolibre.com/items/${itemId}/prices`,
+            body,
+            { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+        );
+        logger.info({ accountId, itemId, tiers: tiers.length }, 'addPriceByQuantity completado');
+        return resp.data;
+    }
+
     async refreshToken(accountId: string): Promise<void> {
         // 1. Extraer refresh_token actual
         const { data, error } = await supabase
