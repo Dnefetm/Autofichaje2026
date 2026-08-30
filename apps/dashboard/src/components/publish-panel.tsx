@@ -951,11 +951,28 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         >
                                             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />} Completar título y descripción con IA
                                         </button>
-                                        {/* Family name */}
-                                        <div>
-                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Family Name (título base)</label>
-                                            <input type="text" value={familyNameOverride !== '' ? familyNameOverride : (t?.paso_8_ai?.family_name || '')} onChange={e => setFamilyNameOverride(e.target.value)} maxLength={60} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono" />
-                                        </div>
+                                        {/* Título (legacy: title completo; UP: family_name) */}
+                                        {(() => {
+                                            const titleVal = familyNameOverride !== '' ? familyNameOverride : (t?.paso_8_ai?.family_name || t?.paso_9_titulo?.title_legacy || '');
+                                            const over = titleVal.length > 60;
+                                            return (
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider">Título (máx 60)</label>
+                                                        <span className={cn("text-[10px] font-bold tabular-nums", over ? "text-[var(--err)]" : "text-[var(--text-faint)]")}>{titleVal.length}/60</span>
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        value={titleVal}
+                                                        onChange={e => setFamilyNameOverride(e.target.value)}
+                                                        maxLength={80}
+                                                        className={cn("w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 font-mono",
+                                                            over ? "border-[var(--err)] focus:ring-[var(--err)] text-[var(--err)]" : "border-[var(--border)] focus:ring-yellow-400")}
+                                                    />
+                                                    {over && <p className="text-[10px] text-[var(--err)] mt-1">El título supera 60 caracteres. Recórtalo.</p>}
+                                                </div>
+                                            );
+                                        })()}
                                         {/* Precio */}
                                         <div>
                                             <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Precio de venta (MXN)</label>

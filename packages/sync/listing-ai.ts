@@ -49,7 +49,10 @@ export async function generateListingContent(input: ListingContentInput): Promis
 
     const system = `Eres un redactor experto de publicaciones para MercadoLibre México (ferretería industrial).
 A partir de los datos técnicos del producto, genera:
-1. "title": título completo y comercial (máx 60 chars) que EMPIECE con marca y modelo, seguido del tipo/medida/material clave.
+1. "title": título completo (MÁXIMO 60 caracteres incluyendo espacios) con esta fórmula EXACTA:
+   nombre del producto + características principales en orden descendente de prioridad (tipo, medida, material, acabado) + marca.
+   NO uses el modelo. Usa el máximo de caracteres sin pasarte de 60.
+   Ejemplo: "Juego de puntas y dados de impacto 33 piezas 1/2 pulgada Cr-V Urrea".
 2. "family_name": nombre descriptivo SIN marca ni modelo (máx 50 chars), para modelo User Products.
 3. "description": descripción de venta en texto plano, con 4-8 bullets "•" de beneficios/características, y al final una línea de ficha técnica (medidas, peso, material, país de origen si existen). Máx 2000 chars. NO inventes datos que no estén en la entrada.
 
