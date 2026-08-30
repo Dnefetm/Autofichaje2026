@@ -601,7 +601,7 @@ export async function POST(req: NextRequest) {
 
         // -- 10. Validaciones DURAS — errores 422 bloqueantes -----------------
         const erroresDuros: string[] = [];
-        if (pictures.length === 0 && !catalog_listing) erroresDuros.push('Sin imágenes: MeLi rechaza publicaciones sin pictures[]');
+        if (pictures.length === 0 && !catalog_listing && !dry_run) erroresDuros.push('Sin imágenes: MeLi rechaza publicaciones sin pictures[]');
         // Precio: en dry_run se permite 0 (el operador lo fijará manual); en publish real bloquea.
         if (price === 0 && !dry_run) erroresDuros.push('Precio = 0: fija un precio manual antes de publicar (el artículo no tiene costo ni regla de precio)');
         if (stillMissing.length > 0 && !catalog_listing) {
