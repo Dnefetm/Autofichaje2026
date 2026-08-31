@@ -205,6 +205,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     // Panel abierto/cerrado
     const [panelOpen, setPanelOpen] = useState(false);
 
+    // Datos propios del artículo (para la comparativa catálogo vs propio)
+    const [articleData, setArticleData] = useState<any>(null);
+
     // -- Cargar cuentas ------------------------------------------------------
     useEffect(() => {
         supabase
@@ -245,6 +248,20 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             })
             .catch(() => { /* silencioso */ });
     }, [ficha_id]);
+
+    // Datos propios del artículo: para la comparativa catálogo vs propio
+    useEffect(() => {
+        if (!articulo_id) return;
+        let cancelled = false;
+        supabase
+            .from('articulos')
+            .select('nombre, marca, modelo, variante, categoria, codigo_universal, peso_kg, largo_cm, ancho_cm, alto_cm, descripcion')
+            .eq('articulo_id', articulo_id)
+            .single()
+            .then(({ data }) => { if (!cancelled && data) setArticleData(data); })
+            .catch(() => { /* silencioso */ });
+        return () => { cancelled = true; };
+    }, [articulo_id]);
 
     // Re-fetch atributos requeridos cuando el usuario cambia la categoría en el preview
     useEffect(() => {
@@ -834,7 +851,25 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                             <div className="border-r border-[var(--border)] pr-2">
                                                                 <p className="text-[9px] uppercase font-bold text-[var(--text-faint)] mb-1">Tu producto</p>
                                                                 {(images[0] || preloadedSuggestions[0]) && <img src={images[0] || preloadedSuggestions[0]} alt="" className="w-full h-16 object-contain mb-1 rounded border border-[var(--border)]" />}
-                                                                <p className="text-[11px] font-semibold text-[var(--text)] line-clamp-2">{nombreArticulo}</p>
+                                                                <p className="text-[11px] font-semibold text-[var(--text)] line-clamp-2">{articleData?.nombre || nombreArticulo}</p>
+                                                                <div className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
+                                                                    {[
+                                                                        { name: 'Marca', value: articleData?.marca },
+                                                                        { name: 'Modelo', value: articleData?.modelo },
+                                                                        { name: 'GTIN/EAN', value: articleData?.codigo_universal || codigoUniversal },
+                                                                        { name: 'Categoría', value: articleData?.categoria },
+                                                                        { name: 'Variante', value: articleData?.variante },
+                                                                        { name: 'Peso', value: articleData?.peso_kg != null ? `${articleData.peso_kg} kg` : null },
+                                                                        { name: 'Largo', value: articleData?.largo_cm != null ? `${articleData.largo_cm} cm` : null },
+                                                                        { name: 'Ancho', value: articleData?.ancho_cm != null ? `${articleData.ancho_cm} cm` : null },
+                                                                        { name: 'Alto', value: articleData?.alto_cm != null ? `${articleData.alto_cm} cm` : null },
+                                                                    ].filter(r => r.value != null && r.value !== '').map(r => (
+                                                                        <div key={r.name} className="flex justify-between gap-1 text-[9px]">
+                                                                            <span className="text-[var(--text-faint)] shrink-0">{r.name}</span>
+                                                                            <span className="text-[var(--text-muted)] text-right">{r.value}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
                                                             </div>
                                                             <div className="pl-1">
                                                                 <p className="text-[9px] uppercase font-bold text-[var(--text-faint)] mb-1">Catálogo MeLi</p>
