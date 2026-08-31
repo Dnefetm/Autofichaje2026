@@ -119,6 +119,7 @@ export async function POST(req: NextRequest) {
             description_override = null as string | null,
             free_shipping = false as boolean,
             shipping_mode = 'me2' as string,
+            manufacturing_time_days = null as number | null,
             catalog_product_id = null as string | null,
             catalog_listing = false as boolean,
             stock_override = null as number | null,
@@ -482,12 +483,25 @@ export async function POST(req: NextRequest) {
 
         // -- 6. Obtener atributos requeridos de la categoría -------------------
         const attrInfo = await (meli as any).getCategoryAttributes(marketplace_id, category_id);
+        // Atributos secundarios/opcionales rellenables (excluye ocultos y de sistema)
+        const FILLABLE_TYPES = new Set(['list', 'string', 'boolean', 'number', 'number_unit']);
+        const SKIP_OPT_IDS = new Set(['SIZE_GRID_ID', 'EXCLUSIVE_CHANNEL', 'ITEM_CONDITION', 'SELLER_SKU', 'GTIN', 'EAN', 'BRAND', 'MODEL']);
+        const optionalAttrs = (attrInfo.optional || [])
+            .filter((a: any) => FILLABLE_TYPES.has(a.value_type) && !SKIP_OPT_IDS.has(a.id) && !(a.tags || {}).hidden)
+            .slice(0, 40);
         trace.paso_6_atributos = {
             total: attrInfo.raw.length,
             required_ids: attrInfo.required.map((a: any) => a.id),
             parent_pk_ids: attrInfo.parent_pk.map((a: any) => a.id),
             child_pk_ids: attrInfo.child_pk.map((a: any) => a.id),
+            optional_ids: optionalAttrs.map((a: any) => a.id),
             required_detail: attrInfo.required.map((a: any) => ({
+                id: a.id,
+                name: a.name,
+                type: a.value_type,
+                values: a.values?.slice(0, 50).map((v: any) => ({ id: v.id, name: v.name })) || [],
+            })),
+            optional_detail: optionalAttrs.map((a: any) => ({
                 id: a.id,
                 name: a.name,
                 type: a.value_type,
@@ -686,20 +700,23 @@ export async function POST(req: NextRequest) {
                 shipping: {
                     mode: shipping_mode || 'me2',
                     free_shipping: !!free_shipping,
-                    // dimensiones de empaque en orden correcto: largo, ancho, alto (cm) y peso (g)
-                    dimensions: {
-                        length: Math.round(resolved.largo_cm ?? 0),
-                        width:  Math.round(resolved.ancho_cm ?? 0),
-                        height: Math.round(resolved.alto_cm  ?? 0),
-                        weight: Math.round((resolved.peso_kg ?? 0) * 1000),
-                    },
+                    // MeLi espera un STRING "LxWxH,Weight": largo x ancho x alto (cm) y peso (g).
+                    // Solo si hay dimensiones completas; si no, se omite el campo.
+                    ...(resolved.largo_cm != null && resolved.ancho_cm != null && resolved.alto_cm != null && resolved.peso_kg != null
+                        ? { dimensions: `${Math.round(resolved.largo_cm)}x${Math.round(resolved.ancho_cm)}x${Math.round(resolved.alto_cm)},${Math.round(resolved.peso_kg * 1000)}` }
+                        : {}),
                 },
                 // legacy exige condition; UP lo deriva del catálogo
                 ...(isLegacy ? { condition: 'new' } : {}),
                 sale_terms: [
                     { id: 'WARRANTY_TYPE', value_name: 'Garantía del vendedor' },
                     { id: 'WARRANTY_TIME', value_name: '1 mes' },
-                    { id: 'MANUFACTURING_TIME', value_name: '0 días' },
+                    // MANUFACTURING_TIME solo si hay días de elaboración (1-60). 0 = omitir.
+                    ...(manufacturing_time_days != null
+                        && Number(manufacturing_time_days) >= 1
+                        && Number(manufacturing_time_days) <= 60
+                        ? [{ id: 'MANUFACTURING_TIME', value_name: `${Number(manufacturing_time_days)} días` }]
+                        : []),
                 ],
                 pictures: pictures.map((url: string) => ({ source: url })),
                 attributes: allAttributes,

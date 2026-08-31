@@ -141,13 +141,21 @@ export async function POST(req: NextRequest) {
             .map((url: string) => ({ source: url }));
 
         const saleTerms = (existing.sale_terms || [])
-            .filter((s: any) => COPY_SALE_TERMS.has(s.id))
+            .filter((s: any) => {
+                if (!COPY_SALE_TERMS.has(s.id)) return false;
+                // MANUFACTURING_TIME solo si 1-60 días; 0 = omitir el término.
+                if (s.id === 'MANUFACTURING_TIME') {
+                    const m = String(s.value_name || '').match(/(-?\d+)/);
+                    const days = m ? parseInt(m[1], 10) : 0;
+                    return days >= 1 && days <= 60;
+                }
+                return true;
+            })
             .map((s: any) => {
                 let value_name = s.value_name;
-                // MANUFACTURING_TIME es number_unit con unidad "días": normalizar "0" -> "0 días".
                 if (s.id === 'MANUFACTURING_TIME') {
                     const m = String(value_name || '').match(/(-?\d+)/);
-                    value_name = `${m ? m[1] : '0'} días`;
+                    value_name = `${m ? m[1] : '1'} días`;
                 }
                 return { id: s.id, value_name };
             });
@@ -182,7 +190,6 @@ export async function POST(req: NextRequest) {
                     : [
                         { id: 'WARRANTY_TYPE', value_name: 'Garantía del vendedor' },
                         { id: 'WARRANTY_TIME', value_name: '1 mes' },
-                        { id: 'MANUFACTURING_TIME', value_name: '0 días' },
                     ],
                 pictures,
                 attributes,

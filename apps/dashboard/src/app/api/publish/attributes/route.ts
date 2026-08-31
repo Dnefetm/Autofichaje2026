@@ -46,11 +46,25 @@ export async function GET(req: NextRequest) {
             values: (a.values || []).slice(0, 50).map((v: any) => ({ id: String(v.id), name: v.name })),
         }));
 
+        // Atributos secundarios/opcionales rellenables (excluye ocultos y de sistema)
+        const FILLABLE_TYPES = new Set(['list', 'string', 'boolean', 'number', 'number_unit']);
+        const SKIP_OPT_IDS = new Set(['SIZE_GRID_ID', 'EXCLUSIVE_CHANNEL', 'ITEM_CONDITION', 'SELLER_SKU', 'GTIN', 'EAN', 'BRAND', 'MODEL']);
+        const optional = (attrInfo.optional || [])
+            .filter((a: any) => FILLABLE_TYPES.has(a.value_type) && !SKIP_OPT_IDS.has(a.id) && !(a.tags || {}).hidden)
+            .slice(0, 40)
+            .map((a: any) => ({
+                id:     a.id,
+                name:   a.name,
+                type:   a.value_type,
+                values: (a.values || []).slice(0, 50).map((v: any) => ({ id: String(v.id), name: v.name })),
+            }));
+
         return NextResponse.json({
             ok:            true,
             category_id:   categoryId,
             category_name,
             required,
+            optional,
             total:         attrInfo.raw?.length ?? 0,
         });
     } catch (err: any) {

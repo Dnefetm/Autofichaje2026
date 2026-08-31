@@ -182,6 +182,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const [descriptionOverride, setDescriptionOverride] = useState<string>('');
     const [freeShipping, setFreeShipping] = useState(false);
     const [shippingMode, setShippingMode] = useState('me2');
+    const [manufacturingDays, setManufacturingDays] = useState<string>('');
     const [catalogResults, setCatalogResults] = useState<any[]>([]);
     const [catalogProductId, setCatalogProductId] = useState<string | null>(null);
     const [catalogListing, setCatalogListing] = useState(false);
@@ -189,6 +190,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const [forceDuplicate, setForceDuplicate] = useState(false);
     // Atributos dinámicos al cambiar de categoría
     const [dynamicReqAttrs, setDynamicReqAttrs] = useState<any[] | null>(null);
+    const [dynamicOptAttrs, setDynamicOptAttrs] = useState<any[] | null>(null);
     const [loadingAttrs, setLoadingAttrs] = useState(false);
     const [currentAttrValues, setCurrentAttrValues] = useState<Map<string, { value_id?: string; value_name?: string }>>(new Map());
 
@@ -267,17 +269,20 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     useEffect(() => {
         if (!categoryOverride || !primaryAccount || stage !== 'preview') {
             setDynamicReqAttrs(null);
+            setDynamicOptAttrs(null);
             setCurrentAttrValues(new Map());
             return;
         }
         const originalCat = previewResult?.data?.trace?.paso_5_categoria?.category_id;
         if (categoryOverride === originalCat) {
             setDynamicReqAttrs(null);
+            setDynamicOptAttrs(null);
             setCurrentAttrValues(new Map());
             return;
         }
         // Categoría diferente: limpiar estado anterior y recargar
         setDynamicReqAttrs(null);
+        setDynamicOptAttrs(null);
         setAttrOverrides({});
         setCurrentAttrValues(new Map());
         setLoadingAttrs(true);
@@ -287,6 +292,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             .then(data => {
                 if (data.ok) {
                     setDynamicReqAttrs(data.required);
+                    setDynamicOptAttrs(data.optional || []);
                     // Reconciliar valores: portar solo los compatibles con la nueva categoría
                     const reconciled = new Map<string, { value_id?: string; value_name?: string }>();
                     for (const attr of data.required) {
@@ -538,6 +544,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
                             free_shipping: freeShipping,
                             shipping_mode: shippingMode,
+                            manufacturing_time_days: manufacturingDays !== '' ? Number(manufacturingDays) : null,
                             ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
                             ...(forceDuplicate ? { force_duplicate: true } : {}),
                         }),
@@ -1116,6 +1123,20 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 })()}
                                             </div>
                                         </div>
+                                        {/* Tiempo de elaboración */}
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Días de elaboración</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="60"
+                                                value={manufacturingDays}
+                                                onChange={e => setManufacturingDays(e.target.value)}
+                                                placeholder="0 = inmediato (no se envía el dato)"
+                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono"
+                                            />
+                                            <p className="text-[10px] text-[var(--text-faint)] mt-1">0 o vacío = envío inmediato (MeLi omite el tiempo). 1–60 = días de preparación.</p>
+                                        </div>
                                         {/* Dimensiones del paquete */}
                                         <div>
                                             <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5"><Package className="w-3 h-3 inline mr-1" />Dimensiones del paquete</label>
@@ -1188,6 +1209,41 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 </div>
                                             </div>
                                         )}
+                                        {/* Características secundarias (opcionales) */}
+                                        {(() => {
+                                            const optAttrs: any[] = dynamicOptAttrs ?? (t?.paso_6_atributos?.optional_detail || []);
+                                            if (optAttrs.length === 0) return null;
+                                            return (
+                                                <details className="mt-2">
+                                                    <summary className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider cursor-pointer select-none">Características secundarias (opcionales) — {optAttrs.length}</summary>
+                                                    <div className="mt-2 space-y-2 max-h-80 overflow-y-auto pr-1">
+                                                        {optAttrs.map((attr: any) => {
+                                                            const ov = attrOverrides[attr.id];
+                                                            const curVal = originalAttrs.find((a: any) => a.id === attr.id) ?? null;
+                                                            const valId = ov?.value_id ?? curVal?.value_id ?? '';
+                                                            const valName = ov?.value_name ?? curVal?.value_name ?? '';
+                                                            return (
+                                                                <div key={attr.id} className="p-2 rounded-lg border border-[var(--border)] bg-[var(--bg)]">
+                                                                    <div className="flex items-center justify-between mb-1">
+                                                                        <span className="text-xs font-semibold text-[var(--text-muted)]">{attr.name}</span>
+                                                                        <span className="text-[9px] font-mono text-[var(--text-faint)]">{attr.id}</span>
+                                                                    </div>
+                                                                    {attr.values?.length > 0 ? (
+                                                                        <select value={valId} onChange={e => { const opt = attr.values.find((v: any) => v.id === e.target.value); setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_id: e.target.value, value_name: opt?.name } })); }} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-yellow-400">
+                                                                            <option value="">— (sin especificar) —</option>
+                                                                            {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                                                        </select>
+                                                                    ) : (
+                                                                        <input type="text" value={valName} onChange={e => setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_name: e.target.value } }))} placeholder={`Ingresa ${attr.name}`} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-yellow-400 font-mono" />
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </details>
+                                            );
+                                        })()}
+
                                         {/* Stepper transparente + trace técnico colapsado */}
                                         <PublishStepper trace={t || {}} />
                                         <TraceBlock trace={t || {}} />
