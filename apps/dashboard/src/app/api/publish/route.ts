@@ -676,9 +676,42 @@ export async function POST(req: NextRequest) {
             [resolved.marca, resolved.modelo, resolved.nombre].filter(Boolean).join(' ')
         ), 60);
 
-        // Catálogo: body mínimo — MeLi aporta título, fotos, descripción y atributos desde el catalog_product_id.
-        // Tradicional/UP: body completo construido por el publicador.
-        const itemBody: any = (catalog_listing && catalog_product_id)
+        // -- 9. Construir los bodies -------------------------------------------
+        // La publicación TRADICIONAL (base) se crea SIEMPRE: título, fotos, atributos, envío, garantía.
+        // Si se eligió "usar catálogo", se añade la referencia catalog_product_id (enlace) SIN catalog_listing.
+        const tradicionalBody: any = {
+            category_id,
+            price,
+            currency_id: precio_data?.currency || 'MXN',
+            available_quantity: Math.max(stock, 1),
+            buying_mode: 'buy_it_now',
+            listing_type_id,
+            shipping: {
+                mode: shipping_mode || 'me2',
+                free_shipping: !!free_shipping,
+            },
+            // legacy exige condition; UP lo deriva del catálogo
+            ...(isLegacy ? { condition: 'new' } : {}),
+            sale_terms: [
+                { id: 'WARRANTY_TYPE', value_name: 'Garantía del vendedor' },
+                { id: 'WARRANTY_TIME', value_name: '1 mes' },
+                // MANUFACTURING_TIME solo si hay días de elaboración (1-60). 0 = omitir.
+                ...(manufacturing_time_days != null
+                    && Number(manufacturing_time_days) >= 1
+                    && Number(manufacturing_time_days) <= 60
+                    ? [{ id: 'MANUFACTURING_TIME', value_name: `${Number(manufacturing_time_days)} días` }]
+                    : []),
+            ],
+            pictures: pictures.map((url: string) => ({ source: url })),
+            attributes: allAttributes,
+            // legacy: MeLi exige title; UP: family_name.
+            ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
+            // Enlace al producto de catálogo (referencia) si se eligió catálogo
+            ...(catalog_listing && catalog_product_id ? { catalog_product_id } : {}),
+        };
+
+        // Publicación de CATÁLOGO (enlazada, solo si se eligió): body mínimo — MeLi aporta la ficha.
+        const catalogBody: any = (catalog_listing && catalog_product_id)
             ? {
                 category_id,
                 price,
@@ -690,37 +723,8 @@ export async function POST(req: NextRequest) {
                 catalog_product_id,
                 catalog_listing: true,
               }
-            : {
-                category_id,
-                price,
-                currency_id: precio_data?.currency || 'MXN',
-                available_quantity: Math.max(stock, 1),
-                buying_mode: 'buy_it_now',
-                listing_type_id,
-                shipping: {
-                    mode: shipping_mode || 'me2',
-                    free_shipping: !!free_shipping,
-                    // NO enviar shipping.dimensions: MeLi la deriva de SELLER_PACKAGE_* (attributes[]).
-                    // Los ítems exitosos tienen shipping.dimensions = null.
-                },
-                // legacy exige condition; UP lo deriva del catálogo
-                ...(isLegacy ? { condition: 'new' } : {}),
-                sale_terms: [
-                    { id: 'WARRANTY_TYPE', value_name: 'Garantía del vendedor' },
-                    { id: 'WARRANTY_TIME', value_name: '1 mes' },
-                    // MANUFACTURING_TIME solo si hay días de elaboración (1-60). 0 = omitir.
-                    ...(manufacturing_time_days != null
-                        && Number(manufacturing_time_days) >= 1
-                        && Number(manufacturing_time_days) <= 60
-                        ? [{ id: 'MANUFACTURING_TIME', value_name: `${Number(manufacturing_time_days)} días` }]
-                        : []),
-                ],
-                pictures: pictures.map((url: string) => ({ source: url })),
-                attributes: allAttributes,
-                // legacy: MeLi exige title (marca + modelo incluidos).
-                // UP: MeLi genera el título desde family_name — no enviar title ni variations.
-                ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
-              };
+            : null;
+
         trace.paso_9_titulo = {
             modelo_seller: isLegacy ? 'legacy' : 'up',
             title_legacy: isLegacy ? titleLegacy : null,
@@ -731,14 +735,15 @@ export async function POST(req: NextRequest) {
         };
         trace.paso_9_descripcion = { chars: descripcionCompleta.length, bullets: resolved.bullet_points.length };
 
-        trace.paso_9_body = itemBody;
+        trace.paso_9_body = tradicionalBody;
+        trace.paso_9_catalog_body = catalogBody;
 
         // -- 10. Validaciones DURAS — errores 422 bloqueantes -----------------
         const erroresDuros: string[] = [];
-        if (pictures.length === 0 && !catalog_listing && !dry_run) erroresDuros.push('Sin imágenes: MeLi rechaza publicaciones sin pictures[]');
+        if (pictures.length === 0 && !dry_run) erroresDuros.push('Sin imágenes: MeLi rechaza publicaciones sin pictures[]');
         // Precio: en dry_run se permite 0 (el operador lo fijará manual); en publish real bloquea.
         if (price === 0 && !dry_run) erroresDuros.push('Precio = 0: fija un precio manual antes de publicar (el artículo no tiene costo ni regla de precio)');
-        if (stillMissing.length > 0 && !catalog_listing) {
+        if (stillMissing.length > 0) {
             erroresDuros.push(
                 `Atributos requeridos sin resolver después del AI: ${stillMissing.map((a: any) => a.id).join(', ')}`
             );
@@ -784,8 +789,8 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // -- 12. Publicar en MeLi ----------------------------------------------
-        const created = await (meli as any).createItem(marketplace_id, itemBody);
+        // -- 12. Publicar en MeLi: primero la TRADICIONAL (base) ----------------
+        const created = await (meli as any).createItem(marketplace_id, tradicionalBody);
         trace.paso_12_meli_create = {
             item_id:         created.item_id,
             user_product_id: created.user_product_id,
@@ -796,92 +801,138 @@ export async function POST(req: NextRequest) {
         };
         trace.paso_12_meli_raw = created.raw; // respuesta completa de MeLi para inspección
 
-        // -- 13. Agregar descripción (enriquecida con bullets, máx 2000 chars) --
+        // -- 12b. Crear la publicación de CATÁLOGO enlazada (si aplica) ---------
+        let createdCatalog: any = null;
+        if (catalogBody) {
+            createdCatalog = await (meli as any).createItem(marketplace_id, catalogBody);
+            trace.paso_12b_catalogo = {
+                item_id:   createdCatalog.item_id,
+                permalink: createdCatalog.permalink,
+                title:     createdCatalog.title,
+                status:    createdCatalog.status,
+            };
+        } else {
+            trace.paso_12b_catalogo = { omitido: 'Sin catálogo' };
+        }
+
+        // -- 13. Descripción: va a la TRADICIONAL (la de catálogo la aporta MeLi) --
         let descResult: any = null;
-        if (catalog_listing && catalog_product_id) {
-            // Catálogo: MeLi aporta la descripción desde la ficha del catálogo y NO es modificable.
-            trace.paso_13_descripcion = { omitido: 'Catálogo: la descripción la aporta MeLi (no es modificable)' };
-        } else if (descripcionCompleta) {
+        if (descripcionCompleta) {
             descResult = await (meli as any).addDescription(marketplace_id, created.item_id, descripcionCompleta);
             trace.paso_13_descripcion = { ok: descResult.ok, chars: descripcionCompleta.length };
         } else {
             trace.paso_13_descripcion = { omitido: 'Sin descripción disponible (ni en ficha ni en artículo)' };
         }
 
-        // -- 14. Guardar en BD: publicaciones_externas -------------------------
-        const { data: pubInserted, error: pubErr } = await supabaseAdmin
-            .from('publicaciones_externas')
-            .upsert({
-                marketplace_id,
-                external_item_id:     created.item_id,
-                external_variation_id: '0',
-                titulo:               created.title,
-                precio_venta:         price,
-                stock_publicado:      Math.max(stock, 1),
-                status_externo:       created.status,
-                permalink:            created.permalink,
-                listing_type_id,
-                category_id,
-                // tipo_publicacion derivado de la respuesta real de MeLi:
-                // Si MeLi devuelve user_product_id, es un item del modelo User Products
-                tipo_publicacion:     created.user_product_id ? 'up' : 'tradicional',
-                es_fuente_stock:      true,
-                actualizado_el:       new Date().toISOString(),
-                // Campos del nuevo modelo UP
-                ...(created.user_product_id ? { seller_sku: sku_efectivo || null } : {}),
-            }, { onConflict: 'marketplace_id,external_item_id,external_variation_id' })
-            .select('id')
-            .single();
+        // -- 14-15. Persistir AMBAS publicaciones (tradicional + catálogo) ------
+        const pubsToPersist: Array<{
+            item: any;
+            tipo: string;
+            es_fuente_stock: boolean;
+            id_padre: string | null;
+            id_catalogo: string | null;
+        }> = [
+            {
+                item: created,
+                tipo: created.user_product_id ? 'up' : 'tradicional',
+                es_fuente_stock: true,
+                id_padre: null,
+                id_catalogo: (catalog_listing && catalog_product_id) ? catalog_product_id : null,
+            },
+        ];
+        if (createdCatalog) {
+            pubsToPersist.push({
+                item: createdCatalog,
+                tipo: 'catalogo',
+                es_fuente_stock: false,
+                id_padre: created.item_id,
+                id_catalogo: catalog_product_id,
+            });
+        }
 
-        trace.paso_14_publicaciones_externas = pubErr
-            ? { error: pubErr.message }
-            : { publicacion_id: pubInserted?.id };
-
-        // -- 15. Guardar en BD: mapeo_publicacion_articulo ---------------------
-        if (pubInserted?.id) {
-            const { error: mapErr } = await supabaseAdmin
-                .from('mapeo_publicacion_articulo')
+        const persistedIds: string[] = [];
+        const persistErrors: string[] = [];
+        for (const p of pubsToPersist) {
+            const { data: pubInserted, error: pubErr } = await supabaseAdmin
+                .from('publicaciones_externas')
                 .upsert({
-                    publicacion_id:    pubInserted.id,
-                    articulo_id:       articulo_id,
-                    cantidad_requerida: 1,
-                }, { onConflict: 'publicacion_id,articulo_id' });
+                    marketplace_id,
+                    external_item_id:      p.item.item_id,
+                    external_variation_id: '0',
+                    titulo:                p.item.title,
+                    precio_venta:          price,
+                    stock_publicado:       Math.max(stock, 1),
+                    status_externo:        p.item.status,
+                    permalink:             p.item.permalink,
+                    listing_type_id,
+                    category_id,
+                    tipo_publicacion:      p.tipo,
+                    id_publicacion_padre:  p.id_padre,
+                    id_producto_catalogo:  p.id_catalogo,
+                    es_fuente_stock:       p.es_fuente_stock,
+                    free_shipping:         !!free_shipping,
+                    shipping_mode:         shipping_mode,
+                    seller_sku:            sku_efectivo || null,
+                    condition:             'new',
+                    actualizado_el:        new Date().toISOString(),
+                }, { onConflict: 'marketplace_id,external_item_id,external_variation_id' })
+                .select('id')
+                .single();
 
-            trace.paso_15_mapeo = mapErr ? { error: mapErr.message } : { ok: true };
-
-
-            // -- 16. Actualizar articulos.publicacion_ml -----------------------
-            const { error: artUpdateErr } = await supabaseAdmin
-                .from('articulos')
-                .update({ publicacion_ml: created.item_id })
-                .eq('articulo_id', articulo_id);
-
-            trace.paso_16_articulo_update = artUpdateErr
-                ? { error: artUpdateErr.message }
-                : { publicacion_ml: created.item_id };
-
-            // -- 17. Vincular fichas_tecnicas ← publicación (solo si vino ficha_id) --
-            if (ficha_id) {
-                const { error: fichaLinkErr } = await supabaseAdmin
-                    .from('fichas_tecnicas')
-                    .update({
-                        publicacion_externa_id: pubInserted.id,
-                        ml_item_id:             created.item_id,
-                    })
-                    .eq('id', ficha_id);
-
-                trace.paso_17_ficha_vinculacion = fichaLinkErr
-                    ? { error: fichaLinkErr.message }
-                    : { ok: true, publicacion_externa_id: pubInserted.id, ml_item_id: created.item_id };
-            } else {
-                trace.paso_17_ficha_vinculacion = { omitido: 'No se proveyó ficha_id' };
+            if (pubInserted?.id) {
+                persistedIds.push(pubInserted.id);
+                const { error: mapErr } = await supabaseAdmin
+                    .from('mapeo_publicacion_articulo')
+                    .upsert({
+                        publicacion_id:     pubInserted.id,
+                        articulo_id:        articulo_id,
+                        cantidad_requerida: 1,
+                    }, { onConflict: 'publicacion_id,articulo_id' });
+                if (mapErr) persistErrors.push(`mapeo ${p.item.item_id}: ${mapErr.message}`);
+            } else if (pubErr) {
+                persistErrors.push(`upsert ${p.item.item_id}: ${pubErr.message}`);
             }
+        }
+
+        trace.paso_14_publicaciones = {
+            tradicional: created.item_id,
+            catalogo:    createdCatalog?.item_id ?? null,
+            persistidas: persistedIds.length,
+            errores:     persistErrors,
+        };
+
+        // -- 16. Actualizar articulos.publicacion_ml con la TRADICIONAL ---------
+        const { error: artUpdateErr } = await supabaseAdmin
+            .from('articulos')
+            .update({ publicacion_ml: created.item_id })
+            .eq('articulo_id', articulo_id);
+        trace.paso_16_articulo_update = artUpdateErr
+            ? { error: artUpdateErr.message }
+            : { publicacion_ml: created.item_id };
+
+        // -- 17. Vincular ficha técnica a la publicación tradicional ------------
+        if (ficha_id && persistedIds.length > 0) {
+            const { error: fichaLinkErr } = await supabaseAdmin
+                .from('fichas_tecnicas')
+                .update({
+                    publicacion_externa_id: persistedIds[0],
+                    ml_item_id:             created.item_id,
+                })
+                .eq('id', ficha_id);
+            trace.paso_17_ficha_vinculacion = fichaLinkErr
+                ? { error: fichaLinkErr.message }
+                : { ok: true, publicacion_externa_id: persistedIds[0], ml_item_id: created.item_id };
+        } else {
+            trace.paso_17_ficha_vinculacion = ficha_id
+                ? { omitido: 'Sin publicacion_id persistido' }
+                : { omitido: 'No se proveyó ficha_id' };
         }
 
         // -- Respuesta final ---------------------------------------------------
         return NextResponse.json({
             ok: true,
             item_id:         created.item_id,
+            item_id_catalogo: createdCatalog?.item_id ?? null,
             user_product_id: created.user_product_id,
             permalink:       created.permalink,
             title:           created.title,
