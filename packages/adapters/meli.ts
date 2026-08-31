@@ -1188,6 +1188,39 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
+     * getItem — Obtiene un item completo de MeLi (propietario).
+     * GET /items/{item_id} con include_attributes=all para traer también
+     * family_name (UP), seller_custom_field y attributes[] completos.
+     * Usado por "nueva condición de venta" para derivar un 2º ítem del existente.
+     */
+    async getItem(accountId: string, itemId: string): Promise<any> {
+        const accessToken = await this.getAccessToken(accountId);
+        const resp = await axios.get(
+            `https://api.mercadolibre.com/items/${itemId}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        logger.info({ accountId, itemId, status: resp.data?.status }, 'getItem completado');
+        return resp.data;
+    }
+
+    /**
+     * getDescription — Devuelve la descripción en texto plano de un item.
+     * GET /items/{item_id}/description
+     */
+    async getDescription(accountId: string, itemId: string): Promise<string> {
+        const accessToken = await this.getAccessToken(accountId);
+        try {
+            const resp = await axios.get(
+                `https://api.mercadolibre.com/items/${itemId}/description`,
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            return resp.data?.plain_text || '';
+        } catch {
+            return '';
+        }
+    }
+
+    /**
      * addDescription — Agrega descripción en texto plano a un item ya creado.
      * Llama POST /items/{item_id}/description
      * Debe llamarse DESPUÉS de createItem. No es posible incluirla en el POST inicial.

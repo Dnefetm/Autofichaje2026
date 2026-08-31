@@ -11,6 +11,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { PublishPanel } from '@/components/publish-panel';
+import { NewConditionDialog } from '@/components/new-condition-dialog';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
@@ -49,6 +50,7 @@ export default function ArticuloDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [imgError, setImgError] = useState(false);
+    const [newConditionPub, setNewConditionPub] = useState<any>(null);
 
     useEffect(() => {
         if (id) fetchProduct();
@@ -81,7 +83,7 @@ export default function ArticuloDetailPage() {
                 if (pubIds.length > 0) {
                     const { data: pubs } = await supabase
                         .from('publicaciones_externas')
-                        .select('id, external_item_id, titulo, tipo_publicacion, listing_type_id, free_shipping, status_externo, precio_venta, stock_publicado, logistic_type, permalink, marketplace_configs(account_name)')
+                        .select('id, external_item_id, titulo, tipo_publicacion, listing_type_id, free_shipping, status_externo, precio_venta, stock_publicado, logistic_type, permalink, marketplace_id, marketplace_configs(account_name)')
                         .in('id', pubIds);
                     setLinkedPubs(pubs || []);
                 } else {
@@ -371,11 +373,20 @@ export default function ArticuloDetailPage() {
                                             {p.marketplace_configs?.account_name || '—'} · {p.external_item_id}
                                         </p>
                                     </div>
-                                    <div className="shrink-0 text-right">
-                                        <p className="text-sm font-bold text-[var(--text)] tabular-nums">${Number(p.precio_venta || 0).toLocaleString('es-MX')}</p>
-                                        <p className="text-[11px] text-[var(--text-muted)]">
-                                            stock {p.stock_publicado ?? '—'} · {p.free_shipping ? 'Envío incluido' : 'Sin envío gratis'}
-                                        </p>
+                                    <div className="shrink-0 flex items-center gap-3">
+                                        <div className="text-right">
+                                            <p className="text-sm font-bold text-[var(--text)] tabular-nums">${Number(p.precio_venta || 0).toLocaleString('es-MX')}</p>
+                                            <p className="text-[11px] text-[var(--text-muted)]">
+                                                stock {p.stock_publicado ?? '—'} · {p.free_shipping ? 'Envío incluido' : 'Sin envío gratis'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setNewConditionPub(p)}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors whitespace-nowrap"
+                                            title="Crear otra condición de venta (Clásica ↔ Premium) con el mismo producto"
+                                        >
+                                            <Plus className="w-3 h-3" /> Condición
+                                        </button>
                                     </div>
                                 </div>
                             );
@@ -388,6 +399,21 @@ export default function ArticuloDetailPage() {
             <div className="text-xs text-[var(--text-faint)] text-right">
                 Creado: {product.creado_el ? new Date(product.creado_el).toLocaleString('es-MX') : 'N/A'}
             </div>
+
+            {/* Modal: nueva condición de venta */}
+            {newConditionPub && (
+                <NewConditionDialog
+                    accountId={newConditionPub.marketplace_id}
+                    itemId={newConditionPub.external_item_id}
+                    itemTitle={newConditionPub.titulo || newConditionPub.external_item_id}
+                    currentListingType={newConditionPub.listing_type_id}
+                    currentFreeShipping={!!newConditionPub.free_shipping}
+                    currentPrice={Number(newConditionPub.precio_venta || 0)}
+                    articuloId={product.articulo_id || id}
+                    onClose={() => setNewConditionPub(null)}
+                    onDone={() => { setNewConditionPub(null); fetchProduct(); }}
+                />
+            )}
         </div>
     );
 }
