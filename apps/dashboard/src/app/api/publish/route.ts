@@ -234,6 +234,13 @@ export async function POST(req: NextRequest) {
                 .map((m: any) => m.publicaciones_externas?.external_item_id)
                 .filter(Boolean);
 
+            // external_item_id -> publicacion_id (para el fallback de desligue si el UPDATE falla)
+            const pubIdByItemId = new Map<string, string>();
+            for (const m of (linkedPubs || [])) {
+                const extId: string | undefined = m.publicaciones_externas?.external_item_id;
+                if (extId && m.publicacion_id) pubIdByItemId.set(extId, m.publicacion_id);
+            }
+
             if (staleIds.length > 0) {
                 const statusMap = await (meli as any).getStockAndStatusBatch(marketplace_id, staleIds);
                 let cerradas = 0;
@@ -267,11 +274,29 @@ export async function POST(req: NextRequest) {
                     }
 
                     if (nuevoStatus) {
-                        await supabaseAdmin
+                        const { error: updErr } = await supabaseAdmin
                             .from('publicaciones_externas')
                             .update({ status_externo: nuevoStatus, sub_status: nuevoSubStatus, actualizado_el: new Date().toISOString() })
                             .eq('marketplace_id', marketplace_id)
                             .eq('external_item_id', itemId);
+
+                        if (updErr) {
+                            // Fallback: si el UPDATE falla (p.ej. trigger roto por columna renombrada),
+                            // desligar el mapeo para que el anti-duplicados (paso 1.5) no bloquee.
+                            const pubId = pubIdByItemId.get(itemId);
+                            if (pubId) {
+                                const { error: delErr } = await supabaseAdmin
+                                    .from('mapeo_publicacion_articulo')
+                                    .delete()
+                                    .eq('publicacion_id', pubId)
+                                    .eq('articulo_id', articulo_id);
+                                trace.paso_1_4_fallback = {
+                                    itemId,
+                                    update_error: updErr.message,
+                                    mapeo_desligado: !delErr,
+                                };
+                            }
+                        }
                         cerradas++;
                         cerradasDetalle.push(itemId);
                     }
