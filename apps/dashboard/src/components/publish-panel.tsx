@@ -1407,18 +1407,18 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             {publishResult.data.trace && <TraceBlock trace={publishResult.data.trace} />}
 
                             {/* Botones de acción post-resultado */}
-                            {publishResult.status !== 'multi' && !publishResult.data.ok && publishResult.status !== 409 ? (
+                            {(publishResult.status === 'multi'
+                                ? publishResult.data.results.some((r: any) => !r.ok)
+                                : (!publishResult.data.ok && publishResult.status !== 409)) ? (
                                 <div className="flex gap-3">
                                     <button
-                                        id="publish-result-back-edit-btn"
                                         onClick={() => setStage('preview')}
-                                        className="flex-1 py-2.5 border border-slate-300 text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-xl text-sm transition-colors"
+                                        className="flex-1 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition-colors shadow-sm"
                                     >
                                         <RefreshCw className="w-4 h-4 inline mr-1" />
-                                        Volver a editar
+                                        Volver a editar (sin perder datos)
                                     </button>
                                     <button
-                                        id="publish-result-reset-btn"
                                         onClick={resetPanel}
                                         className="flex-1 py-2.5 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-xl text-sm transition-colors"
                                     >
@@ -1427,7 +1427,6 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 </div>
                             ) : (
                                 <button
-                                    id="publish-result-new-btn"
                                     onClick={resetPanel}
                                     className="w-full py-2.5 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-xl text-sm transition-colors"
                                 >
