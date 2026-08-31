@@ -388,7 +388,7 @@ export default function ArticuloDetailPage() {
                                             <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusTone)}>{statusLabel}</span>
                                         </div>
                                         <p className="text-[11px] text-[var(--text-faint)] mt-1 font-mono">
-                                            {p.marketplace_configs?.account_name || '—'} · {p.external_item_id}
+                                            {p.account_name || '—'} · {p.external_item_id}
                                         </p>
                                     </div>
                                     <div className="shrink-0 flex items-center gap-3">
