@@ -798,7 +798,10 @@ export async function POST(req: NextRequest) {
 
         // -- 13. Agregar descripción (enriquecida con bullets, máx 2000 chars) --
         let descResult: any = null;
-        if (descripcionCompleta) {
+        if (catalog_listing && catalog_product_id) {
+            // Catálogo: MeLi aporta la descripción desde la ficha del catálogo y NO es modificable.
+            trace.paso_13_descripcion = { omitido: 'Catálogo: la descripción la aporta MeLi (no es modificable)' };
+        } else if (descripcionCompleta) {
             descResult = await (meli as any).addDescription(marketplace_id, created.item_id, descripcionCompleta);
             trace.paso_13_descripcion = { ok: descResult.ok, chars: descripcionCompleta.length };
         } else {
@@ -913,7 +916,9 @@ export async function POST(req: NextRequest) {
                 meli_status: 400,
                 meli_error: meliError,
                 meli_message: typeof meliError?.message === 'string' ? meliError.message : null,
-                errores: cause.map((c: any) => `[${c.code}] ${c.message}`),
+                errores: cause
+                    .filter((c: any) => c && (c.code || c.message))
+                    .map((c: any) => `[${c.code || 'error'}] ${c.message || ''}`),
                 duracion_ms: Date.now() - startTime,
                 trace,
             }, { status: 422 });
