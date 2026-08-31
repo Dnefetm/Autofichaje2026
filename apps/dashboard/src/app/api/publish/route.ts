@@ -700,11 +700,8 @@ export async function POST(req: NextRequest) {
                 shipping: {
                     mode: shipping_mode || 'me2',
                     free_shipping: !!free_shipping,
-                    // MeLi espera un STRING "LxWxH,Weight": largo x ancho x alto (cm) y peso (g).
-                    // Solo si hay dimensiones completas; si no, se omite el campo.
-                    ...(resolved.largo_cm != null && resolved.ancho_cm != null && resolved.alto_cm != null && resolved.peso_kg != null
-                        ? { dimensions: `${Math.round(resolved.largo_cm)}x${Math.round(resolved.ancho_cm)}x${Math.round(resolved.alto_cm)},${Math.round(resolved.peso_kg * 1000)}` }
-                        : {}),
+                    // NO enviar shipping.dimensions: MeLi la deriva de SELLER_PACKAGE_* (attributes[]).
+                    // Los ítems exitosos tienen shipping.dimensions = null.
                 },
                 // legacy exige condition; UP lo deriva del catálogo
                 ...(isLegacy ? { condition: 'new' } : {}),
@@ -909,11 +906,14 @@ export async function POST(req: NextRequest) {
         }
 
         if (isMeliValidation) {
+            const cause = Array.isArray(meliError?.cause) ? meliError.cause : [];
             return NextResponse.json({
                 ok: false,
                 error: 'MeLi rechazó la publicación (validation_error)',
                 meli_status: 400,
                 meli_error: meliError,
+                meli_message: typeof meliError?.message === 'string' ? meliError.message : null,
+                errores: cause.map((c: any) => `[${c.code}] ${c.message}`),
                 duracion_ms: Date.now() - startTime,
                 trace,
             }, { status: 422 });

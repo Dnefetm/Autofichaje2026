@@ -550,7 +550,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                         }),
                     });
                     const data = await res.json();
-                    results.push({ account_name: nombreCuenta, status: res.status, ok: !!data.ok, item_id: data.item_id, permalink: data.permalink, error: data.error, errores: data.errores, meli_error: data.meli_error });
+                    results.push({ account_name: nombreCuenta, status: res.status, ok: !!data.ok, item_id: data.item_id, permalink: data.permalink, error: data.error, errores: data.errores, meli_error: data.meli_error, meli_message: data.meli_message });
                 } catch (e: any) {
                     results.push({ account_name: nombreCuenta, status: 0, ok: false, error: e.message });
                 }
@@ -1309,13 +1309,20 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             ) : (
                                                 <div className="mt-1 space-y-1">
                                                     <p className="text-xs text-[var(--err)]">{r.error}</p>
-                                                    {r.errores?.length > 0 && <p className="text-xs text-[var(--err)] font-mono">{r.errores.join('; ')}</p>}
+                                                    {r.meli_message && <p className="text-xs text-[var(--err)]">{r.meli_message}</p>}
+                                                    {r.errores?.length > 0 && <p className="text-xs text-[var(--err)] font-mono break-all">{r.errores.join(' | ')}</p>}
                                                     {r.meli_error?.cause?.length > 0 && (
                                                         <div className="space-y-0.5">
                                                             {r.meli_error.cause.map((c: any, ci: number) => (
                                                                 <p key={ci} className="text-[10px] text-[var(--err)] font-mono bg-[var(--surface)] px-2 py-1 rounded">[{c.code}] {c.message}</p>
                                                             ))}
                                                         </div>
+                                                    )}
+                                                    {r.meli_error && !(r.meli_error?.cause?.length > 0) && !(r.errores?.length > 0) && (
+                                                        <details className="text-[10px] font-mono text-[var(--err)]">
+                                                            <summary className="cursor-pointer font-bold">Ver respuesta cruda de MeLi</summary>
+                                                            <pre className="whitespace-pre-wrap break-all bg-[var(--surface)] p-2 rounded mt-1">{JSON.stringify(r.meli_error, null, 2)}</pre>
+                                                        </details>
                                                     )}
                                                 </div>
                                             )}
