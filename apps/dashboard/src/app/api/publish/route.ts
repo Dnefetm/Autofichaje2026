@@ -237,17 +237,46 @@ export async function POST(req: NextRequest) {
             if (staleIds.length > 0) {
                 const statusMap = await (meli as any).getStockAndStatusBatch(marketplace_id, staleIds);
                 let cerradas = 0;
-                for (const [itemId, st] of (statusMap as Map<string, { qty: number; status: string; sub_status: string[] }>).entries()) {
-                    if (st && ['closed', 'inactive', 'deleted'].includes(st.status)) {
+                const cerradasDetalle: string[] = [];
+                for (const itemId of staleIds) {
+                    const st = (statusMap as Map<string, { qty: number; status: string; sub_status: string[] }>).get(itemId);
+
+                    let nuevoStatus: string | null = null;
+                    let nuevoSubStatus: string[] = [];
+
+                    if (st) {
+                        if (['closed', 'inactive', 'deleted'].includes(st.status)) {
+                            nuevoStatus = st.status;
+                            nuevoSubStatus = st.sub_status || [];
+                        }
+                    } else {
+                        // No está en el batch → puede estar ELIMINADO (404) o ser un fallo puntual del chunk.
+                        // Confirmar con GET individual para no marcar erróneamente un item vivo.
+                        try {
+                            const itemStatus = await (meli as any).getItemStatus(marketplace_id, itemId);
+                            if (!itemStatus.exists) {
+                                nuevoStatus = 'closed';
+                                nuevoSubStatus = ['deleted'];
+                            } else if (['closed', 'inactive', 'deleted'].includes(itemStatus.status)) {
+                                nuevoStatus = itemStatus.status;
+                                nuevoSubStatus = [];
+                            }
+                        } catch {
+                            // 401/429/red → no tocar este item (asumir que sigue vivo)
+                        }
+                    }
+
+                    if (nuevoStatus) {
                         await supabaseAdmin
                             .from('publicaciones_externas')
-                            .update({ status_externo: st.status, sub_status: st.sub_status || [], actualizado_el: new Date().toISOString() })
+                            .update({ status_externo: nuevoStatus, sub_status: nuevoSubStatus, actualizado_el: new Date().toISOString() })
                             .eq('marketplace_id', marketplace_id)
                             .eq('external_item_id', itemId);
                         cerradas++;
+                        cerradasDetalle.push(itemId);
                     }
                 }
-                trace.paso_1_4_reconciliacion = { revisados: staleIds.length, cerradas };
+                trace.paso_1_4_reconciliacion = { revisados: staleIds.length, cerradas, cerradas_detalle: cerradasDetalle };
             } else {
                 trace.paso_1_4_reconciliacion = { revisados: 0 };
             }
