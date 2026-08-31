@@ -51,15 +51,17 @@ function buildPrompt(input: MeliAIHelperInput): { system: string; user: string }
     const legacy = input.legacy === true;
 
     const tituloField = legacy
-        ? `"title": "título completo del producto (máx ${maxChars} chars, INCLUYE marca y modelo al inicio)"`
-        : `"family_name": "nombre descriptivo del producto (máx ${maxChars} chars, SIN marca ni modelo)"`;
+        ? `"title": "título comercial (MÁXIMO ${maxChars} caracteres INCLUYENDO ESPACIOS; fórmula: producto + características + marca, SIN modelo)"`
+        : `"family_name": "nombre descriptivo (MÁXIMO ${maxChars} caracteres INCLUYENDO ESPACIOS, SIN marca ni modelo)"`;
 
     const tituloRule = legacy
-        ? `1. Generar un "title" completo y comercial, máximo ${maxChars} caracteres, que EMPIECE con la marca y el modelo,
-   seguido del tipo/descripción del producto (ej: "Urrea 15030 Dado de impacto 6 puntas 1-7/8 pulgadas").`
-        : `1. Generar un "family_name" descriptivo, máximo ${maxChars} caracteres, SIN marca ni modelo.
-   MercadoLibre (User Products) agrega automáticamente la marca y el modelo al título visible.
-   Debe describir claramente el producto (tipo, función, tamaño, material si aplica).`;
+        ? `1. Generar un "title" comercial de MÁXIMO ${maxChars} caracteres INCLUYENDO ESPACIOS, con esta fórmula EXACTA:
+   nombre del producto + características principales en orden descendente de prioridad (tipo, medida, material, acabado) + marca.
+   NO uses el modelo. Usa el máximo de caracteres sin pasarte de ${maxChars}.
+   Ejemplo: "Juego de puntas y dados de impacto 33 piezas 1/2 pulgada Urrea".`
+        : `1. Generar un "family_name" descriptivo de MÁXIMO ${maxChars} caracteres INCLUYENDO ESPACIOS:
+   nombre del producto + características principales (tipo, medida, material).
+   SIN marca ni modelo — MercadoLibre (User Products) los agrega automáticamente al título visible.`;
 
     const system = `Eres un experto en redacción de títulos y clasificación de atributos para MercadoLibre México.
 

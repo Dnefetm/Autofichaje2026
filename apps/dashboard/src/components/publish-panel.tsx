@@ -1055,7 +1055,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                         type="text"
                                                         value={titleVal}
                                                         onChange={e => setFamilyNameOverride(e.target.value)}
-                                                        maxLength={80}
+                                                        maxLength={60}
                                                         className={cn("w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 font-mono",
                                                             over ? "border-[var(--err)] focus:ring-[var(--err)] text-[var(--err)]" : "border-[var(--border)] focus:ring-yellow-400")}
                                                     />
@@ -1214,7 +1214,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             const optAttrs: any[] = dynamicOptAttrs ?? (t?.paso_6_atributos?.optional_detail || []);
                                             if (optAttrs.length === 0) return null;
                                             return (
-                                                <details className="mt-2">
+                                                <details open className="mt-2">
                                                     <summary className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider cursor-pointer select-none">Características secundarias (opcionales) — {optAttrs.length}</summary>
                                                     <div className="mt-2 space-y-2 max-h-80 overflow-y-auto pr-1">
                                                         {optAttrs.map((attr: any) => {
