@@ -51,6 +51,7 @@ export default function ArticuloDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [imgError, setImgError] = useState(false);
     const [newConditionPub, setNewConditionPub] = useState<any>(null);
+    const [reconcileNote, setReconcileNote] = useState<string | null>(null);
 
     useEffect(() => {
         if (id) fetchProduct();
@@ -75,25 +76,40 @@ export default function ArticuloDetailPage() {
                 setError(err.message);
             } else {
                 setProduct(data);
-                // Cargar publicaciones/vitrinas enlazadas con sus características
-                const mapeos = Array.isArray(data?.mapeo_publicacion_articulo)
-                    ? data.mapeo_publicacion_articulo
-                    : (data?.mapeo_publicacion_articulo ? [data.mapeo_publicacion_articulo] : []);
-                const pubIds = mapeos.map((m: any) => m.publicacion_id).filter(Boolean);
-                if (pubIds.length > 0) {
-                    const { data: pubs } = await supabase
-                        .from('publicaciones_externas')
-                        .select('id, external_item_id, titulo, tipo_publicacion, listing_type_id, free_shipping, status_externo, precio_venta, stock_publicado, logistic_type, permalink, marketplace_id, marketplace_configs(account_name)')
-                        .in('id', pubIds);
-                    setLinkedPubs(pubs || []);
-                } else {
-                    setLinkedPubs([]);
-                }
+                await loadLinkedPubs(data.articulo_id || id);
             }
         } catch (e: any) {
             setError(e.message || 'Error desconocido');
         } finally {
             setLoading(false);
+        }
+    }
+
+    // Reconciliar vitrinas enlazadas contra MeLi y devolver solo las que siguen vivas.
+    // Detecta "fantasmas" (items eliminados/cerrados en MeLi pero aún activos en BD).
+    async function loadLinkedPubs(articuloId: string) {
+        setReconcileNote(null);
+        try {
+            const res = await fetch('/api/publish/reconcile-linked', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ articulo_id: articuloId }),
+            });
+            if (!res.ok) {
+                setLinkedPubs([]);
+                return;
+            }
+            const data = await res.json();
+            if (data?.ok) {
+                setLinkedPubs(Array.isArray(data.pubs) ? data.pubs : []);
+                if (data.ocultadas > 0) {
+                    setReconcileNote(`${data.ocultadas} publicación(es) eliminada(s) en Mercado Libre se ocultaron de esta lista.`);
+                }
+            } else {
+                setLinkedPubs([]);
+            }
+        } catch {
+            setLinkedPubs([]);
         }
     }
 
@@ -123,10 +139,7 @@ export default function ArticuloDetailPage() {
     const snapshot = Array.isArray(product.inventory_snapshot) ? product.inventory_snapshot[0] : product.inventory_snapshot;
     const stock = snapshot?.physical_stock ?? 0;
     const isLowStock = stock <= 2;
-    const mapeos = Array.isArray(product.mapeo_publicacion_articulo)
-        ? product.mapeo_publicacion_articulo
-        : product.mapeo_publicacion_articulo ? [product.mapeo_publicacion_articulo] : [];
-    const isMapped = mapeos.length > 0;
+    const isMapped = linkedPubs.length > 0;
     const fichas = Array.isArray(product.fichas_tecnicas) ? product.fichas_tecnicas : [];
     const rawImage = product.imagenes?.[0] || null;
     const image = getPublicImageUrl(rawImage);
@@ -200,7 +213,7 @@ export default function ArticuloDetailPage() {
                             <div className="flex items-center gap-2 shrink-0">
                                 {isMapped ? (
                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold border bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30">
-                                        <Link2 className="w-3 h-3" /> {mapeos.length} publ.
+                                        <Link2 className="w-3 h-3" /> {linkedPubs.length} publ.
                                     </span>
                                 ) : (
                                     <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold border bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]">
@@ -345,6 +358,11 @@ export default function ArticuloDetailPage() {
                     <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Publicaciones / Vitrinas enlazadas</h2>
                     <span className="text-[10px] text-[var(--text-faint)] tabular-nums">{linkedPubs.length}</span>
                 </div>
+                {reconcileNote && (
+                    <div className="px-5 py-2 text-[11px] text-[var(--warn)] bg-[var(--warn)]/10 border-b border-[var(--warn)]/30">
+                        {reconcileNote}
+                    </div>
+                )}
                 {linkedPubs.length === 0 ? (
                     <div className="p-6 text-center text-[var(--text-faint)]">
                         <p className="text-sm">Este artículo no tiene publicaciones enlazadas.</p>

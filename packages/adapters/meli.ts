@@ -1221,6 +1221,25 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
+     * getItemStatus — Consulta si un item existe y su estado real en MeLi.
+     * GET /items/{item_id}. Distingue 404 (eliminado) de otros errores.
+     * Usado por la reconciliación de vitrinas enlazadas para detectar "fantasmas".
+     */
+    async getItemStatus(accountId: string, itemId: string): Promise<{ exists: boolean; status: string }> {
+        const accessToken = await this.getAccessToken(accountId);
+        try {
+            const resp = await axios.get(
+                `https://api.mercadolibre.com/items/${itemId}`,
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            return { exists: true, status: resp.data?.status || 'unknown' };
+        } catch (err: any) {
+            if (err.response?.status === 404) return { exists: false, status: 'deleted' };
+            throw err; // 401/429/red → re-lanzar para que el caller lo maneje
+        }
+    }
+
+    /**
      * addDescription — Agrega descripción en texto plano a un item ya creado.
      * Llama POST /items/{item_id}/description
      * Debe llamarse DESPUÉS de createItem. No es posible incluirla en el POST inicial.
