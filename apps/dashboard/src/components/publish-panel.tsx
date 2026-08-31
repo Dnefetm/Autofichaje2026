@@ -1248,10 +1248,10 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         <PublishStepper trace={t || {}} />
                                         <TraceBlock trace={t || {}} />
 
-                                        {/* Nueva condición de venta (publicación asociada) */}
-                                        <label className="flex items-center gap-2 text-xs text-[var(--text)] cursor-pointer p-2 rounded border border-[var(--border)] bg-[var(--surface-2)]">
-                                            <input type="checkbox" checked={forceDuplicate} onChange={e => setForceDuplicate(e.target.checked)} className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)]" />
-                                            <span>Crear <strong>nueva condición de venta</strong> (permite otra publicación del mismo producto con distinto tipo de listado o envío, enlazada)</span>
+                                        {/* Publicar similar (duplicado independiente) */}
+                                        <label className="flex items-start gap-2 text-xs text-[var(--text)] cursor-pointer p-2 rounded border border-[var(--border)] bg-[var(--surface-2)]">
+                                            <input type="checkbox" checked={forceDuplicate} onChange={e => setForceDuplicate(e.target.checked)} className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)] mt-0.5" />
+                                            <span>Publicar <strong>duplicado independiente</strong> (idéntico, sin enlazar). Para una <strong>nueva condición de venta</strong> (Clásica ↔ Premium, enlazada), usa el botón <strong>&quot;Condición&quot;</strong> en la sección &quot;Publicaciones / Vitrinas enlazadas&quot;.</span>
                                         </label>
 
                                         {/* CTAs */}
