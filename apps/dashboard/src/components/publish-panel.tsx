@@ -846,52 +846,83 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             )}
                                             {catalogResults.length > 0 && (
                                                 <div className="space-y-2 max-h-72 overflow-y-auto">
-                                                    {catalogResults.map((r: any) => (
-                                                        <div key={r.catalog_product_id} className="grid grid-cols-2 gap-2 p-2 bg-[var(--surface)] rounded border border-[var(--border)]">
-                                                            <div className="border-r border-[var(--border)] pr-2">
-                                                                <p className="text-[9px] uppercase font-bold text-[var(--text-faint)] mb-1">Tu producto</p>
-                                                                {(images[0] || preloadedSuggestions[0]) && <img src={images[0] || preloadedSuggestions[0]} alt="" className="w-full h-16 object-contain mb-1 rounded border border-[var(--border)]" />}
-                                                                <p className="text-[11px] font-semibold text-[var(--text)] line-clamp-2">{articleData?.nombre || nombreArticulo}</p>
-                                                                <div className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
-                                                                    {[
-                                                                        { name: 'Marca', value: articleData?.marca },
-                                                                        { name: 'Modelo', value: articleData?.modelo },
-                                                                        { name: 'GTIN/EAN', value: articleData?.codigo_universal || codigoUniversal },
-                                                                        { name: 'Categoría', value: articleData?.categoria },
-                                                                        { name: 'Variante', value: articleData?.variante },
-                                                                        { name: 'Peso', value: articleData?.peso_kg != null ? `${articleData.peso_kg} kg` : null },
-                                                                        { name: 'Largo', value: articleData?.largo_cm != null ? `${articleData.largo_cm} cm` : null },
-                                                                        { name: 'Ancho', value: articleData?.ancho_cm != null ? `${articleData.ancho_cm} cm` : null },
-                                                                        { name: 'Alto', value: articleData?.alto_cm != null ? `${articleData.alto_cm} cm` : null },
-                                                                    ].filter(r => r.value != null && r.value !== '').map(r => (
-                                                                        <div key={r.name} className="flex justify-between gap-1 text-[9px]">
-                                                                            <span className="text-[var(--text-faint)] shrink-0">{r.name}</span>
-                                                                            <span className="text-[var(--text-muted)] text-right">{r.value}</span>
+                                                    {catalogResults.map((r: any) => {
+                                                        const catA = (id: string) => (r.atributos || []).find((a: any) => a.id === id)?.value_name || null;
+                                                        const norm = (s: any) => (s == null ? '' : String(s).trim().toLowerCase());
+                                                        const rows = [
+                                                            { label: 'Nombre', propio: articleData?.nombre || nombreArticulo, catalogo: r.titulo },
+                                                            { label: 'Marca', propio: articleData?.marca, catalogo: catA('BRAND') },
+                                                            { label: 'Modelo', propio: articleData?.modelo, catalogo: catA('MODEL') },
+                                                            { label: 'GTIN/EAN', propio: articleData?.codigo_universal || codigoUniversal, catalogo: catA('GTIN') || catA('EAN') },
+                                                        ].filter(x => x.propio != null || x.catalogo != null);
+                                                        const coreIds = new Set(['BRAND', 'MODEL', 'GTIN', 'EAN']);
+                                                        const extraAttrs = (r.atributos || []).filter((a: any) => !coreIds.has(a.id));
+                                                        return (
+                                                            <div key={r.catalog_product_id} className="p-2 bg-[var(--surface)] rounded border border-[var(--border)] space-y-2">
+                                                                {/* Imágenes lado a lado */}
+                                                                <div className="grid grid-cols-2 gap-2">
+                                                                    <div>
+                                                                        <p className="text-[9px] uppercase font-bold text-[var(--text-faint)] mb-1">Tu producto</p>
+                                                                        {(images[0] || preloadedSuggestions[0]) && <img src={images[0] || preloadedSuggestions[0]} alt="" className="w-full h-16 object-contain rounded border border-[var(--border)]" />}
+                                                                        <p className="text-[11px] font-semibold text-[var(--text)] line-clamp-2 mt-1">{articleData?.nombre || nombreArticulo}</p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[9px] uppercase font-bold text-[var(--text-faint)] mb-1">Catálogo MeLi</p>
+                                                                        {(r.pictures?.length ? r.pictures : (r.thumbnail ? [r.thumbnail] : [])).slice(0, 1).map((pic: string, pi: number) => (
+                                                                            <img key={pi} src={pic} alt="" className="w-full h-16 object-contain rounded border border-[var(--border)]" />
+                                                                        ))}
+                                                                        <p className="text-[11px] font-semibold text-[var(--text)] line-clamp-2 mt-1">{r.titulo}</p>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Comparación campo por campo */}
+                                                                <div className="border-t border-[var(--border)] pt-1.5">
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <span className="flex items-center gap-0.5 text-[8px] text-[var(--ok)]"><CheckCircle2 className="w-2.5 h-2.5" /> coincide</span>
+                                                                        <span className="flex items-center gap-0.5 text-[8px] text-[var(--warn)]"><AlertCircle className="w-2.5 h-2.5" /> difiere</span>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-[70px_1fr_1fr] gap-1.5 text-[9px] font-bold uppercase text-[var(--text-faint)] mb-1">
+                                                                        <span>Campo</span><span>Tu producto</span><span>Catálogo</span>
+                                                                    </div>
+                                                                    <div className="space-y-0.5">
+                                                                        {rows.map(row => {
+                                                                            const both = row.propio != null && row.propio !== '' && row.catalogo != null && row.catalogo !== '';
+                                                                            const match = both && norm(row.propio) === norm(row.catalogo);
+                                                                            const tone = match ? 'text-[var(--ok)]' : both ? 'text-[var(--warn)]' : 'text-[var(--text-muted)]';
+                                                                            return (
+                                                                                <div key={row.label} className="grid grid-cols-[70px_1fr_1fr] gap-1.5 text-[9px] items-start">
+                                                                                    <span className="text-[var(--text-faint)]">{row.label}</span>
+                                                                                    <span className={cn(tone, both && 'font-semibold', 'break-words')}>{row.propio || '—'}</span>
+                                                                                    <span className={cn(tone, both && 'font-semibold', 'break-words')}>{row.catalogo || '—'}</span>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Otros atributos del catálogo */}
+                                                                {extraAttrs.length > 0 && (
+                                                                    <details className="border-t border-[var(--border)] pt-1">
+                                                                        <summary className="text-[9px] font-bold text-[var(--text-faint)] cursor-pointer select-none">Otros atributos del catálogo ({extraAttrs.length})</summary>
+                                                                        <div className="mt-1 space-y-0.5 max-h-28 overflow-y-auto">
+                                                                            {extraAttrs.map((a: any) => (
+                                                                                <div key={a.id} className="flex justify-between gap-1 text-[9px]">
+                                                                                    <span className="text-[var(--text-faint)] shrink-0">{a.name}</span>
+                                                                                    <span className="text-[var(--text-muted)] text-right">{a.value_name || '—'}</span>
+                                                                                </div>
+                                                                            ))}
                                                                         </div>
-                                                                    ))}
+                                                                    </details>
+                                                                )}
+
+                                                                {/* Acciones */}
+                                                                <div className="flex items-center justify-end gap-2 pt-1 border-t border-[var(--border)]">
+                                                                    <button type="button" onClick={() => omitirCatalog()} className="px-2 py-1 text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text)]">No coincide</button>
+                                                                    <button type="button" onClick={() => usarCatalog(r)} className="px-3 py-1 text-[10px] font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded hover:brightness-110">Coincide — usar catálogo</button>
                                                                 </div>
                                                             </div>
-                                                            <div className="pl-1">
-                                                                <p className="text-[9px] uppercase font-bold text-[var(--text-faint)] mb-1">Catálogo MeLi</p>
-                                                                {(r.pictures?.length ? r.pictures : (r.thumbnail ? [r.thumbnail] : [])).map((pic: string, pi: number) => (
-                                                                    <img key={pi} src={pic} alt="" className="w-full h-14 object-contain mb-1 rounded border border-[var(--border)]" />
-                                                                ))}
-                                                                <p className="text-[11px] font-semibold text-[var(--text)] line-clamp-2">{r.titulo}</p>
-                                                                <div className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
-                                                                    {(r.atributos || []).map((a: any) => (
-                                                                        <div key={a.id} className="flex justify-between gap-1 text-[9px]">
-                                                                            <span className="text-[var(--text-faint)] shrink-0">{a.name}</span>
-                                                                            <span className="text-[var(--text-muted)] text-right">{a.value_name || '—'}</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                            <div className="col-span-2 flex items-center justify-end gap-2 pt-1 border-t border-[var(--border)]">
-                                                                <button type="button" onClick={() => omitirCatalog()} className="px-2 py-1 text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text)]">No coincide</button>
-                                                                <button type="button" onClick={() => usarCatalog(r)} className="px-3 py-1 text-[10px] font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded hover:brightness-110">Coincide — usar catálogo</button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
                                         </div>
