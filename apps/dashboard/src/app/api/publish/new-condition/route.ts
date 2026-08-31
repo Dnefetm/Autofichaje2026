@@ -142,7 +142,15 @@ export async function POST(req: NextRequest) {
 
         const saleTerms = (existing.sale_terms || [])
             .filter((s: any) => COPY_SALE_TERMS.has(s.id))
-            .map((s: any) => ({ id: s.id, value_name: s.value_name }));
+            .map((s: any) => {
+                let value_name = s.value_name;
+                // MANUFACTURING_TIME es number_unit con unidad "días": normalizar "0" -> "0 días".
+                if (s.id === 'MANUFACTURING_TIME') {
+                    const m = String(value_name || '').match(/(-?\d+)/);
+                    value_name = `${m ? m[1] : '0'} días`;
+                }
+                return { id: s.id, value_name };
+            });
 
         const itemBody: any = isCatalog
             ? {
@@ -174,7 +182,7 @@ export async function POST(req: NextRequest) {
                     : [
                         { id: 'WARRANTY_TYPE', value_name: 'Garantía del vendedor' },
                         { id: 'WARRANTY_TIME', value_name: '1 mes' },
-                        { id: 'MANUFACTURING_TIME', value_name: '0' },
+                        { id: 'MANUFACTURING_TIME', value_name: '0 días' },
                     ],
                 pictures,
                 attributes,

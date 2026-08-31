@@ -536,10 +536,12 @@ export async function POST(req: NextRequest) {
         };
 
         // MeLi exige strings numéricos PUROS (sin "cm"/"g"): altura/ancho/largo en cm, peso en gramos enteros.
-        maybePushPackage('SELLER_PACKAGE_HEIGHT', `${Math.round(resolved.alto_cm  ?? 0)}`, !!resolved.alto_cm);
-        maybePushPackage('SELLER_PACKAGE_WIDTH',  `${Math.round(resolved.ancho_cm ?? 0)}`, !!resolved.ancho_cm);
-        maybePushPackage('SELLER_PACKAGE_LENGTH', `${Math.round(resolved.largo_cm ?? 0)}`, !!resolved.largo_cm);
-        maybePushPackage('SELLER_PACKAGE_WEIGHT', `${Math.round((resolved.peso_kg ?? 0) * 1000)}`, !!resolved.peso_kg);
+        // MeLi exige el formato "número + unidad" para SELLER_PACKAGE_* (cause_id 5402):
+        // dimensiones en "cm" enteros y peso en "g" enteros. Ej.: "10 cm", "100 g".
+        maybePushPackage('SELLER_PACKAGE_HEIGHT', `${Math.round(resolved.alto_cm  ?? 0)} cm`, !!resolved.alto_cm);
+        maybePushPackage('SELLER_PACKAGE_WIDTH',  `${Math.round(resolved.ancho_cm ?? 0)} cm`, !!resolved.ancho_cm);
+        maybePushPackage('SELLER_PACKAGE_LENGTH', `${Math.round(resolved.largo_cm ?? 0)} cm`, !!resolved.largo_cm);
+        maybePushPackage('SELLER_PACKAGE_WEIGHT', `${Math.round((resolved.peso_kg ?? 0) * 1000)} g`, !!resolved.peso_kg);
         trace.paso_7_attributes_mapeados = attributes;
         trace.paso_7_package_dimensions = {
             SELLER_PACKAGE_HEIGHT: resolved.alto_cm  != null ? `${Math.round(resolved.alto_cm)} cm`             : null,
@@ -697,7 +699,7 @@ export async function POST(req: NextRequest) {
                 sale_terms: [
                     { id: 'WARRANTY_TYPE', value_name: 'Garantía del vendedor' },
                     { id: 'WARRANTY_TIME', value_name: '1 mes' },
-                    { id: 'MANUFACTURING_TIME', value_name: '0' },
+                    { id: 'MANUFACTURING_TIME', value_name: '0 días' },
                 ],
                 pictures: pictures.map((url: string) => ({ source: url })),
                 attributes: allAttributes,

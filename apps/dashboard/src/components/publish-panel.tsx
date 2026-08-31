@@ -849,13 +849,18 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                     {catalogResults.map((r: any) => {
                                                         const catA = (id: string) => (r.atributos || []).find((a: any) => a.id === id)?.value_name || null;
                                                         const norm = (s: any) => (s == null ? '' : String(s).trim().toLowerCase());
+                                                        const toNum = (s: any) => { const m = String(s ?? '').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; };
                                                         const rows = [
-                                                            { label: 'Nombre', propio: articleData?.nombre || nombreArticulo, catalogo: r.titulo },
-                                                            { label: 'Marca', propio: articleData?.marca, catalogo: catA('BRAND') },
-                                                            { label: 'Modelo', propio: articleData?.modelo, catalogo: catA('MODEL') },
-                                                            { label: 'GTIN/EAN', propio: articleData?.codigo_universal || codigoUniversal, catalogo: catA('GTIN') || catA('EAN') },
+                                                            { label: 'Nombre', propio: articleData?.nombre || nombreArticulo, catalogo: r.titulo, numeric: false },
+                                                            { label: 'Marca', propio: articleData?.marca, catalogo: catA('BRAND'), numeric: false },
+                                                            { label: 'Modelo', propio: articleData?.modelo, catalogo: catA('MODEL'), numeric: false },
+                                                            { label: 'GTIN/EAN', propio: articleData?.codigo_universal || codigoUniversal, catalogo: catA('GTIN') || catA('EAN'), numeric: false },
+                                                            { label: 'Peso', propio: articleData?.peso_kg != null ? `${Math.round(articleData.peso_kg * 1000)} g` : null, catalogo: catA('PACKAGE_WEIGHT'), numeric: true },
+                                                            { label: 'Largo', propio: articleData?.largo_cm != null ? `${Math.round(articleData.largo_cm)} cm` : null, catalogo: catA('PACKAGE_LENGTH'), numeric: true },
+                                                            { label: 'Ancho', propio: articleData?.ancho_cm != null ? `${Math.round(articleData.ancho_cm)} cm` : null, catalogo: catA('PACKAGE_WIDTH'), numeric: true },
+                                                            { label: 'Alto', propio: articleData?.alto_cm != null ? `${Math.round(articleData.alto_cm)} cm` : null, catalogo: catA('PACKAGE_HEIGHT'), numeric: true },
                                                         ].filter(x => x.propio != null || x.catalogo != null);
-                                                        const coreIds = new Set(['BRAND', 'MODEL', 'GTIN', 'EAN']);
+                                                        const coreIds = new Set(['BRAND', 'MODEL', 'GTIN', 'EAN', 'PACKAGE_WEIGHT', 'PACKAGE_LENGTH', 'PACKAGE_WIDTH', 'PACKAGE_HEIGHT']);
                                                         const extraAttrs = (r.atributos || []).filter((a: any) => !coreIds.has(a.id));
                                                         return (
                                                             <div key={r.catalog_product_id} className="p-2 bg-[var(--surface)] rounded border border-[var(--border)] space-y-2">
@@ -863,14 +868,23 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                                 <div className="grid grid-cols-2 gap-2">
                                                                     <div>
                                                                         <p className="text-[9px] uppercase font-bold text-[var(--text-faint)] mb-1">Tu producto</p>
-                                                                        {(images[0] || preloadedSuggestions[0]) && <img src={images[0] || preloadedSuggestions[0]} alt="" className="w-full h-16 object-contain rounded border border-[var(--border)]" />}
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            {(images.length ? images : preloadedSuggestions).slice(0, 3).map((url, i) => (
+                                                                                <img key={i} src={url} alt="" className="w-12 h-12 object-cover rounded border border-[var(--border)]" />
+                                                                            ))}
+                                                                            {images.length === 0 && preloadedSuggestions.length === 0 && (
+                                                                                <span className="text-[9px] text-[var(--text-faint)]">Sin imagen</span>
+                                                                            )}
+                                                                        </div>
                                                                         <p className="text-[11px] font-semibold text-[var(--text)] line-clamp-2 mt-1">{articleData?.nombre || nombreArticulo}</p>
                                                                     </div>
                                                                     <div>
                                                                         <p className="text-[9px] uppercase font-bold text-[var(--text-faint)] mb-1">Catálogo MeLi</p>
-                                                                        {(r.pictures?.length ? r.pictures : (r.thumbnail ? [r.thumbnail] : [])).slice(0, 1).map((pic: string, pi: number) => (
-                                                                            <img key={pi} src={pic} alt="" className="w-full h-16 object-contain rounded border border-[var(--border)]" />
-                                                                        ))}
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            {(r.pictures?.length ? r.pictures : (r.thumbnail ? [r.thumbnail] : [])).slice(0, 3).map((pic: string, pi: number) => (
+                                                                                <img key={pi} src={pic} alt="" className="w-12 h-12 object-cover rounded border border-[var(--border)]" />
+                                                                            ))}
+                                                                        </div>
                                                                         <p className="text-[11px] font-semibold text-[var(--text)] line-clamp-2 mt-1">{r.titulo}</p>
                                                                     </div>
                                                                 </div>
@@ -887,7 +901,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                                     <div className="space-y-0.5">
                                                                         {rows.map(row => {
                                                                             const both = row.propio != null && row.propio !== '' && row.catalogo != null && row.catalogo !== '';
-                                                                            const match = both && norm(row.propio) === norm(row.catalogo);
+                                                                            const match = both && (row.numeric ? toNum(row.propio) === toNum(row.catalogo) : norm(row.propio) === norm(row.catalogo));
                                                                             const tone = match ? 'text-[var(--ok)]' : both ? 'text-[var(--warn)]' : 'text-[var(--text-muted)]';
                                                                             return (
                                                                                 <div key={row.label} className="grid grid-cols-[70px_1fr_1fr] gap-1.5 text-[9px] items-start">
