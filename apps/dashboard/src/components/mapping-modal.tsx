@@ -469,28 +469,45 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     {/* LEFT COLUMN: Search & Catalog (60%) */}
                     <div className="w-full md:w-[60%] flex flex-col border-r border-[var(--border)] overflow-hidden">
                         
-                        {/* Sugerencia automática (server-side) */}
+                        {/* Sugerencia automática (server-side): comparación alineada */}
                         {topSugerencia && !searchTerm && (
                             <div className="px-5 py-3 border-b border-[var(--accent)]/30 bg-[var(--accent)]/5 shrink-0">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
-                                            Sugerencia automática · {topSugerencia.score}%
-                                        </p>
-                                        <p className="text-sm font-semibold text-[var(--text)] truncate">
-                                            {topSugerencia.nombre}
-                                        </p>
-                                        <p className="text-[11px] text-[var(--text-muted)] truncate">
-                                            {topSugerencia.marca}{topSugerencia.modelo ? ` · ${topSugerencia.modelo}` : ''} · {topSugerencia.motivo}
-                                            {topSugerencia.caja_madre && <span className="ml-1 font-bold text-[var(--warn)]">· Caja madre: {topSugerencia.caja_madre}</span>}
-                                        </p>
-                                    </div>
+                                <div className="flex items-center justify-between gap-3 mb-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
+                                        Coincidencia {topSugerencia.score}% · {topSugerencia.motivo}
+                                    </p>
                                     <button
                                         onClick={() => handleAddSku(topSugerencia)}
                                         className="shrink-0 px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold rounded-lg hover:brightness-110"
                                     >
                                         Añadir
                                     </button>
+                                </div>
+
+                                <div className="grid grid-cols-[78px_1fr_1fr] gap-x-3 gap-y-0.5 text-[11px]">
+                                    <div></div>
+                                    <div className="font-bold uppercase text-[9px] tracking-wider text-[var(--text-faint)]">Publicación</div>
+                                    <div className="font-bold uppercase text-[9px] tracking-wider text-[var(--text-faint)]">Catálogo</div>
+
+                                    <div className="text-[var(--text-faint)]">Nombre</div>
+                                    <div className="text-[var(--text)] leading-snug">{pubTitle || '—'}</div>
+                                    <div className="text-[var(--text)] leading-snug font-semibold">{topSugerencia.nombre}</div>
+
+                                    <div className="text-[var(--text-faint)]">SKU / Mod</div>
+                                    <div className="font-mono text-[var(--text)]">{pubSku || pubModel || '—'}</div>
+                                    <div className="font-mono text-[var(--text)]">{topSugerencia.modelo || topSugerencia.articulo_id}</div>
+
+                                    <div className="text-[var(--text-faint)]">Código</div>
+                                    <div className="font-mono text-[var(--text)]">{pubGtin || pubEan || pubUpc || '—'}</div>
+                                    <div className="font-mono text-[var(--text)]">{topSugerencia.codigo_universal || '—'}</div>
+
+                                    <div className="text-[var(--text-faint)]">Marca</div>
+                                    <div className="text-[var(--text)]">{pubBrand || '—'}</div>
+                                    <div className="text-[var(--text)]">{topSugerencia.marca || '—'}</div>
+
+                                    <div className="text-[var(--text-faint)]">Caja madre</div>
+                                    <div className="text-[var(--text-faint)]">—</div>
+                                    <div className="font-bold text-[var(--warn)]">{topSugerencia.caja_madre || '—'}</div>
                                 </div>
                             </div>
                         )}
