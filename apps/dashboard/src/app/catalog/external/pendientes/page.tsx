@@ -45,14 +45,6 @@ interface Pendiente {
   } | null;
 }
 
-function esKit(r: Pendiente): boolean {
-  if (r.es_bundle) return true;
-  const t = r.tags as any;
-  if (Array.isArray(t)) return t.some((x: string) => String(x).toLowerCase().includes('bundle'));
-  if (typeof t === 'string') return t.toLowerCase().includes('bundle');
-  return false;
-}
-
 const PAGE_SIZE = 50;
 
 export default function PendientesPage() {
@@ -65,58 +57,6 @@ export default function PendientesPage() {
     'visits_30d'
   );
   const [selected, setSelected] = useState<Pendiente | null>(null);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  const [bulkConfirming, setBulkConfirming] = useState(false);
-
-  const confirmar = async (r: Pendiente) => {
-    if (!r._sugerencia) return;
-    setConfirmingId(r.id);
-    try {
-      const res = await fetch('/api/vinculacion/confirmar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          publicacion_id: r.id,
-          articulo_id: r._sugerencia.articulo_id,
-          cantidad_requerida: 1,
-        }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      setRows((prev) => prev.filter((x) => x.id !== r.id));
-    } catch (e) {
-      console.error(e);
-      alert('Error al confirmar el vínculo.');
-    } finally {
-      setConfirmingId(null);
-    }
-  };
-
-  const confirmarTodas = async () => {
-    const candidatas = rows.filter((r) => r._sugerencia && r._sugerencia.score >= 98);
-    if (candidatas.length === 0) return;
-    if (!window.confirm(`¿Confirmar ${candidatas.length} vínculo(s) de alta confianza?`)) return;
-    setBulkConfirming(true);
-    let ok = 0;
-    for (const r of candidatas) {
-      try {
-        const res = await fetch('/api/vinculacion/confirmar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            publicacion_id: r.id,
-            articulo_id: r._sugerencia!.articulo_id,
-            cantidad_requerida: 1,
-          }),
-        });
-        if (res.ok) ok++;
-      } catch {
-        /* continúa con la siguiente */
-      }
-    }
-    setBulkConfirming(false);
-    load();
-    alert(`Confirmados ${ok} de ${candidatas.length}.`);
-  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -208,13 +148,6 @@ export default function PendientesPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={confirmarTodas}
-            disabled={bulkConfirming || !rows.some((r) => r._sugerencia && r._sugerencia.score >= 98)}
-            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-2 text-sm disabled:opacity-40"
-          >
-            {bulkConfirming ? 'Confirmando…' : 'Aceptar todas ≥98%'}
-          </button>
-          <button
             onClick={load}
             className="px-3 py-2 bg-[var(--surface-2)] hover:bg-slate-200 rounded-lg flex items-center gap-2 text-sm"
           >
@@ -297,23 +230,12 @@ export default function PendientesPage() {
                   )}
                 </td>
                 <td className="p-2 whitespace-nowrap">
-                  {r._sugerencia && r._sugerencia.score >= 98 && !esKit(r) ? (
-                    <button
-                      onClick={() => confirmar(r)}
-                      disabled={confirmingId === r.id}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium disabled:opacity-40 max-w-[220px] truncate"
-                      title={`Vincular a ${r._sugerencia.nombre}`}
-                    >
-                      {confirmingId === r.id ? 'Vinculando…' : `✓ Vincular ${r._sugerencia.nombre}`}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setSelected(r)}
-                      className="px-3 py-1.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg text-xs font-medium"
-                    >
-                      Mapear
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setSelected(r)}
+                    className="px-3 py-1.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg text-xs font-medium"
+                  >
+                    Mapear
+                  </button>
                   <Link
                     href={`/catalog/external/${r.id}`}
                     className="ml-2 inline-flex items-center gap-1 px-2 py-1.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-lg text-xs"
