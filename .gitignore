@@ -20,3 +20,7 @@ id_rsa.pub
 id_ed25519
 id_ed25519.pub
 *.secret
+
+# token temporal de GitHub para push (lo crea/borra el agente; nunca se commitea)
+.git_push_token
+.github_token
