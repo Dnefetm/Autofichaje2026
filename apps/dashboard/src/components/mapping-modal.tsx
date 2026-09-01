@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
-import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { dispatchWorker } from '@/lib/dispatch-worker';
 import { X, Search, Package, Save, RefreshCw, Plus, Trash2, Tag, Barcode, Info } from 'lucide-react';
@@ -61,7 +60,6 @@ const [siblings, setSiblings] = useState<any[]>([]);
 const [siblingsLoading, setSiblingsLoading] = useState(false);
 const [costMap, setCostMap] = useState<Map<string, boolean>>(new Map());
 const [topSugerencia, setTopSugerencia] = useState<any>(null);
-const [mobileTab, setMobileTab] = useState<'buscar' | 'ensamble'>('buscar');
 const pubSku = listing?.seller_custom_field || listing?.seller_sku || '';
 const pubEan = listing?.ean || '';
 const pubGtin = listing?.gtin || '';
@@ -481,27 +479,11 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     )}
                 </div>
 
-                {/* Tabs móviles: Buscar / Ensamble */}
-                <div className="md:hidden flex border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0">
-                    <button
-                        onClick={() => setMobileTab('buscar')}
-                        className={cn('flex-1 py-2.5 text-sm font-semibold', mobileTab === 'buscar' ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--text-muted)]')}
-                    >
-                        Buscar
-                    </button>
-                    <button
-                        onClick={() => setMobileTab('ensamble')}
-                        className={cn('flex-1 py-2.5 text-sm font-semibold', mobileTab === 'ensamble' ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]' : 'text-[var(--text-muted)]')}
-                    >
-                        Ensamble ({selectedSkus.length})
-                    </button>
-                </div>
-
                 {/* T-LAYOUT BODY: 2-Column Grid */}
                 <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden bg-[var(--surface)]">
                     
                     {/* LEFT COLUMN: Search & Catalog (60%) */}
-                    <div className={cn('w-full md:w-[60%] flex-col md:border-r border-[var(--border)] overflow-hidden', mobileTab === 'buscar' ? 'flex' : 'hidden md:flex')}>
+                    <div className="w-full md:w-[60%] flex flex-col md:border-r border-[var(--border)] overflow-hidden">
                         
                         {/* Sugerencia automática (server-side): comparación alineada */}
                         {topSugerencia && !searchTerm && (
@@ -629,7 +611,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     </div>
 
                     {/* RIGHT COLUMN: Cart / Selected (40%) */}
-                    <div className={cn('w-full md:w-[40%] flex-col bg-[var(--surface-2)]/30 border-t md:border-t-0 md:border-l border-[var(--border)]', mobileTab === 'ensamble' ? 'flex' : 'hidden md:flex')}>
+                    <div className="w-full md:w-[40%] flex flex-col bg-[var(--surface-2)]/30 border-t md:border-t-0 md:border-l border-[var(--border)]">
                         <div className="p-5 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0 shadow-sm relative z-10">
                             <h4 className="text-sm font-bold text-[var(--text)] flex items-center gap-2">
                                 <Package size={16} className="text-[var(--accent)]" /> 
