@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sugerirExactoEnLote } from '@/lib/vinculacion/sugerencias';
+import { sugerirArticulos, type PublicacionSugerible } from '@/lib/vinculacion/sugerencias';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -99,29 +99,42 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // 4) Sugerencia de vinculación por fila (solo señales fuertes, en lote)
-    const sugerenciaMap = await sugerirExactoEnLote(
-      list.map((r: any) => ({
-        id: r.id,
-        external_item_id: r.external_item_id,
-        seller_sku: r.seller_sku,
-        seller_custom_field: r.seller_custom_field,
-        ean: r.ean,
-        gtin: r.gtin,
-        upc: r.upc,
-        model: r.model,
-        brand: r.brand,
-        titulo: r.titulo,
-        marketplace_id: r.marketplace_id,
-        id_producto_catalogo: r.id_producto_catalogo,
-        par_item_id: r.par_item_id,
-        tipo_publicacion: r.tipo_publicacion,
-      }))
-    );
-    const enrichedConSugerencia = enriched.map((r: any) => ({
-      ...r,
-      _sugerencia: sugerenciaMap.get(r.id) ?? null,
+    // 4) Sugerencia por fila usando el MISMO motor del modal (exacto + fuzzy + alias),
+    //    para que tarjeta y modal muestren siempre la misma sugerencia.
+    const pubs: PublicacionSugerible[] = list.map((r: any) => ({
+      id: r.id,
+      external_item_id: r.external_item_id,
+      seller_sku: r.seller_sku,
+      seller_custom_field: r.seller_custom_field,
+      ean: r.ean,
+      gtin: r.gtin,
+      upc: r.upc,
+      model: r.model,
+      brand: r.brand,
+      titulo: r.titulo,
+      marketplace_id: r.marketplace_id,
+      id_producto_catalogo: r.id_producto_catalogo,
+      par_item_id: r.par_item_id,
+      tipo_publicacion: r.tipo_publicacion,
     }));
+
+    const sugerenciaMap = new Map<string, any>();
+    const CONCURRENCIA = 8;
+    for (let i = 0; i < pubs.length; i += CONCURRENCIA) {
+      const chunk = pubs.slice(i, i + CONCURRENCIA);
+      const res = await Promise.all(
+        chunk.map(async (p) => {
+          const s = await sugerirArticulos(p).catch(() => []);
+          return [p.id, s[0] ?? null] as const;
+        })
+      );
+      for (const [id, s] of res) sugerenciaMap.set(id, s);
+    }
+
+    const enrichedConSugerencia = enriched
+      .map((r: any) => ({ ...r, _sugerencia: sugerenciaMap.get(r.id) ?? null }))
+      // Coincidencias primero (mayor score arriba); sin sugerencia al final.
+      .sort((a: any, b: any) => (b._sugerencia?.score ?? -1) - (a._sugerencia?.score ?? -1));
 
     return NextResponse.json({
       total: count || 0,

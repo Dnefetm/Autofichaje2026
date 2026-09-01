@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,6 +8,7 @@ type Theme = "dim" | "solarized" | "sepia";
 export default function ThemeSwitcher() {
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<Theme>("dim");
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -21,6 +21,7 @@ export default function ThemeSwitcher() {
     setTheme(newTheme);
     localStorage.setItem("theme", newTheme);
     document.documentElement.setAttribute("data-theme", newTheme);
+    setOpen(false);
   };
 
   if (!mounted) {
@@ -28,12 +29,20 @@ export default function ThemeSwitcher() {
   }
 
   return (
-    <div className="relative group inline-block">
-      <button className="p-2 bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--accent)] rounded-[var(--radius-sm)] border border-transparent hover:border-[var(--border)] transition-colors flex items-center justify-center">
+    <div className="relative inline-block">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Cambiar tema"
+        className="p-2 bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--accent)] rounded-[var(--radius-sm)] border border-transparent hover:border-[var(--border)] transition-colors flex items-center justify-center"
+      >
         <Palette className="w-4 h-4" />
       </button>
-      
-      <div className="absolute right-0 mt-2 w-48 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius)] shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden">
+
+      <div
+        className={`absolute right-0 mt-2 w-48 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius)] shadow-xl transition-all z-50 overflow-hidden ${
+          open ? "opacity-100 visible" : "opacity-0 invisible"
+        }`}
+      >
         <div className="p-1">
           <button
             onClick={() => changeTheme("dim")}
@@ -67,4 +76,3 @@ export default function ThemeSwitcher() {
     </div>
   );
 }
-
