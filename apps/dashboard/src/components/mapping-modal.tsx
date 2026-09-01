@@ -480,7 +480,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                 </div>
 
                 {/* T-LAYOUT BODY: 2-Column Grid */}
-                <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-[var(--surface)]">
+                <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden bg-[var(--surface)]">
                     
                     {/* LEFT COLUMN: Search & Catalog (60%) */}
                     <div className="w-full md:w-[60%] flex flex-col border-r border-[var(--border)] overflow-hidden">
