@@ -185,28 +185,30 @@ export default function PendientesPage() {
                   )}
                 </div>
               </div>
-              <div className="flex gap-2 shrink-0">
-                {r._sugerencia && (
-                  <button
-                    onClick={() => { setSugerenciaInicial(r._sugerencia); setSelected(r); }}
-                    className="px-3 py-1.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg text-sm font-semibold"
-                  >
-                    Mapear con sugerido
-                  </button>
-                )}
+            </div>
+
+            {/* Acciones */}
+            <div className="flex flex-wrap gap-2 mt-3">
+              {r._sugerencia && (
                 <button
-                  onClick={() => { setSugerenciaInicial(null); setSelected(r); }}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${r._sugerencia ? 'bg-[var(--surface-2)] hover:brightness-110 text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
+                  onClick={() => { setSugerenciaInicial(r._sugerencia); setSelected(r); }}
+                  className="px-3 py-1.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg text-sm font-semibold"
                 >
-                  Mapear
+                  Mapear con sugerido
                 </button>
-                <Link
-                  href={`/catalog/external/${r.id}`}
-                  className="inline-flex items-center gap-1 px-2 py-1.5 bg-[var(--surface-2)] hover:brightness-110 text-[var(--text-muted)] rounded-lg text-sm"
-                >
-                  <Eye className="w-4 h-4" /> Ver
-                </Link>
-              </div>
+              )}
+              <button
+                onClick={() => { setSugerenciaInicial(null); setSelected(r); }}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium ${r._sugerencia ? 'bg-[var(--surface-2)] hover:brightness-110 text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
+              >
+                Mapear
+              </button>
+              <Link
+                href={`/catalog/external/${r.id}`}
+                className="inline-flex items-center gap-1 px-2 py-1.5 bg-[var(--surface-2)] hover:brightness-110 text-[var(--text-muted)] rounded-lg text-sm"
+              >
+                <Eye className="w-4 h-4" /> Ver
+              </Link>
             </div>
 
             {/* Comparación a ancho completo */}
