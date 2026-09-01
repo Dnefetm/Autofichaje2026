@@ -114,6 +114,7 @@ export async function GET(req: NextRequest) {
         marketplace_id: r.marketplace_id,
         id_producto_catalogo: r.id_producto_catalogo,
         par_item_id: r.par_item_id,
+        tipo_publicacion: r.tipo_publicacion,
       }))
     );
     const enrichedConSugerencia = enriched.map((r: any) => ({

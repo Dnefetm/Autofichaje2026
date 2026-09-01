@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const { data: pub, error } = await supabaseAdmin
     .from('publicaciones_externas')
     .select(
-      'id, external_item_id, seller_sku, seller_custom_field, ean, gtin, upc, model, brand, titulo, marketplace_id, id_producto_catalogo, par_item_id, esta_mapeado',
+      'id, external_item_id, seller_sku, seller_custom_field, ean, gtin, upc, model, brand, titulo, marketplace_id, id_producto_catalogo, par_item_id, tipo_publicacion, esta_mapeado',
     )
     .eq('id', publicacionId)
     .single();
@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
     marketplace_id: pub.marketplace_id,
     id_producto_catalogo: pub.id_producto_catalogo,
     par_item_id: pub.par_item_id,
+    tipo_publicacion: pub.tipo_publicacion,
   };
 
   const sugerencias = (mapeos && mapeos.length > 0)

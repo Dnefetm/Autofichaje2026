@@ -477,6 +477,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                         </p>
                                         <p className="text-[11px] text-[var(--text-muted)] truncate">
                                             {topSugerencia.marca}{topSugerencia.modelo ? ` · ${topSugerencia.modelo}` : ''} · {topSugerencia.motivo}
+                                            {topSugerencia.caja_madre && <span className="ml-1 font-bold text-[var(--warn)]">· Caja madre: {topSugerencia.caja_madre}</span>}
                                         </p>
                                     </div>
                                     <button
@@ -526,6 +527,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                                     )}
                                                     {res.modelo && <span className="text-[10px] text-[var(--text-faint)]">Mod: {res.modelo}</span>}
                                                     {res.variante && <span className="text-[10px] text-[var(--text-faint)]">Var: {res.variante}</span>}
+                                                    {res.caja_madre && <span className="text-[10px] font-bold text-[var(--warn)] bg-[var(--warn)]/10 px-1.5 py-0.5 rounded border border-[var(--warn)]/30">Caja madre: {res.caja_madre}</span>}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3 ml-3">
@@ -560,6 +562,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                                             Cod: {res.codigo_universal}
                                                         </span>
                                                     )}
+                                                    {res.caja_madre && <span className="text-[10px] font-bold text-[var(--warn)] bg-[var(--warn)]/10 px-1.5 py-0.5 rounded border border-[var(--warn)]/30">Caja madre: {res.caja_madre}</span>}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3 ml-3">
@@ -621,6 +624,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                             <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded border border-[var(--border)]">{s.sku}</span>
                                             {s.marca && <span className="text-[10px] text-[var(--text-faint)]">Marca: {s.marca}</span>}
                                             {s.codigo_universal && <span className="text-[10px] font-mono text-[var(--text-faint)]">Cod: {s.codigo_universal}</span>}
+                                            {s.caja_madre && <span className="text-[10px] font-bold text-[var(--warn)]">Caja madre: {s.caja_madre}</span>}
                                         </div>
 
                                         <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">

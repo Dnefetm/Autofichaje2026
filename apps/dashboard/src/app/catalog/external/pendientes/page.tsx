@@ -36,6 +36,7 @@ interface Pendiente {
     nombre: string;
     marca: string | null;
     modelo: string | null;
+    caja_madre: string | null;
     score: number;
     metodo: string;
     motivo: string;
@@ -249,10 +250,15 @@ export default function PendientesPage() {
                       </div>
                       <div className="text-xs text-[var(--text-muted)]">{r.external_item_id}</div>
                       {r._sugerencia && (
-                        <div className="text-xs text-emerald-700 mt-0.5 line-clamp-1">
-                          → {r._sugerencia.nombre}{' '}
-                          <span className="font-bold">({r._sugerencia.score}%)</span>
+                        <div className="text-xs text-emerald-700 mt-1">
+                          <span className="font-bold">✓ Sugerencia:</span> {r._sugerencia.nombre}{' '}
+                          <span className="font-bold">({r._sugerencia.score}%)</span>{' '}
+                          <span className="text-emerald-600/80">· {r._sugerencia.motivo}</span>
+                          {r._sugerencia.caja_madre && <span className="font-bold text-amber-600"> · Caja madre: {r._sugerencia.caja_madre}</span>}
                         </div>
+                      )}
+                      {!r._sugerencia && r.tipo_publicacion === 'catalogo' && r.par_item_id && (
+                        <div className="text-xs text-amber-600 mt-0.5">Catálogo: hereda stock de su hermana · usa "Mapear"</div>
                       )}
                     </div>
                   </div>
@@ -285,10 +291,10 @@ export default function PendientesPage() {
                     <button
                       onClick={() => confirmar(r)}
                       disabled={confirmingId === r.id}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium disabled:opacity-40"
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium disabled:opacity-40 max-w-[220px] truncate"
                       title={`Vincular a ${r._sugerencia.nombre}`}
                     >
-                      {confirmingId === r.id ? 'Vinculando…' : `Confirmar ${r._sugerencia.score}%`}
+                      {confirmingId === r.id ? 'Vinculando…' : `✓ Vincular ${r._sugerencia.nombre}`}
                     </button>
                   ) : (
                     <button

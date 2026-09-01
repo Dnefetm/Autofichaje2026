@@ -22,6 +22,7 @@ export interface Sugerencia {
   marca: string | null;
   modelo: string | null;
   codigo_universal: string | null;
+  caja_madre: string | null;
   score: number; // 0..100
   metodo: string; // 'hermana_mapeada' | 'alias' | 'sku_exacto' | 'codigo_exacto' | 'marca_modelo' | 'fuzzy'
   motivo: string; // texto legible para el operador
@@ -41,6 +42,7 @@ export interface PublicacionSugerible {
   marketplace_id: string | null;
   id_producto_catalogo: string | null;
   par_item_id: string | null;
+  tipo_publicacion: string | null;
 }
 
 const ARTICULO_COLS = 'articulo_id, nombre, marca, modelo, codigo_universal, caja_madre';
@@ -95,6 +97,7 @@ function toSugerencia(
     marca: a.marca ?? null,
     modelo: a.modelo ?? null,
     codigo_universal: a.codigo_universal ?? null,
+    caja_madre: a.caja_madre ?? null,
     score: Math.max(0, Math.min(100, Math.round(score))),
     metodo,
     motivo,
@@ -395,6 +398,11 @@ export async function sugerirExactoEnLote(
   }
 
   for (const p of pubs) {
+    // Catálogo que hereda stock de su hermana: no se sugiere mapeo directo.
+    if (p.tipo_publicacion === 'catalogo' && p.par_item_id) {
+      result.set(p.id, null);
+      continue;
+    }
     const key = p.id_producto_catalogo || p.par_item_id;
     const heredadas = key ? mapeosPorPub.get(key) : undefined;
     const heredada = heredadas && heredadas.size ? Array.from(heredadas)[0] : null;
