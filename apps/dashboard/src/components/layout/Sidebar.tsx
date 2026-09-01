@@ -12,10 +12,23 @@ import {
     Upload, ClipboardList,
 } from 'lucide-react';
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
+    mobileOpen?: boolean;
+    onCloseMobile?: () => void;
+}) {
     const pathname = usePathname();
     const [pendingCount, setPendingCount] = useState<number | null>(null);
     const [collapsed, setCollapsed] = useState(false);
+    const [isDesktop, setIsDesktop] = useState(true);
+
+    // Detectar escritorio vs móvil (breakpoint md = 768px)
+    useEffect(() => {
+        const mq = window.matchMedia('(min-width: 768px)');
+        const handler = () => setIsDesktop(mq.matches);
+        handler();
+        mq.addEventListener('change', handler);
+        return () => mq.removeEventListener('change', handler);
+    }, []);
 
     useEffect(() => {
         let cancel = false;
@@ -35,7 +48,7 @@ export default function Sidebar() {
         };
     }, []);
 
-    // Persistir preferencia en localStorage
+    // Persistir preferencia de colapso (solo aplica en escritorio)
     useEffect(() => {
         const saved = localStorage.getItem('sidebar-collapsed');
         if (saved === 'true') setCollapsed(true);
@@ -46,6 +59,9 @@ export default function Sidebar() {
         setCollapsed(next);
         localStorage.setItem('sidebar-collapsed', String(next));
     }
+
+    // En móvil el drawer siempre muestra etiquetas; el colapso es solo de escritorio.
+    const showLabels = isDesktop ? !collapsed : true;
 
     const menuItems = [
         { name: 'Dashboard',        icon: LayoutDashboard, href: '/' },
@@ -64,19 +80,24 @@ export default function Sidebar() {
 
     return (
         <aside className={cn(
-            'bg-[var(--surface-2)] text-[var(--text)] flex-shrink-0 flex flex-col h-full border-r border-[var(--border)] transition-all duration-200 select-none',
-            collapsed ? 'w-16' : 'w-56'
+            'bg-[var(--surface-2)] text-[var(--text)] flex-shrink-0 flex flex-col h-full border-r border-[var(--border)] transition-transform duration-200 select-none',
+            // ancho: drawer móvil fijo 64, escritorio 56/16 según colapso
+            collapsed && isDesktop ? 'w-16' : 'w-64 md:w-56',
+            // posición: drawer fijo en móvil, estático en escritorio
+            'fixed inset-y-0 left-0 z-50 md:static md:z-auto',
+            // deslizar: oculto fuera de pantalla en móvil, visible en escritorio
+            mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         )}>
-            {/* Header con Logo y Botón Toggle Integrado */}
+            {/* Header con Logo y Botón Toggle Integrado (toggle solo escritorio) */}
             <div className={cn(
                 'p-3 border-b border-[var(--border)] flex items-center',
-                collapsed ? 'justify-center flex-col gap-2' : 'justify-between'
+                showLabels ? 'justify-between' : 'justify-center flex-col gap-2'
             )}>
                 <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 shrink-0 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg flex items-center justify-center shadow-sm">
                         <RefreshCcw className="w-4 h-4" />
                     </div>
-                    {!collapsed && (
+                    {showLabels && (
                         <span className="text-base font-bold tracking-tight text-[var(--text)] truncate">
                             GESTOR
                         </span>
@@ -86,7 +107,7 @@ export default function Sidebar() {
                 <button
                     onClick={toggle}
                     title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-                    className="p-1.5 rounded-md hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+                    className="hidden md:flex p-1.5 rounded-md hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
                 >
                     {collapsed
                         ? <ChevronRight className="w-4 h-4" />
@@ -95,8 +116,8 @@ export default function Sidebar() {
                 </button>
             </div>
 
-            {/* Navegación con Scroll Automático si es necesario */}
-            <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
+            {/* Navegación */}
+            <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto" onClick={onCloseMobile}>
                 {menuItems.map((item) => {
                     const isActive = item.href === '/'
                         ? pathname === '/'
@@ -106,10 +127,10 @@ export default function Sidebar() {
                         <Link
                             key={item.name}
                             href={item.href}
-                            title={collapsed ? item.name : undefined}
+                            title={showLabels ? undefined : item.name}
                             className={cn(
                                 'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors group',
-                                collapsed && 'justify-center px-2',
+                                !showLabels && 'justify-center px-2',
                                 isActive
                                     ? 'bg-[var(--accent)] text-[var(--accent-ink)] font-semibold shadow-sm'
                                     : 'text-[var(--text-muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]'
@@ -119,7 +140,7 @@ export default function Sidebar() {
                                 'w-4 h-4 shrink-0 transition-colors',
                                 isActive ? 'text-[var(--accent-ink)]' : 'text-[var(--text-faint)] group-hover:text-[var(--text)]'
                             )} />
-                            {!collapsed && <span className="truncate">{item.name}</span>}
+                            {showLabels && <span className="truncate">{item.name}</span>}
                         </Link>
                     );
                 })}
@@ -127,10 +148,10 @@ export default function Sidebar() {
                 {/* Enlace de Pendientes con Notificación */}
                 <Link
                     href="/catalog/external/pendientes"
-                    title={collapsed ? `Pendientes (${pendingCount ?? 0})` : undefined}
+                    title={showLabels ? undefined : `Pendientes (${pendingCount ?? 0})`}
                     className={cn(
                         'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors group relative',
-                        collapsed && 'justify-center px-2',
+                        !showLabels && 'justify-center px-2',
                         isPendientesActive
                             ? 'bg-[var(--accent)] text-[var(--accent-ink)] font-semibold shadow-sm'
                             : 'text-[var(--text-muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]'
@@ -141,11 +162,11 @@ export default function Sidebar() {
                             'w-4 h-4 shrink-0 transition-colors',
                             isPendientesActive ? 'text-[var(--accent-ink)]' : 'text-amber-400 group-hover:text-amber-300'
                         )} />
-                        {collapsed && pendingCount !== null && pendingCount > 0 && (
+                        {!showLabels && pendingCount !== null && pendingCount > 0 && (
                             <span className="absolute -top-1 -right-1.5 w-2.5 h-2.5 bg-[var(--warn)] rounded-full ring-2 ring-[var(--surface-2)]" />
                         )}
                     </div>
-                    {!collapsed && (
+                    {showLabels && (
                         <div className="flex items-center justify-between flex-1 min-w-0">
                             <span className="truncate">Pendientes</span>
                             {pendingCount !== null && pendingCount > 0 && (
@@ -160,11 +181,11 @@ export default function Sidebar() {
 
             {/* Usuario / Footer */}
             <div className="p-3 border-t border-[var(--border)]">
-                <div className={cn('flex items-center gap-3 px-1.5 py-1', collapsed && 'justify-center')}>
+                <div className={cn('flex items-center gap-3 px-1.5 py-1', !showLabels && 'justify-center')}>
                     <div className="w-8 h-8 shrink-0 bg-[var(--surface)] border border-[var(--border)] rounded-full flex items-center justify-center text-xs font-semibold text-[var(--text)]">
                         OP
                     </div>
-                    {!collapsed && (
+                    {showLabels && (
                         <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-[var(--text)] truncate">Operador 1</p>
                             <p className="text-xs text-[var(--text-muted)] truncate">Sesión activa</p>

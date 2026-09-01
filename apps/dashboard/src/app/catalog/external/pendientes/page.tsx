@@ -116,17 +116,17 @@ export default function PendientesPage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
       {/* Encabezado */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center gap-3 justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text)] flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--text)] flex items-center gap-2">
             <Package className="w-6 h-6" /> Cola de mapeo pendiente
           </h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">
             {total.toLocaleString()} publicaciones sin vincular con bodega física. Prioriza por{' '}
             <select
-              className="ml-1 border border-slate-300 rounded px-2 py-0.5 text-sm"
+              className="ml-1 border border-[var(--border)] rounded px-2 py-0.5 text-sm"
               value={orderBy}
               onChange={(e) => {
                 setPage(0);
@@ -151,7 +151,7 @@ export default function PendientesPage() {
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
         <input
-          className="w-full pl-10 pr-4 py-2 bg-[var(--surface)] border border-slate-300 rounded-lg focus:ring-2 focus:ring-[var(--accent)]"
+          className="w-full pl-10 pr-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-[var(--accent)]"
           placeholder="Filtrar por título, MLM, marca, modelo, SKU o EAN/GTIN..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -240,7 +240,7 @@ export default function PendientesPage() {
       </div>
 
       {/* Paginación */}
-      <div className="flex items-center justify-between mt-4 text-sm text-[var(--text-muted)]">
+      <div className="flex flex-wrap items-center gap-2 justify-between mt-4 text-sm text-[var(--text-muted)]">
         <div>
           Página {page + 1} de {Math.max(1, Math.ceil(total / PAGE_SIZE))}
         </div>

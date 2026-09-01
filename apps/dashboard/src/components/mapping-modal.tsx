@@ -424,7 +424,7 @@ finally { setSaving(false); }
 const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel => sel.sku === s.articulo_id));
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] max-h-[850px] overflow-hidden flex flex-col">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-6xl h-[85dvh] max-h-[850px] overflow-hidden flex flex-col">
                 
                 {/* Header del Modal */}
                 <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0">
@@ -445,10 +445,10 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                         )}
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30">
+                                <span className="text-xs font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30">
                                     {listing.domain_id === 'MLM-CARS_AND_LIGHT_TRUCKS' ? 'Vehículo' : 'Publicación Venta'}
                                 </span>
-                                {listing.condition === 'new' && <span className="text-[10px] bg-[var(--surface-2)] text-[var(--text-muted)] px-2 py-0.5 rounded border border-[var(--border)]">Nuevo</span>}
+                                {listing.condition === 'new' && <span className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] px-2 py-0.5 rounded border border-[var(--border)]">Nuevo</span>}
                                 <span className="text-[var(--text-muted)] font-mono text-xs ml-2">{listing.external_item_id}</span>
                             </div>
                             <h3 className="text-sm font-bold text-[var(--text)] leading-tight truncate mb-1" title={listing.titulo}>{listing.titulo}</h3>
@@ -483,7 +483,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                 <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden bg-[var(--surface)]">
                     
                     {/* LEFT COLUMN: Search & Catalog (60%) */}
-                    <div className="w-full md:w-[60%] flex flex-col border-r border-[var(--border)] overflow-hidden">
+                    <div className="w-full md:w-[60%] flex flex-col md:border-r border-[var(--border)] overflow-hidden">
                         
                         {/* Sugerencia automática (server-side): comparación alineada */}
                         {topSugerencia && !searchTerm && (
@@ -514,7 +514,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                         )}
                         
                         {/* Search Input (Sticky Top of Column) */}
-                        <div className="px-5 py-4 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-sm relative z-10">
+                        <div className="px-5 py-4 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-sm relative z-10 sticky top-0">
                             <label className="text-xs font-semibold text-[var(--text-muted)] mb-1.5 block">Buscar en Catálogo Real</label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={16} />
@@ -542,20 +542,20 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium text-[var(--text)] truncate">{res.nombre}</p>
                                                 <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                                    {res.marca && <span className="text-[10px] text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">{res.marca}</span>}
+                                                    {res.marca && <span className="text-xs text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">{res.marca}</span>}
                                                     {res.codigo_universal && (
-                                                        <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">
+                                                        <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">
                                                             Cod: {res.codigo_universal}
                                                         </span>
                                                     )}
-                                                    {res.modelo && <span className="text-[10px] text-[var(--text-faint)]">Mod: {res.modelo}</span>}
-                                                    {res.variante && <span className="text-[10px] text-[var(--text-faint)]">Var: {res.variante}</span>}
-                                                    {res.caja_madre && <span className="text-[10px] font-bold text-[var(--warn)] bg-[var(--warn)]/10 px-1.5 py-0.5 rounded border border-[var(--warn)]/30">Caja madre: {res.caja_madre}</span>}
+                                                    {res.modelo && <span className="text-xs text-[var(--text-faint)]">Mod: {res.modelo}</span>}
+                                                    {res.variante && <span className="text-xs text-[var(--text-faint)]">Var: {res.variante}</span>}
+                                                    {res.caja_madre && <span className="text-xs font-bold text-[var(--warn)] bg-[var(--warn)]/10 px-1.5 py-0.5 rounded border border-[var(--warn)]/30">Caja madre: {res.caja_madre}</span>}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3 ml-3">
-                                                <span className="text-[10px] font-mono text-[var(--text-faint)]">{res.articulo_id}</span>
-                                                <div className="w-6 h-6 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center group-hover:bg-[var(--accent)] group-hover:border-[var(--accent)] transition-colors">
+                                                <span className="text-xs font-mono text-[var(--text-faint)]">{res.articulo_id}</span>
+                                                <div className="w-9 h-9 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center group-hover:bg-[var(--accent)] group-hover:border-[var(--accent)] transition-colors">
                                                     <Plus size={12} className="text-[var(--text-muted)] group-hover:text-white" />
                                                 </div>
                                             </div>
@@ -577,24 +577,24 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium text-[var(--text)] truncate">{res.nombre}</p>
                                                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                                    {res._score >= 3 && <span className="text-[10px] bg-[var(--ok)]/20 text-[var(--ok)] border border-[var(--ok)]/40 px-1.5 py-0.5 rounded-full font-bold">Match Alto</span>}
-                                                    {res._score >= 1.5 && res._score < 3 && <span className="text-[10px] bg-[var(--warn)]/20 text-[var(--warn)] border border-[var(--warn)]/40 px-1.5 py-0.5 rounded-full font-semibold">Match Medio</span>}
-                                                    {res.marca && <span className="text-[10px] text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">{res.marca}</span>}
+                                                    {res._score >= 3 && <span className="text-xs bg-[var(--ok)]/20 text-[var(--ok)] border border-[var(--ok)]/40 px-1.5 py-0.5 rounded-full font-bold">Match Alto</span>}
+                                                    {res._score >= 1.5 && res._score < 3 && <span className="text-xs bg-[var(--warn)]/20 text-[var(--warn)] border border-[var(--warn)]/40 px-1.5 py-0.5 rounded-full font-semibold">Match Medio</span>}
+                                                    {res.marca && <span className="text-xs text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">{res.marca}</span>}
                                                     {res.codigo_universal && (
-                                                        <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">
+                                                        <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">
                                                             Cod: {res.codigo_universal}
                                                         </span>
                                                     )}
-                                                    {res.caja_madre && <span className="text-[10px] font-bold text-[var(--warn)] bg-[var(--warn)]/10 px-1.5 py-0.5 rounded border border-[var(--warn)]/30">Caja madre: {res.caja_madre}</span>}
+                                                    {res.caja_madre && <span className="text-xs font-bold text-[var(--warn)] bg-[var(--warn)]/10 px-1.5 py-0.5 rounded border border-[var(--warn)]/30">Caja madre: {res.caja_madre}</span>}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3 ml-3">
                                                 {costMap.get(res.articulo_id) ? (
-                                                    <span className="text-[10px] bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/20 px-1.5 py-0.5 rounded">Costo OK</span>
+                                                    <span className="text-xs bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/20 px-1.5 py-0.5 rounded">Costo OK</span>
                                                 ) : (
-                                                    <span className="text-[10px] bg-[var(--err)]/10 text-[var(--err)] border border-[var(--err)]/20 px-1.5 py-0.5 rounded">Sin Costo</span>
+                                                    <span className="text-xs bg-[var(--err)]/10 text-[var(--err)] border border-[var(--err)]/20 px-1.5 py-0.5 rounded">Sin Costo</span>
                                                 )}
-                                                <div className="w-6 h-6 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center group-hover:bg-[var(--accent)] group-hover:border-[var(--accent)] transition-colors">
+                                                <div className="w-9 h-9 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center group-hover:bg-[var(--accent)] group-hover:border-[var(--accent)] transition-colors">
                                                     <Plus size={12} className="text-[var(--text-muted)] group-hover:text-white" />
                                                 </div>
                                             </div>
@@ -611,7 +611,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     </div>
 
                     {/* RIGHT COLUMN: Cart / Selected (40%) */}
-                    <div className="w-full md:w-[40%] flex flex-col bg-[var(--surface-2)]/30 border-t md:border-t-0 md:border-l border-[var(--border)]">
+                    <div className="w-full md:w-[40%] flex flex-col bg-[var(--surface-2)]/30 border-t md:border-t-0 md:border-l border-[var(--border)] sticky bottom-0 z-20 max-h-[45vh] md:static md:max-h-none">
                         <div className="p-5 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0 shadow-sm relative z-10">
                             <h4 className="text-sm font-bold text-[var(--text)] flex items-center gap-2">
                                 <Package size={16} className="text-[var(--accent)]" /> 
@@ -644,18 +644,18 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                         <p className="text-sm font-semibold text-[var(--text)] pr-6 leading-tight mb-2">{s.name}</p>
                                         
                                         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-                                            <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded border border-[var(--border)]">{s.sku}</span>
-                                            {s.marca && <span className="text-[10px] text-[var(--text-faint)]">Marca: {s.marca}</span>}
-                                            {s.codigo_universal && <span className="text-[10px] font-mono text-[var(--text-faint)]">Cod: {s.codigo_universal}</span>}
-                                            {s.caja_madre && <span className="text-[10px] font-bold text-[var(--warn)]">Caja madre: {s.caja_madre}</span>}
+                                            <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded border border-[var(--border)]">{s.sku}</span>
+                                            {s.marca && <span className="text-xs text-[var(--text-faint)]">Marca: {s.marca}</span>}
+                                            {s.codigo_universal && <span className="text-xs font-mono text-[var(--text-faint)]">Cod: {s.codigo_universal}</span>}
+                                            {s.caja_madre && <span className="text-xs font-bold text-[var(--warn)]">Caja madre: {s.caja_madre}</span>}
                                         </div>
 
                                         <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">
                                             <span className="text-xs font-medium text-[var(--text-muted)]">Multiplicador</span>
                                             <div className="flex items-center border border-[var(--border)] bg-[var(--surface-2)] rounded-lg overflow-hidden h-7">
-                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="w-7 h-full flex items-center justify-center text-[var(--text)] hover:bg-[var(--surface)] font-bold transition-colors">-</button>
-                                                <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, parseInt(e.target.value) || 1)} className="w-10 h-full text-center text-xs font-bold bg-transparent border-none appearance-none p-0 focus:ring-0 text-[var(--text)]" />
-                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="w-7 h-full flex items-center justify-center text-[var(--text)] hover:bg-[var(--surface)] font-bold transition-colors">+</button>
+                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] hover:bg-[var(--surface)] font-bold transition-colors">-</button>
+                                                <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, parseInt(e.target.value) || 1)} className="w-12 h-full text-center text-xs font-bold bg-transparent border-none appearance-none p-0 focus:ring-0 text-[var(--text)]" />
+                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] hover:bg-[var(--surface)] font-bold transition-colors">+</button>
                                             </div>
                                         </div>
                                     </div>

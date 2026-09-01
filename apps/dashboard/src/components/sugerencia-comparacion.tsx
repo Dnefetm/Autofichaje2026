@@ -63,7 +63,7 @@ export default function SugerenciaComparacion({ pub, sug }: SugerenciaComparacio
       </div>
 
       {/* Móvil: apilado, campo por campo */}
-      <div className="md:hidden divide-y divide-[var(--border)]">
+      <div className="md:hidden divide-y divide-[var(--border)] break-words">
         <div className="px-3 py-2.5">
           <div className="text-xs uppercase tracking-wider font-bold text-[var(--text-faint)] mb-1">Nombre</div>
           <div className="text-sm text-[var(--text)] leading-snug"><span className="font-semibold text-[var(--text-faint)]">Vitrina: </span>{pubNombre}</div>
