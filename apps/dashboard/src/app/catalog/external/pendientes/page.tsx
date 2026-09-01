@@ -116,7 +116,7 @@ export default function PendientesPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       {/* Encabezado */}
       <div className="flex flex-wrap items-center gap-3 justify-between mb-4">
         <div>
