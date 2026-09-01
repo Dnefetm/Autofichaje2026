@@ -24,6 +24,8 @@ interface Pendiente {
   tipo_publicacion: string | null;
   par_item_id: string | null;
   id_producto_catalogo: string | null;
+  es_bundle: boolean | null;
+  tags: string[] | string | null;
   sync_disabled: boolean | null;
   sync_disabled_reason: string | null;
   pricing_status: string | null;
@@ -41,6 +43,14 @@ interface Pendiente {
     metodo: string;
     motivo: string;
   } | null;
+}
+
+function esKit(r: Pendiente): boolean {
+  if (r.es_bundle) return true;
+  const t = r.tags as any;
+  if (Array.isArray(t)) return t.some((x: string) => String(x).toLowerCase().includes('bundle'));
+  if (typeof t === 'string') return t.toLowerCase().includes('bundle');
+  return false;
 }
 
 const PAGE_SIZE = 50;
@@ -287,7 +297,7 @@ export default function PendientesPage() {
                   )}
                 </td>
                 <td className="p-2 whitespace-nowrap">
-                  {r._sugerencia && r._sugerencia.score >= 98 ? (
+                  {r._sugerencia && r._sugerencia.score >= 98 && !esKit(r) ? (
                     <button
                       onClick={() => confirmar(r)}
                       disabled={confirmingId === r.id}

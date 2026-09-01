@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
         `id, external_item_id, titulo, brand, model, precio_venta, visits_30d,
          url_imagen, marketplace_id, ean, gtin, upc, seller_sku, seller_custom_field,
          domain_id, condition, tipo_publicacion, par_item_id, id_producto_catalogo,
+         es_bundle, tags,
          sync_disabled, sync_disabled_reason, pricing_status, sale_price_calculated,
          actualizado_el`,
         { count: 'exact' }

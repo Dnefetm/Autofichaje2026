@@ -27,6 +27,11 @@ if (count > 0) { bigrams.set(bi, count - 1); intersect++; }
 }
 return (2 * intersect) / ((al.length - 1) + (bl.length - 1));
 }
+function esDevolucion(cajaMadre: string | null | undefined): boolean {
+if (!cajaMadre) return false;
+const n = cajaMadre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+return n.includes('devolucion');
+}
 export default function MappingModal({ listing, onClose, onSuccess }: MappingModalProps) {
 const [searchTerm, setSearchTerm] = useState('');
 const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -250,7 +255,7 @@ return { ...item, _score: score };
 scored.sort((a, b) => b._score - a._score);
 // Umbral relajado cuando no hay datos estructurados: apoyarse en similitud de nombre.
 const minScore = noStructuredData ? 0.15 : 0.5;
-const finalScored = scored.filter(s => s._score > minScore);
+const finalScored = scored.filter(s => s._score > minScore && !esDevolucion(s.caja_madre));
 setSmartSuggestions(finalScored);
 const artIds = finalScored.map((s: any) => s.articulo_id);
 if (artIds.length) {

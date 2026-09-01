@@ -55,6 +55,13 @@ export function normalizeCode(s?: string | null): string {
   return (s || '').replace(/[^0-9a-z]/gi, '').toLowerCase();
 }
 
+/** True si la ubicación física es de devoluciones (no debe sugerirse). */
+export function esDevolucion(cajaMadre: string | null | undefined): boolean {
+  if (!cajaMadre) return false;
+  const n = cajaMadre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return n.includes('devolucion');
+}
+
 /** Coeficiente de Dice sobre bigramas (igual que mapping-modal). */
 export function stringSimilarity(a: string, b: string): number {
   if (!a || !b) return 0;
@@ -301,7 +308,9 @@ export async function sugerirArticulos(pub: PublicacionSugerible): Promise<Suger
     if (!prev || s.score > prev.score) map.set(s.articulo_id, s);
   }
 
-  return Array.from(map.values()).sort((a, b) => b.score - a.score);
+  return Array.from(map.values())
+    .filter((s) => !esDevolucion(s.caja_madre))
+    .sort((a, b) => b.score - a.score);
 }
 
 /**
@@ -432,6 +441,8 @@ export async function sugerirExactoEnLote(
         }
       }
     }
+
+    if (best && esDevolucion(best.caja_madre)) best = null;
 
     result.set(p.id, best);
   }
