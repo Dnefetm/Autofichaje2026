@@ -1,0 +1,20 @@
+#!/bin/sh
+# Pre-commit hook: bloquea commits que introduzcan secretos conocidos.
+# Actívalo (una vez por clon) con:  git config core.hooksPath .githooks
+#
+# Patrones detectados:
+#   - service-role key de Supabase (sb_secret_...)
+#   - líneas con SUPABASE_SERVICE_ROLE_KEY=... (env files filtrados)
+#   - claves publicables de Stripe (sk_live_...)
+#   - llaves privadas PEM (-----BEGIN ... PRIVATE KEY-----)
+
+PATTERN='sb_secret_[A-Za-z0-9_-]{10,}|SUPABASE_SERVICE_ROLE_KEY[[:space:]]*=|sk_live_[A-Za-z0-9]+|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+
+if git grep --cached -n -I -E "$PATTERN" ; then
+  echo ""
+  echo "⛔ Commit BLOQUEADO: se detectó un posible secreto (ver líneas de arriba)."
+  echo "   Elimina el secreto del archivo o añade el archivo a .gitignore."
+  exit 1
+fi
+
+exit 0
