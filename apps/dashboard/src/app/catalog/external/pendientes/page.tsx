@@ -14,23 +14,13 @@ interface Pendiente {
   precio_venta: number | null;
   visits_30d: number | null;
   url_imagen: string | null;
-  marketplace_id: string;
   ean: string | null;
   gtin: string | null;
   upc: string | null;
   seller_sku: string | null;
   seller_custom_field: string | null;
-  domain_id: string | null;
-  condition: string | null;
-  tipo_publicacion: string | null;
-  par_item_id: string | null;
-  id_producto_catalogo: string | null;
-  es_bundle: boolean | null;
-  tags: string[] | string | null;
   sync_disabled: boolean | null;
   sync_disabled_reason: string | null;
-  pricing_status: string | null;
-  sale_price_calculated: number | null;
   _articulos_con_costo: number;
   _articulos_sin_costo: number;
   _cost_status: 'sin_mapeo' | 'costo_completo' | 'sin_costo' | 'parcial';
@@ -126,7 +116,8 @@ export default function PendientesPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
+      {/* Encabezado */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-[var(--text)] flex items-center gap-2">
@@ -148,16 +139,15 @@ export default function PendientesPage() {
             </select>
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={load}
-            className="px-3 py-2 bg-[var(--surface-2)] hover:bg-slate-200 rounded-lg flex items-center gap-2 text-sm"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refrescar
-          </button>
-        </div>
+        <button
+          onClick={load}
+          className="px-3 py-2 bg-[var(--surface-2)] hover:bg-slate-200 rounded-lg flex items-center gap-2 text-sm"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refrescar
+        </button>
       </div>
 
+      {/* Búsqueda */}
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
         <input
@@ -168,114 +158,87 @@ export default function PendientesPage() {
         />
       </div>
 
-      <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-[var(--bg)] text-[var(--text-muted)]">
-            <tr>
-              <th className="p-2 text-left">Publicación</th>
-              <th className="p-2 text-left">Marca / Modelo</th>
-              <th className="p-2 text-right">Precio</th>
-              <th className="p-2 text-right">Visitas 30d</th>
-              <th className="p-2 text-left">Estado costo</th>
-              <th className="p-2 text-left">Sync</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-[var(--border)] hover:bg-[var(--bg)]">
-                <td className="p-2">
-                  <div className="flex items-center gap-2">
-                    {r.url_imagen && (
-                      <img src={r.url_imagen} alt="" className="w-10 h-10 rounded object-cover" />
-                    )}
-                    <div>
-                      <div className="font-medium text-[var(--text)] line-clamp-2 max-w-md">
-                        {r.titulo}
-                      </div>
-                      <div className="text-xs text-[var(--text-muted)]">{r.external_item_id}</div>
-                      {r._sugerencia && (
-                        <div className="mt-2">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
-                            Sugerencia {r._sugerencia.score}% · {r._sugerencia.motivo}
-                          </div>
-                          <SugerenciaComparacion
-                            pub={{
-                              titulo: r.titulo,
-                              brand: r.brand,
-                              model: r.model,
-                              sku: r.seller_custom_field || r.seller_sku,
-                              codigo: r.gtin || r.ean || r.upc,
-                            }}
-                            sug={r._sugerencia}
-                          />
-                        </div>
-                      )}
-                      {!r._sugerencia && r.tipo_publicacion === 'catalogo' && r.par_item_id && (
-                        <div className="text-xs text-amber-600 mt-0.5">Catálogo: hereda stock de su hermana · usa "Mapear"</div>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td className="p-2 text-[var(--text-muted)]">
-                  {r.brand && <div>{r.brand}</div>}
-                  {r.model && <div className="text-xs text-[var(--text-muted)]">Mod: {r.model}</div>}
-                </td>
-                <td className="p-2 text-right font-mono">
-                  ${r.precio_venta?.toLocaleString() ?? '—'}
-                </td>
-                <td className="p-2 text-right font-mono">{r.visits_30d ?? '—'}</td>
-                <td className="p-2">{costBadge(r)}</td>
-                <td className="p-2">
+      {/* Tarjetas de ancho completo */}
+      <div className="space-y-4">
+        {rows.map((r) => (
+          <div key={r.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+            {/* Cabecera de tarjeta */}
+            <div className="flex items-start gap-3">
+              {r.url_imagen && (
+                <img src={r.url_imagen} alt="" className="w-14 h-14 rounded-lg object-cover border border-[var(--border)] shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-[var(--text)] leading-snug line-clamp-2">
+                  {r.titulo}
+                </div>
+                <div className="text-xs text-[var(--text-muted)] font-mono mt-0.5">{r.external_item_id}</div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs text-[var(--text-muted)]">
+                  <span className="font-mono font-semibold text-[var(--text)]">
+                    ${r.precio_venta?.toLocaleString() ?? '—'}
+                  </span>
+                  <span>{r.visits_30d ?? '—'} visitas 30d</span>
+                  {costBadge(r)}
                   {r.sync_disabled ? (
-                    <span
-                      className="inline-block px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800"
-                      title={r.sync_disabled_reason || ''}
-                    >
-                      pausado
-                    </span>
+                    <span className="text-amber-600">sync pausado</span>
                   ) : (
-                    <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[var(--surface-2)] text-[var(--text-muted)]">
-                      activo
-                    </span>
+                    <span>sync activo</span>
                   )}
-                </td>
-                <td className="p-2 whitespace-nowrap">
-                  {r._sugerencia && (
-                    <button
-                      onClick={() => { setSugerenciaInicial(r._sugerencia); setSelected(r); }}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium"
-                    >
-                      Mapear con sugerido
-                    </button>
-                  )}
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                {r._sugerencia && (
                   <button
-                    onClick={() => { setSugerenciaInicial(null); setSelected(r); }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium ${r._sugerencia ? 'ml-2 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
+                    onClick={() => { setSugerenciaInicial(r._sugerencia); setSelected(r); }}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium"
                   >
-                    Mapear
+                    Mapear con sugerido
                   </button>
-                  <Link
-                    href={`/catalog/external/${r.id}`}
-                    className="ml-2 inline-flex items-center gap-1 px-2 py-1.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-lg text-xs"
-                  >
-                    <Eye className="w-3 h-3" /> Ver
-                  </Link>
-                </td>
-              </tr>
-            ))}
-            {!loading && rows.length === 0 && (
-              <tr>
-                <td colSpan={7} className="p-6 text-center text-[var(--text-muted)]">
-                  Sin resultados.
-                </td>
-              </tr>
+                )}
+                <button
+                  onClick={() => { setSugerenciaInicial(null); setSelected(r); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${r._sugerencia ? 'bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
+                >
+                  Mapear
+                </button>
+                <Link
+                  href={`/catalog/external/${r.id}`}
+                  className="inline-flex items-center gap-1 px-2 py-1.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-lg text-xs"
+                >
+                  <Eye className="w-3 h-3" /> Ver
+                </Link>
+              </div>
+            </div>
+
+            {/* Comparación a ancho completo */}
+            {r._sugerencia && (
+              <div className="mt-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
+                  Sugerencia {r._sugerencia.score}% · {r._sugerencia.motivo}
+                </div>
+                <SugerenciaComparacion
+                  pub={{
+                    titulo: r.titulo,
+                    brand: r.brand,
+                    model: r.model,
+                    sku: r.seller_custom_field || r.seller_sku,
+                    codigo: r.gtin || r.ean || r.upc,
+                  }}
+                  sug={r._sugerencia}
+                />
+              </div>
             )}
-          </tbody>
-        </table>
+          </div>
+        ))}
+
+        {!loading && rows.length === 0 && (
+          <div className="p-10 text-center text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] rounded-lg">
+            Sin resultados.
+          </div>
+        )}
       </div>
 
-      <div className="flex items-center justify-between mt-3 text-sm text-[var(--text-muted)]">
+      {/* Paginación */}
+      <div className="flex items-center justify-between mt-4 text-sm text-[var(--text-muted)]">
         <div>
           Página {page + 1} de {Math.max(1, Math.ceil(total / PAGE_SIZE))}
         </div>
