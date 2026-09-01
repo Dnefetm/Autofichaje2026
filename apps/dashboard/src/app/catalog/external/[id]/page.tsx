@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
-    ArrowLeft, ExternalLink, Link2, Package, Truck, RefreshCw,
+    ArrowLeft, ExternalLink, Link2, Package, Truck, RefreshCw, FileText,
     CheckCircle2, AlertCircle, Tag, BarChart2, ShieldCheck, Zap,
     Clock, Globe, DollarSign, Pencil, X, Check, Loader2, ToggleLeft, ToggleRight, Layers
 } from 'lucide-react';
@@ -276,6 +276,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [asociadas, setAsociadas] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showMappingModal, setShowMappingModal] = useState(false);
+    const [generandoFicha, setGenerandoFicha] = useState(false);
     // Fase 3: datos enriquecidos lazy (health actions, costs, visits)
     const [enrichData, setEnrichData] = useState<{ health: any; costs: any; visits: any } | null>(null);
     const [enrichLoading, setEnrichLoading] = useState(false);
@@ -340,6 +341,23 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             }
         } finally {
             setLoading(false);
+        }
+    }
+
+    async function generarFicha() {
+        setGenerandoFicha(true);
+        try {
+            const res = await fetch('/api/fichas/generar-desde-meli', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ publicacion_id: id }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error');
+            window.location.href = `/fichas/${data.id}`;
+        } catch (err: any) {
+            alert(err.message || 'Error al generar la ficha');
+            setGenerandoFicha(false);
         }
     }
 
@@ -508,6 +526,14 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             <button onClick={() => loadAll(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text)] text-sm font-medium rounded-[var(--radius)] transition-colors">
                                 <RefreshCw className="w-4 h-4" />
                                 Recargar
+                            </button>
+                            <button
+                                onClick={generarFicha}
+                                disabled={generandoFicha}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-[var(--radius)] transition-colors disabled:opacity-40"
+                            >
+                                <FileText className="w-4 h-4" />
+                                {generandoFicha ? 'Generando…' : 'Generar Ficha'}
                             </button>
                         </div>
                     </div>

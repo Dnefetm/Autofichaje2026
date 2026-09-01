@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
             .select(`
                 id, external_item_id, marketplace_id, seller_sku,
                 mapeo_publicacion_articulo (
-                    sku_articulo
+                    articulo_id
                 )
             `)
             .not('seller_sku', 'is', null)
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
         const articuloIds = [
             ...new Set(
                 contaminadas.flatMap((p: any) =>
-                    (p.mapeo_publicacion_articulo || []).map((m: any) => m.sku_articulo)
+                    (p.mapeo_publicacion_articulo || []).map((m: any) => m.articulo_id)
                 ).filter(Boolean)
             ),
         ] as string[];
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
 
             // Resolver artículo mapeado (primer mapeo encontrado)
             const primerMapeo = (pub.mapeo_publicacion_articulo as any[])?.[0];
-            const articuloId: string | null = primerMapeo?.sku_articulo || null;
+            const articuloId: string | null = primerMapeo?.articulo_id || null;
             const articulo = articuloId ? articuloMap.get(articuloId) : null;
 
             // Resolver SKU correcto: sku_tienda específico de cuenta → sku_tienda genérico → modelo
@@ -276,7 +276,7 @@ export async function GET(req: NextRequest) {
         .from('publicaciones_externas')
         .select(`
             id, external_item_id, marketplace_id, seller_sku, status_externo,
-            mapeo_publicacion_articulo (sku_articulo)
+            mapeo_publicacion_articulo (articulo_id)
         `)
         .not('seller_sku', 'is', null)
         .in('status_externo', ['active', 'paused', 'under_review'])
@@ -304,7 +304,7 @@ export async function GET(req: NextRequest) {
             marketplace_id: p.marketplace_id,
             seller_sku_basura: p.seller_sku,
             status: p.status_externo,
-            articulo_id: p.mapeo_publicacion_articulo?.[0]?.sku_articulo || null,
+            articulo_id: p.mapeo_publicacion_articulo?.[0]?.articulo_id || null,
         })),
     });
 }

@@ -38,6 +38,7 @@ const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 const [siblings, setSiblings] = useState<any[]>([]);
 const [siblingsLoading, setSiblingsLoading] = useState(false);
 const [costMap, setCostMap] = useState<Map<string, boolean>>(new Map());
+const [topSugerencia, setTopSugerencia] = useState<any>(null);
 const pubSku = listing?.seller_custom_field || listing?.seller_sku || '';
 const pubEan = listing?.ean || '';
 const pubGtin = listing?.gtin || '';
@@ -53,6 +54,21 @@ loadSmartSuggestions();
 loadSiblings();
 }
 }, [listing]);
+
+// Sugerencia automática server-side (motor de vinculación centralizado)
+useEffect(() => {
+if (!listing?.id || isBlockedCatalog) return;
+let cancelled = false;
+fetch(`/api/vinculacion/sugerencias?publicacion_id=${listing.id}`)
+.then((r) => r.json())
+.then((d) => {
+if (cancelled || !d?.ok) return;
+const top = d.sugerencias?.[0];
+if (top && top.score >= 80) setTopSugerencia(top);
+})
+.catch(() => {});
+return () => { cancelled = true; };
+}, [listing?.id]);
 async function loadExistingMappings() {
 setLoading(true);
 try {
@@ -447,6 +463,31 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     
                     {/* LEFT COLUMN: Search & Catalog (60%) */}
                     <div className="w-full md:w-[60%] flex flex-col border-r border-[var(--border)] overflow-hidden">
+                        
+                        {/* Sugerencia automática (server-side) */}
+                        {topSugerencia && !searchTerm && (
+                            <div className="px-5 py-3 border-b border-[var(--accent)]/30 bg-[var(--accent)]/5 shrink-0">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
+                                            Sugerencia automática · {topSugerencia.score}%
+                                        </p>
+                                        <p className="text-sm font-semibold text-[var(--text)] truncate">
+                                            {topSugerencia.nombre}
+                                        </p>
+                                        <p className="text-[11px] text-[var(--text-muted)] truncate">
+                                            {topSugerencia.marca}{topSugerencia.modelo ? ` · ${topSugerencia.modelo}` : ''} · {topSugerencia.motivo}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleAddSku(topSugerencia)}
+                                        className="shrink-0 px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold rounded-lg hover:brightness-110"
+                                    >
+                                        Añadir
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                         
                         {/* Search Input (Sticky Top of Column) */}
                         <div className="px-5 py-4 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-sm relative z-10">
