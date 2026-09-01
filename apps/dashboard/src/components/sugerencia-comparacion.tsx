@@ -3,10 +3,8 @@ import React from 'react';
 
 /**
  * Comparación alineada entre la vitrina (publicación) y el artículo sugerido.
- * Layout solicitado por el operador:
- *   - columnas = campos comparables (Nombre, Marca, Modelo/SKU, Código)
- *   - renglón superior = vitrina (publicación)
- *   - renglón inferior  = sugerido (catálogo)
+ * Columnas = campos comparables; renglón superior = vitrina, inferior = sugerido.
+ * Colores y tipografía integrados al tema (variables CSS).
  */
 export interface SugerenciaComparacionProps {
   pub: {
@@ -26,13 +24,13 @@ export interface SugerenciaComparacionProps {
 }
 
 export default function SugerenciaComparacion({ pub, sug }: SugerenciaComparacionProps) {
-  const th = 'px-2 py-1 text-[9px] uppercase tracking-wider font-bold text-[var(--text-faint)]';
-  const rowLabel = 'px-2 py-1 text-[9px] uppercase tracking-wider font-bold text-[var(--text-faint)] whitespace-nowrap';
-  const cell = 'px-2 py-1 text-[11px] leading-snug break-words align-top';
+  const th = 'px-3 py-1.5 text-xs uppercase tracking-wider font-bold text-[var(--text-faint)]';
+  const rowLabel = 'px-3 py-2 text-xs uppercase tracking-wider font-bold text-[var(--text-faint)] whitespace-nowrap';
+  const cell = 'px-3 py-2 text-sm leading-snug break-words align-top';
 
   return (
-    <div className="rounded-md border border-[var(--accent)]/30 overflow-hidden bg-[var(--surface)]">
-      <div className="grid grid-cols-[46px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+    <div className="rounded-md border border-[var(--border)] overflow-hidden bg-[var(--surface-2)]/40">
+      <div className="grid grid-cols-[64px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <div className={th}></div>
         <div className={th}>Nombre</div>
         <div className={th}>Marca</div>
@@ -48,13 +46,13 @@ export default function SugerenciaComparacion({ pub, sug }: SugerenciaComparacio
 
         {/* renglón inferior: sugerido */}
         <div className={rowLabel}>Sugerido</div>
-        <div className={cell + ' font-semibold text-emerald-700'}>{sug.nombre}</div>
-        <div className={cell + ' text-emerald-700'}>{sug.marca || '—'}</div>
-        <div className={cell + ' font-mono text-emerald-700'}>{sug.modelo || '—'}</div>
-        <div className={cell + ' font-mono text-emerald-700'}>{sug.codigo_universal || '—'}</div>
+        <div className={cell + ' font-semibold text-[var(--ok)]'}>{sug.nombre}</div>
+        <div className={cell + ' text-[var(--ok)]'}>{sug.marca || '—'}</div>
+        <div className={cell + ' font-mono text-[var(--ok)]'}>{sug.modelo || '—'}</div>
+        <div className={cell + ' font-mono text-[var(--ok)]'}>{sug.codigo_universal || '—'}</div>
       </div>
       {sug.caja_madre && (
-        <div className="px-2 py-1 text-[11px] border-t border-[var(--border)] text-amber-600 font-bold">
+        <div className="px-3 py-2 text-sm border-t border-[var(--border)] text-[var(--warn)] font-semibold">
           Caja madre (sugerido): {sug.caja_madre}
         </div>
       )}

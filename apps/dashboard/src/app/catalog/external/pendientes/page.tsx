@@ -87,14 +87,14 @@ export default function PendientesPage() {
     switch (r._cost_status) {
       case 'costo_completo':
         return (
-          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">
+          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[var(--ok)]/15 text-[var(--ok)]">
             ✓ costo vigente
           </span>
         );
       case 'sin_costo':
         return (
           <span
-            className="inline-block px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-800"
+            className="inline-block px-2 py-0.5 rounded-full text-xs bg-[var(--err)]/15 text-[var(--err)]"
             title="Artículo(s) mapeado(s) sin costo vigente. Importa la lista de precios del proveedor."
           >
             ⚠ sin costo
@@ -102,7 +102,7 @@ export default function PendientesPage() {
         );
       case 'parcial':
         return (
-          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">
+          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[var(--warn)]/15 text-[var(--warn)]">
             {r._articulos_con_costo}/{r._articulos_con_costo + r._articulos_sin_costo} con costo
           </span>
         );
@@ -172,14 +172,14 @@ export default function PendientesPage() {
                   {r.titulo}
                 </div>
                 <div className="text-xs text-[var(--text-muted)] font-mono mt-0.5">{r.external_item_id}</div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs text-[var(--text-muted)]">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-sm text-[var(--text-muted)]">
                   <span className="font-mono font-semibold text-[var(--text)]">
                     ${r.precio_venta?.toLocaleString() ?? '—'}
                   </span>
                   <span>{r.visits_30d ?? '—'} visitas 30d</span>
                   {costBadge(r)}
                   {r.sync_disabled ? (
-                    <span className="text-amber-600">sync pausado</span>
+                    <span className="text-[var(--warn)]">sync pausado</span>
                   ) : (
                     <span>sync activo</span>
                   )}
@@ -189,22 +189,22 @@ export default function PendientesPage() {
                 {r._sugerencia && (
                   <button
                     onClick={() => { setSugerenciaInicial(r._sugerencia); setSelected(r); }}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium"
+                    className="px-3 py-1.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg text-sm font-semibold"
                   >
                     Mapear con sugerido
                   </button>
                 )}
                 <button
                   onClick={() => { setSugerenciaInicial(null); setSelected(r); }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${r._sugerencia ? 'bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${r._sugerencia ? 'bg-[var(--surface-2)] hover:brightness-110 text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
                 >
                   Mapear
                 </button>
                 <Link
                   href={`/catalog/external/${r.id}`}
-                  className="inline-flex items-center gap-1 px-2 py-1.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-lg text-xs"
+                  className="inline-flex items-center gap-1 px-2 py-1.5 bg-[var(--surface-2)] hover:brightness-110 text-[var(--text-muted)] rounded-lg text-sm"
                 >
-                  <Eye className="w-3 h-3" /> Ver
+                  <Eye className="w-4 h-4" /> Ver
                 </Link>
               </div>
             </div>
@@ -212,7 +212,7 @@ export default function PendientesPage() {
             {/* Comparación a ancho completo */}
             {r._sugerencia && (
               <div className="mt-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
+                <div className="text-xs font-bold uppercase tracking-wider text-[var(--ok)] mb-1">
                   Sugerencia {r._sugerencia.score}% · {r._sugerencia.motivo}
                 </div>
                 <SugerenciaComparacion

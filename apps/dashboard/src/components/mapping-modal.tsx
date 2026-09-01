@@ -427,9 +427,9 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] max-h-[850px] overflow-hidden flex flex-col">
                 
                 {/* Header del Modal */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0">
                     <div>
-                        <h2 className="text-lg font-bold text-[var(--text)]">Mapear a Bodega Física</h2>
+                        <h2 className="text-base font-bold text-[var(--text)]">Mapear a Bodega Física</h2>
                         <p className="text-xs text-[var(--text-muted)]">Vincula esta vitrina con 1 o más productos reales.</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] rounded-lg transition-colors">
@@ -439,9 +439,9 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
 
                 {/* T-LAYOUT TOP: Full Width Banner para la Vitrina */}
                 <div className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
-                    <div className="px-6 py-4 flex items-center gap-4">
+                    <div className="px-4 py-2 flex items-center gap-3">
                         {listing.thumbnail && (
-                            <img src={listing.thumbnail} alt="Thumbnail" className="w-16 h-16 object-contain rounded-lg bg-white border border-[var(--border)] shrink-0" />
+                            <img src={listing.thumbnail} alt="Thumbnail" className="w-10 h-10 object-contain rounded-md bg-white border border-[var(--border)] shrink-0" />
                         )}
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
@@ -487,14 +487,14 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                         
                         {/* Sugerencia automática (server-side): comparación alineada */}
                         {topSugerencia && !searchTerm && (
-                            <div className="px-5 py-3 border-b border-[var(--accent)]/30 bg-[var(--accent)]/5 shrink-0">
+                            <div className="px-4 py-2 border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
                                 <div className="flex items-center justify-between gap-3 mb-2">
-                                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
+                                    <p className="text-xs font-bold uppercase tracking-wider text-[var(--ok)]">
                                         Coincidencia {topSugerencia.score}% · {topSugerencia.motivo}
                                     </p>
                                     <button
                                         onClick={() => handleAddSku(topSugerencia)}
-                                        className="shrink-0 px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold rounded-lg hover:brightness-110"
+                                        className="shrink-0 px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-semibold rounded-lg hover:brightness-110"
                                     >
                                         Añadir
                                     </button>
