@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import MappingModal from '@/components/mapping-modal';
+import SugerenciaComparacion from '@/components/sugerencia-comparacion';
 import { Package, Search, RefreshCw, Eye } from 'lucide-react';
 
 interface Pendiente {
@@ -57,6 +58,7 @@ export default function PendientesPage() {
     'visits_30d'
   );
   const [selected, setSelected] = useState<Pendiente | null>(null);
+  const [sugerenciaInicial, setSugerenciaInicial] = useState<any>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -193,11 +195,20 @@ export default function PendientesPage() {
                       </div>
                       <div className="text-xs text-[var(--text-muted)]">{r.external_item_id}</div>
                       {r._sugerencia && (
-                        <div className="text-xs text-emerald-700 mt-1">
-                          <span className="font-bold">✓ Sugerencia:</span> {r._sugerencia.nombre}{' '}
-                          <span className="font-bold">({r._sugerencia.score}%)</span>{' '}
-                          <span className="text-emerald-600/80">· {r._sugerencia.motivo}</span>
-                          {r._sugerencia.caja_madre && <span className="font-bold text-amber-600"> · Caja madre: {r._sugerencia.caja_madre}</span>}
+                        <div className="mt-2">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
+                            Sugerencia {r._sugerencia.score}% · {r._sugerencia.motivo}
+                          </div>
+                          <SugerenciaComparacion
+                            pub={{
+                              titulo: r.titulo,
+                              brand: r.brand,
+                              model: r.model,
+                              sku: r.seller_custom_field || r.seller_sku,
+                              codigo: r.gtin || r.ean || r.upc,
+                            }}
+                            sug={r._sugerencia}
+                          />
                         </div>
                       )}
                       {!r._sugerencia && r.tipo_publicacion === 'catalogo' && r.par_item_id && (
@@ -230,9 +241,17 @@ export default function PendientesPage() {
                   )}
                 </td>
                 <td className="p-2 whitespace-nowrap">
+                  {r._sugerencia && (
+                    <button
+                      onClick={() => { setSugerenciaInicial(r._sugerencia); setSelected(r); }}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium"
+                    >
+                      Mapear con sugerido
+                    </button>
+                  )}
                   <button
-                    onClick={() => setSelected(r)}
-                    className="px-3 py-1.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg text-xs font-medium"
+                    onClick={() => { setSugerenciaInicial(null); setSelected(r); }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium ${r._sugerencia ? 'ml-2 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
                   >
                     Mapear
                   </button>
@@ -281,9 +300,11 @@ export default function PendientesPage() {
       {selected && (
         <MappingModal
           listing={selected}
-          onClose={() => setSelected(null)}
+          sugerenciaInicial={sugerenciaInicial}
+          onClose={() => { setSelected(null); setSugerenciaInicial(null); }}
           onSuccess={() => {
             setSelected(null);
+            setSugerenciaInicial(null);
             load();
           }}
         />

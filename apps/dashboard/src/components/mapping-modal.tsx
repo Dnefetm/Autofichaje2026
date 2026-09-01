@@ -3,10 +3,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dispatchWorker } from '@/lib/dispatch-worker';
 import { X, Search, Package, Save, RefreshCw, Plus, Trash2, Tag, Barcode, Info } from 'lucide-react';
+import SugerenciaComparacion from './sugerencia-comparacion';
 interface MappingModalProps {
 listing: any;
 onClose: () => void;
 onSuccess: () => void;
+sugerenciaInicial?: any;
 }
 function stringSimilarity(a: string, b: string): number {
 if (!a || !b) return 0;
@@ -32,10 +34,24 @@ if (!cajaMadre) return false;
 const n = cajaMadre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 return n.includes('devolucion');
 }
-export default function MappingModal({ listing, onClose, onSuccess }: MappingModalProps) {
+export default function MappingModal({ listing, onClose, onSuccess, sugerenciaInicial }: MappingModalProps) {
 const [searchTerm, setSearchTerm] = useState('');
 const [searchResults, setSearchResults] = useState<any[]>([]);
-const [selectedSkus, setSelectedSkus] = useState<any[]>([]);
+const [selectedSkus, setSelectedSkus] = useState<any[]>(() => {
+if (sugerenciaInicial?.articulo_id) {
+return [{
+sku: sugerenciaInicial.articulo_id,
+name: sugerenciaInicial.nombre || 'Sin nombre',
+marca: sugerenciaInicial.marca || '',
+modelo: sugerenciaInicial.modelo || '',
+variante: '',
+codigo_universal: sugerenciaInicial.codigo_universal || '',
+caja_madre: sugerenciaInicial.caja_madre || '',
+quantity: 1
+}];
+}
+return [];
+});
 const [loading, setLoading] = useState(false);
 const [saving, setSaving] = useState(false);
 const [smartSuggestions, setSmartSuggestions] = useState<any[]>([]);
@@ -99,7 +115,7 @@ codigo_universal: d.articulos?.codigo_universal || '',
 caja_madre: d.articulos?.caja_madre || '',
 quantity: d.cantidad_requerida
 }));
-setSelectedSkus(mapped);
+if (mapped.length > 0 || !sugerenciaInicial) setSelectedSkus(mapped);
 }
 } catch (error) {
 console.error('Error cargando mapeos previos:', error);
@@ -484,31 +500,16 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-[78px_1fr_1fr] gap-x-3 gap-y-0.5 text-[11px]">
-                                    <div></div>
-                                    <div className="font-bold uppercase text-[9px] tracking-wider text-[var(--text-faint)]">Publicación</div>
-                                    <div className="font-bold uppercase text-[9px] tracking-wider text-[var(--text-faint)]">Catálogo</div>
-
-                                    <div className="text-[var(--text-faint)]">Nombre</div>
-                                    <div className="text-[var(--text)] leading-snug">{pubTitle || '—'}</div>
-                                    <div className="text-[var(--text)] leading-snug font-semibold">{topSugerencia.nombre}</div>
-
-                                    <div className="text-[var(--text-faint)]">SKU / Mod</div>
-                                    <div className="font-mono text-[var(--text)]">{pubSku || pubModel || '—'}</div>
-                                    <div className="font-mono text-[var(--text)]">{topSugerencia.modelo || topSugerencia.articulo_id}</div>
-
-                                    <div className="text-[var(--text-faint)]">Código</div>
-                                    <div className="font-mono text-[var(--text)]">{pubGtin || pubEan || pubUpc || '—'}</div>
-                                    <div className="font-mono text-[var(--text)]">{topSugerencia.codigo_universal || '—'}</div>
-
-                                    <div className="text-[var(--text-faint)]">Marca</div>
-                                    <div className="text-[var(--text)]">{pubBrand || '—'}</div>
-                                    <div className="text-[var(--text)]">{topSugerencia.marca || '—'}</div>
-
-                                    <div className="text-[var(--text-faint)]">Caja madre</div>
-                                    <div className="text-[var(--text-faint)]">—</div>
-                                    <div className="font-bold text-[var(--warn)]">{topSugerencia.caja_madre || '—'}</div>
-                                </div>
+                                <SugerenciaComparacion
+                                    pub={{
+                                        titulo: pubTitle,
+                                        brand: pubBrand,
+                                        model: pubModel,
+                                        sku: pubSku,
+                                        codigo: pubGtin || pubEan || pubUpc,
+                                    }}
+                                    sug={topSugerencia}
+                                />
                             </div>
                         )}
                         
