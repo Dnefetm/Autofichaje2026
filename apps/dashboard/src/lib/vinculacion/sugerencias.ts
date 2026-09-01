@@ -398,11 +398,6 @@ export async function sugerirExactoEnLote(
   }
 
   for (const p of pubs) {
-    // Catálogo que hereda stock de su hermana: no se sugiere mapeo directo.
-    if (p.tipo_publicacion === 'catalogo' && p.par_item_id) {
-      result.set(p.id, null);
-      continue;
-    }
     const key = p.id_producto_catalogo || p.par_item_id;
     const heredadas = key ? mapeosPorPub.get(key) : undefined;
     const heredada = heredadas && heredadas.size ? Array.from(heredadas)[0] : null;
