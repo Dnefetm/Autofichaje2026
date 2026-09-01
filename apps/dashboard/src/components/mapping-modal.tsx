@@ -483,7 +483,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                 <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden bg-[var(--surface)]">
                     
                     {/* LEFT COLUMN: Search & Catalog (60%) */}
-                    <div className="w-full md:w-[60%] flex flex-col md:border-r border-[var(--border)] overflow-hidden">
+                    <div className="w-full md:w-[60%] shrink-0 flex flex-col md:border-r border-[var(--border)] overflow-hidden">
                         
                         {/* Sugerencia automática (server-side): comparación alineada */}
                         {topSugerencia && !searchTerm && (
@@ -514,7 +514,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                         )}
                         
                         {/* Search Input (Sticky Top of Column) */}
-                        <div className="px-5 py-4 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-sm relative z-10 sticky top-0">
+                        <div className="px-5 py-4 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-sm relative z-10">
                             <label className="text-xs font-semibold text-[var(--text-muted)] mb-1.5 block">Buscar en Catálogo Real</label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={16} />
@@ -611,7 +611,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     </div>
 
                     {/* RIGHT COLUMN: Cart / Selected (40%) */}
-                    <div className="w-full md:w-[40%] flex flex-col bg-[var(--surface-2)]/30 border-t md:border-t-0 md:border-l border-[var(--border)]">
+                    <div className="w-full md:w-[40%] shrink-0 flex flex-col bg-[var(--surface-2)]/30 border-t md:border-t-0 md:border-l border-[var(--border)]">
                         <div className="p-5 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0 shadow-sm relative z-10">
                             <h4 className="text-sm font-bold text-[var(--text)] flex items-center gap-2">
                                 <Package size={16} className="text-[var(--accent)]" /> 
