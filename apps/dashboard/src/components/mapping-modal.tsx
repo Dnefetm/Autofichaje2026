@@ -389,12 +389,6 @@ scheduled_at: new Date().toISOString(),
 });
 await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: listing.id }, status: 'pending', scheduled_at: new Date().toISOString() });
 const propagableSimlings = siblings.filter(s => s.id !== listing.id);
-if (propagableSimlings.length > 0) {
-const confirmed = window.confirm(
-`Propagar este mapeo a ${propagableSimlings.length} publicacion(es) hermana(s) con el mismo producto de catalogo?\n\n` +
-propagableSimlings.map(s => `- ${s.external_item_id} - ${s.titulo?.slice(0, 50)}`).join('\n')
-);
-if (confirmed) {
 for (const sib of propagableSimlings) {
 await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', sib.id);
 const sibInserts = selectedSkus.map(s => ({ publicacion_id: sib.id, articulo_id: s.sku, cantidad_requerida: s.quantity }));
@@ -413,9 +407,8 @@ scheduled_at: new Date().toISOString(),
 });
 await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: sib.id }, status: 'pending', scheduled_at: new Date().toISOString() });
 }
-}
-}
-await dispatchWorker();
+// El worker se dispara sin bloquear el cierre del modal.
+dispatchWorker();
 onSuccess();
 onClose();
 } catch (error) { console.error('Error guardando el mapeo:', error); alert('Ocurrio un error al guardar el mapeo.'); }

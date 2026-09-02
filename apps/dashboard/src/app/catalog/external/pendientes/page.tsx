@@ -49,6 +49,8 @@ export default function PendientesPage() {
   );
   const [selected, setSelected] = useState<Pendiente | null>(null);
   const [sugerenciaInicial, setSugerenciaInicial] = useState<any>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkVinculando, setBulkVinculando] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,6 +117,40 @@ export default function PendientesPage() {
     }
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function vincularSeleccionadas() {
+    const vinculos = rows
+      .filter((r) => selectedIds.has(r.id) && r._sugerencia)
+      .map((r) => ({ publicacion_id: r.id, articulo_id: r._sugerencia!.articulo_id }));
+    if (vinculos.length === 0) return;
+    setBulkVinculando(true);
+    try {
+      const res = await fetch('/api/vinculacion/confirmar-lote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vinculos }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error');
+      setSelectedIds(new Set());
+      load();
+      alert(`Vinculadas ${data.vinculados} (+${data.propagados} relacionadas).`);
+    } catch (e) {
+      console.error(e);
+      alert('Error al vincular en lote.');
+    } finally {
+      setBulkVinculando(false);
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto">
       {/* Encabezado */}
@@ -164,6 +200,15 @@ export default function PendientesPage() {
           <div key={r.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
             {/* Cabecera de tarjeta */}
             <div className="flex items-start gap-3">
+              {r._sugerencia && (
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(r.id)}
+                  onChange={() => toggleSelect(r.id)}
+                  className="mt-1 w-5 h-5 shrink-0 accent-[var(--accent)]"
+                  aria-label={`Seleccionar ${r.external_item_id}`}
+                />
+              )}
               {r.url_imagen && (
                 <img src={r.url_imagen} alt="" className="w-14 h-14 rounded-lg object-cover border border-[var(--border)] shrink-0" />
               )}
@@ -273,6 +318,19 @@ export default function PendientesPage() {
             load();
           }}
         />
+      )}
+
+      {/* Botón flotante de vinculación por lotes */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-4 right-4 z-40">
+          <button
+            onClick={vincularSeleccionadas}
+            disabled={bulkVinculando}
+            className="w-full py-3 bg-[var(--accent)] text-[var(--accent-ink)] rounded-xl text-base font-bold shadow-xl disabled:opacity-50"
+          >
+            {bulkVinculando ? 'Vinculando…' : `Vincular seleccionadas (${selectedIds.size})`}
+          </button>
+        </div>
       )}
     </div>
   );
