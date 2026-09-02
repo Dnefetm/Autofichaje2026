@@ -140,6 +140,8 @@ export default function PendientesPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error');
+      const idsVinculados = new Set(vinculos.map((v) => v.publicacion_id));
+      setRows((prev) => prev.filter((r) => !idsVinculados.has(r.id)));
       setSelectedIds(new Set());
       load();
       alert(`Vinculadas ${data.vinculados} (+${data.propagados} relacionadas).`);
@@ -313,8 +315,11 @@ export default function PendientesPage() {
           sugerenciaInicial={sugerenciaInicial}
           onClose={() => { setSelected(null); setSugerenciaInicial(null); }}
           onSuccess={() => {
+            const id = selected?.id;
             setSelected(null);
             setSugerenciaInicial(null);
+            // Desaparece de inmediato (optimista); la recarga corre en segundo plano.
+            if (id) setRows((prev) => prev.filter((r) => r.id !== id));
             load();
           }}
         />
@@ -322,14 +327,17 @@ export default function PendientesPage() {
 
       {/* Botón flotante de vinculación por lotes */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-4 left-4 right-4 z-40">
+        <div className="fixed bottom-4 left-4 right-4 z-40 space-y-1">
           <button
             onClick={vincularSeleccionadas}
             disabled={bulkVinculando}
             className="w-full py-3 bg-[var(--accent)] text-[var(--accent-ink)] rounded-xl text-base font-bold shadow-xl disabled:opacity-50"
           >
-            {bulkVinculando ? 'Vinculando…' : `Vincular seleccionadas (${selectedIds.size})`}
+            {bulkVinculando ? 'Vinculando…' : `Confirmar vinculación 1:1 (${selectedIds.size})`}
           </button>
+          <p className="text-center text-xs text-[var(--text-muted)]">
+            1 unidad por producto · se propaga a publicaciones relacionadas
+          </p>
         </div>
       )}
     </div>
