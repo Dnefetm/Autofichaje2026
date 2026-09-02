@@ -331,15 +331,21 @@ export class MeliAdapter implements MarketplaceAdapter {
                 chunks.push(itemIds.slice(i, i + CHUNK_SIZE));
             }
 
-            // Disparar todos los multiGETs en paralelo (Promise.all)
-            const chunkResponses = await Promise.all(
-                chunks.map(chunk => {
-                    const idsParam = chunk.join(',');
-                    return axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}&include_attributes=all`, {
-                        headers: { Authorization: `Bearer ${accessToken}` }
-                    });
-                })
-            );
+            // MultiGETs con concurrencia limitada para no reventar el rate limit de MeLi.
+            const CONCURRENCIA = 5;
+            const chunkResponses: any[] = [];
+            for (let i = 0; i < chunks.length; i += CONCURRENCIA) {
+                const tanda = chunks.slice(i, i + CONCURRENCIA);
+                const resp = await Promise.all(
+                    tanda.map(chunk => {
+                        const idsParam = chunk.join(',');
+                        return axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}&include_attributes=all`, {
+                            headers: { Authorization: `Bearer ${accessToken}` }
+                        });
+                    })
+                );
+                chunkResponses.push(...resp);
+            }
 
             const allResults = chunkResponses.flatMap(r => r.data);
 

@@ -150,7 +150,11 @@ return NextResponse.json(results);
 async function processOneJob(job: any, meli: MeliAdapter) {
 const maxAttempts = job.max_attempts || 10;
 if ((job.attempts || 0) >= maxAttempts) {
-await supabaseAdmin.from('jobs').update({ status: 'failed', error_log: `Zombie killed: attempts ${job.attempts} >= max_attempts ${maxAttempts}` }).eq('id', job.id);
+// Preservar el error real del intento anterior (no pisarlo con "Zombie killed").
+const errorLog = (job.error_log && !String(job.error_log).startsWith('Zombie killed'))
+? job.error_log
+: `Agotados ${maxAttempts} intentos sin error registrado`;
+await supabaseAdmin.from('jobs').update({ status: 'failed', error_log: errorLog }).eq('id', job.id);
 return;
 }
 
