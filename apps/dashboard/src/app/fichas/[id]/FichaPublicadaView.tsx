@@ -128,7 +128,7 @@ export function FichaPublicadaView({
           {tieneCumplimiento && (
             <div className="bg-[var(--warn)]/10 p-5 sm:p-8 rounded-2xl border border-[var(--warn)]/30 space-y-4">
               <h3 className="text-sm font-bold tracking-widest uppercase text-[var(--warn)]">Cumplimiento y Seguridad</h3>
-              <div className="space-y-3 text-amber-900/80">
+              <div className="space-y-3 text-amber-900/80 whitespace-pre-wrap">
                 {ficha.informacion_normativa && <p><strong className="text-amber-900">Normativa:</strong> {ficha.informacion_normativa}</p>}
                 {ficha.leyendas_precautorias && <p><strong className="text-amber-900">Leyendas Precautorias:</strong> {ficha.leyendas_precautorias}</p>}
                 {mostrarPrecauciones && <p><strong className="text-amber-900">Precauciones:</strong> {ficha.precauciones}</p>}
@@ -176,7 +176,7 @@ export function FichaPublicadaView({
                 {atributosRows.map(([k, v], i) => (
                   <div key={i} className="flex p-4 sm:p-5 text-sm">
                     <span className="w-1/2 text-[var(--text-muted)] font-medium">{k}</span>
-                    <span className="w-1/2 text-[var(--text)] font-semibold">{v}</span>
+                    <span className="w-1/2 text-[var(--text)] font-semibold whitespace-pre-wrap break-words">{v}</span>
                   </div>
                 ))}
               </div>
@@ -193,7 +193,7 @@ export function FichaPublicadaView({
                 {dims.map(([k, v], i) => (
                   <div key={i} className="flex p-4 sm:p-5 text-sm">
                     <span className="w-1/2 text-[var(--text-muted)] font-medium">{k}</span>
-                    <span className="w-1/2 text-[var(--text)] font-semibold">{v}</span>
+                    <span className="w-1/2 text-[var(--text)] font-semibold whitespace-pre-wrap break-words">{v}</span>
                   </div>
                 ))}
               </div>

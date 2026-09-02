@@ -133,7 +133,7 @@ function KVGrid({ data, label }: { data: Record<string, any>; label?: string }) 
                 {Object.entries(data).map(([k, v]) => (
                     <div key={k} className="flex gap-2 bg-[var(--bg)] rounded-lg px-3 py-2 text-xs">
                         <span className="font-medium text-[var(--text-muted)] shrink-0 min-w-0 break-words">{k}:</span>
-                        <span className="text-[var(--text-muted)] break-words">{String(v ?? '')}</span>
+                        <span className="text-[var(--text-muted)] break-words whitespace-pre-wrap">{String(v ?? '')}</span>
                     </div>
                 ))}
             </div>
@@ -1953,14 +1953,14 @@ export default function FichaDetallePage() {
                                                     <p className={`font-bold mb-1 text-[10px] uppercase ${seleccion[d.campo] === 'actual' ? 'text-[var(--accent)]' : 'text-[var(--text-faint)]'}`}>
                                                         {seleccion[d.campo] === 'actual' ? '✓ ' : ''}Mantener actual
                                                     </p>
-                                                    <p className="text-[var(--text-muted)] line-clamp-3 whitespace-pre-wrap">{formatVal(d.valor_actual)}</p>
+                                                    <p className="text-[var(--text-muted)] whitespace-pre-wrap break-words">{formatVal(d.valor_actual)}</p>
                                                 </button>
                                                 <button type="button" onClick={() => setSeleccion(s => ({ ...s, [d.campo]: 'nuevo' }))}
                                                     className={`p-3 rounded-lg text-xs text-left border transition-colors ${seleccion[d.campo] === 'nuevo' ? 'border-emerald-400 bg-[var(--ok)]/10 ring-1 ring-emerald-400' : 'border-[var(--border)] hover:bg-[var(--bg)]'}`}>
                                                     <p className={`font-bold mb-1 text-[10px] uppercase ${seleccion[d.campo] === 'nuevo' ? 'text-[var(--ok)]' : 'text-[var(--text-faint)]'}`}>
                                                         {seleccion[d.campo] === 'nuevo' ? '✓ ' : ''}Usar nuevo
                                                     </p>
-                                                    <p className="text-[var(--text-muted)] line-clamp-3 whitespace-pre-wrap">{formatVal(d.valor_nuevo)}</p>
+                                                    <p className="text-[var(--text-muted)] whitespace-pre-wrap break-words">{formatVal(d.valor_nuevo)}</p>
                                                 </button>
                                             </div>
                                             {/* Combinar con IA */}
@@ -2011,7 +2011,7 @@ export default function FichaDetallePage() {
                                                                     className="accent-indigo-600 mt-0.5 shrink-0" />
                                                                 <span className="text-xs">
                                                                     <span className="font-semibold text-[var(--text-muted)]">{k}:</span>{' '}
-                                                                    <span className="text-[var(--ok)]">{String(v)}</span>
+                                                                    <span className="text-[var(--ok)] whitespace-pre-wrap break-words">{String(v)}</span>
                                                                 </span>
                                                             </label>
                                                         );
@@ -2026,12 +2026,12 @@ export default function FichaDetallePage() {
                                                             <button type="button" onClick={() => setSeleccion(s => ({ ...s, [`${d.campo}::conflict::${k}`]: 'actual' }))}
                                                                 className={`p-2 rounded-lg text-xs text-left border ${seleccion[`${d.campo}::conflict::${k}`] !== 'nuevo' ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10' : 'border-[var(--border)]'}`}>
                                                                 <p className="text-[10px] text-[var(--text-faint)] font-bold">{k} (actual)</p>
-                                                                <p className="text-[var(--text-muted)]">{String((vals as any).actual)}</p>
+                                                                <p className="text-[var(--text-muted)] whitespace-pre-wrap break-words">{String((vals as any).actual)}</p>
                                                             </button>
                                                             <button type="button" onClick={() => setSeleccion(s => ({ ...s, [`${d.campo}::conflict::${k}`]: 'nuevo' }))}
                                                                 className={`p-2 rounded-lg text-xs text-left border ${seleccion[`${d.campo}::conflict::${k}`] === 'nuevo' ? 'border-emerald-400 bg-[var(--ok)]/10' : 'border-[var(--border)]'}`}>
                                                                 <p className="text-[10px] text-[var(--text-faint)] font-bold">{k} (nuevo)</p>
-                                                                <p className="text-[var(--text-muted)]">{String((vals as any).nuevo)}</p>
+                                                                <p className="text-[var(--text-muted)] whitespace-pre-wrap break-words">{String((vals as any).nuevo)}</p>
                                                             </button>
                                                         </div>
                                                     ))}
