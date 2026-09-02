@@ -329,12 +329,15 @@ export interface PublicacionSugerida {
   model: string | null;
   seller_sku: string | null;
   precio_venta: number | null;
+  ean: string | null;
+  gtin: string | null;
+  upc: string | null;
   score: number; // 0..100
   metodo: string; // 'sku_exacto' | 'codigo_exacto' | 'marca_modelo' | 'alias' | 'fuzzy'
   motivo: string;
 }
 
-const PUB_COLS = 'id, external_item_id, titulo, brand, model, seller_sku, precio_venta';
+const PUB_COLS = 'id, external_item_id, titulo, brand, model, seller_sku, precio_venta, ean, gtin, upc';
 
 /** Filtro base de publicaciones candidatas: sin mapear, sin kits, sin variaciones, sin catálogo-hermana. */
 function publicacionesCandidatas(matchParts: string[], limit: number) {
@@ -376,6 +379,9 @@ export async function sugerirPublicaciones(art: ArticuloSugerible): Promise<Publ
       model: p.model ?? null,
       seller_sku: p.seller_sku ?? null,
       precio_venta: p.precio_venta ?? null,
+      ean: p.ean ?? null,
+      gtin: p.gtin ?? null,
+      upc: p.upc ?? null,
       score: Math.max(0, Math.min(100, Math.round(score))),
       metodo,
       motivo,

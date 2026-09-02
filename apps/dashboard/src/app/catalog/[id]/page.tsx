@@ -446,8 +446,15 @@ export default function ArticuloDetailPage() {
             {/* Modal: vincular a vidriera existente */}
             {showVincularVitrina && (
                 <VincularVitrinaModal
-                    articuloId={product.articulo_id || id}
-                    articuloNombre={product.nombre || ''}
+                    articulo={{
+                        articulo_id: product.articulo_id || id,
+                        nombre: product.nombre || '',
+                        marca: product.marca || null,
+                        modelo: product.modelo || null,
+                        codigo_universal: product.codigo_universal || null,
+                        caja_madre: product.caja_madre || null,
+                        thumbnail: getPublicImageUrl(product.imagenes?.[0] || null),
+                    }}
                     onClose={() => setShowVincularVitrina(false)}
                     onSuccess={() => { setShowVincularVitrina(false); fetchProduct(); }}
                 />
