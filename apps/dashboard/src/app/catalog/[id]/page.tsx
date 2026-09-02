@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
     ArrowLeft, AlertCircle, Image as ImageIcon,
@@ -46,6 +46,7 @@ function formatFecha(d: string | null | undefined) {
 // -- Página principal ----------------------------------------------------------
 export default function ArticuloDetailPage() {
     const params = useParams();
+    const router = useRouter();
     const id = decodeURIComponent(params.id as string);
     const [product, setProduct] = useState<any>(null);
     const [linkedPubs, setLinkedPubs] = useState<any[]>([]);
@@ -55,6 +56,7 @@ export default function ArticuloDetailPage() {
     const [newConditionPub, setNewConditionPub] = useState<any>(null);
     const [reconcileNote, setReconcileNote] = useState<string | null>(null);
     const [showVincularVitrina, setShowVincularVitrina] = useState(false);
+    const [creatingFicha, setCreatingFicha] = useState(false);
 
     useEffect(() => {
         if (id) fetchProduct();
@@ -115,6 +117,26 @@ export default function ArticuloDetailPage() {
             setLinkedPubs([]);
         }
     }
+
+    const handleCreateFicha = async () => {
+        setCreatingFicha(true);
+        try {
+            const res = await fetch('/api/fichas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nombre_producto: product.nombre || (product.articulo_id || id),
+                    articulo_id: product.articulo_id || id,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.id) throw new Error(data?.error || 'Error al crear la ficha');
+            router.push(`/fichas/${data.id}`);
+        } catch (err: any) {
+            alert(err?.message || 'No se pudo crear la ficha técnica');
+            setCreatingFicha(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -246,12 +268,14 @@ export default function ArticuloDetailPage() {
                         <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Ficha técnica</h2>
                         <span className="text-[10px] text-[var(--text-faint)] tabular-nums">{fichas.length}</span>
                     </div>
-                    <Link
-                        href={`/autoficha?articulo_id=${encodeURIComponent(product.articulo_id || id)}`}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors"
+                    <button
+                        type="button"
+                        onClick={handleCreateFicha}
+                        disabled={creatingFicha}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-50"
                     >
-                        <Plus className="w-3.5 h-3.5" /> Crear ficha técnica
-                    </Link>
+                        <Plus className="w-3.5 h-3.5" /> {creatingFicha ? 'Creando…' : 'Crear ficha técnica'}
+                    </button>
                 </div>
 
                 {fichas.length === 0 ? (

@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { processProductDocument, processMultipleDocuments, MultiDocInput } from '@gestor/sync/autoficha';
+import { ALLOWED_MIME, detectMimeFromUrl } from '@gestor/sync/formats';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const ALLOWED_MIME = [
-    'application/pdf',
-    'image/png',
-    'image/jpeg',
-    'image/jpg',
-    'image/webp',
-];
 const MAX_BYTES = 4_000_000; // 4 MB — límite real de Vercel serverless body
 
 // Cliente Supabase server-side (para descargar archivos de Storage)
@@ -75,9 +69,9 @@ async function urlToBuffer(url: string): Promise<{ buffer: Buffer; mimeType: str
 
     if (!fetchResp.ok) throw new Error(`La URL respondió con error ${fetchResp.status}: ${url}`);
 
-    const mimeType = fetchResp.headers.get('content-type')?.split(';')[0] || 'application/octet-stream';
+    const mimeType = detectMimeFromUrl(url, fetchResp.headers.get('content-type'));
     if (!ALLOWED_MIME.includes(mimeType)) {
-        throw new Error(`Formato no soportado en ${url}: ${mimeType}`);
+        throw new Error(`Formato no soportado en ${url}: ${mimeType || 'desconocido'}`);
     }
 
     const arrBuf = await fetchResp.arrayBuffer();

@@ -1692,7 +1692,7 @@ export default function FichaDetallePage() {
                                 </div>
                                 {enrichMode === 'file' ? (
                                     <>
-                                        <input ref={enrichFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden"
+                                        <input ref={enrichFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff,.bmp,.heic,.heif,.docx,.xlsx,.pptx,.txt,.csv,.md,.html,.htm" className="hidden"
                                             onChange={e => setEnrichFile(e.target.files?.[0] ?? null)} />
                                         <button type="button" onClick={() => enrichFileRef.current?.click()}
                                             className="w-full py-2 rounded-xl border-2 border-dashed border-[var(--accent)]/70 text-xs text-indigo-200 hover:border-white hover:text-[var(--accent-ink)] transition-colors">

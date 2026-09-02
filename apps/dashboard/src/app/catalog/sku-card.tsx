@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AlertCircle, Save, Edit2, Image as ImageIcon, FileText, Link2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { dashboardService } from '@/lib/dashboard-service';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -45,6 +46,8 @@ export function SkuCard({
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [imgError, setImgError] = useState(false);
+    const [creatingFicha, setCreatingFicha] = useState(false);
+    const router = useRouter();
 
     // Safety check arrays vs objects for inventory
     const snapshot = Array.isArray(product.inventory_snapshot) ? product.inventory_snapshot[0] : product.inventory_snapshot;
@@ -87,6 +90,26 @@ export function SkuCard({
     };
 
     const articuloUrl = `/catalog/${encodeURIComponent(product.articulo_id)}`;
+
+    const handleCreateFicha = async () => {
+        setCreatingFicha(true);
+        try {
+            const res = await fetch('/api/fichas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nombre_producto: product.nombre || product.articulo_id,
+                    articulo_id: product.articulo_id,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.id) throw new Error(data?.error || 'Error al crear la ficha');
+            router.push(`/fichas/${data.id}`);
+        } catch (err: any) {
+            alert(err?.message || 'No se pudo crear la ficha técnica');
+            setCreatingFicha(false);
+        }
+    };
 
     return (
         <div
@@ -270,12 +293,14 @@ export function SkuCard({
                         <FileText className="w-3.5 h-3.5" /> Ver ficha técnica
                     </Link>
                 ) : (
-                    <Link
-                        href={`/autoficha?articulo_id=${encodeURIComponent(product.articulo_id)}`}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors"
+                    <button
+                        type="button"
+                        onClick={handleCreateFicha}
+                        disabled={creatingFicha}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-50"
                     >
-                        <FileText className="w-3.5 h-3.5" /> Crear ficha técnica
-                    </Link>
+                        <FileText className="w-3.5 h-3.5" /> {creatingFicha ? 'Creando…' : 'Crear ficha técnica'}
+                    </button>
                 )}
             </div>
         </div>

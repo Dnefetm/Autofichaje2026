@@ -95,7 +95,7 @@ Responde SOLO con JSON sin markdown:
   Marca: ${input.marca}
   Modelo: ${input.modelo}
   Descripción: ${input.descripcion?.slice(0, 500) || 'No disponible'}
-  Atributos específicos: ${input.atributos_especificos ? JSON.stringify(input.atributos_especificos).slice(0, 300) : 'No disponibles'}
+  Atributos específicos: ${input.atributos_especificos ? JSON.stringify(input.atributos_especificos).slice(0, 3000) : 'No disponibles'}
 
 Atributos requeridos sin resolver:
 ${attrsBlock || 'Ninguno — solo generar el family_name'}`;

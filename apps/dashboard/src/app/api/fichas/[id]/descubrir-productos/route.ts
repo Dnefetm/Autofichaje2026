@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { discoverProducts } from '@gestor/sync/autoficha';
+import { ALLOWED_MIME, detectMimeFromUrl } from '@gestor/sync/formats';
 
 export const runtime    = 'nodejs';
 export const maxDuration = 30; // Más rápido que la extracción completa
 
-const ALLOWED_MIME = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 const MAX_BYTES    = 4_000_000;
 
 // POST /api/fichas/[id]/descubrir-productos
@@ -40,9 +40,9 @@ export async function POST(
             const resp = await fetch(url, { signal: AbortSignal.timeout(20_000) });
             if (!resp.ok)
                 return NextResponse.json({ error: `URL respondió ${resp.status}` }, { status: 400 });
-            mimeType = resp.headers.get('content-type')?.split(';')[0] || 'application/pdf';
+            mimeType = detectMimeFromUrl(url, resp.headers.get('content-type'));
             if (!ALLOWED_MIME.includes(mimeType))
-                return NextResponse.json({ error: `Formato no soportado: ${mimeType}` }, { status: 400 });
+                return NextResponse.json({ error: `Formato no soportado: ${mimeType || 'desconocido'}` }, { status: 400 });
             buffer = Buffer.from(await resp.arrayBuffer());
         } else {
             return NextResponse.json({ error: 'Content-Type no soportado' }, { status: 400 });

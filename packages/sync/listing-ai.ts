@@ -71,7 +71,7 @@ Responde SOLO JSON:
 - Medidas (cm): ${input.largo_cm ?? '—'} x ${input.ancho_cm ?? '—'} x ${input.alto_cm ?? '—'}
 - País de origen: ${input.pais_origen || '—'}
 - Código universal (EAN/UPC): ${input.codigo_universal || '—'}
-- Atributos específicos: ${input.atributos_especificos ? JSON.stringify(input.atributos_especificos).slice(0, 500) : '—'}
+- Atributos específicos: ${input.atributos_especificos ? JSON.stringify(input.atributos_especificos).slice(0, 5000) : '—'}
 - Bullets actuales: ${(input.bullet_points || []).join('; ') || '—'}`;
 
     try {

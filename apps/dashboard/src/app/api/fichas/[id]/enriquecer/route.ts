@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { processProductDocument } from '@gestor/sync/autoficha';
+import { ALLOWED_MIME, detectMimeFromUrl } from '@gestor/sync/formats';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const ALLOWED_MIME = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 const MAX_BYTES = 4_000_000;
-
 function getSupabaseAdmin() {
     return createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -174,9 +173,10 @@ export async function POST(
             const form = await req.formData();
             const file = form.get('file') as File | null;
             if (!file) return NextResponse.json({ error: 'No se recibió archivo' }, { status: 400 });
-            if (!ALLOWED_MIME.includes(file.type)) return NextResponse.json({ error: `Formato no soportado: ${file.type}` }, { status: 400 });
+            mimeType = detectMimeFromUrl(file.name, file.type);
+            if (!ALLOWED_MIME.includes(mimeType)) return NextResponse.json({ error: `Formato no soportado: ${mimeType || file.type}` }, { status: 400 });
             if (file.size > MAX_BYTES) return NextResponse.json({ error: 'Archivo demasiado grande (máx 4 MB)' }, { status: 400 });
-            buffer = Buffer.from(await file.arrayBuffer()); mimeType = file.type; fileName = file.name;
+            buffer = Buffer.from(await file.arrayBuffer()); fileName = file.name;
             // campos_solicitados y producto_objetivo del formData
             const camposRaw = form.get('campos_solicitados') as string | null;
             if (camposRaw) { try { camposHint = JSON.parse(camposRaw); } catch { /* ignorar mal formato */ } }
@@ -188,8 +188,8 @@ export async function POST(
             if (!url?.startsWith('http')) return NextResponse.json({ error: 'Body debe contener "url"' }, { status: 400 });
             const resp = await fetch(url, { signal: AbortSignal.timeout(20_000) });
             if (!resp.ok) return NextResponse.json({ error: `URL respondió ${resp.status}` }, { status: 400 });
-            mimeType = resp.headers.get('content-type')?.split(';')[0] || 'application/pdf';
-            if (!ALLOWED_MIME.includes(mimeType)) return NextResponse.json({ error: `Formato no soportado: ${mimeType}` }, { status: 400 });
+            mimeType = detectMimeFromUrl(url, resp.headers.get('content-type'));
+            if (!ALLOWED_MIME.includes(mimeType)) return NextResponse.json({ error: `Formato no soportado: ${mimeType || 'desconocido'}` }, { status: 400 });
             buffer = Buffer.from(await resp.arrayBuffer()); fileName = url.split('/').pop()?.split('?')[0] || 'documento';
             if (Array.isArray(body?.campos_solicitados)) camposHint = body.campos_solicitados;
             if (body?.producto_objetivo?.trim()) productoObjetivo = body.producto_objetivo.trim();

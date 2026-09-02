@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Upload, Sparkles, CheckCircle2, Save, Trash2, Camera,
     Loader2, AlertCircle, Search, X, FileText, Image as ImageIcon,
@@ -107,7 +107,15 @@ interface Borrador {
     dispositivo?: string; updated_at: string;
 }
 
-const ALLOWED_MIME = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+const ALLOWED_MIME = [
+    'application/pdf',
+    'image/png', 'image/jpeg', 'image/jpg', 'image/webp',
+    'image/tiff', 'image/bmp', 'image/heic', 'image/heif',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain', 'text/csv', 'text/markdown', 'text/html',
+];
 const MAX_MB = 50;
 const OPERADOR_ID = 'operador_1';
 
@@ -115,6 +123,7 @@ const OPERADOR_ID = 'operador_1';
 
 function AutofichaPageInner() {
     const searchParams = useSearchParams();
+    const router = useRouter();
     // Entrada
     const [inputMode, setInputMode]   = useState<InputMode>('file');
     const [files, setFiles]           = useState<FileEntry[]>([]);
@@ -189,7 +198,7 @@ function AutofichaPageInner() {
                     // Pre-llenar el formulario — el operador puede subir un doc para enriquecer
                     // o guardar directamente para crear la ficha técnica del artículo.
                     const prefilledData: AutofichaResult = {
-                        sku_detectado:    data.articulo_id,
+                        sku_detectado:    data.modelo ?? '',
                         articulo_id:      data.articulo_id,
                         nombre:           data.nombre,
                         marca:            data.marca,
@@ -472,7 +481,7 @@ function AutofichaPageInner() {
         const primaryFile = files.find(f => f.storageUrl);
 
         try {
-            const { error } = await supabase.rpc('guardar_ficha_autoficha', {
+            const { data, error } = await supabase.rpc('guardar_ficha_autoficha', {
                 p: {
                     p_mode:           mode,
                     articulo_id,      // puede ser null en modo draft
@@ -510,6 +519,7 @@ function AutofichaPageInner() {
                     materiales:       edited.materiales       || null,
                     pais_origen:      edited.pais_origen      || null,
                     // Atributos híbridos (v4)
+                    atributos_tecnicos:  result?.atributos_tecnicos ?? {},
                     atributos_categoria: atribCategoria,
                     atributos_extras:    atribExtras,
                     // Metadata del documento
@@ -532,12 +542,17 @@ function AutofichaPageInner() {
                 });
             }
             setStatus('saved');
+            const fichaId = (data as any)?.ficha_id;
             setTimeout(() => {
-                setResult(null); setEdited(null); setFiles([]); setUrl('');
-                setSuggestions([]); setLinkedArticulo(null);
-                setCurrentBorrador(null); setStatus('idle');
-                loadBorradores();
-            }, 2000);
+                if (fichaId) {
+                    router.push(`/fichas/${fichaId}`);
+                } else {
+                    setResult(null); setEdited(null); setFiles([]); setUrl('');
+                    setSuggestions([]); setLinkedArticulo(null);
+                    setCurrentBorrador(null); setStatus('idle');
+                    loadBorradores();
+                }
+            }, 1200);
         } catch (err: any) {
             setErrorMsg(err?.message || 'Error al guardar.'); setStatus('error');
         }
@@ -648,7 +663,7 @@ function AutofichaPageInner() {
                                 onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                                 onDragLeave={() => setDragOver(false)}
                                 onDrop={onDrop} onClick={() => inputRef.current?.click()}>
-                                <input ref={inputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple className="hidden"
+                                <input ref={inputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff,.bmp,.heic,.heif,.docx,.xlsx,.pptx,.txt,.csv,.md,.html,.htm" multiple className="hidden"
                                     onChange={e => e.target.files && addFiles(e.target.files)} />
                                 <div className={cn('w-16 h-16 rounded-2xl flex items-center justify-center transition-colors', dragOver ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'bg-[var(--bg)] text-[var(--text-faint)]')}>
                                     <Upload className="w-8 h-8" />
@@ -770,7 +785,7 @@ function AutofichaPageInner() {
                             <div className="space-y-3">
                                 <p className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-widest border-b pb-1">Identificación</p>
                                 <Field
-                                    label="N.º de parte / Modelo (detectado por IA)"
+                                    label="N.º de parte / Modelo"
                                     value={edited?.sku_detectado}
                                     onChange={v => updateField('sku_detectado', v)}
                                     mono

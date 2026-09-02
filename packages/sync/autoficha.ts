@@ -1,6 +1,7 @@
 import { DocumentAnalysisClient, AzureKeyCredential } from '@azure/ai-form-recognizer';
 import { OpenAI } from 'openai';
 import { classifyProduct, getCategoryExtraFields } from './classifier';
+import { isTextualMime, isHtmlMime, htmlToText, chunkText, formatComponentes, dedupComponentes } from './formats';
 
 export interface AutofichaResult {
     // Identificación
@@ -40,6 +41,16 @@ export interface AutofichaResult {
     pais_origen?: string;
     // Atributos técnicos (modelo híbrido v4)
     atributos_tecnicos?: Record<string, any>;   // Todos los datos técnicos detectados por la IA
+    // Piezas / componentes de un kit o juego (v48)
+    componentes?: Array<{
+        nombre: string;
+        codigo?: string;
+        cantidad?: string;
+        medida?: string;
+        material?: string;
+        acabado?: string;
+        descripcion?: string;
+    }>;
     // Metadatos de calidad
     confidence: number;         // 0-1 global del LLM
     rawText: string;            // Texto OCR completo para auditoría
@@ -53,6 +64,19 @@ async function extractTextFromBuffer(
     buffer: Buffer,
     mimeType: string,
 ): Promise<{ text: string; confidence: number }> {
+    // Texto plano / CSV / Markdown: extraer directamente, sin OCR.
+    if (isTextualMime(mimeType)) {
+        const text = buffer.toString('utf8');
+        return { text, confidence: 1 };
+    }
+
+    // HTML: limpiar etiquetas y extraer el texto legible.
+    if (isHtmlMime(mimeType)) {
+        const text = htmlToText(buffer.toString('utf8'));
+        return { text, confidence: 1 };
+    }
+
+    // PDF, imágenes y Office (DOCX/XLSX/PPTX/TIFF/BMP/HEIF): OCR con Azure.
     const endpoint = process.env.AZURE_DI_ENDPOINT || process.env.AZURE_CV_ENDPOINT;
     const apiKey   = process.env.AZURE_DI_KEY   || process.env.AZURE_CV_KEY;
 
@@ -143,13 +167,11 @@ Campos a extraer (usa null si no está disponible):
 - nombre: nombre comercial completo del producto
 - marca: fabricante o brand (nombre corto de la marca)
 - fabricante: razón social completa del fabricante (ej: "Würth México S.A. de C.V."). Si no está, pon la marca.
-- modelo: número de modelo o referencia específica (si es distinto del sku)
+- modelo: número de modelo, código de fabricante o número de parte (si es distinto del sku; frecuentemente alfanumérico al inicio de tablas)
 - variante: variante del producto (tamaño, color, acabado, capacidad)
 - descripcion: descripción técnica corta del producto (máx 500 caracteres)
-- descripcion_larga: descripción técnica completa y extendida del producto (sin límite de caracteres)
-    - especificaciones: especificaciones técnicas en texto LIMPIO y legible. Si el documento trae una TABLA de datos (ej. encabezados como "Ctd. embal.", "(A) mm", "(L1) mm" seguidos de sus valores), NO copies los encabezados y valores en bruto ni los concatenes; EMPAREJA cada encabezado/etiqueta con su valor correspondiente por posición y escribe cada par en su propia línea con el formato "- Etiqueta: valor\n- Etiqueta2: valor2". Nunca devuelvas una fila de etiquetas seguida de una fila de números sueltos. Las medidas dimensionales tabuladas van además en atributos_tecnicos como pares clave-valor.
-- descripcion_larga: Descripción detallada y comercial del producto. Si no hay una explícita, redacta un párrafo coherente uniendo las características principales y ventajas comerciales. NO uses listas con guiones aquí.
-- especificaciones: especificaciones técnicas en texto LIMPIO y legible. Si el documento es un catálogo (ej. código, descripción, piezas), extrae esos datos como "- Código: valor\n- Descripción: valor". EMPAREJA cada encabezado con su valor.
+- descripcion_larga: descripción técnica completa y extendida del producto (sin límite de caracteres). Si no hay una explícita, redacta un párrafo coherente uniendo las características principales y ventajas comerciales. NO uses listas con guiones aquí.
+- especificaciones: especificaciones técnicas en texto LIMPIO y legible. Si el documento trae una TABLA de datos (ej. encabezados como "Ctd. embal.", "(A) mm", "(L1) mm"), NO copies encabezados y valores en bruto ni los concatenes; EMPAREJA cada encabezado/etiqueta con su valor y escribe cada par en su propia línea "- Etiqueta: valor". Si el documento es un catálogo (ej. código, descripción, piezas), extrae esos datos como "- Código: valor\n- Descripción: valor". Nunca devuelvas una fila de etiquetas seguida de una fila de números sueltos. Las medidas dimensionales tabuladas van además en atributos_tecnicos como pares clave-valor.
 - uso_recomendado: instrucciones de uso, aplicación o modo de empleo (campo general, puede solapar con instrucciones_uso)
 - precauciones: advertencias de seguridad y precauciones generales (campo heredado, puede solapar con leyendas_precautorias)
 - informacion_normativa: textos que el fabricante/importador está OBLIGADO a incluir por ley en el etiquetado:
@@ -177,8 +199,6 @@ REGLA CRÍTICA DE SEPARACIÓN:
 - palabras_clave: array de strings con keywords para búsqueda en marketplaces (5-12 palabras)
 - codigo_universal: EAN, UPC, GTIN o código de barras (13 dígitos preferentemente)
 - codigo_sat: clave SAT de producto (7 dígitos, prefijos 22, 27, 31...)
-- modelo: modelo, código de fabricante, SKU o número de parte (frecuentemente alfanumérico al inicio de tablas).
-- marca: marca del producto si se menciona explícitamente.
 - peso_kg: peso en kilogramos (número decimal)
 - largo_cm: largo en centímetros (número decimal)
 - ancho_cm: ancho en centímetros (número decimal)
@@ -194,6 +214,11 @@ REGLA CRÍTICA DE SEPARACIÓN:
   Ejemplo incorrecto: "- Apertura máxima: 1-3/8\"\n- Material: Cromo-Vanadio"
   No filtres nada — extrae todo dato técnico, beneficio o característica que no haya sido capturado arriba.
   Si no hay datos adicionales, retorna objeto vacío {}.
+- componentes: array de objetos SOLO si el documento describe un JUEGO/KIT/SET con varias piezas
+  (brocas, dados, puntas, llaves, accesorios, etc.). Cada pieza como objeto:
+  { "nombre": "...", "codigo": "...", "cantidad": "...", "medida": "...", "material": "...", "acabado": "...", "descripcion": "..." }.
+  Lista CADA pieza por separado, con su medida y material individuales. NO resumas el kit en una sola línea.
+  Si no es un kit o no hay lista de piezas, devuelve [].
 - confidence: tu nivel de confianza en la extracción (0.0 a 1.0)`;
 
 // --- Helper: normalización de campos regulatorios -----------------------------
@@ -283,7 +308,7 @@ async function structureWithAI(
             : {};
 
     return {
-        sku_detectado:    raw.sku_detectado  || `AUTO-${Date.now()}`,
+        sku_detectado:    raw.sku_detectado  || '',
         nombre:           raw.nombre         || 'Producto sin nombre',
         marca:            raw.marca          || '',
         fabricante:       raw.fabricante     || raw.marca || undefined,
@@ -318,8 +343,61 @@ async function structureWithAI(
         materiales:       raw.materiales     || undefined,
         pais_origen:      raw.pais_origen    || undefined,
         atributos_tecnicos,
+        componentes:      Array.isArray(raw.componentes) ? raw.componentes.filter((c: any) => c && typeof c === 'object' && c?.nombre) : undefined,
         confidence:       typeof raw.confidence === 'number' ? Math.min(1, Math.max(0, raw.confidence)) : 0.7,
     };
+}
+
+// --- Paso 2c: extracción de detalles técnicos por chunks (map-reduce) ---------
+// Para documentos largos (>100K chars) el corte del prompt principal pierde las
+// tablas finales (p. ej. la lista de brocas de un kit). Esta pasada barre el texto
+// completo en ventanas y consolida atributos_tecnicos + componentes.
+
+const CHUNK_SIZE = 60_000;
+const CHUNK_OVERLAP = 2_000;
+
+const DETAILS_PROMPT = `Eres un experto en ferretería industrial. Analiza un FRAGMENTO de un documento técnico.
+Extrae SOLO datos técnicos. Responde SOLO con JSON sin markdown:
+{
+  "atributos_tecnicos": { ...pares clave-valor... },
+  "componentes": [ { "nombre": "...", "codigo": "...", "cantidad": "...", "medida": "...", "material": "...", "acabado": "...", "descripcion": "..." } ]
+}
+- atributos_tecnicos: objeto JSON con TODOS los datos técnicos del fragmento (medidas, materiales, acabados, normas, capacidades, voltajes, presiones, rpm, torques, etc.). Usa keys descriptivas en español. Si no hay, {}.
+- componentes: si el fragmento lista piezas de un JUEGO/KIT/SET (brocas, dados, puntas, llaves, accesorios), devuelve CADA pieza como objeto con su medida y material individuales. Si no hay piezas, [].
+NO inventes datos. No incluyas marketing.`;
+
+async function extractTechnicalDetails(rawText: string): Promise<{ atributos_tecnicos: Record<string, any>; componentes: any[] }> {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const chunks = chunkText(rawText, CHUNK_SIZE, CHUNK_OVERLAP);
+    const mergedAttr: Record<string, any> = {};
+    const mergedComp: any[] = [];
+
+    for (const chunk of chunks) {
+        try {
+            const resp = await openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                temperature: 0.1,
+                response_format: { type: 'json_object' },
+                messages: [
+                    { role: 'system', content: DETAILS_PROMPT },
+                    { role: 'user', content: `Fragmento del documento:\n\n${chunk}` },
+                ],
+            });
+            const raw = JSON.parse(resp.choices[0].message.content || '{}');
+            if (raw.atributos_tecnicos && typeof raw.atributos_tecnicos === 'object' && !Array.isArray(raw.atributos_tecnicos)) {
+                Object.assign(mergedAttr, raw.atributos_tecnicos);
+            }
+            if (Array.isArray(raw.componentes)) {
+                for (const c of raw.componentes) {
+                    if (c && typeof c === 'object' && c?.nombre) mergedComp.push(c);
+                }
+            }
+        } catch (err: any) {
+            console.error('[autoficha] fallo en chunk de detalles técnicos:', err?.message);
+        }
+    }
+
+    return { atributos_tecnicos: mergedAttr, componentes: mergedComp };
 }
 
 // --- Descubrimiento de productos (Etapa 1 del flujo 2-etapas) -----------------
@@ -405,7 +483,20 @@ export async function processProductDocument(
         camposHint?.length ? camposHint : undefined,
         productoObjetivo || undefined);
 
-    return { ...structured, rawText, storage_path: storagePath };
+    // Documentos largos: barrer el texto completo en chunks para no perder las tablas
+    // finales (p. ej. las características de las brocas de un kit).
+    let componentes = structured.componentes ?? [];
+    if (rawText.length > 100_000) {
+        const tech = await extractTechnicalDetails(rawText);
+        structured.atributos_tecnicos = { ...(structured.atributos_tecnicos ?? {}), ...tech.atributos_tecnicos };
+        componentes = [...componentes, ...tech.componentes];
+    }
+    componentes = dedupComponentes(componentes);
+    if (componentes.length > 0) {
+        (structured.atributos_tecnicos ??= {})['Componentes del juego'] = formatComponentes(componentes);
+    }
+
+    return { ...structured, componentes, rawText, storage_path: storagePath };
 }
 
 // --- Función principal: múltiples documentos (merge inteligente) ---------------
@@ -454,10 +545,22 @@ export async function processMultipleDocuments(
         camposHint?.length ? camposHint : undefined,
         productoObjetivo || undefined);
 
+    let componentes = structured.componentes ?? [];
+    if (combinedText.length > 100_000) {
+        const tech = await extractTechnicalDetails(combinedText);
+        structured.atributos_tecnicos = { ...(structured.atributos_tecnicos ?? {}), ...tech.atributos_tecnicos };
+        componentes = [...componentes, ...tech.componentes];
+    }
+    componentes = dedupComponentes(componentes);
+    if (componentes.length > 0) {
+        (structured.atributos_tecnicos ??= {})['Componentes del juego'] = formatComponentes(componentes);
+    }
+
     const primaryStoragePath = docs.find(d => d.storagePath)?.storagePath;
 
     return {
         ...structured,
+        componentes,
         confidence: Math.round(Math.min(structured.confidence, avgConfidence) * 100) / 100,
         rawText:    combinedText,
         storage_path: primaryStoragePath,
