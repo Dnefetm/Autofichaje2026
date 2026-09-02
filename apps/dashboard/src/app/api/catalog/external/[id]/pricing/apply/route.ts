@@ -15,18 +15,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     if (e1 || !pub) return NextResponse.json({ error: 'Publicación no encontrada' }, { status: 404 });
 
-    // 2) Reglas de seguridad
-    const blocking = ['missing_cost', 'invalid_strategy', 'no_rule'];
-    if (blocking.includes(pub.pricing_status)) {
-      return NextResponse.json({
-        error: `No se puede aplicar: estado=${pub.pricing_status}. Resuelve la causa antes de publicar.`
-      }, { status: 400 });
-    }
-
-    // 3) Permite override del precio confirmado por el usuario (puede ajustarlo manualmente antes de aplicar)
+    // 3) Precio a aplicar: el confirmado por el usuario (override) o el calculado.
     const newPrice = body.confirmed_price ?? pub.sale_price_calculated;
     if (!newPrice || newPrice <= 0) {
       return NextResponse.json({ error: 'Precio inválido' }, { status: 400 });
+    }
+
+    // 2) Reglas de seguridad: solo bloquean si NO hay un precio confirmado manualmente.
+    //    pricing_status es un campo heredado que puede quedar obsoleto ('missing_cost')
+    //    mientras el borrador en publication_pricing_drafts ya es 'valid'.
+    const blocking = ['missing_cost', 'invalid_strategy', 'no_rule'];
+    if (!body.confirmed_price && blocking.includes(pub.pricing_status)) {
+      return NextResponse.json({
+        error: `No se puede aplicar: estado=${pub.pricing_status}. Resuelve la causa antes de publicar.`
+      }, { status: 400 });
     }
 
     // 4) Validación adicional: no permitir cambios > 50% sin segunda confirmación
