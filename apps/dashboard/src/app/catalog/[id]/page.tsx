@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-    ArrowLeft, Package, AlertCircle, Image as ImageIcon,
-    ExternalLink, RefreshCw, Box, Tag, Barcode, Globe,
+    ArrowLeft, AlertCircle, Image as ImageIcon,
+    ExternalLink, RefreshCw,
     FileText, XCircle, CheckCircle, Link2, Plus
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { PublishPanel } from '@/components/publish-panel';
 import { NewConditionDialog } from '@/components/new-condition-dialog';
 import VincularVitrinaModal from '@/components/vincular-vitrina-modal';
+import { ArticleEditForm } from '@/components/article-edit-form';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
@@ -145,26 +146,6 @@ export default function ArticuloDetailPage() {
     const fichas = Array.isArray(product.fichas_tecnicas) ? product.fichas_tecnicas : [];
     const rawImage = product.imagenes?.[0] || null;
     const image = getPublicImageUrl(rawImage);
-
-    const fields = [
-        { label: 'SKU / Artículo ID', value: product.articulo_id, icon: Tag },
-        { label: 'Nombre', value: product.nombre, icon: FileText },
-        { label: 'Marca', value: product.marca, icon: Box },
-        { label: 'Modelo', value: product.modelo, icon: Package },
-        { label: 'Variante', value: product.variante, icon: Tag },
-        { label: 'Categoría', value: product.categoria, icon: Tag },
-        { label: 'Código Universal (UPC/EAN)', value: product.codigo_universal, icon: Barcode },
-        { label: 'Código SAT', value: product.codigo_sat, icon: Barcode },
-        { label: 'Caja Madre', value: product.caja_madre, icon: Box },
-        { label: 'País de Origen', value: product.pais_origen, icon: Globe },
-        { label: 'Peso (kg)', value: product.peso_kg, icon: Box },
-        { label: 'Materiales', value: product.materiales, icon: Box },
-        { label: 'Descripción', value: product.descripcion, icon: FileText },
-        { label: 'Notas', value: product.notas, icon: FileText },
-        { label: 'URL Producto', value: product.url_producto, icon: ExternalLink, isLink: true },
-        { label: 'URL Video', value: product.url_video, icon: ExternalLink, isLink: true },
-        { label: 'Publicación ML', value: product.publicacion_ml, icon: ExternalLink, isLink: true },
-    ];
 
     const boolFields = [
         { label: 'Es Full', value: product.es_full },
@@ -307,25 +288,8 @@ export default function ArticuloDetailPage() {
                 )}
             </div>
 
-            {/* Detail Fields */}
-            <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] shadow-sm p-6">
-                <h2 className="text-lg font-bold text-[var(--text)] mb-4">Datos del Artículo</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {fields.map(f => f.value != null && f.value !== '' && (
-                        <div key={f.label} className="flex items-start gap-3 p-3 bg-[var(--surface-2)] rounded-[var(--radius-sm)]">
-                            <f.icon className="w-4 h-4 text-[var(--text-faint)] mt-0.5 shrink-0" />
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider">{f.label}</p>
-                                {f.isLink ? (
-                                    <a href={f.value} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--accent)] hover:underline break-all">{f.value}</a>
-                                ) : (
-                                    <p className="text-sm text-[var(--text-muted)] break-words">{f.value}</p>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+            {/* Datos del Artículo (editable) */}
+            <ArticleEditForm article={product} onSaved={fetchProduct} />
 
             {/* -- Aviso Transición a Motor V2 ----------------------------------- */}
             <div className="bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius)] p-6">
