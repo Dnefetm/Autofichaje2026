@@ -199,18 +199,18 @@ export default function PendientesPage() {
       {/* Tarjetas de ancho completo */}
       <div className="space-y-4">
         {rows.map((r) => (
-          <div key={r.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+          <div key={r.id} className="relative bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+            {r._sugerencia && (
+              <input
+                type="checkbox"
+                checked={selectedIds.has(r.id)}
+                onChange={() => toggleSelect(r.id)}
+                className="absolute top-2 right-2 w-5 h-5 accent-[var(--accent)]"
+                aria-label={`Seleccionar ${r.external_item_id}`}
+              />
+            )}
             {/* Cabecera de tarjeta */}
             <div className="flex items-start gap-3">
-              {r._sugerencia && (
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(r.id)}
-                  onChange={() => toggleSelect(r.id)}
-                  className="mt-1 w-5 h-5 shrink-0 accent-[var(--accent)]"
-                  aria-label={`Seleccionar ${r.external_item_id}`}
-                />
-              )}
               {r.url_imagen && (
                 <img src={r.url_imagen} alt="" className="w-14 h-14 rounded-lg object-cover border border-[var(--border)] shrink-0" />
               )}

@@ -420,36 +420,25 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-6xl h-[85dvh] max-h-[850px] overflow-hidden flex flex-col">
                 
                 {/* Header del Modal */}
-                <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0">
-                    <div>
-                        <h2 className="text-base font-bold text-[var(--text)]">Mapear a Bodega Física</h2>
-                        <p className="text-xs text-[var(--text-muted)]">Vincula esta vitrina con 1 o más productos reales.</p>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] rounded-lg transition-colors">
-                        <X size={20} />
+                <div className="flex items-center justify-between px-4 py-1.5 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0">
+                    <h2 className="text-sm font-bold text-[var(--text)]">Mapear a Bodega Física</h2>
+                    <button onClick={onClose} className="p-1.5 hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] rounded-lg transition-colors">
+                        <X size={18} />
                     </button>
                 </div>
 
-                {/* T-LAYOUT TOP: Full Width Banner para la Vitrina */}
+                {/* T-LAYOUT TOP: Banner compacto de la Vitrina */}
                 <div className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
-                    <div className="px-4 py-2 flex items-center gap-3">
+                    <div className="px-4 py-1.5 flex items-center gap-2">
                         {listing.thumbnail && (
-                            <img src={listing.thumbnail} alt="Thumbnail" className="w-10 h-10 object-contain rounded-md bg-white border border-[var(--border)] shrink-0" />
+                            <img src={listing.thumbnail} alt="Thumbnail" className="w-7 h-7 object-contain rounded-md bg-white border border-[var(--border)] shrink-0" />
                         )}
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30">
-                                    {listing.domain_id === 'MLM-CARS_AND_LIGHT_TRUCKS' ? 'Vehículo' : 'Publicación Venta'}
-                                </span>
-                                {listing.condition === 'new' && <span className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] px-2 py-0.5 rounded border border-[var(--border)]">Nuevo</span>}
-                                <span className="text-[var(--text-muted)] font-mono text-xs ml-2">{listing.external_item_id}</span>
-                            </div>
-                            <h3 className="text-sm font-bold text-[var(--text)] leading-tight truncate mb-1" title={listing.titulo}>{listing.titulo}</h3>
-                            <div className="flex flex-wrap gap-2 text-xs">
-                                <span className="font-bold text-[var(--text)]">${listing.precio?.toLocaleString('es-MX')}</span>
-                                {pubSku && <span className="text-[var(--text-muted)]">| SKU: <span className="font-mono">{pubSku}</span></span>}
-                                {pubGtin && <span className="text-[var(--text-muted)]">| GTIN: <span className="font-mono">{pubGtin}</span></span>}
-                            </div>
+                        <div className="flex-1 min-w-0 flex items-center gap-2 text-xs">
+                            <span className="font-semibold text-[var(--text)] truncate" title={listing.titulo}>{listing.titulo}</span>
+                            <span className="text-[var(--text-muted)] font-mono shrink-0">{listing.external_item_id}</span>
+                            <span className="font-semibold text-[var(--text)] shrink-0">${listing.precio?.toLocaleString('es-MX')}</span>
+                            {pubSku && <span className="text-[var(--text-muted)] font-mono shrink-0">SKU: {pubSku}</span>}
+                            {pubGtin && <span className="text-[var(--text-muted)] font-mono shrink-0">GTIN: {pubGtin}</span>}
                         </div>
                     </div>
                     
