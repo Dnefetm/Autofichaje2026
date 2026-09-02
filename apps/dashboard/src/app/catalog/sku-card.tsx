@@ -138,6 +138,15 @@ export function SkuCard({
                         className="w-4 h-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
                     />
                 </div>
+
+                {/* Caja madre (ubicación física) en la portada */}
+                {product.caja_madre && (
+                    <div className="absolute bottom-2 left-2 right-2 pointer-events-none">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border bg-[var(--accent)]/20 text-[var(--accent)] border-[var(--accent)]/40">
+                            Caja madre: {product.caja_madre}
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* — Cuerpo: identidad — */}
@@ -173,6 +182,12 @@ export function SkuCard({
                         <div className="flex items-center justify-between gap-2">
                             <dt className="text-[var(--text-faint)] shrink-0">Categoría</dt>
                             <dd className="text-[var(--text-muted)] truncate">{product.categoria}</dd>
+                        </div>
+                    )}
+                    {product.caja_madre && (
+                        <div className="flex items-center justify-between gap-2">
+                            <dt className="text-[var(--text-faint)] shrink-0">Caja madre</dt>
+                            <dd className="font-bold text-[var(--accent)] truncate">{product.caja_madre}</dd>
                         </div>
                     )}
                 </dl>
