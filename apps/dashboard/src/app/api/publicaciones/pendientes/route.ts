@@ -37,6 +37,8 @@ export async function GET(req: NextRequest) {
         { count: 'exact' }
       )
       .or('and(or(esta_mapeado.is.null,esta_mapeado.eq.false),not.and(tipo_publicacion.eq.catalogo,par_item_id.not.is.null))')
+      .not('es_bundle', 'is', true)
+      .not('tags', 'cs', '{bundle}')
       .eq('external_variation_id', '0')
       .order(orderBy, { ascending: false, nullsFirst: false })
       .range(page * pageSize, page * pageSize + pageSize - 1);

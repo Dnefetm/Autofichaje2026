@@ -485,12 +485,28 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                     <p className="text-xs font-bold uppercase tracking-wider text-[var(--ok)]">
                                         Coincidencia {topSugerencia.score}% · {topSugerencia.motivo}
                                     </p>
-                                    <button
-                                        onClick={() => handleAddSku(topSugerencia)}
-                                        className="shrink-0 px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-semibold rounded-lg hover:brightness-110"
-                                    >
-                                        Añadir
-                                    </button>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {(() => {
+                                            const s = selectedSkus.find(x => x.sku === topSugerencia.articulo_id);
+                                            return s ? (
+                                                <>
+                                                    <span className="text-xs text-[var(--text-muted)]">Cantidad:</span>
+                                                    <div className="flex items-center border border-[var(--border)] bg-[var(--surface-2)] rounded-lg overflow-hidden h-9">
+                                                        <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface)]">-</button>
+                                                        <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, Math.max(1, parseInt(e.target.value) || 1))} className="w-12 h-full text-center text-sm font-bold bg-transparent border-none p-0 focus:ring-0 text-[var(--text)]" />
+                                                        <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface)]">+</button>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleAddSku(topSugerencia)}
+                                                    className="px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-semibold rounded-lg hover:brightness-110"
+                                                >
+                                                    Añadir
+                                                </button>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
 
                                 <SugerenciaComparacion

@@ -333,10 +333,10 @@ export default function PendientesPage() {
             disabled={bulkVinculando}
             className="w-full py-3 bg-[var(--accent)] text-[var(--accent-ink)] rounded-xl text-base font-bold shadow-xl disabled:opacity-50"
           >
-            {bulkVinculando ? 'Vinculando…' : `Confirmar vinculación 1:1 (${selectedIds.size})`}
+            {bulkVinculando ? 'Vinculando…' : `Vincular 1 unidad por publicación (${selectedIds.size})`}
           </button>
           <p className="text-center text-xs text-[var(--text-muted)]">
-            1 unidad por producto · se propaga a publicaciones relacionadas
+            Cada publicación se vincula al producto sugerido con 1 unidad y se propaga a sus relacionadas.
           </p>
         </div>
       )}
