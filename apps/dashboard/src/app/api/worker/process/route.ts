@@ -11,6 +11,7 @@ import { SKU_Service } from '@gestor/shared/sku-service';
 import { AutomationManager } from '@gestor/sync/automations';
 import { runReconciliation } from '@gestor/sync/reconciliation';
 import logger from '@/lib/logger';
+import axios from 'axios';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Vercel Hobby permite hasta 60s
@@ -392,7 +393,22 @@ const { data: pub } = await supabaseAdmin
 .eq('id', publicacion_id)
 .single();
 if (!pub) return;
-if (pub.logistic_type === 'fulfillment') return;
+if (pub.logistic_type === 'fulfillment') {
+// Self-healing: verificar en MeLi si sigue Full (pudo cambiar a no-full sin detectarse).
+try {
+const accessToken = await (meli as any).getAccessToken(pub.marketplace_id);
+const resp = await axios.get(`https://api.mercadolibre.com/items/${pub.external_item_id}`, {
+headers: { Authorization: `Bearer ${accessToken}` },
+});
+const currentLogistic = resp.data?.shipping?.logistic_type || null;
+if (currentLogistic === 'fulfillment') return; // sigue Full
+await supabaseAdmin.from('publicaciones_externas')
+.update({ logistic_type: currentLogistic, actualizado_el: new Date().toISOString() })
+.eq('id', pub.id);
+} catch (_) {
+return; // no se pudo verificar; conservador: no pisar stock Full
+}
+}
 
 const { data: components } = await supabaseAdmin
 .from('mapeo_publicacion_articulo')
