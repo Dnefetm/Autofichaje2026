@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { PublishPanel } from '@/components/publish-panel';
 import { NewConditionDialog } from '@/components/new-condition-dialog';
+import VincularVitrinaModal from '@/components/vincular-vitrina-modal';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
@@ -52,6 +53,7 @@ export default function ArticuloDetailPage() {
     const [imgError, setImgError] = useState(false);
     const [newConditionPub, setNewConditionPub] = useState<any>(null);
     const [reconcileNote, setReconcileNote] = useState<string | null>(null);
+    const [showVincularVitrina, setShowVincularVitrina] = useState(false);
 
     useEffect(() => {
         if (id) fetchProduct();
@@ -354,9 +356,17 @@ export default function ArticuloDetailPage() {
 
             {/* Publicaciones / Vitrinas enlazadas */}
             <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-between">
+                <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-between gap-2">
                     <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Publicaciones / Vitrinas enlazadas</h2>
-                    <span className="text-[10px] text-[var(--text-faint)] tabular-nums">{linkedPubs.length}</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-[var(--text-faint)] tabular-nums">{linkedPubs.length}</span>
+                        <button
+                            onClick={() => setShowVincularVitrina(true)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-[var(--radius-sm)] hover:brightness-110"
+                        >
+                            <Link2 className="w-3.5 h-3.5" /> Vincular a vidriera
+                        </button>
+                    </div>
                 </div>
                 {reconcileNote && (
                     <div className="px-5 py-2 text-[11px] text-[var(--warn)] bg-[var(--warn)]/10 border-b border-[var(--warn)]/30">
@@ -430,6 +440,16 @@ export default function ArticuloDetailPage() {
                     articuloId={product.articulo_id || id}
                     onClose={() => setNewConditionPub(null)}
                     onDone={() => { setNewConditionPub(null); fetchProduct(); }}
+                />
+            )}
+
+            {/* Modal: vincular a vidriera existente */}
+            {showVincularVitrina && (
+                <VincularVitrinaModal
+                    articuloId={product.articulo_id || id}
+                    articuloNombre={product.nombre || ''}
+                    onClose={() => setShowVincularVitrina(false)}
+                    onSuccess={() => { setShowVincularVitrina(false); fetchProduct(); }}
                 />
             )}
         </div>
