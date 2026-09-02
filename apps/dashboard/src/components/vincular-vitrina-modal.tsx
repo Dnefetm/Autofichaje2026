@@ -3,25 +3,18 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { X, Search, Link2, RefreshCw } from 'lucide-react';
 
-function norm(s?: string | null): string {
-  return (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
-}
-function normCode(s?: string | null): string {
-  return (s || '').replace(/[^0-9a-z]/gi, '').toLowerCase();
-}
-
 interface Vitrina {
   id: string;
-  external_item_id: string;
-  titulo: string;
-  precio_venta: number | null;
+  external_item_id: string | null;
+  titulo: string | null;
   brand: string | null;
   model: string | null;
   seller_sku: string | null;
-  esta_mapeado: boolean | null;
-  tipo_publicacion: string | null;
-  _metodo?: string;
-  _score?: number;
+  precio_venta: number | null;
+  score?: number;
+  metodo?: string;
+  motivo?: string;
+  esta_mapeado?: boolean | null;
 }
 
 export default function VincularVitrinaModal({
@@ -50,63 +43,13 @@ export default function VincularVitrinaModal({
   async function cargarSugerencias() {
     setLoadingSug(true);
     try {
-      const { data: art } = await supabase
-        .from('articulos')
-        .select('articulo_id, nombre, marca, modelo, codigo_universal')
-        .eq('articulo_id', articuloId)
-        .single();
-      if (!art) { setLoadingSug(false); return; }
-
-      const modelo = norm(art.modelo);
-      const marca = norm(art.marca);
-      const codigo = normCode(art.codigo_universal);
-
-      // Señales exactas contra publicaciones sin mapear (mismo criterio que la cola)
-      const exactParts: string[] = [];
-      if (art.articulo_id) exactParts.push(`seller_sku.eq.${art.articulo_id}`, `model.eq.${art.articulo_id}`);
-      if (modelo) exactParts.push(`model.eq.${modelo}`, `seller_sku.eq.${modelo}`);
-      if (codigo) exactParts.push(`ean.eq.${codigo}`, `gtin.eq.${codigo}`, `upc.eq.${codigo}`);
-
-      let exactos: any[] = [];
-      if (exactParts.length) {
-        const { data } = await supabase
-          .from('publicaciones_externas')
-          .select('id, external_item_id, titulo, precio_venta, brand, model, seller_sku, esta_mapeado, tipo_publicacion')
-          .or('esta_mapeado.is.null,esta_mapeado.eq.false')
-          .not('es_bundle', 'is', true)
-          .not('tags', 'cs', '{bundle}')
-          .eq('external_variation_id', '0')
-          .or(exactParts.join(','))
-          .limit(30);
-        exactos = (data || []).map((p) => ({ ...p, _score: 100, _metodo: 'Coincidencia exacta' }));
-      }
-
-      // Fuzzy por tokens del nombre del artículo
-      let fuzzy: any[] = [];
-      const tokens = norm(art.nombre).split(/\s+/).filter((t) => t.length >= 4).slice(0, 3);
-      if (tokens.length) {
-        const parts = tokens.map((t) => `titulo.ilike.%${t}%`);
-        const { data } = await supabase
-          .from('publicaciones_externas')
-          .select('id, external_item_id, titulo, precio_venta, brand, model, seller_sku, esta_mapeado, tipo_publicacion')
-          .or('esta_mapeado.is.null,esta_mapeado.eq.false')
-          .not('es_bundle', 'is', true)
-          .not('tags', 'cs', '{bundle}')
-          .eq('external_variation_id', '0')
-          .or(parts.join(','))
-          .limit(30);
-        fuzzy = (data || []).map((p) => ({ ...p, _score: 60, _metodo: 'Similitud de título' }));
-      }
-
-      // Deduplicar (exacto gana sobre fuzzy) y ordenar por score
-      const map = new Map<string, Vitrina>();
-      for (const p of [...exactos, ...fuzzy]) {
-        const prev = map.get(p.id);
-        if (!prev || p._score > prev._score!) map.set(p.id, p);
-      }
-      setSugerencias(Array.from(map.values()).sort((a, b) => (b._score || 0) - (a._score || 0)));
+      const res = await fetch(`/api/vinculacion/sugerencias-vitrinas?articulo_id=${encodeURIComponent(articuloId)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error');
+      setSugerencias(data.rows || []);
     } catch (e) {
       console.error(e);
+      setSugerencias([]);
     } finally {
       setLoadingSug(false);
     }
@@ -119,7 +62,7 @@ export default function VincularVitrinaModal({
     try {
       const { data } = await supabase
         .from('publicaciones_externas')
-        .select('id, external_item_id, titulo, precio_venta, brand, model, seller_sku, esta_mapeado, tipo_publicacion')
+        .select('id, external_item_id, titulo, precio_venta, brand, model, seller_sku, esta_mapeado')
         .or(`titulo.ilike.%${q}%,external_item_id.ilike.%${q}%,seller_sku.ilike.%${q}%`)
         .eq('external_variation_id', '0')
         .limit(20);
@@ -159,14 +102,14 @@ export default function VincularVitrinaModal({
             {p.external_item_id} · ${p.precio_venta?.toLocaleString?.('es-MX') ?? p.precio_venta}
             {p.esta_mapeado ? ' · ya mapeada' : ''}
           </p>
-          {p._metodo && (
-            <span className="inline-block mt-1 text-[11px] font-bold text-[var(--ok)]">{p._metodo}</span>
+          {p.motivo && (
+            <span className="inline-block mt-1 text-[11px] font-bold text-[var(--ok)]">{p.motivo}</span>
           )}
         </div>
         <button
           onClick={() => vincular(p.id)}
           disabled={vinculando === p.id}
-          className="shrink-0 px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-1"
+          className="shrink-0 px-3 py-2 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-1"
         >
           {vinculando === p.id ? 'Vinculando…' : <><Link2 className="w-4 h-4" /> Vincular</>}
         </button>
@@ -182,7 +125,7 @@ export default function VincularVitrinaModal({
             <h2 className="text-sm font-bold text-[var(--text)]">Vincular a vidriera</h2>
             <p className="text-xs text-[var(--text-muted)] truncate max-w-xs">{articuloNombre}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-[var(--surface-2)] text-[var(--text-muted)] rounded-lg transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-[var(--surface-2)] text-[var(--text-muted)] rounded-lg transition-colors">
             <X size={18} />
           </button>
         </div>

@@ -313,6 +313,177 @@ export async function sugerirArticulos(pub: PublicacionSugerible): Promise<Suger
     .sort((a, b) => b.score - a.score);
 }
 
+export interface ArticuloSugerible {
+  articulo_id: string;
+  nombre: string;
+  marca: string | null;
+  modelo: string | null;
+  codigo_universal: string | null;
+}
+
+export interface PublicacionSugerida {
+  id: string;
+  external_item_id: string | null;
+  titulo: string | null;
+  brand: string | null;
+  model: string | null;
+  seller_sku: string | null;
+  precio_venta: number | null;
+  score: number; // 0..100
+  metodo: string; // 'sku_exacto' | 'codigo_exacto' | 'marca_modelo' | 'alias' | 'fuzzy'
+  motivo: string;
+}
+
+const PUB_COLS = 'id, external_item_id, titulo, brand, model, seller_sku, precio_venta';
+
+/** Filtro base de publicaciones candidatas: sin mapear, sin kits, sin variaciones, sin catálogo-hermana. */
+function publicacionesCandidatas(matchParts: string[], limit: number) {
+  return supabaseAdmin
+    .from('publicaciones_externas')
+    .select(PUB_COLS)
+    .or(
+      `and(or(esta_mapeado.is.null,esta_mapeado.eq.false),not.and(tipo_publicacion.eq.catalogo,par_item_id.not.is.null),or(${matchParts.join(',')}))`,
+    )
+    .not('es_bundle', 'is', true)
+    .not('tags', 'cs', '{bundle}')
+    .eq('external_variation_id', '0')
+    .limit(limit);
+}
+
+/**
+ * Motor INVERSO de vinculación: dado un artículo del catálogo maestro, sugiere
+ * publicaciones (vidrieras) sin mapear que coinciden. Refleja el mismo orden de
+ * "olas" de confianza que `sugerirArticulos`, en sentido catálogo → vidriera:
+ *
+ *   1. SKU exacto (seller_sku / seller_custom_field)          → 100
+ *   2. Código de barras exacto (ean/gtin/upc)                 → 100
+ *   3. Marca + modelo exactos                                 → 95 (solo modelo → 80)
+ *   4. Alias aprendido (proveedor_articulos_alias)            → 97
+ *   5. Fuzzy (Dice bigram sobre título)                       → 40..90
+ */
+export async function sugerirPublicaciones(art: ArticuloSugerible): Promise<PublicacionSugerida[]> {
+  const seen = new Set<string>();
+  const out: PublicacionSugerida[] = [];
+
+  const push = (p: any, score: number, metodo: string, motivo: string) => {
+    if (!p || seen.has(p.id)) return;
+    seen.add(p.id);
+    out.push({
+      id: p.id,
+      external_item_id: p.external_item_id ?? null,
+      titulo: p.titulo ?? null,
+      brand: p.brand ?? null,
+      model: p.model ?? null,
+      seller_sku: p.seller_sku ?? null,
+      precio_venta: p.precio_venta ?? null,
+      score: Math.max(0, Math.min(100, Math.round(score))),
+      metodo,
+      motivo,
+    });
+  };
+
+  const skus = [norm(art.articulo_id), norm(art.modelo)].filter(Boolean);
+  const codigo = normalizeCode(art.codigo_universal);
+  const modelo = norm(art.modelo);
+  const marca = norm(art.marca);
+
+  // 1. SKU exacto
+  if (skus.length) {
+    const parts = skus.flatMap((s) => [`seller_sku.eq.${s}`, `seller_custom_field.eq.${s}`]);
+    const { data } = await publicacionesCandidatas(parts, 20);
+    for (const p of data || []) push(p, 100, 'sku_exacto', 'SKU coincide exactamente');
+  }
+
+  // 2. Código de barras exacto
+  if (codigo) {
+    const parts = [`ean.eq.${codigo}`, `gtin.eq.${codigo}`, `upc.eq.${codigo}`];
+    const { data } = await publicacionesCandidatas(parts, 20);
+    for (const p of data || []) push(p, 100, 'codigo_exacto', 'Código de barras coincide exactamente');
+  }
+
+  // 3. Marca + modelo exactos (o solo modelo)
+  if (modelo) {
+    const { data } = await supabaseAdmin
+      .from('publicaciones_externas')
+      .select(PUB_COLS)
+      .eq('external_variation_id', '0')
+      .eq('model', art.modelo)
+      .limit(30);
+    for (const p of data || []) {
+      if (marca && norm(p.brand) === marca) push(p, 95, 'marca_modelo', 'Marca y modelo coinciden exactamente');
+      else if (!marca) push(p, 80, 'marca_modelo', 'Modelo coincide exactamente');
+    }
+  }
+
+  // 4. Alias aprendido por el operador
+  if (art.articulo_id) {
+    const { data: alias } = await supabaseAdmin
+      .from('proveedor_articulos_alias')
+      .select('codigo_excel')
+      .eq('articulo_id', art.articulo_id)
+      .eq('estado_proveedor', 'activo')
+      .limit(20);
+    const cods = Array.from(new Set((alias || []).map((a: any) => normalizeCode(a.codigo_excel)).filter(Boolean)));
+    if (cods.length) {
+      const parts = cods.flatMap((c) => [
+        `seller_sku.eq.${c}`,
+        `seller_custom_field.eq.${c}`,
+        `ean.eq.${c}`,
+        `gtin.eq.${c}`,
+        `upc.eq.${c}`,
+      ]);
+      const { data } = await publicacionesCandidatas(parts, 20);
+      for (const p of data || []) push(p, 97, 'alias', 'Alias confirmado previamente en listas de precios');
+    }
+  }
+
+  // 5. Fuzzy por tokens del título
+  const title = norm(art.nombre);
+  if (title) {
+    const stop = new Set([
+      'de', 'del', 'la', 'el', 'los', 'las', 'para', 'con', 'por', 'y', 'a', 'un', 'una',
+      'cuadro', 'puntas', 'punta', 'pulg', 'pza', 'pzs', 'pieza', 'piezas', 'uso', 'pesado',
+    ]);
+    const tokens = title
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length >= 3 && !stop.has(t) && !/^\d+$/.test(t))
+      .slice(0, 3);
+    if (tokens.length) {
+      const parts = tokens.map((t) => `titulo.ilike.%${t}%`);
+      const { data } = await supabaseAdmin
+        .from('publicaciones_externas')
+        .select(PUB_COLS)
+        .eq('external_variation_id', '0')
+        .not('es_bundle', 'is', true)
+        .not('tags', 'cs', '{bundle}')
+        .or(parts.join(','))
+        .limit(30);
+      const scored = (data || []).map((p) => {
+        let score = 0;
+        if (modelo && (norm(p.model) === modelo || norm(p.seller_sku) === modelo)) score += 4;
+        if (marca && norm(p.brand) === marca) score += 3;
+        score += stringSimilarity(title, norm(p.titulo)) * 40;
+        return { p, score };
+      });
+      scored.sort((x, y) => y.score - x.score);
+      for (const s of scored.filter((s) => s.score >= 30).slice(0, 5)) {
+        push(s.p, s.score, 'fuzzy', 'Similitud de texto');
+      }
+    }
+  }
+
+  // Deduplicar (la señal más fuerte gana) y ordenar por confianza.
+  const map = new Map<string, PublicacionSugerida>();
+  for (const p of out) {
+    const prev = map.get(p.id);
+    if (!prev || p.score > prev.score) map.set(p.id, p);
+  }
+  return Array.from(map.values()).sort((a, b) => b.score - a.score);
+}
+
 /**
  * Sugerencia "rápida" en lote para una cola de trabajo: solo señales fuertes
  * (hermana mapeada, SKU/código exacto, marca+modelo), sin fuzzy. Permite el
