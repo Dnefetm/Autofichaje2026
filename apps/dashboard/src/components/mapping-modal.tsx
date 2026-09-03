@@ -521,6 +521,21 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     {/* LEFT COLUMN: Search & Catalog (60%) */}
                     <div className="w-full md:w-[60%] shrink-0 flex flex-col md:border-r border-[var(--border)] overflow-hidden">
                         
+                        {/* Search Input (Sticky Top of Column) */}
+                        <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-sm relative z-10">
+                            <label className="text-xs font-semibold text-[var(--text-muted)] mb-1.5 block">Buscar en Catálogo Real</label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={16} />
+                                <input
+                                    type="text"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] focus:border-[var(--accent)] transition-all outline-none text-sm placeholder:text-[var(--text-faint)]"
+                                    placeholder="Busca por nombre, marca, modelo, SKU, código universal..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
                         {/* Sugerencia automática (server-side): comparación alineada */}
                         {topSugerencia && !searchTerm && (
                             <div className="px-4 py-2 border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
@@ -564,21 +579,6 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                 />
                             </div>
                         )}
-                        
-                        {/* Search Input (Sticky Top of Column) */}
-                        <div className="px-5 py-4 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-sm relative z-10">
-                            <label className="text-xs font-semibold text-[var(--text-muted)] mb-1.5 block">Buscar en Catálogo Real</label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" size={16} />
-                                <input
-                                    type="text"
-                                    className="w-full pl-10 pr-4 py-2.5 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] focus:border-[var(--accent)] transition-all outline-none text-sm placeholder:text-[var(--text-faint)]"
-                                    placeholder="Busca por nombre, marca, modelo, SKU, código universal..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                            </div>
-                        </div>
 
                         {/* Suggestions / Results (Scrollable Area) */}
                         <div className="flex-1 overflow-y-auto p-5 bg-[var(--surface)] space-y-4 max-h-[45vh] md:max-h-none">
