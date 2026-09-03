@@ -26,6 +26,8 @@ interface Vitrina {
   ean?: string | null;
   gtin?: string | null;
   upc?: string | null;
+  tipo_publicacion?: string | null;
+  variation_attributes?: any;
   esta_mapeado?: boolean | null;
   score?: number;
   motivo?: string;
@@ -33,6 +35,35 @@ interface Vitrina {
 
 interface PubSel extends Vitrina {
   quantity: number;
+}
+
+/** Extrae un texto legible de los atributos de variación de Mercado Libre (COLOR, TALLA, etc.). */
+function varianteLabel(v: any): string {
+  if (!v) return '';
+  if (Array.isArray(v)) return v.map((a: any) => a?.value_name || a?.name || '').filter(Boolean).join(' · ');
+  if (typeof v === 'object') return Object.values(v).filter(Boolean).join(' · ');
+  return String(v);
+}
+
+/** Etiqueta + color del tipo de publicación (tradicional vs catálogo). */
+function tipoInfo(tipo?: string | null): { label: string; className: string } {
+  switch (tipo) {
+    case 'tradicional':
+      return { label: 'Tradicional', className: 'bg-[var(--ok)]/15 text-[var(--ok)] border-[var(--ok)]/40' };
+    case 'tradicional_derivada':
+      return { label: 'Tradicional derivada', className: 'bg-[var(--info)]/15 text-[var(--info)] border-[var(--info)]/40' };
+    case 'catalogo':
+      return { label: 'Catálogo', className: 'bg-[var(--warn)]/15 text-[var(--warn)] border-[var(--warn)]/40' };
+    case 'catalogo_derivada':
+      return { label: 'Catálogo derivada', className: 'bg-[var(--warn)]/15 text-[var(--warn)] border-[var(--warn)]/40' };
+    default:
+      return { label: tipo || '—', className: 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]' };
+  }
+}
+
+function TipoBadge({ tipo }: { tipo?: string | null }) {
+  const info = tipoInfo(tipo);
+  return <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${info.className}`}>{info.label}</span>;
 }
 
 export default function VincularVitrinaModal({
@@ -86,7 +117,7 @@ export default function VincularVitrinaModal({
     try {
       const { data } = await supabase
         .from('mapeo_publicacion_articulo')
-        .select(`publicacion_id, publicaciones_externas(external_item_id, titulo, precio_venta)`)
+        .select(`publicacion_id, publicaciones_externas(external_item_id, titulo, precio_venta, model, tipo_publicacion)`)
         .eq('articulo_id', articulo.articulo_id);
       const rows: Vitrina[] = (data || [])
         .map((m: any) => {
@@ -96,9 +127,10 @@ export default function VincularVitrinaModal({
             external_item_id: p?.external_item_id ?? null,
             titulo: p?.titulo ?? null,
             brand: null,
-            model: null,
+            model: p?.model ?? null,
             seller_sku: null,
             precio_venta: p?.precio_venta ?? null,
+            tipo_publicacion: p?.tipo_publicacion ?? null,
           };
         })
         .filter((r: Vitrina) => r.id);
@@ -159,7 +191,7 @@ export default function VincularVitrinaModal({
     try {
       const { data } = await supabase
         .from('publicaciones_externas')
-        .select('id, external_item_id, titulo, brand, model, seller_sku, precio_venta, ean, gtin, upc, esta_mapeado')
+        .select('id, external_item_id, titulo, brand, model, seller_sku, precio_venta, ean, gtin, upc, tipo_publicacion, variation_attributes, esta_mapeado')
         .or(`titulo.ilike.%${q}%,external_item_id.ilike.%${q}%,seller_sku.ilike.%${q}%,brand.ilike.%${q}%,model.ilike.%${q}%,ean.ilike.%${q}%,gtin.ilike.%${q}%`)
         .eq('external_variation_id', '0')
         .limit(20);
@@ -185,6 +217,8 @@ export default function VincularVitrinaModal({
         ean: p.ean ?? null,
         gtin: p.gtin ?? null,
         upc: p.upc ?? null,
+        tipo_publicacion: p.tipo_publicacion ?? null,
+        variation_attributes: p.variation_attributes ?? null,
         quantity: 1,
       },
     ]);
@@ -239,11 +273,20 @@ export default function VincularVitrinaModal({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-[var(--text)] truncate">{p.titulo}</p>
           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+            <TipoBadge tipo={p.tipo_publicacion} />
             {p.score != null && p.score >= 90 && (
               <span className="text-xs bg-[var(--ok)]/20 text-[var(--ok)] border border-[var(--ok)]/40 px-1.5 py-0.5 rounded-full font-bold">Match Alto</span>
             )}
             {p.score != null && p.score >= 60 && p.score < 90 && (
               <span className="text-xs bg-[var(--warn)]/20 text-[var(--warn)] border border-[var(--warn)]/40 px-1.5 py-0.5 rounded-full font-semibold">Match Medio</span>
+            )}
+            {p.model && (
+              <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">Modelo: {p.model}</span>
+            )}
+            {varianteLabel(p.variation_attributes) && (
+              <span className="text-xs text-[var(--info)] bg-[var(--info)]/10 px-1.5 py-0.5 rounded border border-[var(--info)]/30">
+                Variante: {varianteLabel(p.variation_attributes)}
+              </span>
             )}
             {p.brand && <span className="text-xs text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">{p.brand}</span>}
             {(p.ean || p.gtin || p.upc) && (
@@ -315,9 +358,12 @@ export default function VincularVitrinaModal({
             {topSugerencia && !searchTerm && (
               <div className="px-4 py-2 border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
                 <div className="flex items-center justify-between gap-3 mb-2">
-                  <p className="text-xs font-bold uppercase tracking-wider text-[var(--ok)]">
-                    Coincidencia {topSugerencia.score}% · {topSugerencia.motivo}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs font-bold uppercase tracking-wider text-[var(--ok)]">
+                      Coincidencia {topSugerencia.score}% · {topSugerencia.motivo}
+                    </p>
+                    <TipoBadge tipo={topSugerencia.tipo_publicacion} />
+                  </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {(() => {
                       const s = selectedPubs.find((x) => x.id === topSugerencia.id);
@@ -410,8 +456,14 @@ export default function VincularVitrinaModal({
                     {existingLinks.map((l) => (
                       <div key={l.id} className="p-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg flex items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-medium text-[var(--text)] truncate">{l.titulo}</p>
-                          <p className="text-[11px] text-[var(--text-muted)] font-mono">{l.external_item_id}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-xs font-medium text-[var(--text)] truncate">{l.titulo}</p>
+                            <TipoBadge tipo={l.tipo_publicacion} />
+                          </div>
+                          <p className="text-[11px] text-[var(--text-muted)] font-mono mt-0.5">
+                            {l.external_item_id}
+                            {l.model ? ` · Modelo: ${l.model}` : ''}
+                          </p>
                         </div>
                         <button onClick={() => desvincular(l.id)} className="shrink-0 p-1.5 text-[var(--text-faint)] hover:text-[var(--err)] hover:bg-[var(--err)]/10 rounded-md transition-colors" title="Desvincular">
                           <X size={14} />
@@ -439,7 +491,12 @@ export default function VincularVitrinaModal({
                       </button>
                       <p className="text-sm font-semibold text-[var(--text)] pr-6 leading-tight mb-2">{s.titulo}</p>
                       <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                        <TipoBadge tipo={s.tipo_publicacion} />
                         <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded border border-[var(--border)]">{s.external_item_id}</span>
+                        {s.model && <span className="text-xs font-mono text-[var(--text-faint)]">Modelo: {s.model}</span>}
+                        {varianteLabel(s.variation_attributes) && (
+                          <span className="text-xs text-[var(--info)]">Variante: {varianteLabel(s.variation_attributes)}</span>
+                        )}
                         {s.brand && <span className="text-xs text-[var(--text-faint)]">Marca: {s.brand}</span>}
                         {(s.ean || s.gtin || s.upc) && <span className="text-xs font-mono text-[var(--text-faint)]">Cod: {s.ean || s.gtin || s.upc}</span>}
                         {s.precio_venta != null && <span className="text-xs text-[var(--text-faint)]">${s.precio_venta.toLocaleString('es-MX')}</span>}

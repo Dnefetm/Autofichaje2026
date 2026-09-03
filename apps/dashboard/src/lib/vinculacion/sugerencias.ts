@@ -332,12 +332,20 @@ export interface PublicacionSugerida {
   ean: string | null;
   gtin: string | null;
   upc: string | null;
+  tipo_publicacion: string | null;
+  variation_attributes: any | null;
   score: number; // 0..100
   metodo: string; // 'sku_exacto' | 'codigo_exacto' | 'marca_modelo' | 'alias' | 'fuzzy'
   motivo: string;
 }
 
-const PUB_COLS = 'id, external_item_id, titulo, brand, model, seller_sku, precio_venta, ean, gtin, upc';
+const PUB_COLS =
+  'id, external_item_id, titulo, brand, model, seller_sku, precio_venta, ean, gtin, upc, tipo_publicacion, variation_attributes';
+
+/** True si el tipo de publicación es "tradicional" (prioridad del operador). */
+function esTradicional(tipo: string | null | undefined): boolean {
+  return tipo === 'tradicional' || tipo === 'tradicional_derivada';
+}
 
 /** Filtro base de publicaciones candidatas: sin mapear, sin kits, sin variaciones, sin catálogo-hermana. */
 function publicacionesCandidatas(matchParts: string[], limit: number) {
@@ -382,6 +390,8 @@ export async function sugerirPublicaciones(art: ArticuloSugerible): Promise<Publ
       ean: p.ean ?? null,
       gtin: p.gtin ?? null,
       upc: p.upc ?? null,
+      tipo_publicacion: p.tipo_publicacion ?? null,
+      variation_attributes: p.variation_attributes ?? null,
       score: Math.max(0, Math.min(100, Math.round(score))),
       metodo,
       motivo,
@@ -481,13 +491,19 @@ export async function sugerirPublicaciones(art: ArticuloSugerible): Promise<Publ
     }
   }
 
-  // Deduplicar (la señal más fuerte gana) y ordenar por confianza.
+  // Deduplicar (la señal más fuerte gana). Luego: tradicionales primero, y dentro de
+  // cada grupo por confianza. El operador prefiere vincular publicaciones tradicionales.
   const map = new Map<string, PublicacionSugerida>();
   for (const p of out) {
     const prev = map.get(p.id);
     if (!prev || p.score > prev.score) map.set(p.id, p);
   }
-  return Array.from(map.values()).sort((a, b) => b.score - a.score);
+  return Array.from(map.values()).sort((a, b) => {
+    const ta = esTradicional(a.tipo_publicacion) ? 1 : 0;
+    const tb = esTradicional(b.tipo_publicacion) ? 1 : 0;
+    if (ta !== tb) return tb - ta;
+    return b.score - a.score;
+  });
 }
 
 /**
