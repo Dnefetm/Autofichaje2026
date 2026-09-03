@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sugerirArticulos, type PublicacionSugerible } from '@/lib/vinculacion/sugerencias';
+import { sugerirExactoEnLote, type PublicacionSugerible } from '@/lib/vinculacion/sugerencias';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -101,8 +101,9 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // 4) Sugerencia por fila usando el MISMO motor del modal (exacto + fuzzy + alias),
-    //    para que tarjeta y modal muestren siempre la misma sugerencia.
+    // 4) Sugerencia EN LOTE (rápida): señales fuertes (hermana/SKU/código/modelo) sin
+    //    fuzzy. Evita ~50×4 queries por página. El modal individual sigue usando el
+    //    motor completo (con fuzzy) para una sola publicación.
     const pubs: PublicacionSugerible[] = list.map((r: any) => ({
       id: r.id,
       external_item_id: r.external_item_id,
@@ -120,18 +121,7 @@ export async function GET(req: NextRequest) {
       tipo_publicacion: r.tipo_publicacion,
     }));
 
-    const sugerenciaMap = new Map<string, any>();
-    const CONCURRENCIA = 8;
-    for (let i = 0; i < pubs.length; i += CONCURRENCIA) {
-      const chunk = pubs.slice(i, i + CONCURRENCIA);
-      const res = await Promise.all(
-        chunk.map(async (p) => {
-          const s = await sugerirArticulos(p).catch(() => []);
-          return [p.id, s[0] ?? null] as const;
-        })
-      );
-      for (const [id, s] of res) sugerenciaMap.set(id, s);
-    }
+    const sugerenciaMap = await sugerirExactoEnLote(pubs);
 
     const enrichedConSugerencia = enriched
       .map((r: any) => ({ ...r, _sugerencia: sugerenciaMap.get(r.id) ?? null }))
