@@ -27,9 +27,6 @@ export default async function HistorialProveedorPage(props: { params: Promise<{ 
                     <h1 className="text-2xl font-bold text-[var(--text)] tracking-tight">Historial de Importaciones</h1>
                 </div>
                 <div className="flex space-x-3">
-                    <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}/pendientes`} className="inline-flex items-center px-4 py-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-md font-medium hover:bg-yellow-100 transition-colors">
-                        Ver Pendientes
-                    </Link>
                     <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}/actualizar`} className="inline-flex items-center px-4 py-2 bg-[var(--accent)] text-[var(--accent-ink)] rounded-md font-medium hover:brightness-110 transition-colors shadow-sm">
                         Actualizar Lista
                     </Link>

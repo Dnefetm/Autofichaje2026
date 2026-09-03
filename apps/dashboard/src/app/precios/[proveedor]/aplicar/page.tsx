@@ -61,14 +61,13 @@ export default async function AplicarPaso3(props: { params: Promise<{ proveedor:
         else if (!decision) sin_cambio++;
     });
 
-    // In a real scenario we'd do a full diff again or store the diff classification in DB.
-    // Here we'll just present the counts we parsed from the decisions map.
+    // Conteos reales derivados de las decisiones confirmadas (sin valores simulados).
     const stats = {
-        actualizados: actualizados > 0 ? actualizados : Math.floor(uniqueProducts.size * 0.4), // Fallback logic for demo
-        nuevos: nuevos > 0 ? nuevos : 0,
-        descontinuados: descontinuados > 0 ? descontinuados : 0,
-        rechazados: rechazados > 0 ? rechazados : 0,
-        sin_cambio: sin_cambio > 0 ? sin_cambio : Math.floor(uniqueProducts.size * 0.6)
+        actualizados,
+        nuevos,
+        descontinuados,
+        rechazados,
+        sin_cambio
     };
 
     return (

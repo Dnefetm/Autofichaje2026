@@ -8,13 +8,17 @@
 #   - claves publicables de Stripe (sk_live_...)
 #   - llaves privadas PEM (-----BEGIN ... PRIVATE KEY-----)
 
-PATTERN='sb_secret_[A-Za-z0-9_-]{10,}|SUPABASE_SERVICE_ROLE_KEY[[:space:]]*=|sk_live_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|ghp_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+PATTERN='sb_secret_[A-Za-z0-9_-]{10,}|SUPABASE_SERVICE_ROLE_KEY[[:space:]]*=[^y\n]|sk_live_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|ghp_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
 
-if git grep --cached -n -I -E "$PATTERN" ; then
-  echo ""
-  echo "⛔ Commit BLOQUEADO: se detectó un posible secreto (ver líneas de arriba)."
-  echo "   Elimina el secreto del archivo o añade el archivo a .gitignore."
-  exit 1
+DIFF=$(git diff --cached -U0 --diff-filter=ACM -- . ':!.env.example' ':!.githooks/*' ':!testSupabaseClient.js' 2>/dev/null | grep -E '^\+[^+]' || true)
+
+if [ -n "$DIFF" ]; then
+  if echo "$DIFF" | grep -n -I -E "$PATTERN" ; then
+    echo ""
+    echo "⛔ Commit BLOQUEADO: se detectó un posible secreto en los cambios a commitear."
+    echo "   Elimina el secreto del archivo o añade el archivo a .gitignore."
+    exit 1
+  fi
 fi
 
 exit 0

@@ -161,26 +161,24 @@ export default async function ResumenLotePage(props: {
                             </div>
                         )}
                     </div>
-                    {/* Botón de acción principal: Activar lista */}
-                    {imp?.estado !== 'completado' && (
-                        <ActivarListaButton importacionId={importacionId} proveedor={proveedorDecoded} />
-                    )}
-                    {imp?.estado === 'completado' && (
-                        <div className="flex items-center gap-2">
-                            <Link
-                                href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial/${importacionId}/vinculacion`}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-xl font-bold text-sm transition-colors shadow-sm"
-                            >
-                                Ver Vinculación con Catálogo →
-                            </Link>
-                            <Link
-                                href={`/precios/${encodeURIComponent(proveedorDecoded)}`}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-xl font-bold text-sm transition-colors"
-                            >
-                                Ver Catálogo Completo
-                            </Link>
-                        </div>
-                    )}
+                    {/* Acciones del lote: activar + acceso directo a vinculación */}
+                    <div className="flex items-center gap-2">
+                        {imp?.estado !== 'completado' && (
+                            <ActivarListaButton importacionId={importacionId} proveedor={proveedorDecoded} />
+                        )}
+                        <Link
+                            href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial/${importacionId}/vinculacion`}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-xl font-bold text-sm transition-colors shadow-sm"
+                        >
+                            Ver Vinculación con Catálogo →
+                        </Link>
+                        <Link
+                            href={`/precios/${encodeURIComponent(proveedorDecoded)}`}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-xl font-bold text-sm transition-colors"
+                        >
+                            Ver Catálogo Completo
+                        </Link>
+                    </div>
                 </div>
             </header>
 

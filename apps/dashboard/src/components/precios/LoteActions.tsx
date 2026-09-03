@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Trash2, RotateCcw, BarChart2 } from 'lucide-react';
+import { Loader2, Trash2, RotateCcw, BarChart2, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 
 export function LoteActions({ importacion, proveedor }: { importacion: any, proveedor: string }) {
@@ -64,6 +64,17 @@ export function LoteActions({ importacion, proveedor }: { importacion: any, prov
                 <BarChart2 className="w-3.5 h-3.5" />
                 Ver Resumen
             </Link>
+
+            {/* Vinculación con Catálogo Interno (solo lotes con filas ya procesadas) */}
+            {importacion.estado === 'completado' && (
+                <Link
+                    href={`/precios/${encodeURIComponent(proveedor)}/historial/${importacion.id}/vinculacion`}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg text-sm font-medium transition-colors shadow-sm"
+                >
+                    <LinkIcon className="w-3.5 h-3.5" />
+                    Vincular
+                </Link>
+            )}
 
             {/* Restaurar lote anterior */}
             {!importacion.vigente && importacion.estado === 'completado' && (

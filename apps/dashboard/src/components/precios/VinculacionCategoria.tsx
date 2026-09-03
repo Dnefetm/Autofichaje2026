@@ -62,12 +62,12 @@ export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcio
                     }))
                 })
             });
-            const data = await res.json();
-            if (res.ok && data.ok) {
+            const data = await res.json().catch(() => null);
+            if (res.ok && data?.ok) {
                 setAceptados(new Set(items.map(i => i.fila_num)));
                 if (onAccepted) onAccepted(pendientes);
             } else {
-                alert(`Error: ${data.error}`);
+                alert(`Error: ${data?.error || `HTTP ${res.status}`}`);
             }
         } catch {
             alert('Error de red');
@@ -90,9 +90,12 @@ export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcio
                     }]
                 })
             });
-            if (res.ok) {
+            const data = await res.json().catch(() => null);
+            if (res.ok && data?.ok) {
                 setAceptados(prev => new Set([...prev, item.fila_num]));
                 if (onAccepted) onAccepted([item]);
+            } else {
+                alert(`Error al vincular: ${data?.error || `HTTP ${res.status}`}`);
             }
         } catch {
             alert('Error de red');
