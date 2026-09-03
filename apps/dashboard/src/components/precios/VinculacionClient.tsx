@@ -61,8 +61,8 @@ export function VinculacionClient({
 
     return (
         <div className="flex flex-col flex-1">
-            <div className="px-8 border-b border-[var(--border)] bg-[var(--surface)]">
-                <div className="flex gap-6 mt-2">
+            <div className="px-4 md:px-6 border-b border-[var(--border)] bg-[var(--surface)]">
+                <div className="flex gap-6 mt-2 overflow-x-auto">
                     <button
                         onClick={() => { setTab('propuestas'); setPage(0); }}
                         className={`pb-4 pt-2 text-sm font-bold border-b-2 transition-colors ${tab === 'propuestas' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text)]'}`}
@@ -84,10 +84,10 @@ export function VinculacionClient({
                 </div>
             </div>
 
-            <div className="p-8 max-w-[1600px] mx-auto w-full">
+            <div className="p-4 md:p-6 w-full">
                 {/* Tab: Propuestas */}
                 {tab === 'propuestas' && (
-                    <div className="flex flex-col gap-6">
+                    <div className="flex flex-col gap-4">
                         {totalPropuestas === 0 ? (
                             <div className="bg-[var(--surface)] p-12 text-center rounded-xl border border-[var(--border)] text-[var(--text-faint)]">
                                 ¡Todo revisado! No quedan artículos pendientes de vincular en este lote.

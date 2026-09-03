@@ -1,7 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { Loader2, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Loader2, Check, X, ChevronDown, ChevronUp, Package, Building2 } from 'lucide-react';
 
 interface MatchItem {
     fila_num: number;
@@ -35,12 +34,11 @@ export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcio
     const [aceptando, setAceptando] = useState(false);
     const [aceptados, setAceptados] = useState<Set<number>>(new Set());
     const [rechazados, setRechazados] = useState<Set<number>>(new Set());
-    const router = useRouter();
 
     const colorMap = {
-        emerald: { bg: 'bg-[var(--ok)]/10', border: 'border-[var(--ok)]/30', badge: 'bg-emerald-100 text-[var(--ok)]', btn: 'bg-emerald-600 hover:bg-emerald-700 text-[var(--accent-ink)]', title: 'text-emerald-800' },
-        amber: { bg: 'bg-[var(--warn)]/10', border: 'border-[var(--warn)]/30', badge: 'bg-amber-100 text-[var(--warn)]', btn: 'bg-[var(--warn)]/100 hover:bg-amber-600 text-[var(--accent-ink)]', title: 'text-amber-800' },
-        blue: { bg: 'bg-blue-50', border: 'border-blue-200', badge: 'bg-blue-100 text-blue-700', btn: 'bg-blue-600 hover:bg-blue-700 text-[var(--accent-ink)]', title: 'text-blue-800' },
+        emerald: { bg: 'bg-[var(--ok)]/10', border: 'border-[var(--ok)]/30', badge: 'bg-emerald-100 text-emerald-800', btn: 'bg-emerald-600 hover:bg-emerald-700 text-white', title: 'text-emerald-800' },
+        amber: { bg: 'bg-[var(--warn)]/10', border: 'border-[var(--warn)]/30', badge: 'bg-amber-100 text-amber-800', btn: 'bg-amber-500 hover:bg-amber-600 text-white', title: 'text-amber-800' },
+        blue: { bg: 'bg-blue-50', border: 'border-blue-200', badge: 'bg-blue-100 text-blue-700', btn: 'bg-blue-600 hover:bg-blue-700 text-white', title: 'text-blue-800' },
     };
     const c = colorMap[color];
 
@@ -102,139 +100,133 @@ export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcio
         }
     };
 
+    const highlightDiff = (val1: string, val2: string) => {
+        if (!val1 || !val2) return false;
+        return val1.trim().toLowerCase() !== val2.trim().toLowerCase();
+    };
+
     return (
-        <div className={`rounded-2xl border ${c.border} overflow-hidden shadow-sm mb-8`}>
-            {/* Header de categoría */}
-            <div className={`${c.bg} px-6 py-4 flex items-center justify-between`}>
-                <div className="flex items-center gap-3">
-                    <button onClick={() => setExpandido(!expandido)} className="text-[var(--text-muted)] hover:text-[var(--text-muted)] bg-[var(--surface)]/50 rounded p-1">
-                        {expandido ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        <div className={`rounded-2xl border ${c.border} overflow-hidden shadow-sm mb-6`}>
+            {/* Header de categoría (compacto) */}
+            <div className={`${c.bg} px-4 py-2.5 flex items-center justify-between gap-3`}>
+                <div className="flex items-center gap-2 min-w-0">
+                    <button
+                        onClick={() => setExpandido(!expandido)}
+                        className="text-[var(--text-muted)] hover:text-[var(--text)] bg-[var(--surface)]/60 rounded p-1 shrink-0"
+                        aria-label={expandido ? 'Colapsar' : 'Expandir'}
+                    >
+                        {expandido ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </button>
-                    <div>
-                        <h3 className={`font-bold text-lg ${c.title}`}>{titulo}</h3>
-                        <p className="text-sm text-[var(--text-muted)] mt-0.5">{descripcion}</p>
+                    <div className="min-w-0">
+                        <h3 className={`font-bold text-sm ${c.title} truncate`}>{titulo}</h3>
+                        <p className="text-[11px] text-[var(--text-muted)] truncate hidden sm:block">{descripcion}</p>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ml-4 ${c.badge}`}>
-                        {pendientes.length} pendientes · {aceptados.size} aceptados · {rechazados.size} ignorados
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0 ${c.badge}`}>
+                        {pendientes.length} pendientes
                     </span>
                 </div>
                 {pendientes.length > 0 && (
                     <button
                         onClick={handleAceptarTodos}
                         disabled={aceptando}
-                        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md ${c.btn} disabled:opacity-50`}
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-50 ${c.btn}`}
                     >
-                        {aceptando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        {aceptando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                         Aceptar todos ({pendientes.length})
                     </button>
                 )}
             </div>
 
-            {/* Tabla nativa con doble fila (<tr>) para alinear perfectamente con los <th> */}
             {expandido && (
-                <div className="overflow-x-auto max-h-[700px] overflow-y-auto">
-                    <table className="w-full text-xs text-left table-fixed min-w-[900px]">
-                        <thead className="bg-[var(--surface-2)] sticky top-0 z-10 shadow-sm border-b border-[var(--border)]">
-                            <tr className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                                <th className="py-3.5 px-4 w-[90px] text-center border-r border-[var(--border)]">Origen</th>
-                                <th className="py-3.5 px-4 w-auto">Descripción / Nombre</th>
-                                <th className="py-3.5 px-4 w-[12%]">Marca</th>
-                                <th className="py-3.5 px-4 w-[15%]">Modelo / Clave</th>
-                                <th className="py-3.5 px-4 w-[18%]">Cód. Barras</th>
-                                <th className="py-3.5 px-4 w-[120px] text-center bg-[var(--surface)]">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-[var(--surface)]">
-                            {items.map((item) => {
-                                const isAceptado = aceptados.has(item.fila_num);
-                                const isRechazado = rechazados.has(item.fila_num);
-                                
-                                const highlightDiff = (val1: string, val2: string) => {
-                                    if (!val1 || !val2) return false;
-                                    return val1.trim().toLowerCase() !== val2.trim().toLowerCase();
-                                };
+                <div className="overflow-y-auto max-h-[calc(100vh-210px)]">
+                    {/* Cabecera de columnas (solo escritorio) */}
+                    <div className="hidden md:grid grid-cols-[1fr_1fr_150px] text-[10px] font-bold uppercase tracking-wider text-[var(--text-faint)] bg-[var(--surface-2)] border-b border-[var(--border)] sticky top-0 z-10">
+                        <div className="px-4 py-2 border-r border-[var(--border)]">Catálogo</div>
+                        <div className="px-4 py-2 border-r border-[var(--border)]">Proveedor</div>
+                        <div className="px-4 py-2 text-center">Acción</div>
+                    </div>
 
-                                const diffMarca = highlightDiff(item.marca_catalogo, item.marca_proveedor);
-                                const diffModelo = highlightDiff(item.modelo_catalogo, item.sku_proveedor);
-                                const diffCodigo = highlightDiff(item.codigo_universal, item.codigo_barra);
+                    <div className="divide-y divide-[var(--border)]">
+                        {items.map((item) => {
+                            const isAceptado = aceptados.has(item.fila_num);
+                            const isRechazado = rechazados.has(item.fila_num);
 
-                                const bgRow1 = isAceptado ? 'bg-[var(--ok)]/10/40' : isRechazado ? 'bg-[var(--bg)] opacity-40' : 'bg-[var(--bg)]/40 hover:bg-[var(--surface-2)]/50';
-                                const bgRow2 = isAceptado ? 'bg-emerald-100/40' : isRechazado ? 'bg-[var(--surface-2)] opacity-40' : 'bg-[var(--accent)]/10/20 hover:bg-[var(--accent)]/10/40';
+                            const diffMarca = highlightDiff(item.marca_catalogo, item.marca_proveedor);
+                            const diffModelo = highlightDiff(item.modelo_catalogo, item.sku_proveedor);
+                            const diffCodigo = highlightDiff(item.codigo_universal, item.codigo_barra);
 
-                                return (
-                                    <React.Fragment key={item.fila_num}>
-                                        {/* FILA 1: CATÁLOGO */}
-                                        <tr className={`${bgRow1} border-t-2 border-[var(--border)] transition-colors`}>
-                                            <td className="py-3 px-4 border-r border-[var(--border)] text-center align-middle">
-                                                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest bg-[var(--surface)] px-2 py-1 rounded shadow-sm border border-[var(--border)]">Catálogo</span>
-                                            </td>
-                                            <td className="py-3 px-4 align-middle">
-                                                <p className="font-bold text-[var(--text)] whitespace-normal line-clamp-2" title={item.nombre_catalogo}>{item.nombre_catalogo}</p>
-                                            </td>
-                                            <td className="py-3 px-4 align-middle">
-                                                <p className={`font-semibold ${diffMarca ? 'text-[var(--warn)]' : 'text-[var(--text-muted)]'}`}>{item.marca_catalogo || '—'}</p>
-                                            </td>
-                                            <td className="py-3 px-4 align-middle">
-                                                <p className={`font-mono text-xs ${diffModelo ? 'text-[var(--warn)] font-bold' : 'text-[var(--text-muted)]'}`}>{item.modelo_catalogo || '—'}</p>
-                                            </td>
-                                            <td className="py-3 px-4 align-middle">
-                                                <p className={`font-mono text-xs ${diffCodigo ? 'text-[var(--warn)] font-bold' : 'text-[var(--text-muted)]'}`}>{item.codigo_universal || '—'}</p>
-                                            </td>
-                                            
-                                            {/* BOTONES: Hacen rowSpan=2 para abarcar ambas filas */}
-                                            <td rowSpan={2} className="py-3 px-4 align-middle bg-[var(--surface)] border-l border-[var(--border)]">
-                                                <div className="flex flex-col gap-2 justify-center w-full">
-                                                    {isAceptado ? (
-                                                        <span className="text-[var(--ok)] font-bold text-[11px] flex items-center justify-center gap-1.5 bg-emerald-100 border border-[var(--ok)]/30 py-2 rounded-lg"><Check className="w-4 h-4" /> Vinculado</span>
-                                                    ) : isRechazado ? (
-                                                        <span className="text-[var(--text-muted)] font-bold text-[11px] flex items-center justify-center gap-1.5 bg-[var(--surface-2)] border border-[var(--border)] py-2 rounded-lg"><X className="w-4 h-4" /> Ignorado</span>
-                                                    ) : (
-                                                        <>
-                                                            <button
-                                                                onClick={() => handleAceptarUno(item)}
-                                                                className="w-full py-2 bg-emerald-100 hover:bg-emerald-200 border border-[var(--ok)]/30 text-emerald-800 rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                                                            >
-                                                                <Check className="w-3.5 h-3.5" /> Aceptar
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setRechazados(prev => new Set([...prev, item.fila_num]))}
-                                                                className="w-full py-2 bg-[var(--surface)] hover:bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] rounded-lg font-bold text-[11px] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                                                            >
-                                                                <X className="w-3.5 h-3.5" /> Ignorar
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
+                            const rowBg = isAceptado ? 'bg-[var(--ok)]/5'
+                                : isRechazado ? 'bg-[var(--bg)] opacity-40'
+                                : 'hover:bg-[var(--bg)]/60';
 
-                                        {/* FILA 2: PROVEEDOR */}
-                                        <tr className={`${bgRow2} transition-colors`}>
-                                            <td className="py-3 px-4 border-r border-[var(--border)] text-center align-middle">
-                                                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest bg-[var(--surface)] px-2 py-1 rounded shadow-sm border border-indigo-100">{proveedor}</span>
-                                            </td>
-                                            <td className="py-3 px-4 align-middle">
-                                                <p className="font-medium text-[var(--text-muted)] whitespace-normal line-clamp-2" title={item.descripcion_proveedor}>{item.descripcion_proveedor}</p>
-                                                <div className="mt-1.5 flex items-center gap-3">
-                                                    <span className="px-2 py-0.5 bg-[var(--surface)] border border-[var(--border)] rounded text-[10px] font-mono text-[var(--text-muted)] shadow-sm">Dist: <b>{fmtMx(item.dist)}</b></span>
-                                                    <span className="px-2 py-0.5 bg-[var(--surface)] border border-[var(--border)] rounded text-[10px] font-mono text-[var(--text-muted)] shadow-sm">Men: <b>{fmtMx(item.menudeo)}</b></span>
-                                                </div>
-                                            </td>
-                                            <td className="py-3 px-4 align-middle">
-                                                <p className={`font-semibold ${diffMarca ? 'text-[var(--warn)]' : 'text-[var(--text-muted)]'}`}>{item.marca_proveedor || '—'}</p>
-                                            </td>
-                                            <td className="py-3 px-4 align-middle">
-                                                <span className={`font-mono text-xs px-1.5 py-0.5 rounded ${diffModelo ? 'bg-amber-100 text-amber-800 font-bold' : 'bg-[var(--surface-2)] text-[var(--text)]'}`}>{item.sku_proveedor || '—'}</span>
-                                            </td>
-                                            <td className="py-3 px-4 align-middle">
-                                                <p className={`font-mono text-xs ${diffCodigo ? 'font-bold text-[var(--warn)]' : 'text-[var(--text-muted)]'}`}>{item.codigo_barra || '—'}</p>
-                                            </td>
-                                        </tr>
-                                    </React.Fragment>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                            return (
+                                <div
+                                    key={item.fila_num}
+                                    className={`grid grid-cols-1 md:grid-cols-[1fr_1fr_150px] gap-y-2 md:gap-y-0 px-4 py-2.5 transition-colors ${rowBg}`}
+                                >
+                                    {/* CATÁLOGO */}
+                                    <div className="min-w-0 md:pr-4 md:border-r border-[var(--border)]">
+                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                            <Package className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Catálogo</span>
+                                        </div>
+                                        <p className="font-semibold text-[var(--text)] truncate leading-tight" title={item.nombre_catalogo}>{item.nombre_catalogo || '—'}</p>
+                                        <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">
+                                            <span className={diffMarca ? 'text-[var(--warn)] font-semibold' : ''}>{item.marca_catalogo || '—'}</span>
+                                            <span className="opacity-50"> · </span>
+                                            <span className={diffModelo ? 'text-[var(--warn)] font-semibold font-mono' : 'font-mono'}>{item.modelo_catalogo || '—'}</span>
+                                            <span className="opacity-50"> · EAN </span>
+                                            <span className={`font-mono ${diffCodigo ? 'text-[var(--warn)] font-semibold' : ''}`}>{item.codigo_universal || '—'}</span>
+                                        </p>
+                                    </div>
+
+                                    {/* PROVEEDOR */}
+                                    <div className="min-w-0 md:px-4">
+                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                            <Building2 className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">{proveedor}</span>
+                                        </div>
+                                        <p className="text-[var(--text)] truncate leading-tight" title={item.descripcion_proveedor}>{item.descripcion_proveedor || item.sku_proveedor || '—'}</p>
+                                        <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">
+                                            <span className="font-mono font-semibold">{item.sku_proveedor || '—'}</span>
+                                            <span className="opacity-50"> · </span>
+                                            <span>{item.marca_proveedor || '—'}</span>
+                                            <span className="opacity-50"> · EAN </span>
+                                            <span className="font-mono">{item.codigo_barra || '—'}</span>
+                                        </p>
+                                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] font-mono text-[var(--text-muted)]">
+                                            <span>Dist: <b className="text-[var(--text)]">{fmtMx(item.dist)}</b></span>
+                                            <span>Men: <b className="text-[var(--text)]">{fmtMx(item.menudeo)}</b></span>
+                                        </div>
+                                    </div>
+
+                                    {/* ACCIÓN */}
+                                    <div className="flex md:flex-col gap-1.5 md:justify-center md:pl-4 md:border-l border-[var(--border)]">
+                                        {isAceptado ? (
+                                            <span className="inline-flex items-center justify-center gap-1.5 text-emerald-700 font-bold text-xs bg-emerald-100 border border-emerald-300 py-2 px-2 rounded-lg"><Check className="w-4 h-4" /> Vinculado</span>
+                                        ) : isRechazado ? (
+                                            <span className="inline-flex items-center justify-center gap-1.5 text-[var(--text-muted)] font-bold text-xs bg-[var(--surface-2)] border border-[var(--border)] py-2 px-2 rounded-lg"><X className="w-4 h-4" /> Ignorado</span>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    onClick={() => handleAceptarUno(item)}
+                                                    className="w-full py-1.5 px-2 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-800 rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
+                                                >
+                                                    <Check className="w-3.5 h-3.5" /> Aceptar
+                                                </button>
+                                                <button
+                                                    onClick={() => setRechazados(prev => new Set([...prev, item.fila_num]))}
+                                                    className="w-full py-1.5 px-2 bg-[var(--surface)] hover:bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
+                                                >
+                                                    <X className="w-3.5 h-3.5" /> Ignorar
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
         </div>

@@ -178,24 +178,25 @@ export default async function VinculacionPage(props: {
 
     return (
         <div className="min-h-screen bg-[var(--bg)]">
-            {/* Header */}
-            <header className="bg-[var(--surface)] border-b border-[var(--border)] px-8 py-5">
-                <Link
-                    href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial/${importacionId}/resumen`}
-                    className="inline-flex items-center text-sm text-[var(--text-muted)] hover:text-[var(--accent)] mb-3"
-                >
-                    <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Resumen del Lote
-                </Link>
-                <h1 className="text-2xl font-bold text-[var(--text)]">Vinculación con Catálogo Interno</h1>
-                <p className="text-sm text-[var(--text-muted)] mt-1">
-                    {imp?.nombre_archivo} · {imp?.total_filas?.toLocaleString()} SKUs del proveedor
-                </p>
-
-                <div className="mt-4 flex items-start gap-2 text-xs text-[var(--text-muted)] bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5">
-                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[var(--text-faint)]" />
-                    <span>
-                        Navega entre las pestañas para revisar las propuestas de vinculación, ver los artículos ya confirmados, o explorar los que no tuvieron coincidencia.
-                    </span>
+            {/* Header compacto */}
+            <header className="bg-[var(--surface)] border-b border-[var(--border)] px-4 md:px-6 py-3">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                        <Link
+                            href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial/${importacionId}/resumen`}
+                            className="inline-flex items-center text-xs text-[var(--text-muted)] hover:text-[var(--accent)] mb-0.5"
+                        >
+                            <ArrowLeft className="w-3 h-3 mr-1" /> Resumen del Lote
+                        </Link>
+                        <h1 className="text-xl font-bold text-[var(--text)] leading-tight">Vinculación con Catálogo Interno</h1>
+                        <p className="text-xs text-[var(--text-muted)] truncate">
+                            {imp?.nombre_archivo} · {imp?.total_filas?.toLocaleString()} SKUs
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-1.5">
+                        <Info className="w-3.5 h-3.5 shrink-0 text-[var(--text-faint)]" />
+                        <span>Revisa las propuestas, los ya confirmados o los sin coincidencia.</span>
+                    </div>
                 </div>
             </header>
 
