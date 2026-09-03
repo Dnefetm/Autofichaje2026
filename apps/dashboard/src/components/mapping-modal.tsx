@@ -99,6 +99,7 @@ const pubThumb = listing?.thumbnail || listing?.url_imagen || '';
 const pubPrecio = listing?.precio ?? listing?.precio_venta ?? null;
 const pubTipo = listing?.tipo_publicacion || null;
 const pubVariante = listing?.variation_attributes || null;
+const pubAccount = listing?.marketplace_configs?.account_name || listing?.account_name || '';
 const pubCodigo = [pubEan, pubGtin, pubUpc].filter(Boolean).join(' / ');
 const isBlockedCatalog = listing?.tipo_publicacion === 'catalogo' && !!listing?.par_item_id;
 useEffect(() => {
@@ -470,7 +471,10 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                             )}
                             <div className="flex-1 min-w-0 flex items-center gap-2 text-xs flex-wrap">
                                 <span className="font-semibold text-[var(--text)] truncate" title={listing.titulo}>{listing.titulo}</span>
-                                <span className="text-[var(--text-muted)] font-mono shrink-0">MLM: {listing.external_item_id}</span>
+                                <span className="font-bold text-[var(--accent)] font-mono shrink-0">MLM: {listing.external_item_id}</span>
+                                {pubAccount && (
+                                    <span className="text-[var(--info)] bg-[var(--info)]/10 px-1.5 py-0.5 rounded border border-[var(--info)]/30 shrink-0">Tienda: {pubAccount}</span>
+                                )}
                                 {pubPrecio != null && (
                                     <span className="font-semibold text-[var(--text)] shrink-0">${Number(pubPrecio).toLocaleString('es-MX')}</span>
                                 )}

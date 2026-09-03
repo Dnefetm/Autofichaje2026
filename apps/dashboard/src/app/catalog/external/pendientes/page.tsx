@@ -19,6 +19,7 @@ interface Pendiente {
   upc: string | null;
   seller_sku: string | null;
   seller_custom_field: string | null;
+  marketplace_configs?: { account_name: string | null } | null;
   sync_disabled: boolean | null;
   sync_disabled_reason: string | null;
   _articulos_con_costo: number;
@@ -218,7 +219,10 @@ export default function PendientesPage() {
                 <div className="font-semibold text-[var(--text)] leading-snug line-clamp-2">
                   {r.titulo}
                 </div>
-                <div className="text-xs text-[var(--text-muted)] font-mono mt-0.5">{r.external_item_id}</div>
+                <div className="text-xs text-[var(--text-muted)] font-mono mt-0.5">
+                  MLM: {r.external_item_id}
+                  {r.marketplace_configs?.account_name ? ` · Tienda: ${r.marketplace_configs.account_name}` : ''}
+                </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-sm text-[var(--text-muted)]">
                   <span className="font-mono font-semibold text-[var(--text)]">
                     ${r.precio_venta?.toLocaleString() ?? '—'}
