@@ -10,6 +10,7 @@
  */
 
 import { OpenAI } from 'openai';
+import { ANTI_HALLUCINATION_BLOCK } from './ai-guard';
 
 // --- Tipos --------------------------------------------------------------------
 
@@ -63,7 +64,9 @@ function buildPrompt(input: MeliAIHelperInput): { system: string; user: string }
    nombre del producto + características principales (tipo, medida, material).
    SIN marca ni modelo — MercadoLibre (User Products) los agrega automáticamente al título visible.`;
 
-    const system = `Eres un experto en redacción de títulos y clasificación de atributos para MercadoLibre México.
+    const system = `${ANTI_HALLUCINATION_BLOCK}
+
+Eres un experto en redacción de títulos y clasificación de atributos para MercadoLibre México.
 
 Tus tareas:
 ${tituloRule}

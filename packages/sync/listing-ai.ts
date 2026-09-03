@@ -2,9 +2,13 @@
  * listing-ai.ts — Generador de contenido de publicación (título + descripción)
  * con GPT-4o-mini a partir de TODOS los datos del producto (artículo + ficha).
  * Usado por el preview de publicación para "Completar con IA".
+ *
+ * Usa perfiles de prompt separados (título / descripción) + bloque anti-alucinación.
  */
 
 import { OpenAI } from 'openai';
+import { ANTI_HALLUCINATION_BLOCK } from './ai-guard';
+import { loadPromptProfile } from './prompt-profiles';
 
 export interface ListingContentInput {
     nombre: string;
@@ -26,40 +30,15 @@ export interface ListingContentInput {
 }
 
 export interface ListingContentOutput {
-    title: string;       // título completo (marca + modelo + descriptivo) para legacy
-    family_name: string; // nombre descriptivo sin marca/modelo para UP
-    description: string;  // descripción de venta con bullets
+    title: string;
+    family_name: string;
+    description: string;
     ai_used: boolean;
     tokens_used?: number;
 }
 
-export async function generateListingContent(input: ListingContentInput): Promise<ListingContentOutput> {
-    const fallback = {
-        title: [input.marca, input.modelo, input.nombre].filter(Boolean).join(' ').slice(0, 60),
-        family_name: input.nombre.slice(0, 50),
-        description: input.descripcion || '',
-        ai_used: false,
-    };
-
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('placeholder')) {
-        return fallback;
-    }
-
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    const system = `Eres un redactor experto de publicaciones para MercadoLibre México (ferretería industrial).
-A partir de los datos técnicos del producto, genera:
-1. "title": título completo (MÁXIMO 60 caracteres incluyendo espacios) con esta fórmula EXACTA:
-   nombre del producto + características principales en orden descendente de prioridad (tipo, medida, material, acabado) + marca.
-   NO uses el modelo. Usa el máximo de caracteres sin pasarte de 60.
-   Ejemplo: "Juego de puntas y dados de impacto 33 piezas 1/2 pulgada Cr-V Urrea".
-2. "family_name": nombre descriptivo SIN marca ni modelo (máx 50 chars), para modelo User Products.
-3. "description": descripción de venta en texto plano, con 4-8 bullets "•" de beneficios/características, y al final una línea de ficha técnica (medidas, peso, material, país de origen si existen). Máx 2000 chars. NO inventes datos que no estén en la entrada.
-
-Responde SOLO JSON:
-{ "title": "...", "family_name": "...", "description": "..." }`;
-
-    const user = `Datos del producto:
+function buildUser(input: ListingContentInput): string {
+    return `Datos del producto:
 - Nombre: ${input.nombre}
 - Marca: ${input.marca}
 - Modelo: ${input.modelo}
@@ -71,29 +50,76 @@ Responde SOLO JSON:
 - Medidas (cm): ${input.largo_cm ?? '—'} x ${input.ancho_cm ?? '—'} x ${input.alto_cm ?? '—'}
 - País de origen: ${input.pais_origen || '—'}
 - Código universal (EAN/UPC): ${input.codigo_universal || '—'}
-- Atributos específicos: ${input.atributos_especificos ? JSON.stringify(input.atributos_especificos).slice(0, 5000) : '—'}
+- Atributos específicos: ${input.atributos_especificos ? JSON.stringify(input.atributos_especificos).slice(0, 500) : '—'}
 - Bullets actuales: ${(input.bullet_points || []).join('; ') || '—'}`;
+}
 
+export async function generateListingContent(input: ListingContentInput): Promise<ListingContentOutput> {
+    const fallbackTitle = [input.marca, input.nombre].filter(Boolean).join(' ').slice(0, 60);
+    const fallback = {
+        title: fallbackTitle,
+        family_name: input.nombre.slice(0, 50),
+        description: input.descripcion || '',
+        ai_used: false,
+    };
+
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('placeholder')) {
+        return fallback;
+    }
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const user = buildUser(input);
+
+    // Perfiles independientes: título y descripción
+    const titleProfile = await loadPromptProfile('title');
+    const descProfile = await loadPromptProfile('description');
+
+    let title = fallback.title;
+    let description = fallback.description;
+    let tokensUsed = 0;
+
+    // 1) Título
     try {
-        const response = await openai.chat.completions.create({
+        const r = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
-            temperature: 0.3,
+            temperature: titleProfile.temperature,
             response_format: { type: 'json_object' },
             messages: [
-                { role: 'system', content: system },
+                { role: 'system', content: `${ANTI_HALLUCINATION_BLOCK}\n\n${titleProfile.system_prompt}` },
                 { role: 'user', content: user },
             ],
         });
-        const raw = JSON.parse(response.choices[0].message.content || '{}');
-        return {
-            title: String(raw.title || fallback.title).slice(0, 60),
-            family_name: String(raw.family_name || fallback.family_name).slice(0, 50),
-            description: String(raw.description || fallback.description).slice(0, 2000),
-            ai_used: true,
-            tokens_used: response.usage?.total_tokens,
-        };
+        const raw = JSON.parse(r.choices[0].message.content || '{}');
+        title = String(raw.title || fallback.title).trim().slice(0, titleProfile.max_chars || 60);
+        tokensUsed += r.usage?.total_tokens ?? 0;
     } catch (err: any) {
-        console.error('[listing-ai] Fallo GPT-4o-mini:', err.message);
-        return fallback;
+        console.error('[listing-ai] Fallo en título:', err.message);
     }
+
+    // 2) Descripción
+    try {
+        const r = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            temperature: descProfile.temperature,
+            response_format: { type: 'json_object' },
+            messages: [
+                { role: 'system', content: `${ANTI_HALLUCINATION_BLOCK}\n\n${descProfile.system_prompt}` },
+                { role: 'user', content: user },
+            ],
+        });
+        const raw = JSON.parse(r.choices[0].message.content || '{}');
+        description = String(raw.description || fallback.description).trim().slice(0, descProfile.max_chars || 2000);
+        tokensUsed += r.usage?.total_tokens ?? 0;
+    } catch (err: any) {
+        console.error('[listing-ai] Fallo en descripción:', err.message);
+    }
+
+    const ai_used = title !== fallback.title || description !== fallback.description;
+    return {
+        title,
+        family_name: title.slice(0, 50),
+        description,
+        ai_used,
+        tokens_used: tokensUsed,
+    };
 }

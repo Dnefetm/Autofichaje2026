@@ -485,7 +485,14 @@ export async function POST(req: NextRequest) {
         const attrInfo = await (meli as any).getCategoryAttributes(marketplace_id, category_id);
         // Atributos secundarios/opcionales rellenables (excluye ocultos y de sistema)
         const FILLABLE_TYPES = new Set(['list', 'string', 'boolean', 'number', 'number_unit']);
-        const SKIP_OPT_IDS = new Set(['SIZE_GRID_ID', 'EXCLUSIVE_CHANNEL', 'ITEM_CONDITION', 'SELLER_SKU', 'GTIN', 'EAN', 'BRAND', 'MODEL']);
+        // Excluir atributos fiscales/admin/sistema: NO son características del producto.
+        const SKIP_OPT_IDS = new Set([
+            'SIZE_GRID_ID', 'EXCLUSIVE_CHANNEL', 'ITEM_CONDITION', 'SELLER_CUSTOM_FIELD',
+            'SELLER_SKU', 'GTIN', 'EAN', 'UPC', 'BRAND', 'MODEL',
+            'SAT_KEY', 'MEASURE_UNIT_KEY', 'MEASURE_UNIT_DESCRIPTION',
+            'IMPORT_DECLARATION_NUMBER', 'INVOICE_PRODUCT_NAME',
+            'IVA_FOR_RESALE', 'IEPS', 'SALE_FORMAT', 'UNITS_PER_PACK',
+        ]);
         const optionalAttrs = (attrInfo.optional || [])
             .filter((a: any) => FILLABLE_TYPES.has(a.value_type) && !SKIP_OPT_IDS.has(a.id) && !(a.tags || {}).hidden)
             .slice(0, 40);
