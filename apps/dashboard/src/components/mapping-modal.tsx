@@ -34,6 +34,32 @@ if (!cajaMadre) return false;
 const n = cajaMadre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 return n.includes('devolucion');
 }
+/** Extrae texto legible de los atributos de variación de MeLi (COLOR, TALLA, etc.). */
+function varianteLabel(v: any): string {
+if (!v) return '';
+if (Array.isArray(v)) return v.map((a: any) => a?.value_name || a?.name || '').filter(Boolean).join(' · ');
+if (typeof v === 'object') return Object.values(v).filter(Boolean).join(' · ');
+return String(v);
+}
+/** Etiqueta + color del tipo de publicación (tradicional vs catálogo). */
+function tipoInfo(tipo?: string | null): { label: string; className: string } {
+switch (tipo) {
+case 'tradicional':
+return { label: 'Tradicional', className: 'bg-[var(--ok)]/15 text-[var(--ok)] border-[var(--ok)]/40' };
+case 'tradicional_derivada':
+return { label: 'Tradicional derivada', className: 'bg-[var(--info)]/15 text-[var(--info)] border-[var(--info)]/40' };
+case 'catalogo':
+return { label: 'Catálogo', className: 'bg-[var(--warn)]/15 text-[var(--warn)] border-[var(--warn)]/40' };
+case 'catalogo_derivada':
+return { label: 'Catálogo derivada', className: 'bg-[var(--warn)]/15 text-[var(--warn)] border-[var(--warn)]/40' };
+default:
+return { label: tipo || '—', className: 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]' };
+}
+}
+function TipoBadge({ tipo }: { tipo?: string | null }) {
+const info = tipoInfo(tipo);
+return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${info.className}`}>{info.label}</span>;
+}
 export default function MappingModal({ listing, onClose, onSuccess, sugerenciaInicial }: MappingModalProps) {
 const [searchTerm, setSearchTerm] = useState('');
 const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -67,6 +93,11 @@ const pubUpc = listing?.upc || '';
 const pubModel = listing?.model || '';
 const pubBrand = listing?.brand || '';
 const pubTitle = listing?.titulo || '';
+const pubThumb = listing?.thumbnail || listing?.url_imagen || '';
+const pubPrecio = listing?.precio ?? listing?.precio_venta ?? null;
+const pubTipo = listing?.tipo_publicacion || null;
+const pubVariante = listing?.variation_attributes || null;
+const pubCodigo = [pubEan, pubGtin, pubUpc].filter(Boolean).join(' / ');
 const isBlockedCatalog = listing?.tipo_publicacion === 'catalogo' && !!listing?.par_item_id;
 useEffect(() => {
 if (listing && !isBlockedCatalog) {
@@ -427,18 +458,32 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     </button>
                 </div>
 
-                {/* T-LAYOUT TOP: Banner compacto de la Vitrina */}
+                {/* T-LAYOUT TOP: Banner completo de la Vitrina (identidad + validación) */}
                 <div className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
-                    <div className="px-4 py-1.5 flex items-center gap-2">
-                        {listing.thumbnail && (
-                            <img src={listing.thumbnail} alt="Thumbnail" className="w-7 h-7 object-contain rounded-md bg-white border border-[var(--border)] shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0 flex items-center gap-2 text-xs">
-                            <span className="font-semibold text-[var(--text)] truncate" title={listing.titulo}>{listing.titulo}</span>
-                            <span className="text-[var(--text-muted)] font-mono shrink-0">{listing.external_item_id}</span>
-                            <span className="font-semibold text-[var(--text)] shrink-0">${listing.precio?.toLocaleString('es-MX')}</span>
-                            {pubSku && <span className="text-[var(--text-muted)] font-mono shrink-0">SKU: {pubSku}</span>}
-                            {pubGtin && <span className="text-[var(--text-muted)] font-mono shrink-0">GTIN: {pubGtin}</span>}
+                    <div className="px-4 py-2 flex flex-col gap-1.5">
+                        {/* Línea 1: identidad */}
+                        <div className="flex items-center gap-2">
+                            {pubThumb && (
+                                <img src={pubThumb} alt="" className="w-8 h-8 object-contain rounded-md bg-white border border-[var(--border)] shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0 flex items-center gap-2 text-xs flex-wrap">
+                                <span className="font-semibold text-[var(--text)] truncate" title={listing.titulo}>{listing.titulo}</span>
+                                <span className="text-[var(--text-muted)] font-mono shrink-0">{listing.external_item_id}</span>
+                                {pubPrecio != null && (
+                                    <span className="font-semibold text-[var(--text)] shrink-0">${Number(pubPrecio).toLocaleString('es-MX')}</span>
+                                )}
+                                <TipoBadge tipo={pubTipo} />
+                            </div>
+                        </div>
+                        {/* Línea 2: campos de validación contra el catálogo */}
+                        <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
+                            {pubBrand && <span className="text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)] shrink-0">Marca: {pubBrand}</span>}
+                            {pubModel && <span className="text-[var(--text-muted)] font-mono bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)] shrink-0">Modelo: {pubModel}</span>}
+                            {varianteLabel(pubVariante) && (
+                                <span className="text-[var(--info)] bg-[var(--info)]/10 px-1.5 py-0.5 rounded border border-[var(--info)]/30 shrink-0">Variante: {varianteLabel(pubVariante)}</span>
+                            )}
+                            {pubSku && <span className="text-[var(--text-muted)] font-mono bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)] shrink-0">SKU: {pubSku}</span>}
+                            {pubCodigo && <span className="text-[var(--text-muted)] font-mono bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)] shrink-0">Código: {pubCodigo}</span>}
                         </div>
                     </div>
                     

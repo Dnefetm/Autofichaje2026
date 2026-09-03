@@ -20,6 +20,7 @@ export interface SugerenciaComparacionProps {
     nombre: string;
     marca?: string | null;
     modelo?: string | null;
+    variante?: string | null;
     codigo_universal?: string | null;
     caja_madre?: string | null;
   };
@@ -86,9 +87,14 @@ export default function SugerenciaComparacion({ pub, sug }: SugerenciaComparacio
         </div>
       </div>
 
-      {sug.caja_madre && (
-        <div className="px-3 py-2 text-sm border-t border-[var(--border)] text-[var(--warn)] font-semibold">
-          Caja madre (sugerido): {sug.caja_madre}
+      {(sug.variante || sug.caja_madre) && (
+        <div className="px-3 py-2 text-sm border-t border-[var(--border)] space-y-0.5">
+          {sug.variante && (
+            <div className="text-[var(--info)] font-semibold">Variante (sugerido): {sug.variante}</div>
+          )}
+          {sug.caja_madre && (
+            <div className="text-[var(--warn)] font-semibold">Caja madre (sugerido): {sug.caja_madre}</div>
+          )}
         </div>
       )}
     </div>

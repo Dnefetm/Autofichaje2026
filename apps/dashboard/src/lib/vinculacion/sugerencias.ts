@@ -21,6 +21,7 @@ export interface Sugerencia {
   nombre: string;
   marca: string | null;
   modelo: string | null;
+  variante: string | null;
   codigo_universal: string | null;
   caja_madre: string | null;
   score: number; // 0..100
@@ -45,7 +46,7 @@ export interface PublicacionSugerible {
   tipo_publicacion: string | null;
 }
 
-const ARTICULO_COLS = 'articulo_id, nombre, marca, modelo, codigo_universal, caja_madre';
+const ARTICULO_COLS = 'articulo_id, nombre, marca, modelo, variante, codigo_universal, caja_madre';
 
 export function norm(s?: string | null): string {
   return (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -103,6 +104,7 @@ function toSugerencia(
     nombre: a.nombre ?? '',
     marca: a.marca ?? null,
     modelo: a.modelo ?? null,
+    variante: a.variante ?? null,
     codigo_universal: a.codigo_universal ?? null,
     caja_madre: a.caja_madre ?? null,
     score: Math.max(0, Math.min(100, Math.round(score))),
