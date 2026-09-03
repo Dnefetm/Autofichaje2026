@@ -6,13 +6,14 @@ import Link from 'next/link';
 import {
     ArrowLeft, AlertCircle, Image as ImageIcon,
     ExternalLink, RefreshCw,
-    FileText, XCircle, CheckCircle, Link2, Plus
+    FileText, XCircle, CheckCircle, Link2, Plus, Sparkles
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { PublishPanel } from '@/components/publish-panel';
 import { NewConditionDialog } from '@/components/new-condition-dialog';
 import VincularVitrinaModal from '@/components/vincular-vitrina-modal';
+import RellenarDesdeFichaModal from '@/components/rellenar-desde-ficha-modal';
 import { ArticleEditForm } from '@/components/article-edit-form';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -56,6 +57,7 @@ export default function ArticuloDetailPage() {
     const [newConditionPub, setNewConditionPub] = useState<any>(null);
     const [reconcileNote, setReconcileNote] = useState<string | null>(null);
     const [showVincularVitrina, setShowVincularVitrina] = useState(false);
+    const [showRellenarFicha, setShowRellenarFicha] = useState(false);
     const [creatingFicha, setCreatingFicha] = useState(false);
 
     useEffect(() => {
@@ -268,14 +270,25 @@ export default function ArticuloDetailPage() {
                         <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Ficha técnica</h2>
                         <span className="text-[10px] text-[var(--text-faint)] tabular-nums">{fichas.length}</span>
                     </div>
-                    <button
-                        type="button"
-                        onClick={handleCreateFicha}
-                        disabled={creatingFicha}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-50"
-                    >
-                        <Plus className="w-3.5 h-3.5" /> {creatingFicha ? 'Creando…' : 'Crear ficha técnica'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setShowRellenarFicha(true)}
+                            disabled={fichas.length === 0}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-40"
+                            title="Rellenar los datos del artículo desde la ficha técnica"
+                        >
+                            <Sparkles className="w-3.5 h-3.5" /> Rellenar artículo
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleCreateFicha}
+                            disabled={creatingFicha}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-50"
+                        >
+                            <Plus className="w-3.5 h-3.5" /> {creatingFicha ? 'Creando…' : 'Crear ficha técnica'}
+                        </button>
+                    </div>
                 </div>
 
                 {fichas.length === 0 ? (
@@ -445,6 +458,15 @@ export default function ArticuloDetailPage() {
                     }}
                     onClose={() => setShowVincularVitrina(false)}
                     onSuccess={() => { setShowVincularVitrina(false); fetchProduct(); }}
+                />
+            )}
+
+            {/* Modal: rellenar artículo desde ficha técnica */}
+            {showRellenarFicha && (
+                <RellenarDesdeFichaModal
+                    articuloId={product.articulo_id || id}
+                    onClose={() => setShowRellenarFicha(false)}
+                    onSuccess={() => { setShowRellenarFicha(false); fetchProduct(); }}
                 />
             )}
         </div>
