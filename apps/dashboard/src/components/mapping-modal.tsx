@@ -87,6 +87,8 @@ const [siblingsLoading, setSiblingsLoading] = useState(false);
 const [costMap, setCostMap] = useState<Map<string, boolean>>(new Map());
 const [topSugerencia, setTopSugerencia] = useState<any>(null);
 const pubSku = listing?.seller_custom_field || listing?.seller_sku || '';
+const pubSellerCustomField = listing?.seller_custom_field || '';
+const pubSellerSku = listing?.seller_sku || '';
 const pubEan = listing?.ean || '';
 const pubGtin = listing?.gtin || '';
 const pubUpc = listing?.upc || '';
@@ -468,7 +470,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                             )}
                             <div className="flex-1 min-w-0 flex items-center gap-2 text-xs flex-wrap">
                                 <span className="font-semibold text-[var(--text)] truncate" title={listing.titulo}>{listing.titulo}</span>
-                                <span className="text-[var(--text-muted)] font-mono shrink-0">{listing.external_item_id}</span>
+                                <span className="text-[var(--text-muted)] font-mono shrink-0">MLM: {listing.external_item_id}</span>
                                 {pubPrecio != null && (
                                     <span className="font-semibold text-[var(--text)] shrink-0">${Number(pubPrecio).toLocaleString('es-MX')}</span>
                                 )}
@@ -482,7 +484,10 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                             {varianteLabel(pubVariante) && (
                                 <span className="text-[var(--info)] bg-[var(--info)]/10 px-1.5 py-0.5 rounded border border-[var(--info)]/30 shrink-0">Variante: {varianteLabel(pubVariante)}</span>
                             )}
-                            {pubSku && <span className="text-[var(--text-muted)] font-mono bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)] shrink-0">SKU: {pubSku}</span>}
+                            <span className="text-[var(--accent)] font-mono bg-[var(--accent)]/10 px-1.5 py-0.5 rounded border border-[var(--accent)]/30 shrink-0">SKU tienda: {pubSellerCustomField || '—'}</span>
+                            {pubSellerSku && pubSellerSku !== pubSellerCustomField && (
+                                <span className="text-[var(--text-muted)] font-mono bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)] shrink-0">Seller SKU: {pubSellerSku}</span>
+                            )}
                             {pubCodigo && <span className="text-[var(--text-muted)] font-mono bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)] shrink-0">Código: {pubCodigo}</span>}
                         </div>
                     </div>

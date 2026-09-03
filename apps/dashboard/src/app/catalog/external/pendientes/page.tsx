@@ -223,6 +223,11 @@ export default function PendientesPage() {
                   <span className="font-mono font-semibold text-[var(--text)]">
                     ${r.precio_venta?.toLocaleString() ?? '—'}
                   </span>
+                  {(r.seller_custom_field || r.seller_sku) && (
+                    <span className="font-mono text-[var(--accent)]">
+                      SKU tienda: {r.seller_custom_field || r.seller_sku}
+                    </span>
+                  )}
                   <span>{r.visits_30d ?? '—'} visitas 30d</span>
                   {costBadge(r)}
                   {r.sync_disabled ? (
