@@ -383,20 +383,34 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         }
     }
 
-    // Completar título + descripción con IA a partir de los datos del producto
+    // Completar título + descripción + características secundarias con IA/datos reales
     async function completeWithAI() {
         setLoading(true);
         setErrorMsg(null);
         try {
+            const catId = categoryOverride || previewResult?.data?.trace?.paso_5_categoria?.category_id || '';
             const res = await fetch('/api/publish/ai-complete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ articulo_id }),
+                body: JSON.stringify({
+                    articulo_id,
+                    ...(primaryAccount ? { marketplace_id: primaryAccount } : {}),
+                    ...(catId ? { category_id: catId } : {}),
+                }),
             });
             const data = await res.json();
             if (data.ok) {
                 if (data.title) setFamilyNameOverride(data.title);
                 if (data.description) setDescriptionOverride(data.description);
+                if (Array.isArray(data.attributes) && data.attributes.length > 0) {
+                    setAttrOverrides(prev => {
+                        const next = { ...prev };
+                        for (const a of data.attributes) {
+                            next[a.id] = { value_id: a.value_id, value_name: a.value_name };
+                        }
+                        return next;
+                    });
+                }
             } else {
                 setErrorMsg(data.error || 'Error generando contenido con IA');
             }
