@@ -70,7 +70,7 @@ sku: sugerenciaInicial.articulo_id,
 name: sugerenciaInicial.nombre || 'Sin nombre',
 marca: sugerenciaInicial.marca || '',
 modelo: sugerenciaInicial.modelo || '',
-variante: '',
+variante: sugerenciaInicial.variante || '',
 codigo_universal: sugerenciaInicial.codigo_universal || '',
 caja_madre: sugerenciaInicial.caja_madre || '',
 quantity: 1
@@ -623,6 +623,8 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                                     {res._score >= 3 && <span className="text-xs bg-[var(--ok)]/20 text-[var(--ok)] border border-[var(--ok)]/40 px-1.5 py-0.5 rounded-full font-bold">Match Alto</span>}
                                                     {res._score >= 1.5 && res._score < 3 && <span className="text-xs bg-[var(--warn)]/20 text-[var(--warn)] border border-[var(--warn)]/40 px-1.5 py-0.5 rounded-full font-semibold">Match Medio</span>}
                                                     {res.marca && <span className="text-xs text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">{res.marca}</span>}
+                                                    {res.modelo && <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">Modelo: {res.modelo}</span>}
+                                                    {res.variante && <span className="text-xs text-[var(--info)] bg-[var(--info)]/10 px-1.5 py-0.5 rounded border border-[var(--info)]/30">Variante: {res.variante}</span>}
                                                     {res.codigo_universal && (
                                                         <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded border border-[var(--border)]">
                                                             Cod: {res.codigo_universal}
@@ -688,9 +690,11 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                         
                                         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                                             <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded border border-[var(--border)]">{s.sku}</span>
-                                            {s.marca && <span className="text-xs text-[var(--text-faint)]">Marca: {s.marca}</span>}
-                                            {s.codigo_universal && <span className="text-xs font-mono text-[var(--text-faint)]">Cod: {s.codigo_universal}</span>}
-                                            {s.caja_madre && <span className="text-xs font-bold text-[var(--warn)]">Caja madre: {s.caja_madre}</span>}
+                                            {s.marca && <span className="text-xs text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded border border-[var(--border)]">Marca: {s.marca}</span>}
+                                            {s.modelo && <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded border border-[var(--border)]">Modelo: {s.modelo}</span>}
+                                            {s.variante && <span className="text-xs text-[var(--info)] bg-[var(--info)]/10 px-1.5 py-0.5 rounded border border-[var(--info)]/30">Variante: {s.variante}</span>}
+                                            {s.codigo_universal && <span className="text-xs font-mono text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded border border-[var(--border)]">Cod: {s.codigo_universal}</span>}
+                                            {s.caja_madre && <span className="text-xs font-bold text-[var(--warn)] bg-[var(--warn)]/10 px-1.5 py-0.5 rounded border border-[var(--warn)]/30">Caja madre: {s.caja_madre}</span>}
                                         </div>
 
                                         <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">
