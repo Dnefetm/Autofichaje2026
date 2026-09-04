@@ -44,6 +44,21 @@ export default async function HubProveedorPage(props: {
         fechaAct = ultImp?.[0]?.creado_el;
     }
 
+    // 1.5. Leer el mapeo de columnas (respeta lo que el operador seleccionó en "Mapear Columnas").
+    let mapeo: any = null;
+    if (importacionId) {
+        const { data: impMapeo } = await supa
+            .from('importaciones_excel')
+            .select('mapeo_columnas')
+            .eq('id', importacionId)
+            .single();
+        mapeo = impMapeo?.mapeo_columnas || null;
+    }
+    const colModelo = mapeo?.columna_modelo || 'CLAVE';
+    const colCodigo = mapeo?.columna_codigo || 'CÓDIGO DE BARRA SIN CERO';
+    const colMarca = mapeo?.columna_marca || 'MARCA';
+    const colDescripcion = mapeo?.columna_descripcion || 'DESCRIPCIÓN LARGA';
+
     // 2. Traer filas del catálogo con búsqueda en BD
     let listado: any[] = [];
     let totalEncontrados = 0;
@@ -81,8 +96,8 @@ export default async function HubProveedorPage(props: {
 
     const itemsProcesados = listado.map(r => {
         const p = r.payload || {};
-        const modelo = p['CLAVE'] || p['MODELO'] || p['Modelo'] || '';
-        const codigo = p['CÓDIGO DE BARRA SIN CERO'] || p['CÓDIGO DE BARRA'] || p['CODIGO'] || p['Codigo'] || '';
+        const modelo = p[colModelo] || '';
+        const codigo = p[colCodigo] || '';
         const articuloId = aliasMap.get(`code:${codigo}`) || aliasMap.get(`model:${modelo}`) || null;
 
         return {
@@ -90,8 +105,8 @@ export default async function HubProveedorPage(props: {
             fila_num: r.fila_num,
             modelo,
             codigo,
-            marca: p['MARCA'] || p['Marca'] || '',
-            descripcion: p['DESCRIPCIÓN LARGA'] || p['DESCRIPCION'] || p['Descripcion'] || '',
+            marca: p[colMarca] || '',
+            descripcion: p[colDescripcion] || '',
             precio_distribuidor: p['P.DIST (CON IVA)'] || p['P.DIST'] || null,
             precio_subdistribuidor: p['PRECIO SUBDISTRIBUIDOR (CON IVA)'] || null,
             precio_mayoreo: p['PRECIO MAYORE (CON IVA)'] || null,
