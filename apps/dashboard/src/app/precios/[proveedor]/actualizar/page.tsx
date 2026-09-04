@@ -53,12 +53,12 @@ export default function ActualizarListaPage({ params }: { params: Promise<{ prov
                     <p className="text-[var(--text-muted)]">Sube el archivo XLSX más reciente para el proveedor {proveedorDecoded}</p>
                 </div>
 
-                <div className="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center hover:bg-[var(--bg)] transition">
+                <div className="border-2 border-dashed border-[var(--border)] rounded-lg p-10 text-center hover:bg-[var(--bg)] transition">
                     <input 
                         type="file" 
                         accept=".xlsx, .xls, .csv" 
                         onChange={handleFileChange}
-                        className="mb-4 block w-full text-sm text-[var(--text-muted)] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[var(--accent)]/10 file:text-indigo-700 hover:file:bg-[var(--accent)]/20"
+                        className="mb-4 block w-full text-sm text-[var(--text-muted)] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[var(--accent)]/10 file:text-[var(--accent)] hover:file:bg-[var(--accent)]/20"
                     />
                     {file && <p className="text-sm text-[var(--text-muted)] font-medium">Archivo seleccionado: {file.name}</p>}
                 </div>

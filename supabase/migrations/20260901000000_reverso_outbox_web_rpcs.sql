@@ -120,7 +120,7 @@ CREATE OR REPLACE FUNCTION web_upsert_articulo(
   p_codigo_universal text, p_codigo_sat text, p_url_producto text,
   p_notas text, p_peso_kg numeric, p_es_full boolean, p_es_dropshipping boolean,
   p_descripcion text, p_largo_cm numeric, p_ancho_cm numeric, p_alto_cm numeric,
-  p_imagenes text[]
+  p_imagenes text[] DEFAULT NULL
 ) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF p_articulo_id IS NULL OR btrim(p_articulo_id) = '' THEN
@@ -142,6 +142,17 @@ BEGIN
     notas = EXCLUDED.notas, peso_kg = EXCLUDED.peso_kg,
     es_full = EXCLUDED.es_full, es_dropshipping = EXCLUDED.es_dropshipping,
     descripcion = EXCLUDED.descripcion, largo_cm = EXCLUDED.largo_cm,
-    ancho_cm = EXCLUDED.ancho_cm, alto_cm = EXCLUDED.alto_cm, imagenes = EXCLUDED.imagenes,
+    ancho_cm = EXCLUDED.ancho_cm, alto_cm = EXCLUDED.alto_cm, imagenes = COALESCE(EXCLUDED.imagenes, articulos.imagenes),
     origin = 'web';
 END; $$;
+
+-- 6) Seguridad: impedir que la key pública (anon/authenticated) llame las RPC de escritura.
+--    Por defecto Supabase deja las funciones ejecutables por PUBLIC; al ser SECURITY DEFINER,
+--    un anon podría escribir en el inventario. Se revoca y se deja solo service_role.
+--    (Mismo patrón que ya usa el proyecto: v115.2_security_and_shim.sql y v100_confirm_rpc.sql)
+REVOKE EXECUTE ON FUNCTION public.web_upsert_ingreso   FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.web_upsert_egreso    FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.web_upsert_articulo  FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.web_upsert_ingreso   TO service_role;
+GRANT  EXECUTE ON FUNCTION public.web_upsert_egreso    TO service_role;
+GRANT  EXECUTE ON FUNCTION public.web_upsert_articulo  TO service_role;

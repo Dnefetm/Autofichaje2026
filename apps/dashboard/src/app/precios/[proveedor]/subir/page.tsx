@@ -84,7 +84,7 @@ export default function SubirPaso1() {
 
             <div 
                 className={`w-full max-w-2xl p-12 border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-colors cursor-pointer
-                    ${dragging ? 'border-[var(--accent)] bg-[var(--accent)]/10' : 'border-slate-300 hover:bg-[var(--bg)] hover:border-slate-400 bg-[var(--surface)]'}`}
+                    ${dragging ? 'border-[var(--accent)] bg-[var(--accent)]/10' : 'border-[var(--border)] hover:bg-[var(--bg)] hover:border-[var(--border-strong)] bg-[var(--surface)]'}`}
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={handleDrop}
@@ -103,7 +103,7 @@ export default function SubirPaso1() {
                 {!file && <p className="text-sm text-[var(--text-muted)] mt-2">Último lote procesado: -</p>}
                 {file && <p className="text-sm text-[var(--text-muted)] mb-4">{(file.size / 1024 / 1024).toFixed(2)} MB</p>}
                 
-                {error && <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-sm text-center font-medium max-w-md">{error}</div>}
+                {error && <div className="mt-4 p-3 bg-[var(--err)]/10 text-[var(--err)] rounded-md text-sm text-center font-medium max-w-md">{error}</div>}
             </div>
 
             <div className="mt-8 flex flex-col items-center">

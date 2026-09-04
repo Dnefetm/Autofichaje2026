@@ -32,7 +32,7 @@ export default async function ReglasPage() {
                                 <td className="px-6 py-4">{r.margen_pct}%</td>
                                 <td className="px-6 py-4">${r.costos_fijos}</td>
                                 <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 rounded text-xs font-medium ${r.activa ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                    <span className={`px-2 py-1 rounded text-xs font-medium ${r.activa ? 'bg-[var(--ok)]/15 text-[var(--ok)]' : 'bg-[var(--err)]/15 text-[var(--err)]'}`}>
                                         {r.activa ? 'Sí' : 'No'}
                                     </span>
                                 </td>

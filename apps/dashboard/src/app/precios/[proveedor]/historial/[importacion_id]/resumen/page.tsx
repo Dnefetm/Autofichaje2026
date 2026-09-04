@@ -141,7 +141,7 @@ export default async function ResumenLotePage(props: {
                 >
                     <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Historial
                 </Link>
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start justify-between gap-4 flex-col lg:flex-row lg:items-center">
                     <div>
                         <h1 className="text-2xl font-bold text-[var(--text)]">
                             Resumen del Lote
@@ -162,7 +162,7 @@ export default async function ResumenLotePage(props: {
                         )}
                     </div>
                     {/* Acciones del lote: activar + acceso directo a vinculación */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         {imp?.estado !== 'completado' && (
                             <ActivarListaButton importacionId={importacionId} proveedor={proveedorDecoded} />
                         )}
@@ -174,7 +174,7 @@ export default async function ResumenLotePage(props: {
                         </Link>
                         <Link
                             href={`/precios/${encodeURIComponent(proveedorDecoded)}`}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-xl font-bold text-sm transition-colors"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)] rounded-xl font-bold text-sm transition-colors"
                         >
                             Ver Catálogo Completo
                         </Link>
@@ -191,14 +191,14 @@ export default async function ResumenLotePage(props: {
                     <div className="text-sm font-bold text-[var(--warn)] mt-1 flex items-center gap-1">
                         <TrendingUp className="w-4 h-4" /> Precio Actualizado
                     </div>
-                    <div className="text-xs text-amber-500 mt-0.5">Mismo SKU, precio diferente</div>
+                    <div className="text-xs text-[var(--warn)] mt-0.5">Mismo SKU, precio diferente</div>
                 </div>
                 <div className="bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-2xl p-5">
                     <div className="text-3xl font-black text-[var(--ok)]">{nuevos.length.toLocaleString()}</div>
                     <div className="text-sm font-bold text-[var(--ok)] mt-1 flex items-center gap-1">
                         <Plus className="w-4 h-4" /> Nuevos
                     </div>
-                    <div className="text-xs text-emerald-500 mt-0.5">SKU no existía antes</div>
+                    <div className="text-xs text-[var(--ok)] mt-0.5">SKU no existía antes</div>
                 </div>
                 <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-5">
                     <div className="text-3xl font-black text-[var(--text-muted)]">{sinCambio.length.toLocaleString()}</div>

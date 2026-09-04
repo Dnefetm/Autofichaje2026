@@ -11,13 +11,14 @@ export async function POST(
 ) {
     const { proveedor } = await props.params;
     const body = await req.json();
-    const { items }: {
+    const { items, importacion_id }: {
         items: Array<{
             codigo_excel: string;
             modelo_excel: string;
             marca_excel: string;
             articulo_id: string;
-        }>
+        }>;
+        importacion_id?: string;
     } = body;
 
     if (!items || items.length === 0) {
@@ -34,6 +35,20 @@ export async function POST(
     if (error) {
         console.error('Error in fn_vincular_lote:', error);
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    // Re-materializar la clasificación del lote para que la tabla paginada refleje
+    // los nuevos alias locked (los items recién vinculados pasan a "ya_vinculado").
+    if (importacion_id) {
+        const { error: matErr } = await supabaseAdmin.rpc('fn_materializar_vinculacion', {
+            p_importacion_id: importacion_id,
+            p_proveedor: proveedorDecoded,
+        });
+        if (matErr) {
+            console.error('Error re-materializando vinculación:', matErr);
+            // No falla la vinculación: el alias ya quedó guardado. La próxima visita
+            // materializará de nuevo. Avisamos igualmente para no romper el flujo.
+        }
     }
 
     revalidatePath('/precios', 'layout');

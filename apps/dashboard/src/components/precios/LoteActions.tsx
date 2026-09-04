@@ -70,7 +70,7 @@ export function LoteActions({ importacion, proveedor }: { importacion: any, prov
                 <button
                     onClick={handleRestore}
                     disabled={restoring}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-[var(--surface)] border border-[var(--accent)]/30 rounded-lg text-sm font-medium text-indigo-700 hover:bg-[var(--accent)]/10 transition-colors shadow-sm disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-[var(--surface)] border border-[var(--accent)]/30 rounded-lg text-sm font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-colors shadow-sm disabled:opacity-50"
                 >
                     {restoring ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
                     Restaurar

@@ -123,7 +123,7 @@ export default function MapearColumnasPage() {
             <h2 className="text-2xl font-bold text-[var(--text)] mb-2">Mapear Columnas - {proveedor}</h2>
             <p className="text-[var(--text-muted)] mb-8">Asigna las columnas correctas del archivo a los campos del sistema.</p>
 
-            {error && <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-lg">{error}</div>}
+            {error && <div className="mb-6 p-4 bg-[var(--err)]/10 text-[var(--err)] rounded-lg">{error}</div>}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 
@@ -177,7 +177,7 @@ export default function MapearColumnasPage() {
                     <div className="space-y-4">
                         {precios.map((p, index) => (
                             <div key={index} className="p-4 border rounded-md relative bg-[var(--bg)]">
-                                <button onClick={() => handleRemovePrecio(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold">✕</button>
+                                <button onClick={() => handleRemovePrecio(index)} className="absolute top-2 right-2 text-[var(--err)] hover:brightness-110 font-bold">✕</button>
                                 
                                 <label className="block text-xs font-medium text-[var(--text-muted)] uppercase mb-1">Columna Excel</label>
                                 <select className="w-full border p-2 rounded-md mb-2 bg-[var(--surface)]" value={p.columna} onChange={e => handlePrecioChange(index, 'columna', e.target.value)}>

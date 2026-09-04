@@ -34,7 +34,7 @@ export function DesvincularBtn({ proveedor, articuloId }: { proveedor: string; a
         <button 
             onClick={handleDesvincular}
             disabled={loading}
-            className="inline-flex items-center justify-center w-8 h-8 rounded hover:bg-red-50 text-[var(--text-faint)] hover:text-red-600 transition-colors"
+            className="inline-flex items-center justify-center w-8 h-8 rounded hover:bg-[var(--err)]/10 text-[var(--text-faint)] hover:text-[var(--err)] transition-colors"
             title="Desvincular del Catálogo Maestro"
         >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlink className="w-4 h-4" />}

@@ -131,7 +131,7 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
   return (
     <div className="flex flex-col h-full bg-[var(--bg)]">
       {error ? (
-        <div className="p-8 text-red-500">Error: {error.message}</div>
+        <div className="p-8 text-[var(--err)]">Error: {error.message}</div>
       ) : (
         <ProductDiffPanel
           importacion={latestBatch}

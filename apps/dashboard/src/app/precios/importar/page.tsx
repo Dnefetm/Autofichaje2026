@@ -55,14 +55,14 @@ function cn(...classes: (string | boolean | undefined | null)[]) {
 function scoreColor(s: number | null) {
   if (s === null) return 'text-[var(--text-faint)]';
   if (s >= 90) return 'text-[var(--ok)]';
-  if (s >= 60) return 'text-yellow-600';
+  if (s >= 60) return 'text-[var(--warn)]';
   return 'text-[var(--err)]';
 }
 
 function scoreBg(s: number | null) {
   if (s === null) return 'bg-[var(--surface-2)] border-[var(--border)]';
   if (s >= 90) return 'bg-[var(--ok)]/10 border-[var(--ok)]/30';
-  if (s >= 60) return 'bg-yellow-50 border-yellow-200';
+  if (s >= 60) return 'bg-[var(--warn)]/10 border-[var(--warn)]/30';
   return 'bg-[var(--err)]/10 border-[var(--err)]/30';
 }
 
@@ -73,7 +73,7 @@ function StepIndicator({ step, current }: { step: number; current: number }) {
   return (
     <div className={cn(
       'w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all',
-      done ? 'bg-[var(--ok)]/100 text-[var(--accent-ink)]' : active ? 'bg-[var(--accent)] text-[var(--accent-ink)] shadow-lg' : 'bg-slate-200 text-[var(--text-muted)]'
+      done ? 'bg-[var(--ok)]/100 text-[var(--accent-ink)]' : active ? 'bg-[var(--accent)] text-[var(--accent-ink)] shadow-lg' : 'bg-[var(--surface-2)] text-[var(--text-muted)]'
     )}>
       {done ? <Check className="w-4 h-4" /> : step}
     </div>
@@ -178,14 +178,14 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
           onChange={(e) => { setProveedor(e.target.value); setError(null); }}
                           readOnly={!!proveedorInicial}
           placeholder="Ej: Samsung, LG, Urrea..."
-          className="w-full px-4 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-[var(--surface)]" />
+          className="w-full px-4 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface)]" />
       </div>
       <div>
         <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Archivo Excel <span className="text-[var(--err)]">*</span></label>
         <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}
           onDrop={handleDrop} onClick={() => inputRef.current?.click()}
           className={cn('border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all',
-            dragging ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10' : file ? 'border-emerald-400 bg-[var(--ok)]/10' : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--bg)]')}>
+            dragging ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10' : file ? 'border-[var(--ok)]/40 bg-[var(--ok)]/10' : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--bg)]')}>
           <input ref={inputRef} id="file-input" type="file" accept=".xlsx,.xls" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
           {file ? (
@@ -194,7 +194,7 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
               <div className="text-left"><p className="font-bold text-sm">{file.name}</p><p className="text-xs text-[var(--text-muted)]">{(file.size / 1024).toFixed(1)} KB</p></div>
             </div>
           ) : (
-            <div><Upload className="mx-auto w-10 h-10 text-slate-300 mb-2" /><p className="text-sm font-semibold text-[var(--text-muted)]">Arrastra tu Excel aquí</p><p className="text-xs text-[var(--text-faint)] mt-1">o haz clic • .xlsx, .xls • máx. 50 MB</p></div>
+            <div><Upload className="mx-auto w-10 h-10 text-[var(--text-faint)] mb-2" /><p className="text-sm font-semibold text-[var(--text-muted)]">Arrastra tu Excel aquí</p><p className="text-xs text-[var(--text-faint)] mt-1">o haz clic • .xlsx, .xls • máx. 50 MB</p></div>
           )}
         </div>
       </div>
@@ -357,7 +357,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
 
     return (
       <div className="bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-2xl p-8 text-center space-y-6">
-        <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />
+        <CheckCircle2 className="w-16 h-16 text-[var(--ok)] mx-auto" />
         <div>
           <h3 className="font-bold text-xl text-[var(--text)]">Lista Guardada (Lista Sana)</h3>
           <p className="text-[var(--text-muted)] mt-2">
@@ -366,7 +366,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
         </div>
         {error && <div className="text-[var(--err)] text-sm font-semibold">{error}</div>}
         <div className="flex gap-4 justify-center">
-          <button onClick={() => setIsMapeoGuardado(false)} className="px-6 py-3 border border-slate-300 text-[var(--text-muted)] font-bold rounded-xl hover:bg-[var(--surface)] transition-colors">Modificar mapeo</button>
+          <button onClick={() => setIsMapeoGuardado(false)} className="px-6 py-3 border border-[var(--border)] text-[var(--text-muted)] font-bold rounded-xl hover:bg-[var(--surface)] transition-colors">Modificar mapeo</button>
           <button onClick={handleIrAlPanel} className="px-6 py-3 bg-[var(--accent)] text-[var(--accent-ink)] font-bold rounded-xl hover:brightness-110 transition-colors flex items-center gap-2">
             <CheckCircle className="w-5 h-5"/>
             Finalizar y Ver Panel
@@ -381,11 +381,11 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
   // Colores por rol para el preview
   type ColInfo = { label: string; emoji: string; hCls: string; cCls: string };
   const colRole: Record<string, ColInfo> = {};
-  if (columnaModelo) colRole[columnaModelo] = { label: 'Modelo', emoji: '🔑', hCls: 'bg-[var(--accent)]/10 text-indigo-700', cCls: 'bg-[var(--accent)]/10/40 font-bold' };
-  if (columnaMarca) colRole[columnaMarca] = { label: 'Marca', emoji: '🏷️', hCls: 'bg-violet-50 text-violet-700', cCls: 'bg-violet-50/40 font-bold' };
+  if (columnaModelo) colRole[columnaModelo] = { label: 'Modelo', emoji: '🔑', hCls: 'bg-[var(--accent)]/10 text-[var(--accent)]', cCls: 'bg-[var(--accent)]/10/40 font-bold' };
+  if (columnaMarca) colRole[columnaMarca] = { label: 'Marca', emoji: '🏷️', hCls: 'bg-violet-500/10 text-violet-300', cCls: 'bg-violet-500/10 font-bold' };
   if (columnaCodigo) colRole[columnaCodigo] = { label: 'Código', emoji: '🔢', hCls: 'bg-[var(--warn)]/10 text-[var(--warn)]', cCls: 'bg-[var(--warn)]/10/40 font-bold' };
-  if (columnaDescripcion) colRole[columnaDescripcion] = { label: 'Descripción', emoji: '📝', hCls: 'bg-teal-50 text-teal-700', cCls: 'bg-teal-50/40' };
-  if (columnaMoneda) colRole[columnaMoneda] = { label: 'Moneda', emoji: '🌐', hCls: 'bg-sky-50 text-sky-700', cCls: 'bg-sky-50/40' };
+  if (columnaDescripcion) colRole[columnaDescripcion] = { label: 'Descripción', emoji: '📝', hCls: 'bg-teal-500/10 text-teal-300', cCls: 'bg-teal-500/10' };
+  if (columnaMoneda) colRole[columnaMoneda] = { label: 'Moneda', emoji: '🌐', hCls: 'bg-sky-500/10 text-sky-300', cCls: 'bg-sky-500/10' };
   precios.forEach((p) => {
     if (p.columna) colRole[p.columna] = { label: TIPOS_COSTO.find((t) => t.value === p.tipo_costo)?.label ?? p.tipo_costo, emoji: '💲', hCls: 'bg-[var(--ok)]/10 text-[var(--ok)]', cCls: 'bg-[var(--ok)]/10/40 text-[var(--ok)] font-bold' };
   });
@@ -393,7 +393,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
   function Sel({ id, value, onChange, placeholder = '-- Seleccionar --' }: { id: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
     return (
       <select id={id} value={value} onChange={(e) => { onChange(e.target.value); setError(null); }}
-        className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-[var(--surface)]">
+        className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-[var(--accent)] focus:outline-none bg-[var(--surface)]">
         <option value="">{placeholder}</option>
         {headers.map((h) => <option key={h} value={h}>{h}</option>)}
       </select>
@@ -415,11 +415,11 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
       {/* Leyenda */}
       <div className="flex flex-wrap gap-2">
         {[
-          { emoji: '🔑', label: 'Modelo', cls: 'bg-[var(--accent)]/10 text-indigo-700 border-[var(--accent)]/30' },
-          { emoji: '🏷️', label: 'Marca', cls: 'bg-violet-50 text-violet-700 border-violet-200' },
+          { emoji: '🔑', label: 'Modelo', cls: 'bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/30' },
+          { emoji: '🏷️', label: 'Marca', cls: 'bg-violet-500/10 text-violet-300 border-violet-500/30' },
           { emoji: '💲', label: 'Precio', cls: 'bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30' },
           { emoji: '🔢', label: 'Código', cls: 'bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30' },
-          { emoji: '📝', label: 'Descripción', cls: 'bg-teal-50 text-teal-700 border-teal-200' },
+          { emoji: '📝', label: 'Descripción', cls: 'bg-teal-500/10 text-teal-300 border-teal-500/30' },
         ].map(l => <span key={l.label} className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${l.cls}`}>{l.emoji} {l.label}</span>)}
       </div>
 
@@ -484,7 +484,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold text-[var(--text-muted)]">Tipos de precio <span className="text-[var(--err)]">*</span></h3>
-          <button onClick={addPrecio} className="flex items-center gap-1 text-xs text-[var(--accent)] hover:text-indigo-800 font-semibold border border-[var(--accent)]/30 rounded-lg px-2 py-1">
+          <button onClick={addPrecio} className="flex items-center gap-1 text-xs text-[var(--accent)] hover:brightness-110 font-semibold border border-[var(--accent)]/30 rounded-lg px-2 py-1">
             <Plus className="w-3.5 h-3.5" /> Agregar tipo
           </button>
         </div>
@@ -494,18 +494,18 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
             <div className="flex-[2] min-w-32">
               <select id={`sel-precio-tipo-${i}`} value={p.tipo_costo}
                 onChange={(e) => updatePrecio(i, 'tipo_costo', e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-[var(--surface)]">
+                className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-[var(--accent)] focus:outline-none bg-[var(--surface)]">
                 {TIPOS_COSTO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
             <div className="flex-1 min-w-24 flex items-center pt-2">
               <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--text-muted)]">
-                <input type="checkbox" checked={p.incluye_iva || false} onChange={(e) => updatePrecio(i, 'incluye_iva', e.target.checked)} className="rounded border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)] w-4 h-4" />
+                <input type="checkbox" checked={p.incluye_iva || false} onChange={(e) => updatePrecio(i, 'incluye_iva', e.target.checked)} className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] w-4 h-4" />
                 ¿Con IVA?
               </label>
             </div>
             {precios.length > 1 && (
-              <button onClick={() => removePrecio(i)} className="mt-1 p-2 text-slate-300 hover:text-[var(--err)] transition-colors"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={() => removePrecio(i)} className="mt-1 p-2 text-[var(--text-faint)] hover:text-[var(--err)] transition-colors"><Trash2 className="w-4 h-4" /></button>
             )}
           </div>
         ))}
@@ -526,7 +526,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
           <div>
             <label htmlFor="sel-moneda-default" className="block text-xs font-bold text-[var(--text-muted)] mb-1">Moneda por default</label>
             <select id="sel-moneda-default" value={monedaDefault} onChange={(e) => setMonedaDefault(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none bg-[var(--surface)]">
+              className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-[var(--accent)] focus:outline-none bg-[var(--surface)]">
               <option value="MXN">MXN — Peso Mexicano</option>
               <option value="USD">USD — Dólar Americano</option>
             </select>
@@ -641,7 +641,7 @@ function RemapModal({ costoId, onSelect, onClose }: {
               value={query}
               onChange={(e) => handleQuery(e.target.value)}
               placeholder="Buscar por modelo, marca, código universal..."
-              className="w-full pl-9 pr-4 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="w-full pl-9 pr-4 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
             />
             {buscando && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-[var(--text-faint)]" />}
           </div>
@@ -652,14 +652,14 @@ function RemapModal({ costoId, onSelect, onClose }: {
             <p className="text-center text-[var(--text-faint)] text-sm py-8">Sin resultados para "{query}"</p>
           )}
           {resultados.length === 0 && !query.trim() && (
-            <p className="text-center text-slate-300 text-sm py-8">Escribe para buscar en el catálogo</p>
+            <p className="text-center text-[var(--text-faint)] text-sm py-8">Escribe para buscar en el catálogo</p>
           )}
           {resultados.map((art) => (
             <div key={art.articulo_id} className="flex items-center justify-between px-5 py-3 hover:bg-[var(--bg)] transition-colors">
               <div className="min-w-0">
                 <p className="font-semibold text-sm text-[var(--text)] truncate">{art.nombre}</p>
                 <p className="text-xs text-[var(--text-faint)] font-mono">
-                  <span className="text-violet-600 font-bold">{art.marca}</span> · {art.modelo}
+                  <span className="text-violet-300 font-bold">{art.marca}</span> · {art.modelo}
                   {art.codigo_universal && <span className="ml-2 text-[var(--warn)]">{art.codigo_universal}</span>}
                   <span className="ml-2 px-1 bg-[var(--surface-2)] rounded text-[var(--text-muted)] border border-[var(--border)]">📍 {art.caja_madre || '—'}</span>
                 </p>
@@ -897,7 +897,7 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
 
   if (guardadoOk) return (
     <div className="text-center py-16">
-      <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
+      <CheckCircle className="w-16 h-16 text-[var(--ok)] mx-auto mb-4" />
       <h3 className="text-xl font-bold text-[var(--text)] mb-2">¡Importación completada en Lote!</h3>
       <p className="text-[var(--text-muted)] mb-6">Los costos confirmados se han guardado con éxito. Puedes revertir el reporte si es necesario.</p>
       <div className="flex gap-4 justify-center">
@@ -911,13 +911,13 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
              Continuar vinculando ({pendientesRestantes} restantes)
            </button>
          ) : (
-           <button onClick={onFinish} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-[var(--accent-ink)] font-bold rounded-xl">
+           <button onClick={onFinish} className="px-6 py-2.5 bg-[var(--ok)] hover:brightness-110 text-[var(--accent-ink)] font-bold rounded-xl">
              Finalizar Importación Total
            </button>
          )}
-         <button onClick={onFinish} className="px-6 py-2.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] font-bold rounded-xl">Volver a Importaciones</button>
+         <button onClick={onFinish} className="px-6 py-2.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)] font-bold rounded-xl">Volver a Importaciones</button>
          {batchIdConfirmado && (
-           <button onClick={handleRevertirLote} disabled={revertiendo} className="px-6 py-2.5 bg-rose-100 hover:bg-rose-200 text-[var(--err)] font-bold rounded-xl transition-colors">
+           <button onClick={handleRevertirLote} disabled={revertiendo} className="px-6 py-2.5 bg-[var(--err)]/10 hover:bg-[var(--err)]/20 text-[var(--err)] font-bold rounded-xl transition-colors">
              {revertiendo ? 'Revirtiendo...' : 'Revertir último lote'}
            </button>
          )}
@@ -952,12 +952,12 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
             setSelecciones(nuevas);
          }} className="text-xs text-[var(--text-muted)] hover:underline font-semibold bg-[var(--surface-2)] px-2 py-1 rounded">Marcar todas como Sin Asignar</button>
          <button onClick={handleExportarSinMatchSistema} className="text-xs text-[var(--err)] hover:underline font-semibold bg-[var(--err)]/10 px-2 py-1 rounded">Exportar Sin Match en Sistema</button>
-         <button onClick={handleExportarNoAsignados} className="text-xs text-yellow-600 hover:underline font-semibold bg-yellow-50 px-2 py-1 rounded">Exportar No Asignados</button>
+         <button onClick={handleExportarNoAsignados} className="text-xs text-[var(--warn)] hover:underline font-semibold bg-[var(--warn)]/10 px-2 py-1 rounded">Exportar No Asignados</button>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
          <span className="text-xs text-[var(--text-faint)]">Filtrar vista:</span>
          {(['todos', 'match_exacto', 'match_similitud', 'sin_match'] as const).map((f) => (
-            <button key={f} onClick={() => { setFiltroVista(f); setOffset(0); cargarDatos(0, f, q); }} className={cn('text-xs px-2 py-1 rounded-full border transition-colors', filtroVista === f ? 'bg-[var(--accent)]/20 border-[var(--accent)]/70 text-indigo-700 font-bold' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]/50')}>
+            <button key={f} onClick={() => { setFiltroVista(f); setOffset(0); cargarDatos(0, f, q); }} className={cn('text-xs px-2 py-1 rounded-full border transition-colors', filtroVista === f ? 'bg-[var(--accent)]/20 border-[var(--accent)]/70 text-[var(--accent)] font-bold' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]/50')}>
                {f === 'todos' ? 'Todos' : f === 'match_exacto' ? 'Solo Match (100%)' : f === 'match_similitud' ? 'Revisar Sugeridos' : 'Sin Match'}
             </button>
          ))}
@@ -970,7 +970,7 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
                     placeholder="Buscar modelo o marca..." 
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    className="pl-9 pr-4 py-2 w-full text-sm border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-[var(--accent)]"
+                    className="pl-9 pr-4 py-2 w-full text-sm border border-[var(--border)] rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-[var(--accent)]"
                 />
             </div>
             <button type="submit" className="px-4 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-sm font-bold rounded-lg shadow-sm transition-colors">

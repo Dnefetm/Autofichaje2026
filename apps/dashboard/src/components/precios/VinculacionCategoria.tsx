@@ -1,135 +1,126 @@
 'use client';
-import React, { useState } from 'react';
+import React, { Fragment, useState } from 'react';
 import { Loader2, Check, X, ChevronDown, ChevronUp, Package, Building2 } from 'lucide-react';
-
-interface MatchItem {
-    fila_num: number;
-    sku_proveedor: string;
-    codigo_barra: string;
-    marca_proveedor: string;
-    descripcion_proveedor: string;
-    dist: number;
-    menudeo: number;
-    articulo_id: string;
-    nombre_catalogo: string;
-    marca_catalogo: string;
-    modelo_catalogo: string;
-    codigo_universal: string;
-}
+import { MatchItem } from './vinculacion-types';
 
 interface Props {
-    onAccepted?: (items: MatchItem[]) => void;
     categoria: string;
     titulo: string;
     descripcion: string;
-    color: 'emerald' | 'amber' | 'blue';
-    items: MatchItem[];
+    importacionId: string;
     proveedor: string;
+    items: MatchItem[];
+    total: number;
+    hasMore: boolean;
+    loadingMore: boolean;
+    onLoadMore: () => void;
+    onAccepted: () => void;
 }
 
-const fmtMx = (n: number) => n > 0 ? n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) : '—';
+const fmtMx = (n: number) => (n > 0 ? n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) : '—');
 
-export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcion, color, items, proveedor }: Props) {
+// H6 (POLITICAS_FRONTEND.md): comparación vertical, NO lado a lado.
+// Tabla HTML nativa: Fila Superior = Catálogo, Fila Inferior = Proveedor,
+// columnas idénticas alineadas para escaneo vertical.
+export function VinculacionCategoria({
+    categoria,
+    titulo,
+    descripcion,
+    importacionId,
+    proveedor,
+    items,
+    total,
+    hasMore,
+    loadingMore,
+    onLoadMore,
+    onAccepted,
+}: Props) {
     const [expandido, setExpandido] = useState(true);
     const [aceptando, setAceptando] = useState(false);
     const [aceptados, setAceptados] = useState<Set<number>>(new Set());
     const [rechazados, setRechazados] = useState<Set<number>>(new Set());
 
-    const colorMap = {
-        emerald: { bg: 'bg-[var(--ok)]/10', border: 'border-[var(--ok)]/30', badge: 'bg-emerald-100 text-emerald-800', btn: 'bg-emerald-600 hover:bg-emerald-700 text-white', title: 'text-emerald-800' },
-        amber: { bg: 'bg-[var(--warn)]/10', border: 'border-[var(--warn)]/30', badge: 'bg-amber-100 text-amber-800', btn: 'bg-amber-500 hover:bg-amber-600 text-white', title: 'text-amber-800' },
-        blue: { bg: 'bg-blue-50', border: 'border-blue-200', badge: 'bg-blue-100 text-blue-700', btn: 'bg-blue-600 hover:bg-blue-700 text-white', title: 'text-blue-800' },
-    };
-    const c = colorMap[color];
+    const pendientes = items.filter((i) => !aceptados.has(i.fila_num) && !rechazados.has(i.fila_num));
 
-    const pendientes = items.filter(i => !aceptados.has(i.fila_num) && !rechazados.has(i.fila_num));
+    const vincular = async (lista: MatchItem[]) => {
+        const res = await fetch(`/api/precios/proveedor/${encodeURIComponent(proveedor)}/vincular-lote`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                importacion_id: importacionId,
+                items: lista.map((i) => ({
+                    codigo_excel: i.codigo_barra,
+                    modelo_excel: i.sku_proveedor,
+                    marca_excel: i.marca_proveedor,
+                    articulo_id: i.articulo_id,
+                })),
+            }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.ok) {
+            throw new Error(data?.error || `HTTP ${res.status}`);
+        }
+    };
 
     const handleAceptarTodos = async () => {
+        if (pendientes.length === 0) return;
         if (!confirm(`¿Confirmas vincular los ${pendientes.length} artículos de la categoría "${titulo}"?`)) return;
         setAceptando(true);
         try {
-            const res = await fetch(`/api/precios/proveedor/${encodeURIComponent(proveedor)}/vincular-lote`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    items: pendientes.map(i => ({
-                        codigo_excel: i.codigo_barra,
-                        modelo_excel: i.sku_proveedor,
-                        marca_excel: i.marca_proveedor,
-                        articulo_id: i.articulo_id
-                    }))
-                })
-            });
-            const data = await res.json().catch(() => null);
-            if (res.ok && data?.ok) {
-                setAceptados(new Set(items.map(i => i.fila_num)));
-                if (onAccepted) onAccepted(pendientes);
-            } else {
-                alert(`Error: ${data?.error || `HTTP ${res.status}`}`);
-            }
-        } catch {
-            alert('Error de red');
+            await vincular(pendientes);
+            setAceptados(new Set(items.map((i) => i.fila_num)));
+            onAccepted();
+        } catch (e: any) {
+            alert(`Error: ${e?.message || 'Error de red'}`);
         } finally {
             setAceptando(false);
         }
     };
 
     const handleAceptarUno = async (item: MatchItem) => {
+        setAceptando(true);
         try {
-            const res = await fetch(`/api/precios/proveedor/${encodeURIComponent(proveedor)}/vincular-lote`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    items: [{
-                        codigo_excel: item.codigo_barra,
-                        modelo_excel: item.sku_proveedor,
-                        marca_excel: item.marca_proveedor,
-                        articulo_id: item.articulo_id
-                    }]
-                })
-            });
-            const data = await res.json().catch(() => null);
-            if (res.ok && data?.ok) {
-                setAceptados(prev => new Set([...prev, item.fila_num]));
-                if (onAccepted) onAccepted([item]);
-            } else {
-                alert(`Error al vincular: ${data?.error || `HTTP ${res.status}`}`);
-            }
-        } catch {
-            alert('Error de red');
+            await vincular([item]);
+            setAceptados((prev) => new Set([...prev, item.fila_num]));
+            onAccepted();
+        } catch (e: any) {
+            alert(`Error al vincular: ${e?.message || 'Error de red'}`);
+        } finally {
+            setAceptando(false);
         }
     };
 
+    // Diferencias (H4: ámbar/negritas = discrepancia).
     const highlightDiff = (val1: string, val2: string) => {
         if (!val1 || !val2) return false;
         return val1.trim().toLowerCase() !== val2.trim().toLowerCase();
     };
 
     return (
-        <div className={`rounded-2xl border ${c.border} overflow-hidden shadow-sm mb-6`}>
-            {/* Header de categoría (compacto) */}
-            <div className={`${c.bg} px-4 py-2.5 flex items-center justify-between gap-3`}>
+        <div className="rounded-lg border border-[var(--border)] overflow-hidden shadow-sm mb-6 bg-[var(--surface)]">
+            {/* Header de categoría */}
+            <div className="px-4 py-2.5 flex items-center justify-between gap-3 border-b border-[var(--border)]">
                 <div className="flex items-center gap-2 min-w-0">
                     <button
                         onClick={() => setExpandido(!expandido)}
-                        className="text-[var(--text-muted)] hover:text-[var(--text)] bg-[var(--surface)]/60 rounded p-1 shrink-0"
+                        className="text-[var(--text-muted)] hover:text-[var(--text)] rounded p-1 shrink-0"
                         aria-label={expandido ? 'Colapsar' : 'Expandir'}
                     >
                         {expandido ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </button>
                     <div className="min-w-0">
-                        <h3 className={`font-bold text-sm ${c.title} truncate`}>{titulo}</h3>
+                        <h3 className="font-bold text-sm text-[var(--text)] truncate">{titulo}</h3>
                         <p className="text-[11px] text-[var(--text-muted)] truncate hidden sm:block">{descripcion}</p>
                     </div>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0 ${c.badge}`}>
-                        {pendientes.length} pendientes
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0 bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)]">
+                        {total.toLocaleString()} total
                     </span>
                 </div>
                 {pendientes.length > 0 && (
                     <button
                         onClick={handleAceptarTodos}
                         disabled={aceptando}
-                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-50 ${c.btn}`}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[var(--ok)] text-[var(--accent-ink)] hover:brightness-110 transition-all disabled:opacity-50 shrink-0"
                     >
                         {aceptando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                         Aceptar todos ({pendientes.length})
@@ -138,96 +129,128 @@ export function VinculacionCategoria({ onAccepted, categoria, titulo, descripcio
             </div>
 
             {expandido && (
-                <div className="overflow-y-auto max-h-[calc(100vh-210px)]">
-                    {/* Cabecera de columnas (solo escritorio) */}
-                    <div className="hidden md:grid grid-cols-[1fr_1fr_150px] text-[10px] font-bold uppercase tracking-wider text-[var(--text-faint)] bg-[var(--surface-2)] border-b border-[var(--border)] sticky top-0 z-10">
-                        <div className="px-4 py-2 border-r border-[var(--border)]">Catálogo</div>
-                        <div className="px-4 py-2 border-r border-[var(--border)]">Proveedor</div>
-                        <div className="px-4 py-2 text-center">Acción</div>
+                <>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                            <thead className="bg-[var(--surface-2)]">
+                                <tr className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-faint)] border-b border-[var(--border)]">
+                                    <th className="py-2 px-3 text-left w-24">Origen</th>
+                                    <th className="py-2 px-3 text-left">Nombre / Descripción</th>
+                                    <th className="py-2 px-3 text-left">Marca</th>
+                                    <th className="py-2 px-3 text-left">Modelo / Clave</th>
+                                    <th className="py-2 px-3 text-left">EAN</th>
+                                    <th className="py-2 px-3 text-left">Precios</th>
+                                    <th className="py-2 px-3 text-center">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {items.map((item) => {
+                                    const isAceptado = aceptados.has(item.fila_num);
+                                    const isRechazado = rechazados.has(item.fila_num);
+
+                                    const diffMarca = highlightDiff(item.marca_catalogo, item.marca_proveedor);
+                                    const diffModelo = highlightDiff(item.modelo_catalogo, item.sku_proveedor);
+                                    const diffCodigo = highlightDiff(item.codigo_universal, item.codigo_barra);
+
+                                    const rowState = isAceptado ? 'bg-[var(--ok)]/5' : isRechazado ? 'opacity-40' : '';
+
+                                    return (
+                                        <Fragment key={item.fila_num}>
+                                            {/* Fila Superior: Catálogo (neutro/slate) */}
+                                            <tr className={`align-top ${rowState}`}>
+                                                <td className="py-2 px-3">
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--text-faint)]">
+                                                        <Package className="w-3.5 h-3.5" /> Catálogo
+                                                    </span>
+                                                </td>
+                                                <td className="py-2 px-3 font-semibold text-[var(--text)]" title={item.nombre_catalogo}>
+                                                    {item.nombre_catalogo || '—'}
+                                                </td>
+                                                <td className={`py-2 px-3 ${diffMarca ? 'text-[var(--warn)] font-bold' : 'text-[var(--text-muted)]'}`}>
+                                                    {item.marca_catalogo || '—'}
+                                                </td>
+                                                <td className={`py-2 px-3 font-mono ${diffModelo ? 'text-[var(--warn)] font-bold' : 'text-[var(--text-muted)]'}`}>
+                                                    {item.modelo_catalogo || '—'}
+                                                </td>
+                                                <td className={`py-2 px-3 font-mono ${diffCodigo ? 'text-[var(--warn)] font-bold' : 'text-[var(--text-muted)]'}`}>
+                                                    {item.codigo_universal || '—'}
+                                                </td>
+                                                <td className="py-2 px-3 text-[var(--text-faint)]">—</td>
+                                                <td className="py-2 px-3 text-center align-middle border-l border-[var(--border)]" rowSpan={2}>
+                                                    {isAceptado ? (
+                                                        <span className="inline-flex items-center justify-center gap-1.5 text-[var(--ok)] font-bold text-xs border border-[var(--ok)]/30 bg-[var(--ok)]/10 py-2 px-2 rounded-lg">
+                                                            <Check className="w-4 h-4" /> Vinculado
+                                                        </span>
+                                                    ) : isRechazado ? (
+                                                        <span className="inline-flex items-center justify-center gap-1.5 text-[var(--text-muted)] font-bold text-xs bg-[var(--surface-2)] border border-[var(--border)] py-2 px-2 rounded-lg">
+                                                            <X className="w-4 h-4" /> Ignorado
+                                                        </span>
+                                                    ) : (
+                                                        <div className="flex flex-col gap-1.5 items-stretch">
+                                                            <button
+                                                                onClick={() => handleAceptarUno(item)}
+                                                                disabled={aceptando}
+                                                                className="py-1.5 px-2 bg-[var(--ok)]/15 hover:bg-[var(--ok)]/25 border border-[var(--ok)]/30 text-[var(--ok)] rounded-lg font-bold text-xs transition-colors inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                                            >
+                                                                <Check className="w-3.5 h-3.5" /> Aceptar
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setRechazados((prev) => new Set([...prev, item.fila_num]))}
+                                                                disabled={aceptando}
+                                                                className="py-1.5 px-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] rounded-lg font-bold text-xs transition-colors inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                                            >
+                                                                <X className="w-3.5 h-3.5" /> Ignorar
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+
+                                            {/* Fila Inferior: Proveedor (índigo/accent) */}
+                                            <tr className={`align-top ${rowState}`}>
+                                                <td className="py-2 px-3 border-b border-[var(--border)]">
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
+                                                        <Building2 className="w-3.5 h-3.5" /> Proveedor
+                                                    </span>
+                                                </td>
+                                                <td className="py-2 px-3 border-b border-[var(--border)] text-[var(--text)]" title={item.descripcion_proveedor}>
+                                                    {item.descripcion_proveedor || item.sku_proveedor || '—'}
+                                                </td>
+                                                <td className={`py-2 px-3 border-b border-[var(--border)] ${diffMarca ? 'text-[var(--warn)] font-bold' : 'text-[var(--text-muted)]'}`}>
+                                                    {item.marca_proveedor || '—'}
+                                                </td>
+                                                <td className={`py-2 px-3 border-b border-[var(--border)] font-mono ${diffModelo ? 'text-[var(--warn)] font-bold' : 'text-[var(--text-muted)]'}`}>
+                                                    {item.sku_proveedor || '—'}
+                                                </td>
+                                                <td className={`py-2 px-3 border-b border-[var(--border)] font-mono ${diffCodigo ? 'text-[var(--warn)] font-bold' : 'text-[var(--text-muted)]'}`}>
+                                                    {item.codigo_barra || '—'}
+                                                </td>
+                                                <td className="py-2 px-3 border-b border-[var(--border)] text-[var(--text-muted)] font-mono">
+                                                    <span>Dist: <b className="text-[var(--text)]">{fmtMx(item.dist)}</b></span>
+                                                    <span className="opacity-50"> · </span>
+                                                    <span>Men: <b className="text-[var(--text)]">{fmtMx(item.menudeo)}</b></span>
+                                                </td>
+                                            </tr>
+                                        </Fragment>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
 
-                    <div className="divide-y divide-[var(--border)]">
-                        {items.map((item) => {
-                            const isAceptado = aceptados.has(item.fila_num);
-                            const isRechazado = rechazados.has(item.fila_num);
-
-                            const diffMarca = highlightDiff(item.marca_catalogo, item.marca_proveedor);
-                            const diffModelo = highlightDiff(item.modelo_catalogo, item.sku_proveedor);
-                            const diffCodigo = highlightDiff(item.codigo_universal, item.codigo_barra);
-
-                            const rowBg = isAceptado ? 'bg-[var(--ok)]/5'
-                                : isRechazado ? 'bg-[var(--bg)] opacity-40'
-                                : 'hover:bg-[var(--bg)]/60';
-
-                            return (
-                                <div
-                                    key={item.fila_num}
-                                    className={`grid grid-cols-1 md:grid-cols-[1fr_1fr_150px] gap-y-2 md:gap-y-0 px-4 py-2.5 transition-colors ${rowBg}`}
-                                >
-                                    {/* CATÁLOGO */}
-                                    <div className="min-w-0 md:pr-4 md:border-r border-[var(--border)]">
-                                        <div className="flex items-center gap-1.5 mb-0.5">
-                                            <Package className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
-                                            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Catálogo</span>
-                                        </div>
-                                        <p className="font-semibold text-[var(--text)] truncate leading-tight" title={item.nombre_catalogo}>{item.nombre_catalogo || '—'}</p>
-                                        <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">
-                                            <span className={diffMarca ? 'text-[var(--warn)] font-semibold' : ''}>{item.marca_catalogo || '—'}</span>
-                                            <span className="opacity-50"> · </span>
-                                            <span className={diffModelo ? 'text-[var(--warn)] font-semibold font-mono' : 'font-mono'}>{item.modelo_catalogo || '—'}</span>
-                                            <span className="opacity-50"> · EAN </span>
-                                            <span className={`font-mono ${diffCodigo ? 'text-[var(--warn)] font-semibold' : ''}`}>{item.codigo_universal || '—'}</span>
-                                        </p>
-                                    </div>
-
-                                    {/* PROVEEDOR */}
-                                    <div className="min-w-0 md:px-4">
-                                        <div className="flex items-center gap-1.5 mb-0.5">
-                                            <Building2 className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
-                                            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">{proveedor}</span>
-                                        </div>
-                                        <p className="text-[var(--text)] truncate leading-tight" title={item.descripcion_proveedor}>{item.descripcion_proveedor || item.sku_proveedor || '—'}</p>
-                                        <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">
-                                            <span className="font-mono font-semibold">{item.sku_proveedor || '—'}</span>
-                                            <span className="opacity-50"> · </span>
-                                            <span>{item.marca_proveedor || '—'}</span>
-                                            <span className="opacity-50"> · EAN </span>
-                                            <span className="font-mono">{item.codigo_barra || '—'}</span>
-                                        </p>
-                                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] font-mono text-[var(--text-muted)]">
-                                            <span>Dist: <b className="text-[var(--text)]">{fmtMx(item.dist)}</b></span>
-                                            <span>Men: <b className="text-[var(--text)]">{fmtMx(item.menudeo)}</b></span>
-                                        </div>
-                                    </div>
-
-                                    {/* ACCIÓN */}
-                                    <div className="flex md:flex-col gap-1.5 md:justify-center md:pl-4 md:border-l border-[var(--border)]">
-                                        {isAceptado ? (
-                                            <span className="inline-flex items-center justify-center gap-1.5 text-emerald-700 font-bold text-xs bg-emerald-100 border border-emerald-300 py-2 px-2 rounded-lg"><Check className="w-4 h-4" /> Vinculado</span>
-                                        ) : isRechazado ? (
-                                            <span className="inline-flex items-center justify-center gap-1.5 text-[var(--text-muted)] font-bold text-xs bg-[var(--surface-2)] border border-[var(--border)] py-2 px-2 rounded-lg"><X className="w-4 h-4" /> Ignorado</span>
-                                        ) : (
-                                            <>
-                                                <button
-                                                    onClick={() => handleAceptarUno(item)}
-                                                    className="w-full py-1.5 px-2 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-800 rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
-                                                >
-                                                    <Check className="w-3.5 h-3.5" /> Aceptar
-                                                </button>
-                                                <button
-                                                    onClick={() => setRechazados(prev => new Set([...prev, item.fila_num]))}
-                                                    className="w-full py-1.5 px-2 bg-[var(--surface)] hover:bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
-                                                >
-                                                    <X className="w-3.5 h-3.5" /> Ignorar
-                                                </button>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
+                    {hasMore && (
+                        <div className="px-4 py-3 border-t border-[var(--border)] flex justify-center bg-[var(--bg)]">
+                            <button
+                                onClick={onLoadMore}
+                                disabled={loadingMore}
+                                className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-xs font-bold disabled:opacity-50"
+                            >
+                                {loadingMore ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                Cargar más ({items.length.toLocaleString()} de {total.toLocaleString()})
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

@@ -15,7 +15,7 @@ export default async function HistorialProveedorPage(props: { params: Promise<{ 
 
     return (
         <div className="flex flex-col h-[calc(100vh-80px)]">
-            <header className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] bg-[var(--surface)] shrink-0">
+            <header className="flex items-center justify-between gap-3 flex-wrap px-6 py-4 border-b border-[var(--border)] bg-[var(--surface)] shrink-0">
                 <div className="flex flex-col">
                     <div className="flex items-center text-sm text-[var(--text-muted)] mb-1">
                         <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}`} className="hover:text-[var(--accent)] transition flex items-center">
@@ -35,7 +35,7 @@ export default async function HistorialProveedorPage(props: { params: Promise<{ 
 
             <div className="flex-1 overflow-auto bg-[var(--surface)] p-6">
                 {error ? (
-                    <div className="text-red-600">Error: {error.message}</div>
+                    <div className="text-[var(--err)]">Error: {error.message}</div>
                 ) : !historial || historial.length === 0 ? (
                     <div className="text-[var(--text-muted)]">No hay historial para este proveedor.</div>
                 ) : (
@@ -57,7 +57,7 @@ export default async function HistorialProveedorPage(props: { params: Promise<{ 
                 )}
             </div>
             <style dangerouslySetInnerHTML={{__html: `
-                .btn-outline-indigo { @apply inline-flex items-center px-4 py-2 bg-[var(--surface)] border border-[var(--accent)]/30 rounded-md font-medium text-indigo-700 hover:bg-[var(--accent)]/10 hover:border-[var(--accent)]/50 shadow-sm text-sm transition-colors; }
+                .btn-outline-indigo { @apply inline-flex items-center px-4 py-2 bg-[var(--surface)] border border-[var(--accent)]/30 rounded-md font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10 hover:border-[var(--accent)]/50 shadow-sm text-sm transition-colors; }
             `}} />
         </div>
     );

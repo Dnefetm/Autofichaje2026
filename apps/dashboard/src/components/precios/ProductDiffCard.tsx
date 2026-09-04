@@ -32,8 +32,8 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
     return (
         <div className={cn(
             "bg-[var(--surface)] rounded-lg border mb-6 shadow-sm overflow-hidden transition-all",
-            isAprobado ? "border-emerald-300 ring-1 ring-emerald-500/20" : 
-            isRechazado ? "border-rose-300 ring-1 ring-rose-500/20" : 
+            isAprobado ? "border-[var(--ok)]/40 ring-1 ring-[var(--ok)]/20" : 
+            isRechazado ? "border-[var(--err)]/40 ring-1 ring-[var(--err)]/20" : 
             isAusente ? "border-[var(--border)] opacity-75" : "border-[var(--border)]"
         )}>
             {/* Row 1: Header */}
@@ -50,7 +50,7 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                                 <X className="w-3 h-3" strokeWidth={3} />
                             </div>
                         ) : (
-                            <div className="w-5 h-5 border-2 border-slate-300 rounded" />
+                            <div className="w-5 h-5 border-2 border-[var(--border)] rounded" />
                         )}
                     </div>
                     <div>
@@ -58,8 +58,8 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                             <span className={cn("font-semibold text-[var(--text)]", isAusente && "line-through text-[var(--text-muted)]")}>
                                 {product.marca} · {product.modelo} · <span className="font-mono text-sm">{product.codigo_universal}</span>
                             </span>
-                            {isNuevo && <span className="text-[10px] font-bold tracking-wider uppercase bg-[var(--accent)]/20 text-indigo-700 px-1.5 py-0.5 rounded">Nuevo</span>}
-                            {isAusente && <span className="text-[10px] font-bold tracking-wider uppercase bg-slate-200 text-[var(--text-muted)] px-1.5 py-0.5 rounded">Ausente</span>}
+                            {isNuevo && <span className="text-[10px] font-bold tracking-wider uppercase bg-[var(--accent)]/20 text-[var(--accent)] px-1.5 py-0.5 rounded">Nuevo</span>}
+                            {isAusente && <span className="text-[10px] font-bold tracking-wider uppercase bg-[var(--surface-2)] text-[var(--text-muted)] px-1.5 py-0.5 rounded">Ausente</span>}
                             {isSinCambio && <span className="text-[10px] font-bold tracking-wider uppercase bg-[var(--surface-2)] text-[var(--text-muted)] px-1.5 py-0.5 rounded">Sin cambio</span>}
                         </div>
                         <p className="text-[13px] text-[var(--text-muted)] mt-0.5 truncate max-w-xl" title={product.nombre}>{product.nombre}</p>
@@ -71,7 +71,7 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                         onClick={() => onDecision(isAprobado ? 'pendiente' : 'aprobado')}
                         className={cn(
                             "px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center",
-                            isAprobado ? "bg-emerald-100 text-emerald-800" : "bg-[var(--surface)] hover:bg-[var(--bg)] text-[var(--text-muted)] border border-[var(--border)]"
+                            isAprobado ? "bg-[var(--ok)]/15 text-[var(--ok)]" : "bg-[var(--surface)] hover:bg-[var(--bg)] text-[var(--text-muted)] border border-[var(--border)]"
                         )}
                     >
                         {isAprobado && <Check className="w-4 h-4 mr-1.5" />}
@@ -81,7 +81,7 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                         onClick={() => onDecision(isRechazado ? 'pendiente' : 'rechazado')}
                         className={cn(
                             "px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center",
-                            isRechazado ? "bg-rose-100 text-rose-800" : "bg-[var(--surface)] hover:bg-[var(--bg)] text-[var(--text-muted)] border border-[var(--border)]"
+                            isRechazado ? "bg-[var(--err)]/15 text-[var(--err)]" : "bg-[var(--surface)] hover:bg-[var(--bg)] text-[var(--text-muted)] border border-[var(--border)]"
                         )}
                     >
                         {isRechazado && <X className="w-4 h-4 mr-1.5" />}
@@ -94,7 +94,7 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
             {!isSinCambio && (
                 <div className="flex flex-col">
                     {/* Row 2: Headers */}
-                    <div className="bg-[#FAFAFA] grid grid-cols-5 px-5 py-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)]">
+                    <div className="bg-[var(--surface-2)] grid grid-cols-5 px-5 py-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)]">
                         <div></div>
                         <div className="text-right">Distribuidor</div>
                         <div className="text-right">Subdistribuidor</div>
@@ -103,9 +103,9 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                     </div>
 
                     {/* Row 3: Vigente */}
-                    <div className="grid grid-cols-5 px-5 py-2.5 items-center border-b border-slate-50">
+                    <div className="grid grid-cols-5 px-5 py-2.5 items-center border-b border-[var(--border)]">
                         <div className="text-[13px] font-medium text-[var(--text-muted)] flex items-center">
-                            <span className="w-2 h-2 rounded-full bg-slate-300 mr-2"></span> Vigente
+                            <span className="w-2 h-2 rounded-full bg-[var(--text-faint)] mr-2"></span> Vigente
                         </div>
                         <div className="text-right text-sm text-[var(--text-muted)]">{product.tiers.distribuidor.vigente ? fmt.format(product.tiers.distribuidor.vigente) : '—'}</div>
                         <div className="text-right text-sm text-[var(--text-muted)]">{product.tiers.subdistribuidor.vigente ? fmt.format(product.tiers.subdistribuidor.vigente) : '—'}</div>
@@ -114,8 +114,8 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                     </div>
 
                     {/* Row 4: Nuevo */}
-                    <div className="grid grid-cols-5 px-5 py-3 items-start bg-[#F5F8FF]">
-                        <div className="text-[13px] font-bold text-indigo-900 flex items-center pt-1">
+                    <div className="grid grid-cols-5 px-5 py-3 items-start bg-[var(--accent)]/5">
+                        <div className="text-[13px] font-bold text-[var(--accent)] flex items-center pt-1">
                             <span className="w-2 h-2 rounded-full bg-[var(--accent)]/100 mr-2"></span> Nuevo
                         </div>
                         

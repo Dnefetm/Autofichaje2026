@@ -58,13 +58,13 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
 
   const getStatusInfo = () => {
     switch (s.estado) {
-      case 'pendiente_mapeo': return { title: 'Pendiente', color: 'text-blue-500', bg: 'bg-blue-50' };
-      case 'mapeando': return { title: 'Digeriendo Excel', color: 'text-blue-500', bg: 'bg-blue-50' };
+      case 'pendiente_mapeo': return { title: 'Pendiente', color: 'text-[var(--info)]', bg: 'bg-[var(--info)]/10' };
+      case 'mapeando': return { title: 'Digeriendo Excel', color: 'text-[var(--info)]', bg: 'bg-[var(--info)]/10' };
       case 'procesando': return { title: 'Procesando el archivo...', color: 'text-[var(--accent)]', bg: 'bg-[var(--accent)]/10 animate-pulse' };
-      case 'en_revision': return { title: 'Requiere revisión manual', color: 'text-amber-500', bg: 'bg-[var(--warn)]/10' };
+      case 'en_revision': return { title: 'Requiere revisión manual', color: 'text-[var(--warn)]', bg: 'bg-[var(--warn)]/10' };
       case 'error': return { title: 'Proceso fallido', color: 'text-[var(--err)]', bg: 'bg-[var(--err)]/10' };
       case 'cancelado': return { title: 'Importación cancelada', color: 'text-[var(--text-muted)]', bg: 'bg-[var(--bg)]' };
-      case 'completado': return { title: 'Lista Vigente Registrada', color: 'text-emerald-500', bg: 'bg-[var(--ok)]/10' };
+      case 'completado': return { title: 'Lista Vigente Registrada', color: 'text-[var(--ok)]', bg: 'bg-[var(--ok)]/10' };
       default: return { title: 'Preparando...', color: 'text-[var(--text-muted)]', bg: 'bg-[var(--bg)]' };
     }
   };
@@ -146,7 +146,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
                         setIsConsolidating(false);
                      }
                   }}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] px-8 py-3 rounded-xl font-bold transition-all shadow shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] px-8 py-3 rounded-xl font-bold transition-all shadow shadow-[var(--accent)]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isConsolidating ? 'Consolidando precios...' : 'Confirmar Efectividad de Cambios'}
                   {!isConsolidating && <ArrowRight className="w-4 h-4" />}
@@ -157,7 +157,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
            {['completado', 'mapeando', 'error'].includes(s.estado) && (
              <button 
                onClick={() => router.push(`/precios/matching?importacion_id=${id}`)}
-               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-[var(--accent-ink)] px-6 py-3 rounded-xl font-bold transition-all shadow shadow-emerald-600/20"
+               className="flex items-center gap-2 bg-[var(--ok)] hover:brightness-110 text-[var(--accent-ink)] px-6 py-3 rounded-xl font-bold transition-all shadow shadow-[var(--ok)]/20"
              >
                Ir al Motor de Matching Independiente
                <ArrowRight className="w-4 h-4" />
@@ -166,7 +166,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
 
            {s.estado === 'error' && (
              <div className="flex flex-col items-center gap-4">
-                <div className="bg-[var(--err)]/10 text-[var(--err)] px-6 py-4 rounded-xl text-sm font-medium border border-rose-100 max-w-sm overflow-hidden break-words">
+                <div className="bg-[var(--err)]/10 text-[var(--err)] px-6 py-4 rounded-xl text-sm font-medium border border-[var(--err)]/30 max-w-sm overflow-hidden break-words">
                    <span className="font-bold block mb-1">Error crítico:</span>
                    {s.error_mensaje || 'Fallo desconocido en el worker.'}
                 </div>
@@ -182,7 +182,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
            {s.estado === 'cancelado' && (
              <button 
                onClick={handleReintentar}
-               className="flex items-center gap-2 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] px-6 py-2.5 rounded-xl font-bold transition-all"
+               className="flex items-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)] px-6 py-2.5 rounded-xl font-bold transition-all"
              >
                <RefreshCcw className="w-4 h-4" /> Reintentar
              </button>
@@ -194,13 +194,13 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
       <div className="w-full md:w-96 bg-[var(--surface-2)] flex flex-col max-h-[500px]">
          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between bg-black/20">
             <div className="flex items-center gap-2">
-               <Terminal className="w-4 h-4 text-emerald-400" />
-               <span className="text-xs font-mono font-bold text-slate-300">import_worker.log</span>
+               <Terminal className="w-4 h-4 text-[var(--ok)]" />
+               <span className="text-xs font-mono font-bold text-[var(--text-muted)]">import_worker.log</span>
             </div>
             <div className="flex items-center gap-2">
                <span className="relative flex h-2 w-2">
-                 <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", s.estado === 'mapeando' ? 'bg-emerald-400' : 'hidden')}></span>
-                 <span className={cn("relative inline-flex rounded-full h-2 w-2", s.estado === 'mapeando' ? 'bg-[var(--ok)]/100' : 'bg-slate-600')}></span>
+                 <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", s.estado === 'mapeando' ? 'bg-[var(--ok)]' : 'hidden')}></span>
+                 <span className={cn("relative inline-flex rounded-full h-2 w-2", s.estado === 'mapeando' ? 'bg-[var(--ok)]' : 'bg-[var(--text-faint)]')}></span>
                </span>
                <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase">{s.estado === 'mapeando' ? 'LIVE' : 'OFFLINE'}</span>
             </div>
@@ -212,10 +212,10 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
                eventos.map((ev, i) => (
                   <div key={ev.id} className={cn(
                      "border-l-2 pl-3 py-1",
-                     ev.estado_paso.includes('ERROR') ? 'border-rose-500 text-rose-400' :
-                     ev.estado_paso === 'COMPLETADO' ? 'border-emerald-500 text-emerald-400' :
-                     ev.estado_paso === 'INICIO' ? 'border-[var(--accent)] text-indigo-400' :
-                     'border-slate-700 text-[var(--text-faint)]'
+                     ev.estado_paso.includes('ERROR') ? 'border-[var(--err)] text-[var(--err)]' :
+                     ev.estado_paso === 'COMPLETADO' ? 'border-[var(--ok)] text-[var(--ok)]' :
+                     ev.estado_paso === 'INICIO' ? 'border-[var(--accent)] text-[var(--accent)]' :
+                     'border-[var(--border)] text-[var(--text-faint)]'
                   )}>
                      <div className="flex justify-between items-start">
                         <span className="font-bold mix-blend-plus-lighter">{ev.estado_paso}</span>

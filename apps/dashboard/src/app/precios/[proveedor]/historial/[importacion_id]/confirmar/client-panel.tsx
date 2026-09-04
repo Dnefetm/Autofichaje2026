@@ -166,7 +166,7 @@ export function PriceConfirmationPanelClient({
                     <button
                         onClick={() => handleConfirmar(false)}
                         disabled={loading || productos.length === 0}
-                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-[var(--accent-ink)] rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                        className="px-5 py-2.5 bg-[var(--ok)] hover:brightness-110 text-[var(--accent-ink)] rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
                     >
                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                         Aprobar Todos ({productos.length})
@@ -190,7 +190,7 @@ export function PriceConfirmationPanelClient({
                     <span className="font-bold text-[var(--text-muted)]">Filtrar:</span>
                     <button
                         onClick={() => setFiltro('todos')}
-                        className={`px-3 py-1 rounded-lg font-medium transition-colors ${filtro === 'todos' ? 'bg-[var(--accent)]/10 text-indigo-700 font-bold' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+                        className={`px-3 py-1 rounded-lg font-medium transition-colors ${filtro === 'todos' ? 'bg-[var(--accent)]/10 text-[var(--accent)] font-bold' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
                     >
                         Todos ({productos.length})
                     </button>
@@ -223,7 +223,7 @@ export function PriceConfirmationPanelClient({
                                     type="checkbox"
                                     onChange={e => handleSelectAll(e.target.checked)}
                                     checked={selectedKeys.size === productosFiltrados.length && productosFiltrados.length > 0}
-                                    className="rounded border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)]"
+                                    className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
                                 />
                             </th>
                             <th className="py-3 px-4 min-w-[220px]">Producto / Catálogo</th>
@@ -242,7 +242,7 @@ export function PriceConfirmationPanelClient({
                                         type="checkbox"
                                         checked={selectedKeys.has(prod.key)}
                                         onChange={e => handleSelectOne(prod.key, e.target.checked)}
-                                        className="rounded border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)]"
+                                        className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
                                     />
                                 </td>
 
@@ -267,7 +267,7 @@ export function PriceConfirmationPanelClient({
                                     const pInfo = prod.precios.find(pr => pr.tipo_costo?.toLowerCase() === tipo);
                                     if (!pInfo) {
                                         return (
-                                            <td key={tipo} className="py-3.5 px-4 text-right align-top text-slate-300">
+                                            <td key={tipo} className="py-3.5 px-4 text-right align-top text-[var(--text-faint)]">
                                                 —
                                             </td>
                                         );
@@ -281,7 +281,7 @@ export function PriceConfirmationPanelClient({
                                         <td key={tipo} className="py-3 px-4 text-right align-top">
                                             {/* Renglón 1: Precio Previo */}
                                             <div className="text-[11px] text-[var(--text-faint)]">
-                                                {tienePrevio ? fmtMx.format(pInfo.valor_anterior!) : <span className="italic text-slate-300">Previo: —</span>}
+                                                {tienePrevio ? fmtMx.format(pInfo.valor_anterior!) : <span className="italic text-[var(--text-faint)]">Previo: —</span>}
                                             </div>
 
                                             {/* Renglón 2: Precio Nuevo + Variación */}

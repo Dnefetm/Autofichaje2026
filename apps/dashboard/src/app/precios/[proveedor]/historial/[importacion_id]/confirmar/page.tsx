@@ -78,7 +78,7 @@ export default async function ConfirmarPageWrapper(props: { params: Promise<{ pr
             </Link>
             
             {fetchError ? (
-                <div className="text-red-500">Error: {fetchError.message}</div>
+                <div className="text-[var(--err)]">Error: {fetchError.message}</div>
             ) : (
                 <PriceConfirmationPanelClient 
                     importacionId={params.importacion_id} 

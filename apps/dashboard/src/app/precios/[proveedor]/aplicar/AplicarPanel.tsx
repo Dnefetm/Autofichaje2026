@@ -86,7 +86,7 @@ export function AplicarPanel({ importacion, loteNum, stats, proveedor }: { impor
                             <Link href={`/precios/${encodeURIComponent(proveedor)}`} className="flex-1 px-4 py-2 bg-[var(--surface-2)] text-[var(--accent-ink)] rounded-lg font-medium hover:bg-[var(--surface)] transition-colors">
                                 Volver al Hub
                             </Link>
-                            <Link href={`/precios/${encodeURIComponent(proveedor)}/historico`} className="flex-1 px-4 py-2 bg-[var(--surface)] border border-slate-300 text-[var(--text-muted)] rounded-lg font-medium hover:bg-[var(--bg)] transition-colors">
+                            <Link href={`/precios/${encodeURIComponent(proveedor)}/historico`} className="flex-1 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] rounded-lg font-medium hover:bg-[var(--bg)] transition-colors">
                                 Ver histórico
                             </Link>
                         </div>
@@ -104,19 +104,19 @@ export function AplicarPanel({ importacion, loteNum, stats, proveedor }: { impor
                 </div>
                 <div className="p-6 space-y-4">
                     <div className="flex items-center text-[var(--ok)] font-medium">
-                        <Check className="w-5 h-5 mr-3 text-emerald-500" /> {stats.actualizados} precios actualizados
+                        <Check className="w-5 h-5 mr-3 text-[var(--ok)]" /> {stats.actualizados} precios actualizados
                     </div>
                     <div className="flex items-center text-[var(--ok)] font-medium">
-                        <Check className="w-5 h-5 mr-3 text-emerald-500" /> {stats.nuevos} SKUs nuevos añadidos a la lista
+                        <Check className="w-5 h-5 mr-3 text-[var(--ok)]" /> {stats.nuevos} SKUs nuevos añadidos a la lista
                     </div>
                     <div className="flex items-center text-[var(--ok)] font-medium">
-                        <Check className="w-5 h-5 mr-3 text-emerald-500" /> {stats.descontinuados} SKUs marcados como descontinuados
+                        <Check className="w-5 h-5 mr-3 text-[var(--ok)]" /> {stats.descontinuados} SKUs marcados como descontinuados
                     </div>
                     <div className="flex items-center text-[var(--err)] font-medium">
                         <X className="w-5 h-5 mr-3 text-[var(--err)]" /> {stats.rechazados} cambios rechazados (no se aplicarán)
                     </div>
                     <div className="flex items-center text-[var(--text-muted)] font-medium">
-                        <div className="w-5 h-5 rounded-full border-2 border-slate-300 mr-3 flex items-center justify-center"></div>
+                        <div className="w-5 h-5 rounded-full border-2 border-[var(--border)] mr-3 flex items-center justify-center"></div>
                         {stats.sin_cambio} sin cambio (no aplica)
                     </div>
                 </div>

@@ -112,12 +112,12 @@ export default async function HubProveedorPage(props: {
                         </Link>
                         <span className="mx-2">/</span>
                         <span className="font-medium text-[var(--text-muted)]">{proveedorDecoded}</span>
-                        <span className="mx-3 text-slate-300">|</span>
+                        <span className="mx-3 text-[var(--text-faint)]">|</span>
                         <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial`} className="hover:text-[var(--accent)] flex items-center gap-1">
                             <History className="w-3.5 h-3.5" /> Historial de Lotes
                         </Link>
                     </div>
-                    <div className="flex items-end justify-between">
+                    <div className="flex items-end justify-between gap-4 flex-wrap">
                         <div>
                             <h1 className="text-3xl font-bold text-[var(--text)] tracking-tight">{proveedorDecoded}</h1>
                             <p className="text-sm text-[var(--text-muted)] mt-1">
@@ -142,7 +142,7 @@ export default async function HubProveedorPage(props: {
 
             <div className="flex-1 overflow-hidden flex flex-col bg-[var(--bg)]">
                 {/* Buscador */}
-                <div className="p-4 bg-[var(--surface)] border-b border-[var(--border)] flex items-center gap-3 shrink-0">
+                <div className="p-4 bg-[var(--surface)] border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
                     <form action={`/precios/${encodeURIComponent(proveedorDecoded)}`} method="GET" className="flex items-center gap-3 flex-1">
                         <div className="relative w-full max-w-xl">
                             <Search className="w-4 h-4 absolute left-3.5 top-3 text-[var(--text-faint)]" />
@@ -158,7 +158,7 @@ export default async function HubProveedorPage(props: {
                             Buscar
                         </button>
                         {q && (
-                            <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}`} className="px-4 py-2.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-xl text-sm font-medium transition-colors">
+                            <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}`} className="px-4 py-2.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)] rounded-xl text-sm font-medium transition-colors">
                                 Limpiar
                             </Link>
                         )}
@@ -186,7 +186,7 @@ export default async function HubProveedorPage(props: {
                             {page > 0 && (
                                 <Link
                                     href={`/precios/${encodeURIComponent(proveedorDecoded)}?page=${page - 1}`}
-                                    className="px-4 py-2 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-lg font-medium transition-colors"
+                                    className="px-4 py-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)] rounded-lg font-medium transition-colors"
                                 >
                                     ← Anterior
                                 </Link>

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -84,7 +84,7 @@ export default function AuditoriaPricingPage() {
 
             {drafts.length === 0 ? (
                 <div className="bg-[var(--surface)] p-10 rounded-xl border border-[var(--border)] text-center text-[var(--text-muted)] flex flex-col items-center">
-                    <CheckSquare className="w-10 h-10 text-green-400 mb-3" />
+                    <CheckSquare className="w-10 h-10 text-[var(--ok)] mb-3" />
                     <p className="font-bold text-[var(--text-muted)]">¡Todo al día!</p>
                     <p className="text-sm">No hay precios pendientes de aprobación.</p>
                 </div>
@@ -114,7 +114,7 @@ export default function AuditoriaPricingPage() {
                                     <tr key={d.publicacion_id} className="hover:bg-[var(--bg)] transition-colors">
                                         <td className="px-4 py-3">
                                             <button onClick={() => toggleSelect(d.publicacion_id)}>
-                                                {selected.has(d.publicacion_id) ? <CheckSquare className="w-4 h-4 text-[var(--accent)]" /> : <Square className="w-4 h-4 text-slate-300" />}
+                                                {selected.has(d.publicacion_id) ? <CheckSquare className="w-4 h-4 text-[var(--accent)]" /> : <Square className="w-4 h-4 text-[var(--text-faint)]" />}
                                             </button>
                                         </td>
                                         <td className="px-4 py-3">

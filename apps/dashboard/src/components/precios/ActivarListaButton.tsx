@@ -34,7 +34,7 @@ export function ActivarListaButton({ importacionId, proveedor }: { importacionId
 
     if (done) {
         return (
-            <div className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-100 text-[var(--ok)] rounded-xl font-bold text-sm">
+            <div className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--ok)]/10 text-[var(--ok)] rounded-xl font-bold text-sm">
                 <CheckCircle2 className="w-5 h-5" />
                 ¡Lista activada! Redirigiendo...
             </div>
@@ -45,7 +45,7 @@ export function ActivarListaButton({ importacionId, proveedor }: { importacionId
         <button
             onClick={handleActivar}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-[var(--accent-ink)] rounded-xl font-bold text-sm shadow-sm transition-all disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--ok)] hover:brightness-110 text-[var(--accent-ink)] rounded-xl font-bold text-sm shadow-sm transition-all disabled:opacity-60"
         >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             Activar como Lista Vigente

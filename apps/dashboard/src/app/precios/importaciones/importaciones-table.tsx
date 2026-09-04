@@ -78,7 +78,7 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
   if (rows.length === 0) {
     return (
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl py-24 text-center">
-        <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+        <FileText className="w-12 h-12 text-[var(--text-faint)] mx-auto mb-4" />
         <h3 className="text-lg font-semibold text-[var(--text)]">No hay importaciones aún</h3>
         <p className="text-[var(--text-muted)] mt-2">Sube tu primer Excel desde "Nueva importación".</p>
       </div>
@@ -142,7 +142,7 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2 text-[var(--text-faint)]">
                     {row.estado === 'en_revision' && (
-                      <button onClick={() => router.push(`/precios/importaciones/${row.id}`)} className="bg-[var(--warn)]/10 text-[var(--warn)] hover:bg-amber-100 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors">
+                      <button onClick={() => router.push(`/precios/importaciones/${row.id}`)} className="bg-[var(--warn)]/10 text-[var(--warn)] hover:bg-[var(--warn)]/20 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors">
                         Revisar Cambios <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     )}
@@ -152,12 +152,12 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
                        </button>
                     )}
                     {row.estado === 'matching_completo' && (
-                       <button onClick={() => router.push(`/precios/matching?importacion_id=${row.id}`)} className="bg-[var(--ok)]/10 text-[var(--ok)] hover:bg-emerald-100 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors">
+                       <button onClick={() => router.push(`/precios/matching?importacion_id=${row.id}`)} className="bg-[var(--ok)]/10 text-[var(--ok)] hover:bg-[var(--ok)]/20 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors">
                          Continuar Revisión <ArrowRight className="w-3.5 h-3.5" />
                        </button>
                     )}
                     {['pendiente_mapeo', 'mapeando'].includes(row.estado) && (
-                       <button onClick={() => router.push(`/precios/matching?importacion_id=${row.id}`)} className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors">
+                       <button onClick={() => router.push(`/precios/matching?importacion_id=${row.id}`)} className="bg-[var(--info)]/10 text-[var(--info)] hover:bg-[var(--info)]/20 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors">
                          Mapear Columnas <ArrowRight className="w-3.5 h-3.5" />
                        </button>
                     )}
@@ -187,14 +187,14 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
 
 function BadgeEstado({ estado }: { estado: string }) {
   switch (estado) {
-    case 'pendiente_mapeo': return <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Pendiente</span>;
-    case 'mapeando': return <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Mapeando</span>;
-    case 'procesando': return <span className="inline-flex items-center gap-1.5 bg-[var(--accent)]/10 text-indigo-700 font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]/100 animate-pulse"></div> Procesando</span>;
-    case 'matching_completo': return <span className="inline-flex items-center gap-1.5 bg-[var(--ok)]/10 text-[var(--ok)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><AlertTriangle className="w-3 h-3 text-emerald-500" /> Revisión Matching</span>;
-    case 'en_revision': return <span className="inline-flex items-center gap-1.5 bg-[var(--warn)]/10 text-[var(--warn)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><AlertTriangle className="w-3 h-3 text-amber-500" /> Requiere Revisión</span>;
-    case 'completado': return <span className="inline-flex items-center gap-1.5 bg-[var(--ok)]/10 text-[var(--ok)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Completado</span>;
+    case 'pendiente_mapeo': return <span className="inline-flex items-center gap-1.5 bg-[var(--info)]/10 text-[var(--info)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-[var(--info)]"></div> Pendiente</span>;
+    case 'mapeando': return <span className="inline-flex items-center gap-1.5 bg-[var(--info)]/10 text-[var(--info)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-[var(--info)]"></div> Mapeando</span>;
+    case 'procesando': return <span className="inline-flex items-center gap-1.5 bg-[var(--accent)]/10 text-[var(--accent)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse"></div> Procesando</span>;
+    case 'matching_completo': return <span className="inline-flex items-center gap-1.5 bg-[var(--ok)]/10 text-[var(--ok)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><AlertTriangle className="w-3 h-3 text-[var(--ok)]" /> Revisión Matching</span>;
+    case 'en_revision': return <span className="inline-flex items-center gap-1.5 bg-[var(--warn)]/10 text-[var(--warn)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><AlertTriangle className="w-3 h-3 text-[var(--warn)]" /> Requiere Revisión</span>;
+    case 'completado': return <span className="inline-flex items-center gap-1.5 bg-[var(--ok)]/10 text-[var(--ok)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><CheckCircle2 className="w-3 h-3 text-[var(--ok)]" /> Completado</span>;
     case 'error': return <span className="inline-flex items-center gap-1.5 bg-[var(--err)]/10 text-[var(--err)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><XCircle className="w-3 h-3 text-[var(--err)]" /> Fallido</span>;
-    case 'cancelado': return <span className="inline-flex items-center gap-1.5 bg-[var(--surface-2)] text-[var(--text-muted)] font-semibold px-2.5 py-1 text-[11px] rounded-full line-through"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Cancelado</span>;
-    default: return <span className="inline-flex items-center gap-1.5 bg-[var(--bg)] text-[var(--text-muted)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Desconocido</span>;
+    case 'cancelado': return <span className="inline-flex items-center gap-1.5 bg-[var(--surface-2)] text-[var(--text-muted)] font-semibold px-2.5 py-1 text-[11px] rounded-full line-through"><div className="w-1.5 h-1.5 rounded-full bg-[var(--text-faint)]"></div> Cancelado</span>;
+    default: return <span className="inline-flex items-center gap-1.5 bg-[var(--bg)] text-[var(--text-muted)] font-semibold px-2.5 py-1 text-[11px] rounded-full"><div className="w-1.5 h-1.5 rounded-full bg-[var(--text-faint)]"></div> Desconocido</span>;
   }
 }

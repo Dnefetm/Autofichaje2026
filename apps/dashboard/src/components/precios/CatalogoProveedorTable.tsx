@@ -119,7 +119,7 @@ export function CatalogoProveedorTable({
                                         <td className="py-3.5 px-4 text-right align-top">
                                             <button
                                                 onClick={() => setSelectedItem(item)}
-                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1 shadow-sm ${vinculado ? 'bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1 shadow-sm ${vinculado ? 'bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
                                             >
                                                 {vinculado ? (
                                                     <><LinkIcon className="w-3 h-3" /> Cambiar</>

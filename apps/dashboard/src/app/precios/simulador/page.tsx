@@ -44,7 +44,7 @@ export default function SimuladorPage() {
                 </div>
 
                 {resultado && (
-                    <div className="bg-[var(--surface-2)] p-4 rounded-lg text-green-400 overflow-x-auto shadow-inner">
+                    <div className="bg-[var(--surface-2)] p-4 rounded-lg text-[var(--ok)] overflow-x-auto shadow-inner">
                         <pre className="text-sm font-mono">{JSON.stringify(resultado, null, 2)}</pre>
                     </div>
                 )}

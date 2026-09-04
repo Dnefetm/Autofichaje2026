@@ -51,11 +51,11 @@ export function ReglaForm() {
             <div className="grid grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Nombre de la Regla</label>
-                    <input className="border border-slate-300 w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" placeholder="Ej. Margen Seguro 20%" value={nombre} onChange={e=>setNombre(e.target.value)} required />
+                    <input className="border border-[var(--border)] w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" placeholder="Ej. Margen Seguro 20%" value={nombre} onChange={e=>setNombre(e.target.value)} required />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Prioridad (1 = Más alta)</label>
-                    <input className="border border-slate-300 w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" min="1" value={prioridad} onChange={e=>setPrioridad(Number(e.target.value))} required />
+                    <input className="border border-[var(--border)] w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" min="1" value={prioridad} onChange={e=>setPrioridad(Number(e.target.value))} required />
                 </div>
             </div>
 
@@ -63,23 +63,23 @@ export function ReglaForm() {
             <div className="grid grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Margen Deseado (%)</label>
-                    <input className="border border-slate-300 w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" step="0.01" value={margenPorcentaje} onChange={e=>setMargenPorcentaje(Number(e.target.value))} />
+                    <input className="border border-[var(--border)] w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" step="0.01" value={margenPorcentaje} onChange={e=>setMargenPorcentaje(Number(e.target.value))} />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Costos Fijos / Margen Fijo ($)</label>
-                    <input className="border border-slate-300 w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" step="0.01" value={margenFijo} onChange={e=>setMargenFijo(Number(e.target.value))} />
+                    <input className="border border-[var(--border)] w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" step="0.01" value={margenFijo} onChange={e=>setMargenFijo(Number(e.target.value))} />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Retención Marketplace (%)</label>
-                    <input className="border border-slate-300 w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" step="0.01" value={retencionMarketplace} onChange={e=>setRetencionMarketplace(Number(e.target.value))} />
+                    <input className="border border-[var(--border)] w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" step="0.01" value={retencionMarketplace} onChange={e=>setRetencionMarketplace(Number(e.target.value))} />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Comisión Método Pago (%)</label>
-                    <input className="border border-slate-300 w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" step="0.01" value={comisionPago} onChange={e=>setComisionPago(Number(e.target.value))} />
+                    <input className="border border-[var(--border)] w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" step="0.01" value={comisionPago} onChange={e=>setComisionPago(Number(e.target.value))} />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">IVA Efectivo (%)</label>
-                    <input className="border border-slate-300 w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" step="0.01" value={ivaEfectivo} onChange={e=>setIvaEfectivo(Number(e.target.value))} />
+                    <input className="border border-[var(--border)] w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" type="number" step="0.01" value={ivaEfectivo} onChange={e=>setIvaEfectivo(Number(e.target.value))} />
                 </div>
             </div>
 
@@ -87,11 +87,11 @@ export function ReglaForm() {
             <div className="grid grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Filtro por Marca (Opcional)</label>
-                    <input className="border border-slate-300 w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" placeholder="Ej. Urrea" value={filtroMarca} onChange={e=>setFiltroMarca(e.target.value)} />
+                    <input className="border border-[var(--border)] w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" placeholder="Ej. Urrea" value={filtroMarca} onChange={e=>setFiltroMarca(e.target.value)} />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Filtro por Categoría (Opcional)</label>
-                    <input className="border border-slate-300 w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" placeholder="Ej. Herramientas Manuales" value={filtroCategoria} onChange={e=>setFiltroCategoria(e.target.value)} />
+                    <input className="border border-[var(--border)] w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" placeholder="Ej. Herramientas Manuales" value={filtroCategoria} onChange={e=>setFiltroCategoria(e.target.value)} />
                 </div>
             </div>
 
@@ -105,7 +105,7 @@ export function ReglaForm() {
                         alert('Esta acción encolará las actualizaciones.');
                         setLoading(false);
                     }}
-                    className="text-[var(--accent)] hover:text-indigo-800 font-medium text-sm transition-colors"
+                    className="text-[var(--accent)] hover:brightness-110 font-medium text-sm transition-colors"
                 >
                     Aplicar reglas a toda la lista
                 </button>

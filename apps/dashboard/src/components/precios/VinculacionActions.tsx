@@ -64,7 +64,7 @@ export function VinculacionActions({ proveedor, importacionId, filaNum, codigoEx
                 onClick={handleAceptar}
                 disabled={loading !== null}
                 title="Aceptar vinculación propuesta"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-[var(--ok)] rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[var(--ok)]/15 hover:bg-[var(--ok)]/25 text-[var(--ok)] rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
             >
                 {loading === 'aceptar' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                 Aceptar
@@ -73,7 +73,7 @@ export function VinculacionActions({ proveedor, importacionId, filaNum, codigoEx
                 onClick={handleRechazar}
                 disabled={loading !== null}
                 title="Rechazar esta propuesta"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)] rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
             >
                 <X className="w-3 h-3" />
                 Ignorar

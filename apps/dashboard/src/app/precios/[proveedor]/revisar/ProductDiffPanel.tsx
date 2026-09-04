@@ -131,19 +131,19 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                     </div>
                     
                     <div className="flex flex-wrap gap-3 mb-6">
-                        <button onClick={() => setActiveChip('todos')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'todos' ? 'bg-[var(--surface)] text-[var(--accent-ink)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-slate-200'}`}>
+                        <button onClick={() => setActiveChip('todos')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'todos' ? 'bg-[var(--surface)] text-[var(--text)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--bg)]'}`}>
                             Todos ({diffData.length})
                         </button>
-                        <button onClick={() => setActiveChip('nuevo')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'nuevo' ? 'bg-emerald-600 text-[var(--accent-ink)]' : 'bg-[var(--ok)]/10 text-[var(--ok)] hover:bg-emerald-100'}`}>
+                        <button onClick={() => setActiveChip('nuevo')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'nuevo' ? 'bg-[var(--ok)] text-[var(--accent-ink)]' : 'bg-[var(--ok)]/10 text-[var(--ok)] hover:bg-[var(--ok)]/20'}`}>
                             +{stats.nuevos} Nuevos
                         </button>
-                        <button onClick={() => setActiveChip('cambio')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'cambio' ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'bg-[var(--accent)]/10 text-indigo-700 hover:bg-[var(--accent)]/20'}`}>
+                        <button onClick={() => setActiveChip('cambio')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'cambio' ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20'}`}>
                             Δ {stats.cambios} Cambios
                         </button>
-                        <button onClick={() => setActiveChip('ausente')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'ausente' ? 'bg-amber-600 text-[var(--accent-ink)]' : 'bg-[var(--warn)]/10 text-[var(--warn)] hover:bg-amber-100'}`}>
+                        <button onClick={() => setActiveChip('ausente')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'ausente' ? 'bg-[var(--warn)] text-[var(--bg)]' : 'bg-[var(--warn)]/10 text-[var(--warn)] hover:bg-[var(--warn)]/20'}`}>
                             -{stats.ausentes} Ausentes
                         </button>
-                        <button onClick={() => setActiveChip('sin_cambio')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'sin_cambio' ? 'bg-[var(--bg)]0 text-[var(--accent-ink)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-slate-200'}`}>
+                        <button onClick={() => setActiveChip('sin_cambio')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'sin_cambio' ? 'bg-[var(--surface)] text-[var(--text)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--bg)]'}`}>
                             {stats.sinCambio} Sin cambio
                         </button>
                     </div>
@@ -157,23 +157,23 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                                     placeholder="Buscar SKU/modelo..." 
                                     value={search}
                                     onChange={e => setSearch(e.target.value)}
-                                    className="pl-9 pr-4 py-2 w-full border border-slate-300 rounded-md focus:ring-[var(--accent)] focus:border-[var(--accent)]"
+                                    className="pl-9 pr-4 py-2 w-full border border-[var(--border)] rounded-md focus:ring-[var(--accent)] focus:border-[var(--accent)]"
                                 />
                             </div>
                             <label className="flex items-center space-x-2 text-[var(--text-muted)] cursor-pointer">
-                                <input type="checkbox" checked={soloCambiosMayores} onChange={e => setSoloCambiosMayores(e.target.checked)} className="rounded border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)]" />
+                                <input type="checkbox" checked={soloCambiosMayores} onChange={e => setSoloCambiosMayores(e.target.checked)} className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]" />
                                 <span>Solo cambios &gt; 5%</span>
                             </label>
                             <label className="flex items-center space-x-2 text-[var(--text-muted)] cursor-pointer">
-                                <input type="checkbox" checked={soloAumentos} onChange={e => setSoloAumentos(e.target.checked)} className="rounded border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)]" />
+                                <input type="checkbox" checked={soloAumentos} onChange={e => setSoloAumentos(e.target.checked)} className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]" />
                                 <span>Solo aumentos</span>
                             </label>
                         </div>
                         <div className="flex items-center space-x-2">
-                            <button onClick={() => handleBulkDecision('aprobado')} className="flex items-center px-3 py-1.5 text-[var(--ok)] bg-[var(--ok)]/10 hover:bg-emerald-100 rounded text-sm font-medium transition-colors">
+                            <button onClick={() => handleBulkDecision('aprobado')} className="flex items-center px-3 py-1.5 text-[var(--ok)] bg-[var(--ok)]/10 hover:bg-[var(--ok)]/20 rounded text-sm font-medium transition-colors">
                                 <Check className="w-4 h-4 mr-1" /> Aprobar {filteredData.length} visibles
                             </button>
-                            <button onClick={() => handleBulkDecision('rechazado')} className="flex items-center px-3 py-1.5 text-[var(--err)] bg-[var(--err)]/10 hover:bg-rose-100 rounded text-sm font-medium transition-colors">
+                            <button onClick={() => handleBulkDecision('rechazado')} className="flex items-center px-3 py-1.5 text-[var(--err)] bg-[var(--err)]/10 hover:bg-[var(--err)]/20 rounded text-sm font-medium transition-colors">
                                 <X className="w-4 h-4 mr-1" /> Rechazar {filteredData.length} visibles
                             </button>
                         </div>
@@ -202,19 +202,19 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
             <div className="fixed bottom-0 left-0 right-0 bg-[var(--surface)] border-t border-[var(--border)] p-4 flex justify-between items-center shadow-[0_-10px_15px_-3px_rgb(0,0,0,0.05)] z-30 ml-64">
                 <div className="text-sm font-medium pl-4 flex items-center space-x-3">
                     <span className="text-[var(--ok)]">{globalStats.aprobados} aprobados</span>
-                    <span className="text-slate-300">·</span>
+                    <span className="text-[var(--text-faint)]">·</span>
                     <span className="text-[var(--err)]">{globalStats.rechazados} rechazados</span>
-                    <span className="text-slate-300">·</span>
+                    <span className="text-[var(--text-faint)]">·</span>
                     <span className="text-[var(--text-muted)]">{globalStats.pendientes} pendientes</span>
                 </div>
                 <div className="flex items-center space-x-4 pr-4">
-                    <button className="inline-flex items-center px-4 py-2 bg-[var(--surface)] border border-slate-300 rounded-lg font-medium text-[var(--text-muted)] hover:bg-[var(--bg)] shadow-sm text-sm transition-colors">
+                    <button className="inline-flex items-center px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg font-medium text-[var(--text-muted)] hover:bg-[var(--bg)] shadow-sm text-sm transition-colors">
                         <Download className="w-4 h-4 mr-2" /> Exportar diff
                     </button>
                     <button 
                         onClick={handleAprobarLote}
                         disabled={loading}
-                        className="inline-flex items-center px-4 py-2 bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30 rounded-lg font-medium hover:bg-emerald-100 shadow-sm text-sm transition-colors disabled:opacity-50"
+                        className="inline-flex items-center px-4 py-2 bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30 rounded-lg font-medium hover:bg-[var(--ok)]/20 shadow-sm text-sm transition-colors disabled:opacity-50"
                     >
                         <Check className="w-4 h-4 mr-2" /> Aprobar todo el lote
                     </button>
