@@ -1,23 +1,8 @@
-import { supabaseAdmin } from '@/lib/supabase';
 import { ReglaForm } from '@/components/precios/ReglaForm';
 
 export default async function ReglasProveedorPage(props: { params: Promise<{ proveedor: string }> }) {
     const params = await props.params;
     const proveedorDecoded = decodeURIComponent(params.proveedor);
-
-    // Get the rule for this provider (if any)
-    const { data: reglas } = await supabaseAdmin
-        .from('reglas_precio')
-        .select('*')
-        .eq('proveedor', proveedorDecoded)
-        .limit(1);
-
-    const regla = reglas?.[0] || {
-        proveedor: proveedorDecoded,
-        margen_porcentaje: 20,
-        costos_fijos: 0,
-        // we can expand this with more fields for retention, iva, rounding etc
-    };
 
     return (
         <div className="flex flex-col h-full bg-[var(--bg)] relative p-8 max-w-4xl mx-auto">
@@ -27,8 +12,7 @@ export default async function ReglasProveedorPage(props: { params: Promise<{ pro
             </div>
 
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm p-8">
-                {/* @ts-ignore */}
-                <ReglaForm regla={regla} isGlobal={false} />
+                <ReglaForm />
             </div>
         </div>
     );

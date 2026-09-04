@@ -5,6 +5,16 @@ import { revalidatePath } from 'next/cache';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Extend duration for large batches
 
+// H9 (POLITICAS_FRONTEND.md): nunca exponer errores crudos de Postgres/Supabase.
+const friendlyError = (e: any) => {
+    const code = e?.code;
+    if (code === '23503') return 'El artículo seleccionado ya no existe en el catálogo.';
+    if (code === '23505') return 'Este SKU ya tiene un vínculo registrado.';
+    if (code === '22P02') return 'Formato de dato inválido en la vinculación.';
+    if (code === '23502') return 'Falta un dato obligatorio para vincular (código o marca+modelo).';
+    return 'No se pudo completar la vinculación. Inténtalo de nuevo.';
+};
+
 export async function POST(
     req: NextRequest,
     props: { params: Promise<{ proveedor: string }> }
@@ -34,7 +44,7 @@ export async function POST(
 
     if (error) {
         console.error('Error in fn_vincular_lote:', error);
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
     }
 
     // Re-materializar la clasificación del lote para que la tabla paginada refleje

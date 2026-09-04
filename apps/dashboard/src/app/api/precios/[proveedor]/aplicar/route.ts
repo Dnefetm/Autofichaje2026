@@ -1,3 +1,7 @@
+// DEPRECADO (Flujo A). No se usa desde la UI: el "Ir a Aplicar" ahora va al resumen.
+// Su trabajo lo cubren "Activar como Vigente" (activar route) y el trigger
+// fn_tg_promote_pendientes (que ya marca vigente=true al vincular).
+// Además usaba estado_match='aplicado', que viola chk_costos_articulo_estado_match.
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 

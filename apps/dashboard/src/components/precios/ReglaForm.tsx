@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 export function ReglaForm() {
     const router = useRouter();
     const [nombre, setNombre] = useState('');
+    const [canal, setCanal] = useState('general');
     const [prioridad, setPrioridad] = useState(1);
     
     // Core Margins
@@ -29,7 +30,8 @@ export function ReglaForm() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-                nombre, 
+                nombre,
+                canal,
                 prioridad,
                 margen_porcentaje: margenPorcentaje,
                 margen_fijo: margenFijo,
@@ -52,6 +54,10 @@ export function ReglaForm() {
                 <div>
                     <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Nombre de la Regla</label>
                     <input className="border border-[var(--border)] w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" placeholder="Ej. Margen Seguro 20%" value={nombre} onChange={e=>setNombre(e.target.value)} required />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Canal</label>
+                    <input className="border border-[var(--border)] w-full p-2 rounded shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)]" placeholder="Ej. general, mercadolibre" value={canal} onChange={e=>setCanal(e.target.value)} required />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Prioridad (1 = Más alta)</label>
@@ -96,19 +102,6 @@ export function ReglaForm() {
             </div>
 
             <div className="flex justify-between items-center pt-4 border-t border-[var(--border)] mt-6">
-                <button 
-                    type="button"
-                    onClick={async () => {
-                        if (!confirm('¿Seguro que deseas encolar la re-aplicación de reglas a todas las publicaciones?')) return;
-                        setLoading(true);
-                        // Mock call, should actually trigger the queue logic as well
-                        alert('Esta acción encolará las actualizaciones.');
-                        setLoading(false);
-                    }}
-                    className="text-[var(--accent)] hover:brightness-110 font-medium text-sm transition-colors"
-                >
-                    Aplicar reglas a toda la lista
-                </button>
                 <button disabled={loading} className="bg-[var(--accent)] text-[var(--accent-ink)] px-6 py-2 rounded-lg font-medium shadow hover:brightness-110 disabled:opacity-50 transition-colors">
                     {loading ? 'Guardando...' : 'Guardar Regla de Pricing'}
                 </button>

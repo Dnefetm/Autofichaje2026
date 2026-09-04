@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { VinculacionCategoria } from './VinculacionCategoria';
-import { AlertCircle, FileX, Loader2, RefreshCw } from 'lucide-react';
+import { AlertCircle, FileX, Loader2, RefreshCw, Unlink } from 'lucide-react';
 import {
     MatchItem,
     VinculacionCategoriaId,
@@ -26,7 +26,7 @@ interface Props {
 }
 
 export function VinculacionClient({ importacionId, proveedor }: Props) {
-    const [tab, setTab] = useState<'propuestas' | 'vinculados' | 'sin_match'>('propuestas');
+    const [tab, setTab] = useState<'propuestas' | 'vinculados' | 'sin_match' | 'ignorados'>('propuestas');
     const [totales, setTotales] = useState<VinculacionTotales>(TOTALES_VACIOS);
     const [cats, setCats] = useState<Record<VinculacionCategoriaId, CategoriaState>>({
         triple: { ...EMPTY_CAT },
@@ -34,6 +34,7 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
         marca_modelo: { ...EMPTY_CAT },
         ya_vinculado: { ...EMPTY_CAT },
         sin_match: { ...EMPTY_CAT },
+        rechazado: { ...EMPTY_CAT },
     });
     const [priming, setPriming] = useState(true);
     const [globalError, setGlobalError] = useState<string | null>(null);
@@ -86,13 +87,14 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
                 fetchCategoria('marca_modelo', 0, false),
                 fetchCategoria('ya_vinculado', 0, false),
                 fetchCategoria('sin_match', 0, false),
+                fetchCategoria('rechazado', 0, false),
             ]);
             if (!cancelled) setPriming(false);
         })();
         return () => { cancelled = true; };
     }, [fetchCategoria]);
 
-    const openTab = (next: 'propuestas' | 'vinculados' | 'sin_match') => {
+    const openTab = (next: 'propuestas' | 'vinculados' | 'sin_match' | 'ignorados') => {
         setTab(next);
         // Fallback: si una categoría falló en la carga inicial, reintenta al abrir.
         if (next === 'vinculados' && !cats.ya_vinculado.loaded && !cats.ya_vinculado.loading) {
@@ -100,6 +102,9 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
         }
         if (next === 'sin_match' && !cats.sin_match.loaded && !cats.sin_match.loading) {
             fetchCategoria('sin_match', 0, false);
+        }
+        if (next === 'ignorados' && !cats.rechazado.loaded && !cats.rechazado.loading) {
+            fetchCategoria('rechazado', 0, false);
         }
     };
 
@@ -109,27 +114,101 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
         fetchCategoria(categoria, cur.page, true);
     };
 
-    // Al aceptar items de una categoría, re-materializa (lo hace el endpoint
-    // vincular-lote) y refresca la categoría afectada + invalida "ya_vinculado".
-    const handleAccepted = useCallback(async (categoria: VinculacionCategoriaId) => {
+    // UPDATE OPTIMISTA (H1): al aceptar, la ficha desaparece al instante en el
+    // cliente (sin esperar el POST ni la re-materialización del servidor).
+    const handleAccepted = useCallback((categoria: VinculacionCategoriaId, items: MatchItem[]) => {
+        const ids = new Set(items.map((i) => i.fila_num));
         setCats((prev) => ({
             ...prev,
+            [categoria]: {
+                ...prev[categoria],
+                items: prev[categoria].items.filter((i) => !ids.has(i.fila_num)),
+            },
+            // Invalida "ya_vinculado" para que la próxima apertura recargue.
             ya_vinculado: { ...EMPTY_CAT, loaded: false },
         }));
-        await fetchCategoria(categoria, 0, false);
+        setTotales((prev) => ({
+            ...prev,
+            [categoria]: Math.max(0, prev[categoria] - items.length),
+            ya_vinculado: prev.ya_vinculado + items.length,
+        }));
+    }, []);
+
+    // Si el POST falla, restaura recargando la categoría (el servidor no cambió).
+    const handleRollback = useCallback((categoria: VinculacionCategoriaId) => {
+        setCats((prev) => ({ ...prev, ya_vinculado: { ...EMPTY_CAT, loaded: false } }));
+        fetchCategoria(categoria, 0, false);
     }, [fetchCategoria]);
+
+    // "Ignorar" persistente: quita la fila de su categoría y la mueve a "rechazado".
+    const handleRejected = useCallback((categoria: VinculacionCategoriaId, items: MatchItem[]) => {
+        const ids = new Set(items.map((i) => i.fila_num));
+        setCats((prev) => ({
+            ...prev,
+            [categoria]: { ...prev[categoria], items: prev[categoria].items.filter((i) => !ids.has(i.fila_num)) },
+            rechazado: { ...EMPTY_CAT, loaded: false },
+        }));
+        setTotales((prev) => ({
+            ...prev,
+            [categoria]: Math.max(0, prev[categoria] - items.length),
+            rechazado: prev.rechazado + items.length,
+        }));
+    }, []);
+
+    // "Restaurar" una fila ignorada: la quita del rechazo y reaparece en su categoría.
+    const handleRestore = useCallback(async (item: MatchItem) => {
+        const res = await fetch(`/api/precios/importaciones/${importacionId}/vinculacion/rechazar`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fila_num: item.fila_num }),
+        });
+        if (!res.ok) { alert('No se pudo restaurar. Inténtalo de nuevo.'); return; }
+        fetchCategoria('rechazado', 0, false);
+        setCats((prev) => ({
+            ...prev,
+            triple: { ...EMPTY_CAT, loaded: false },
+            solo_codigo: { ...EMPTY_CAT, loaded: false },
+            marca_modelo: { ...EMPTY_CAT, loaded: false },
+            ya_vinculado: { ...EMPTY_CAT, loaded: false },
+            sin_match: { ...EMPTY_CAT, loaded: false },
+        }));
+    }, [importacionId, fetchCategoria]);
+
+    // "Desvincular" (quitar el vínculo): borra el alias manual y re-materializa.
+    const handleDesvincular = useCallback(async (item: MatchItem) => {
+        if (!confirm('¿Desvincular este producto? Volverá a las propuestas de vinculación.')) return;
+        const res = await fetch(`/api/precios/proveedor/${encodeURIComponent(proveedor)}/desvincular-vinculo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                importacion_id: importacionId,
+                codigo_excel: item.codigo_barra,
+                marca_excel: item.marca_proveedor,
+                modelo_excel: item.sku_proveedor,
+            }),
+        });
+        if (!res.ok) { alert('No se pudo desvincular. Inténtalo de nuevo.'); return; }
+        fetchCategoria('ya_vinculado', 0, false);
+        setCats((prev) => ({
+            ...prev,
+            triple: { ...EMPTY_CAT, loaded: false },
+            solo_codigo: { ...EMPTY_CAT, loaded: false },
+            marca_modelo: { ...EMPTY_CAT, loaded: false },
+            sin_match: { ...EMPTY_CAT, loaded: false },
+        }));
+    }, [importacionId, proveedor, fetchCategoria]);
 
     const totalPropuestas = totales.triple + totales.solo_codigo + totales.marca_modelo;
 
     const fmtMx = (n: number) => (n > 0 ? n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) : '—');
 
     const tabClass = (active: boolean) =>
-        `pb-4 pt-2 text-sm font-bold border-b-2 transition-colors ${active ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text)]'}`;
+        `pb-2 pt-1.5 text-sm font-bold border-b-2 transition-colors ${active ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text)]'}`;
 
     return (
         <div className="flex flex-col flex-1">
-            <div className="px-4 md:px-6 border-b border-[var(--border)] bg-[var(--surface)]">
-                <div className="flex gap-6 mt-2 overflow-x-auto">
+            <div className="px-4 border-b border-[var(--border)] bg-[var(--surface)]">
+                <div className="flex gap-5 overflow-x-auto">
                     <button onClick={() => openTab('propuestas')} className={tabClass(tab === 'propuestas')}>
                         Propuestas ({totalPropuestas.toLocaleString()})
                     </button>
@@ -139,10 +218,13 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
                     <button onClick={() => openTab('sin_match')} className={tabClass(tab === 'sin_match')}>
                         Sin Coincidencia ({totales.sin_match.toLocaleString()})
                     </button>
+                    <button onClick={() => openTab('ignorados')} className={tabClass(tab === 'ignorados')}>
+                        Ignorados ({totales.rechazado.toLocaleString()})
+                    </button>
                 </div>
             </div>
 
-            <div className="p-4 md:p-6 w-full">
+            <div className="p-3 w-full">
                 {globalError && !priming && (
                     <div className="mb-4 flex items-center gap-2 text-xs text-[var(--err)] bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-lg px-3 py-2">
                         <AlertCircle className="w-4 h-4 shrink-0" /> {globalError}
@@ -176,7 +258,9 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
                                         hasMore={cats.triple.hasMore}
                                         loadingMore={cats.triple.loading}
                                         onLoadMore={() => loadMore('triple')}
-                                        onAccepted={() => handleAccepted('triple')}
+                                        onAccepted={(items) => handleAccepted('triple', items)}
+                                        onRollback={() => handleRollback('triple')}
+                                        onRejected={(items) => handleRejected('triple', items)}
                                     />
                                 )}
                                 {totales.solo_codigo > 0 && (
@@ -191,7 +275,9 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
                                         hasMore={cats.solo_codigo.hasMore}
                                         loadingMore={cats.solo_codigo.loading}
                                         onLoadMore={() => loadMore('solo_codigo')}
-                                        onAccepted={() => handleAccepted('solo_codigo')}
+                                        onAccepted={(items) => handleAccepted('solo_codigo', items)}
+                                        onRollback={() => handleRollback('solo_codigo')}
+                                        onRejected={(items) => handleRejected('solo_codigo', items)}
                                     />
                                 )}
                                 {totales.marca_modelo > 0 && (
@@ -206,7 +292,9 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
                                         hasMore={cats.marca_modelo.hasMore}
                                         loadingMore={cats.marca_modelo.loading}
                                         onLoadMore={() => loadMore('marca_modelo')}
-                                        onAccepted={() => handleAccepted('marca_modelo')}
+                                        onAccepted={(items) => handleAccepted('marca_modelo', items)}
+                                        onRollback={() => handleRollback('marca_modelo')}
+                                        onRejected={(items) => handleRejected('marca_modelo', items)}
                                     />
                                 )}
                             </>
@@ -222,6 +310,7 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
                         loading={cats.ya_vinculado.loading}
                         hasMore={cats.ya_vinculado.hasMore}
                         onLoadMore={() => loadMore('ya_vinculado')}
+                        onDesvincular={handleDesvincular}
                     />
                 )}
 
@@ -236,6 +325,18 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
                         fmtMx={fmtMx}
                     />
                 )}
+
+                {/* Tab: Ignorados */}
+                {tab === 'ignorados' && (
+                    <ListaIgnorados
+                        items={cats.rechazado.items}
+                        total={totales.rechazado}
+                        loading={cats.rechazado.loading}
+                        hasMore={cats.rechazado.hasMore}
+                        onLoadMore={() => loadMore('rechazado')}
+                        onRestore={handleRestore}
+                    />
+                )}
             </div>
         </div>
     );
@@ -247,8 +348,9 @@ function ListaVinculados(props: {
     loading: boolean;
     hasMore: boolean;
     onLoadMore: () => void;
+    onDesvincular: (item: MatchItem) => void;
 }) {
-    const { items, total, loading, hasMore, onLoadMore } = props;
+    const { items, total, loading, hasMore, onLoadMore, onDesvincular } = props;
     return (
         <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] overflow-hidden shadow-sm">
             <div className="px-6 py-4 bg-[var(--ok)]/10 border-b border-[var(--ok)]/30 flex items-center justify-between">
@@ -270,6 +372,7 @@ function ListaVinculados(props: {
                                 <th className="py-2.5 px-4 text-left">SKU / Descripción Proveedor</th>
                                 <th className="py-2.5 px-4 text-left">EAN Proveedor</th>
                                 <th className="py-2.5 px-4 text-left">Artículo Interno Vinculado</th>
+                                <th className="py-2.5 px-4 text-right">Acción</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--border)]">
@@ -283,6 +386,14 @@ function ListaVinculados(props: {
                                     <td className="py-2.5 px-4">
                                         <p className="font-semibold text-[var(--ok)] line-clamp-1">{item.nombre_catalogo}</p>
                                         <p className="text-[var(--text-muted)] text-[10px]">Mod: {item.modelo_catalogo || '—'} · EAN: {item.codigo_universal || '—'}</p>
+                                    </td>
+                                    <td className="py-2.5 px-4 text-right">
+                                        <button
+                                            onClick={() => onDesvincular(item)}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-[var(--surface-2)] hover:bg-[var(--err)]/10 border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--err)] rounded-lg text-xs font-bold transition-colors"
+                                        >
+                                            <Unlink className="w-3.5 h-3.5" /> Desvincular
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -343,6 +454,72 @@ function ListaSinMatch(props: {
                                     <td className="py-2.5 px-4 text-[var(--text)] line-clamp-1 max-w-[300px]">{item.descripcion_proveedor}</td>
                                     <td className="py-2.5 px-4 font-mono text-[var(--text-muted)]">{item.codigo_barra || '—'}</td>
                                     <td className="py-2.5 px-4 text-right font-semibold text-[var(--text)]">{fmtMx(item.menudeo)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            <PieCarga
+                cargados={items.length}
+                total={total}
+                loading={loading}
+                hasMore={hasMore}
+                onLoadMore={onLoadMore}
+            />
+        </div>
+    );
+}
+
+function ListaIgnorados(props: {
+    items: MatchItem[];
+    total: number;
+    loading: boolean;
+    hasMore: boolean;
+    onLoadMore: () => void;
+    onRestore: (item: MatchItem) => void;
+}) {
+    const { items, total, loading, hasMore, onLoadMore, onRestore } = props;
+    return (
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] overflow-hidden shadow-sm">
+            <div className="px-6 py-4 bg-[var(--bg)] border-b border-[var(--border)] flex items-center justify-between">
+                <div>
+                    <h3 className="font-bold text-[var(--text)] flex items-center gap-2">
+                        <FileX className="w-4 h-4 text-[var(--text-faint)]" />
+                        Artículos ignorados ({total.toLocaleString()})
+                    </h3>
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">Los ignoraste de la vinculación. Puedes restaurarlos y volverán a sus propuestas.</p>
+                </div>
+            </div>
+            {items.length === 0 && !loading ? (
+                <div className="p-8 text-center text-[var(--text-faint)]">No hay artículos ignorados.</div>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                        <thead className="bg-[var(--bg)]">
+                            <tr className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-faint)] border-b border-[var(--border)]">
+                                <th className="py-2.5 px-4 text-left">SKU Proveedor</th>
+                                <th className="py-2.5 px-4 text-left">Marca</th>
+                                <th className="py-2.5 px-4 text-left">Descripción</th>
+                                <th className="py-2.5 px-4 text-left">EAN</th>
+                                <th className="py-2.5 px-4 text-right">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--border)]">
+                            {items.map((item) => (
+                                <tr key={item.fila_num} className="hover:bg-[var(--bg)]/50">
+                                    <td className="py-2.5 px-4 font-mono font-bold text-[var(--text-muted)]">{item.sku_proveedor}</td>
+                                    <td className="py-2.5 px-4 text-[var(--text-muted)]">{item.marca_proveedor}</td>
+                                    <td className="py-2.5 px-4 text-[var(--text)] line-clamp-1 max-w-[300px]">{item.descripcion_proveedor}</td>
+                                    <td className="py-2.5 px-4 font-mono text-[var(--text-muted)]">{item.codigo_barra || '—'}</td>
+                                    <td className="py-2.5 px-4 text-right">
+                                        <button
+                                            onClick={() => onRestore(item)}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-[var(--surface-2)] hover:bg-[var(--ok)]/10 border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--ok)] rounded-lg text-xs font-bold transition-colors"
+                                        >
+                                            <RefreshCw className="w-3.5 h-3.5" /> Restaurar
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>

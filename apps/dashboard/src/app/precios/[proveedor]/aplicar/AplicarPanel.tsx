@@ -14,10 +14,7 @@ export function AplicarPanel({ importacion, loteNum, stats, proveedor }: { impor
 
     const handleConfirm = async () => {
         setStep('ejecutando');
-        
-        // Simulating the DB operation delay for UI
-        await new Promise(r => setTimeout(r, 1000));
-        setProgress(33);
+        setProgress(20);
 
         try {
             const res = await fetch(`/api/precios/${encodeURIComponent(proveedor)}/aplicar`, {
@@ -25,18 +22,12 @@ export function AplicarPanel({ importacion, loteNum, stats, proveedor }: { impor
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ importacion_id: importacion.id })
             });
-            
-            if (!res.ok) throw new Error('Failed to apply');
-            
-            setProgress(66);
-            
-            // Simulating queue enqueue delay
-            await new Promise(r => setTimeout(r, 1500));
-            setProgress(100);
-            
-            await mutate();
-            setTimeout(() => setStep('exito'), 500);
 
+            if (!res.ok) throw new Error('Failed to apply');
+
+            setProgress(100);
+            await mutate();
+            setStep('exito');
         } catch (e) {
             alert('Error al aplicar cambios');
             setStep('resumen');

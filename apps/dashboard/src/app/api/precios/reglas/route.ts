@@ -5,20 +5,28 @@ export async function POST(req: Request) {
     const payload = await req.json();
 
     try {
+        // La tabla reglas_precio usa: nombre, canal, margen_pct, costos_fijos,
+        // retenciones (jsonb array), prioridad, activa, marca_filtro, categoria_filtro.
+        const retenciones = [
+            { nombre: 'marketplace', porcentaje: Number(payload.retencion_marketplace_porcentaje) || 0 },
+            { nombre: 'comision_pago', porcentaje: Number(payload.comision_pago_porcentaje) || 0 },
+            { nombre: 'iva', porcentaje: Number(payload.iva_efectivo_porcentaje) || 0 },
+        ];
+
         const { error } = await supabaseAdmin.from('reglas_precio').insert({
             nombre: payload.nombre,
-            margen_porcentaje: payload.margen_porcentaje,
-            margen_fijo: payload.margen_fijo,
-            retencion_marketplace_porcentaje: payload.retencion_marketplace_porcentaje,
-            comision_pago_porcentaje: payload.comision_pago_porcentaje,
-            iva_efectivo_porcentaje: payload.iva_efectivo_porcentaje,
-            filtro_marca: payload.filtro_marca || null,
-            filtro_categoria: payload.filtro_categoria || null,
-            prioridad: payload.prioridad || 1
+            canal: payload.canal || 'general',
+            margen_pct: Number(payload.margen_porcentaje) || 0,
+            costos_fijos: Number(payload.margen_fijo) || 0,
+            retenciones,
+            prioridad: Number(payload.prioridad) || 0,
+            activa: true,
+            marca_filtro: payload.filtro_marca || null,
+            categoria_filtro: payload.filtro_categoria || null,
         });
 
         if (error) throw error;
-        
+
         return NextResponse.json({ success: true });
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 });

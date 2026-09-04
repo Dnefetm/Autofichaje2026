@@ -3,7 +3,8 @@ export type VinculacionCategoriaId =
     | 'solo_codigo'
     | 'marca_modelo'
     | 'ya_vinculado'
-    | 'sin_match';
+    | 'sin_match'
+    | 'rechazado';
 
 export interface MatchItem {
     fila_num: number;
@@ -26,6 +27,7 @@ export interface VinculacionTotales {
     marca_modelo: number;
     ya_vinculado: number;
     sin_match: number;
+    rechazado: number;
 }
 
 export const TOTALES_VACIOS: VinculacionTotales = {
@@ -34,4 +36,5 @@ export const TOTALES_VACIOS: VinculacionTotales = {
     marca_modelo: 0,
     ya_vinculado: 0,
     sin_match: 0,
+    rechazado: 0,
 };

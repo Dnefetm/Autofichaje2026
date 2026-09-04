@@ -167,6 +167,12 @@ export default async function ResumenLotePage(props: {
                             <ActivarListaButton importacionId={importacionId} proveedor={proveedorDecoded} />
                         )}
                         <Link
+                            href={`/precios/${encodeURIComponent(proveedorDecoded)}/revisar`}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text)] rounded-xl font-bold text-sm transition-colors"
+                        >
+                            Auditar cambios →
+                        </Link>
+                        <Link
                             href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial/${importacionId}/vinculacion`}
                             className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-xl font-bold text-sm transition-colors shadow-sm"
                         >

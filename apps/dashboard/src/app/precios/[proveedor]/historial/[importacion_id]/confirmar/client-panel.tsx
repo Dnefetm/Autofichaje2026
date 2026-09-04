@@ -164,7 +164,10 @@ export function PriceConfirmationPanelClient({
                 {/* Acciones principales */}
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => handleConfirmar(false)}
+                        onClick={() => {
+                            if (!confirm(`¿Confirmas aprobar los ${productos.length} productos? Se actualizarán sus precios y quedarán vigentes.`)) return;
+                            handleConfirmar(false);
+                        }}
                         disabled={loading || productos.length === 0}
                         className="px-5 py-2.5 bg-[var(--ok)] hover:brightness-110 text-[var(--accent-ink)] rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
                     >

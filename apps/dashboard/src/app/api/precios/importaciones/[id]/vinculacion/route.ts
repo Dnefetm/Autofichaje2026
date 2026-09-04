@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const CATEGORIAS = ['triple', 'solo_codigo', 'marca_modelo', 'ya_vinculado', 'sin_match'] as const;
+const CATEGORIAS = ['triple', 'solo_codigo', 'marca_modelo', 'ya_vinculado', 'sin_match', 'rechazado'] as const;
 type Categoria = (typeof CATEGORIAS)[number];
 
 const SELECT_COLS =
@@ -72,6 +72,7 @@ export async function GET(
         marca_modelo: counts[2].count ?? 0,
         ya_vinculado: counts[3].count ?? 0,
         sin_match: counts[4].count ?? 0,
+        rechazado: counts[5].count ?? 0,
     };
 
     // 3. Página pedida

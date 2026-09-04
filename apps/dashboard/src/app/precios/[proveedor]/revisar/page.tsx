@@ -28,12 +28,13 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
     .lte('creado_el', latestBatch.creado_el);
   const loteNum = c || 1;
 
-  // FIX v88: estado_match real es 'confirmado' (no 'completado')
+  // Los costos a revisar son los de este lote que NO fueron rechazados.
+  // (El pipeline produce 'match_exacto'/'match_similitud'/'sugerido', no 'completado'.)
   const { data: costosNuevos, error } = await supabaseAdmin
     .from('costos_articulo')
     .select('*, articulo:articulo_id(nombre)')
     .eq('importacion_id', latestBatch.id)
-    .in('estado_match', ['confirmado', 'completado'])
+    .neq('estado_match', 'rechazado')
     .order('actualizado_el', { ascending: false });
 
   // FIX v88: costos_articulo NO tiene columna 'proveedor'.

@@ -105,7 +105,9 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
             });
             if (res.ok) {
                 await mutate();
-                router.push(`/precios/${encodeURIComponent(proveedor)}/aplicar`);
+                // Flujo B: tras guardar las decisiones, se va al resumen del lote
+                // (ahí está el botón "Activar como Vigente"). La ruta /aplicar quedó deprecada.
+                router.push(`/precios/${encodeURIComponent(proveedor)}/historial/${importacion.id}/resumen`);
             } else {
                 alert('Error al guardar decisiones');
                 setLoading(false);
@@ -235,7 +237,7 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                         disabled={loading || globalStats.aprobados === 0 && globalStats.pendientes === 0}
                         className="inline-flex items-center px-8 py-3 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg font-medium hover:brightness-110 shadow-md transition-colors disabled:opacity-50 text-base"
                     >
-                        {loading ? 'Aplicando...' : 'Ir a Aplicar'} <ArrowRight className="w-5 h-5 ml-2" />
+                        {loading ? 'Guardando...' : 'Guardar y continuar'} <ArrowRight className="w-5 h-5 ml-2" />
                     </button>
                 </div>
             </div>
