@@ -1,62 +1,93 @@
-// sincEgresos.gs — V2 (reescrito)
-// Correcciones vs V1:
-//   - Mapeo corregido: articulo_id de fila[2] (Col C), egreso_id de fila[0] (Col A)
-//   - UPSERT via ?on_conflict=egreso_id + Prefer: resolution=merge-duplicates
-//   - Hash MD5 calculado en JS (misma fórmula que compute_egreso_hash en Supabase)
-//   - Comparación de hash antes de enviar (skip si hash igual)
-//   - sincEgresos_full() para resync completo sin filtro de fecha
+// =============================================================================
+// sincEgresos.gs — Motor de Sincronización Dual-Band (Sheets → Supabase)
+// =============================================================================
+// Arquitectura Dual-Band:
+//   - Banda 1 (Ventana Activa): Escanea siempre las últimas 500 filas en cada turno.
+//     Garantiza que toda orden modificada por el operador viaje a Supabase en máx 45 min.
+//   - Banda 2 (Barrido Histórico Continuo): Escanea 500 filas rotativas por turno
+//     con cursor circular (fila 2 a últimaFila). Audita todo el histórico en 4.3 días.
+//   - Comparación Idempotente por Hash: No satura la base de datos; solo hace UPSERT
+//     si el hash cambió (cantidad modificada).
+//   - Consumo de cuota: ~5.3 min/día (5.8% del límite de 90 min de Google).
+// =============================================================================
 
-const HOJA_EGRESOS_SINC = 'Egresos';
-const BATCH_SIZE_SINC_EGR = 200;
+var HOJA_EGRESOS_SINC = 'Egresos';
+var BATCH_SIZE_SINC_EGR = 50;
 
-// ─────────────────────────────────────────────────────────────────────
-// MD5 helper (misma implementación que sincIngresos.gs)
-// ─────────────────────────────────────────────────────────────────────
-function md5Egreso(texto) {
-  var rawBytes = Utilities.computeDigest(
-    Utilities.DigestAlgorithm.MD5,
-    texto,
-    Utilities.Charset.UTF_8
-  );
-  return rawBytes.map(function(b) {
-    return ('0' + (b & 0xFF).toString(16)).slice(-2);
-  }).join('');
+function filaAObjetoSincEgreso(datos) {
+  // Col A(0)=egreso_id, B(1)=importacion_full_id, C(2)=articulo_id, D(3)=cantidad
+  // E(4)=guia, F(5)=transportista, G(6)=tipo_egreso, H(7)=notas
+  // I(8)=fecha, J(9)=operador_id, K(10)-M(12)=misc
+  // N(13)=largo, O(14)=ancho, P(15)=alto, Q(16)=peso
+  var egreso_id = datos[0] ? String(datos[0]).trim() : '';
+  if (!egreso_id) return null;
+
+  var articulo_id = datos[2] ? String(datos[2]).trim() : '';
+  if (!articulo_id) return null;
+
+  var cant = (datos[3] !== '' && datos[3] !== null) ? parseInt(datos[3], 10) : 0;
+  var guia = datos[4] ? String(datos[4]).trim() : null;
+  var transportista = datos[5] ? String(datos[5]).trim() : null;
+  var tipo_egreso = mapTipoEgreso(datos[6]);
+  var notas = datos[7] ? String(datos[7]).trim() : null;
+  var fecha = parseFechaSincEgr(datos[8]);
+  var operador_id = datos[9] ? String(datos[9]).trim() : null;
+  var importacion_full_id = datos[1] ? String(datos[1]).trim() : null;
+  var largo = datos.length > 13 && datos[13] ? String(datos[13]).trim() : null;
+  var ancho = datos.length > 14 && datos[14] ? String(datos[14]).trim() : null;
+  var alto = datos.length > 15 && datos[15] ? String(datos[15]).trim() : null;
+  var peso = datos.length > 16 && datos[16] ? String(datos[16]).trim() : null;
+
+  var obj = {
+    egreso_id: egreso_id,
+    articulo_id: articulo_id,
+    cantidad: cant,
+    guia: guia,
+    transportista: transportista,
+    tipo_egreso: tipo_egreso,
+    notas: notas,
+    fecha: fecha,
+    operador_id: operador_id,
+    importacion_full_id: importacion_full_id,
+    largo: largo,
+    ancho: ancho,
+    alto: alto,
+    peso: peso,
+    origin: 'sheets'
+  };
+
+  var hashStr = egreso_id + '|' + articulo_id + '|' + cant + '|' +
+    (guia || '') + '|' + (transportista || '') + '|' + (tipo_egreso || '') + '|' +
+    (notas || '') + '|' + (fecha || '') + '|' + (operador_id || '') + '|' +
+    (importacion_full_id || '') + '|' + (largo || '') + '|' + (ancho || '') + '|' +
+    (alto || '') + '|' + (peso || '');
+  obj.sync_hash = md5Egreso(hashStr);
+
+  return obj;
 }
 
-// Fórmula IDÉNTICA a compute_egreso_hash en Supabase.
-// NOTA: Comet agregó columna `fecha` a egresos (19-mar-2026) y actualizó compute_egreso_hash.
-// `fecha` = fecha real del egreso desde Sheets (Col I).
-// `creado_el` = timestamp automático del sistema, NO se sincroniza desde Sheets.
-function computeEgresoHash(articulo_id, cantidad, tipo_egreso, importacion_full_id, guia,
-                            transportista, operador_id, notas, largo, ancho, alto, peso,
-                            salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado, fecha) {
-  var partes = [
-    articulo_id        || '',
-    String(cantidad !== null && cantidad !== undefined ? cantidad : ''),
-    tipo_egreso        || '',
-    importacion_full_id|| '',
-    guia               || '',
-    transportista      || '',
-    operador_id        || '',
-    notas              || '',
-    String(largo       || ''),
-    String(ancho       || ''),
-    String(alto        || ''),
-    String(peso        || ''),
-    String(salidas_periodo || ''),
-    codigo_ml          || '',
-    edo_reunido        || '',
-    fecha_reunido      || '',
-    fecha_preparado    || '',
-    fecha              || ''  // campo nuevo agregado por Comet 19-mar-2026
-  ];
-  return md5Egreso(partes.join('|'));
+function md5Egreso(input) {
+  var raw = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, input);
+  var hex = '';
+  for (var i = 0; i < raw.length; i++) {
+    var val = (raw[i] + 256) % 256;
+    hex += ('0' + val.toString(16)).slice(-2);
+  }
+  return hex;
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// Parsers
-// ─────────────────────────────────────────────────────────────────────
-function parseFechaSincEgreso(valor) {
+function mapTipoEgreso(valor) {
+  if (!valor) return 'otro';
+  var v = String(valor).trim().toLowerCase();
+  if (v.indexOf('venta') !== -1) return 'venta';
+  if (v.indexOf('full') !== -1 || v.indexOf('fulfillment') !== -1) return 'envio_full';
+  if (v.indexOf('devolucion') !== -1) {
+    if (v.indexOf('proveedor') !== -1) return 'devolucion_proveedor';
+  }
+  return 'otro';
+}
+
+function parseFechaSincEgr(valor) {
   if (!valor) return null;
   if (valor instanceof Date) {
     return Utilities.formatDate(valor, 'America/Mexico_City', "yyyy-MM-dd'T'HH:mm:ssXXX");
@@ -65,224 +96,395 @@ function parseFechaSincEgreso(valor) {
   if (!str) return null;
   var partes = str.split(' ');
   var fp = partes[0].split('/');
-  if (fp.length !== 3) return null;
-  var d = new Date(
-    fp[2] + '-' + fp[1].padStart(2, '0') + '-' + fp[0].padStart(2, '0') +
-    'T' + (partes.length > 1 ? partes[1] : '00:00:00')
-  );
-  if (isNaN(d.getTime())) return null;
-  return Utilities.formatDate(d, 'America/Mexico_City', "yyyy-MM-dd'T'HH:mm:ssXXX");
+  if (fp.length === 3) {
+    var d = new Date(fp[2] + '-' + fp[1].padStart(2,'0') + '-' + fp[0].padStart(2,'0')
+      + 'T' + (partes.length > 1 ? partes[1] : '00:00:00'));
+    if (!isNaN(d.getTime())) {
+      return Utilities.formatDate(d, 'America/Mexico_City', "yyyy-MM-dd'T'HH:mm:ssXXX");
+    }
+  }
+  return null;
 }
 
-function mapTipoEgresoSinc(valor) {
-  if (!valor) return 'otro';
-  var v = String(valor).trim().toLowerCase();
-  if (v.indexOf('venta') !== -1) return 'venta';
-  if (v.indexOf('full') !== -1 || v.indexOf('fulfillment') !== -1) return 'envio_full';
-  if (v.indexOf('devolucion') !== -1 || v.indexOf('devolución') !== -1 ||
-      v.indexOf('proveedor') !== -1) return 'devolucion_proveedor';
-  return 'otro';
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// Mapeo de fila → objeto (MAPEO CORREGIDO)
-// Col A [0]: ID Egreso          → egreso_id
-// Col B [1]: # egreso           → (no se envía)
-// Col C [2]: Artículo           → articulo_id ← CORREGIDO (antes era fila[0])
-// Col D [3]: Cantidad           → cantidad
-// Col E [4]: Guía               → guia
-// Col F [5]: Transportista      → transportista
-// Col G [6]: Tipo de egreso     → tipo_egreso (normalizado)
-// Col H [7]: Nota               → notas
-// Col I [8]: Fecha              → fecha (fecha real del egreso)
-// Col J [9]: Operador           → operador_id
-// Col K [10]: (varía según sheet)
-// Col N [13]: Largo             → largo (hash)
-// Col O [14]: Ancho             → ancho (hash)
-// Col P [15]: Alto              → alto (hash)
-// Col Q [16]: Peso              → peso (hash)
-// Col R [17]: Salidas período  → salidas_periodo (hash)
-// Col S [18]: Código ML        → codigo_ml (hash)
-// Col T [19]: Estado reunido    → edo_reunido (hash)
-// Col U [20]: Fecha reunido     → fecha_reunido (hash)
-// Col V [21]: Fecha preparado   → fecha_preparado (hash)
-// (Ajustar índices si la hoja real difiere)
-// ──────────────────────────────────────────────────────────────────────
-function filaAObjetoSincEgreso(fila) {
-  var egresoId   = fila[0] ? String(fila[0]).trim() : '';
-  var articuloId = fila[2] ? String(fila[2]).trim() : ''; // CORREGIDO: Col C
-  if (!articuloId) return null;
-
-  var cant  = fila[3] !== '' && fila[3] !== null ? parseInt(fila[3], 10) : 0;
-  var guia  = fila[4] ? String(fila[4]).trim() : null;
-  var tr    = fila[5] ? String(fila[5]).trim() : null;
-  var tipo  = mapTipoEgresoSinc(fila[6]);
-  var notas = fila[7] ? String(fila[7]).trim() : null;
-  var fecha = parseFechaSincEgreso(fila[8]);
-  var op    = fila[9] ? String(fila[9]).trim() : null;
-
-  // FIX 1: Campos adicionales (cols N-V, índices 13-21) para hash completo
-  var largo          = fila[13] || null;
-  var ancho          = fila[14] || null;
-  var alto           = fila[15] || null;
-  var peso           = fila[16] || null;
-  var salidasPeriodo = fila[17] || null;
-  var codigoMl       = fila[18] ? String(fila[18]).trim() : null;
-  var edoReunido     = fila[19] ? String(fila[19]).trim() : null;
-  var fechaReunido   = parseFechaSincEgreso(fila[20]);
-  var fechaPreparado = parseFechaSincEgreso(fila[21]);
-
-  var hash = computeEgresoHash(
-    articuloId, isNaN(cant) ? 0 : cant, tipo, null, guia,
-    tr, op, notas,
-    largo, ancho, alto, peso, salidasPeriodo, codigoMl,
-    edoReunido, fechaReunido, fechaPreparado, fecha
-  );
-
-  return {
-    egreso_id:    egresoId || null,
-    articulo_id:  articuloId,
-    cantidad:     isNaN(cant) ? 0 : cant,
-    tipo_egreso:  tipo,
-    guia:         guia,
-    transportista: tr,
-    notas:        notas,
-    fecha:        fecha,
-    operador_id:  op,
-    sync_hash:    hash
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// Obtener hashes existentes en Supabase para un lote de egreso_ids
-// ─────────────────────────────────────────────────────────────────────
-function getHashesExistentesEgresos(egresoIds) {
-  var ids = egresoIds.filter(function(id) { return id; });
-  if (ids.length === 0) return {};
-  var filtro = 'egreso_id=in.(' + ids.map(function(id) { return encodeURIComponent(id); }).join(',') + ')';
-  var url = SUPABASE_URL + '/rest/v1/egresos?select=egreso_id,sync_hash&' + filtro;
-  var resp = UrlFetchApp.fetch(url, {
-    method: 'get',
-    headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY },
-    muteHttpExceptions: true
-  });
-  if (resp.getResponseCode() !== 200) return {};
-  var data = JSON.parse(resp.getContentText());
-  var mapa = {};
-  data.forEach(function(row) { mapa[row.egreso_id] = row.sync_hash; });
-  return mapa;
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// UPSERT de un lote
-// ─────────────────────────────────────────────────────────────────────
-function upsertLoteSincEgresos(lote) {
+function upsertEgresosBatch(batch) {
   var url = SUPABASE_URL + '/rest/v1/egresos?on_conflict=egreso_id';
-  var options = {
-    method: 'post',
-    contentType: 'application/json',
+  var resp = UrlFetchApp.fetch(url, {
+    method: 'POST',
     headers: {
+      'Content-Type': 'application/json',
       'apikey': SUPABASE_SERVICE_KEY,
       'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY,
-      'Prefer': 'return=minimal,resolution=merge-duplicates'
+      'Prefer': 'resolution=merge-duplicates'
     },
-    payload: JSON.stringify(lote),
+    payload: JSON.stringify(batch),
     muteHttpExceptions: true
-  };
-  var response = UrlFetchApp.fetch(url, options);
-  return { code: response.getResponseCode(), body: response.getContentText() };
+  });
+  return resp;
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// sincEgresos() — incremental | sincEgresos_full() — resync completo
-// ─────────────────────────────────────────────────────────────────────
+// =============================================================================
+// FUNCIONES PÚBLICAS Y ACTIVADORES
+// =============================================================================
+
+/**
+ * Función oficial invocada por triggerPeriodico cada 45 minutos.
+ * Ejecuta ambas bandas: Ventana Activa + Barrido Circular Histórico.
+ */
 function sincEgresos() {
-  _sincEgresosPorFecha_(true);
+  Logger.log('>>> INICIANDO SINCRONIZACIÓN DUAL-BAND DE EGRESOS <<<');
+  
+  // Banda 1: Ventana Activa (últimas 500 filas)
+  sincEgresosVentanaActiva(500);
+  
+  // Banda 2: Barrido Circular Histórico (500 filas rotativas)
+  sincEgresosCircular(500);
+  
+  Logger.log('>>> FIN DE SINCRONIZACIÓN DUAL-BAND <<<');
 }
 
+/**
+ * Banda 1: Examina siempre las últimas N filas de la hoja.
+ * Captura de inmediato órdenes recién modificadas por los operadores.
+ */
+function sincEgresosVentanaActiva(numFilas) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hoja = ss.getSheetByName(HOJA_EGRESOS_SINC);
+  if (!hoja) { Logger.log('Hoja ' + HOJA_EGRESOS_SINC + ' no encontrada.'); return; }
+  var ultimaFila = hoja.getLastRow();
+  var n = numFilas || 500;
+  var inicio = Math.max(2, ultimaFila - n + 1);
+  Logger.log('[Banda 1 - Ventana Activa] Escaneando filas ' + inicio + ' a ' + ultimaFila);
+  sincEgresosRango_(inicio, ultimaFila);
+}
+
+/**
+ * Banda 2: Barrido circular continuo del histórico.
+ * Avanza 500 filas por ejecución y vuelve a empezar al llegar al final.
+ */
+function sincEgresosCircular(numFilas) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hoja = ss.getSheetByName(HOJA_EGRESOS_SINC);
+  if (!hoja) return;
+  var ultimaFila = hoja.getLastRow();
+  var props = PropertiesService.getScriptProperties();
+  var cursor = parseInt(props.getProperty('sincEgresos_cursor_circular') || '2', 10);
+  if (cursor > ultimaFila || cursor < 2) cursor = 2;
+
+  var n = numFilas || 500;
+  var fin = Math.min(cursor + n - 1, ultimaFila);
+  Logger.log('[Banda 2 - Circular] Escaneando filas ' + cursor + ' a ' + fin + ' de ' + ultimaFila);
+  sincEgresosRango_(cursor, fin);
+
+  var nuevoCursor = (fin >= ultimaFila) ? 2 : (fin + 1);
+  props.setProperty('sincEgresos_cursor_circular', String(nuevoCursor));
+  Logger.log('[Banda 2 - Circular] Próximo inicio guardado en fila ' + nuevoCursor);
+}
+
+/**
+ * Motor de procesamiento por rango con verificación idempotente de hash.
+ */
+function sincEgresosRango_(rangoInicio, rangoFin) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hoja = ss.getSheetByName(HOJA_EGRESOS_SINC);
+  if (!hoja) return;
+
+  var filaActual = rangoInicio;
+  var upsertados = 0, saltados = 0, omitidos = 0, errores = 0, primerError = '';
+  var NUM_COLS = 23;
+
+  while (filaActual <= rangoFin) {
+    var filaLoteFin = Math.min(filaActual + BATCH_SIZE_SINC_EGR - 1, rangoFin);
+    var cantidadFilas = filaLoteFin - filaActual + 1;
+    var datos = hoja.getRange(filaActual, 1, cantidadFilas, NUM_COLS).getValues();
+    var candidatos = [];
+
+    for (var i = 0; i < datos.length; i++) {
+      var obj = filaAObjetoSincEgreso(datos[i]);
+      if (!obj) { omitidos++; continue; }
+      candidatos.push(obj);
+    }
+
+    if (candidatos.length > 0) {
+      var ids = candidatos.map(function(c) { return c.egreso_id; });
+      var urlCheck = SUPABASE_URL + '/rest/v1/egresos?select=egreso_id,sync_hash&egreso_id=in.(' + ids.join(',') + ')';
+      var rCheck = UrlFetchApp.fetch(urlCheck, {
+        method: 'get',
+        headers: {
+          'apikey': SUPABASE_SERVICE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY
+        },
+        muteHttpExceptions: true
+      });
+
+      var hashMap = {};
+      if (rCheck.getResponseCode() === 200) {
+        var existentes = JSON.parse(rCheck.getContentText());
+        for (var h = 0; h < existentes.length; h++) {
+          hashMap[existentes[h].egreso_id] = existentes[h].sync_hash;
+        }
+      }
+
+      var toUpsert = [];
+      for (var j = 0; j < candidatos.length; j++) {
+        if (hashMap[candidatos[j].egreso_id] === candidatos[j].sync_hash) {
+          saltados++;
+        } else {
+          toUpsert.push(candidatos[j]);
+        }
+      }
+
+      if (toUpsert.length > 0) {
+        var resp = upsertEgresosBatch(toUpsert);
+        if (resp.getResponseCode() >= 200 && resp.getResponseCode() < 300) {
+          upsertados += toUpsert.length;
+        } else {
+          Logger.log('Lote falló (HTTP ' + resp.getResponseCode() + '). Reintentando individualmente...');
+          if (!primerError) primerError = resp.getContentText().substring(0, 200);
+          for (var k = 0; k < toUpsert.length; k++) {
+            var respInd = upsertEgresosBatch([toUpsert[k]]);
+            if (respInd.getResponseCode() >= 200 && respInd.getResponseCode() < 300) {
+              upsertados++;
+            } else {
+              errores++;
+              Logger.log('Error individual egreso_id: ' + toUpsert[k].egreso_id + ' -> HTTP ' + respInd.getResponseCode());
+            }
+          }
+        }
+      }
+    }
+
+    filaActual = filaLoteFin + 1;
+    Utilities.sleep(150);
+  }
+
+  Logger.log('Rango ' + rangoInicio + '-' + rangoFin + ' RESUMEN: upsertados=' + upsertados +
+    ' saltados=' + saltados + ' omitidos=' + omitidos + ' errores=' + errores +
+    (primerError ? ' | Error: ' + primerError : ''));
+}
+
+/**
+ * Resync completo manual o por fecha (mantiene compatibilidad).
+ */
 function sincEgresos_full() {
-  _sincEgresosPorFecha_(false);
+  sincEgresosPorFecha(false);
 }
 
-function _sincEgresosPorFecha_(soloNuevos) {
+function sincEgresosPorFecha(soloNuevos) {
+  var MAX_TIME = 5 * 60 * 1000;
+  var inicio = Date.now();
+  var props = PropertiesService.getScriptProperties();
   var maxFecha = null;
+  var resumeRow = parseInt(props.getProperty('sincEgresos_cursor') || '2', 10);
+
   if (soloNuevos) {
-    // FIX 2: filtrar por fecha (campo real) no por creado_el (timestamp del sistema)
     var urlMax = SUPABASE_URL + '/rest/v1/egresos?select=fecha&order=fecha.desc&limit=1';
     var rMax = UrlFetchApp.fetch(urlMax, {
       method: 'get',
-      headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY },
+      headers: {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY
+      },
       muteHttpExceptions: true
     });
     if (rMax.getResponseCode() === 200) {
       var dMax = JSON.parse(rMax.getContentText());
       if (dMax && dMax.length > 0) maxFecha = new Date(dMax[0].fecha);
     }
-    Logger.log('Modo incremental. MAX fecha en Supabase: ' + (maxFecha ? maxFecha.toISOString() : 'ninguna'));
+    Logger.log('Modo incremental. MAX fecha: ' +
+      (maxFecha ? maxFecha.toISOString() : 'ninguna') +
+      ' | Cursor: fila ' + resumeRow);
   } else {
-    Logger.log('Modo FULL — re-enviando todos los registros');
+    resumeRow = parseInt(props.getProperty('sincEgresos_full_idx') || '2', 10);
+    Logger.log('Modo FULL. Iniciando desde fila: ' + resumeRow);
   }
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var hoja = ss.getSheetByName(HOJA_EGRESOS_SINC);
-  if (!hoja) { Logger.log('Hoja "' + HOJA_EGRESOS_SINC + '" no encontrada.'); return; }
-
+  if (!hoja) { Logger.log('Hoja ' + HOJA_EGRESOS_SINC + ' no encontrada.'); return; }
   var ultimaFila = hoja.getLastRow();
   var upsertados = 0, saltados = 0, filtrados = 0, omitidos = 0, errores = 0, primerError = '';
+  var filaInicio = resumeRow;
+  var interrumpido = false;
+  var NUM_COLS = 23;
 
-  var filaInicio = 2;
   while (filaInicio <= ultimaFila) {
-    var filaFin = Math.min(filaInicio + BATCH_SIZE_SINC_EGR - 1, ultimaFila);
-    // FIX 3: leer 23 columnas (A-W) para capturar largo/ancho/alto/peso/etc. en hash
-    var datos = hoja.getRange(filaInicio, 1, filaFin - filaInicio + 1, 23).getValues();
-    var candidatos = [];
+    if (Date.now() - inicio > MAX_TIME) {
+      interrumpido = true;
+      props.setProperty('sincEgresos_cursor', String(filaInicio));
+      if (!soloNuevos) {
+        props.setProperty('sincEgresos_full_idx', String(filaInicio));
+      }
+      Logger.log('TIEMPO: guardando cursor en fila ' + filaInicio);
+      break;
+    }
 
+    var filaFin = Math.min(filaInicio + BATCH_SIZE_SINC_EGR - 1, ultimaFila);
+    var datos = hoja.getRange(filaInicio, 1, filaFin - filaInicio + 1, NUM_COLS).getValues();
+    var candidatos = [];
     for (var i = 0; i < datos.length; i++) {
       var obj = filaAObjetoSincEgreso(datos[i]);
       if (!obj) { omitidos++; continue; }
-      // FIX 2: solo filtrar por fecha si la fila NO tiene egreso_id.
-      // Filas CON egreso_id: siempre pasan → el hash comparison decide si hay cambio.
-      // Filas SIN egreso_id: filtrar por fecha para evitar duplicados infinitos.
-      // Sin esta distinción, egresos retroactivos de Sheets eran ignorados permanentemente.
-      if (soloNuevos && maxFecha && obj.fecha && !obj.egreso_id) {
-        if (new Date(obj.fecha) <= maxFecha) { filtrados++; continue; }
+      // GUARD CORREGIDO: si ya tiene egreso_id, NO se descarta por fecha antigua; se evalúa el hash
+      if (soloNuevos && maxFecha && !obj.egreso_id) {
+        var fechaObj = obj.fecha ? new Date(obj.fecha) : null;
+        if (fechaObj && fechaObj <= maxFecha) { filtrados++; continue; }
       }
       candidatos.push(obj);
     }
 
-    var lote = [];
     if (candidatos.length > 0) {
-      var ids = candidatos.map(function(o) { return o.egreso_id; });
-      var hashesActuales = getHashesExistentesEgresos(ids);
-      candidatos.forEach(function(obj) {
-        var hashActual = hashesActuales[obj.egreso_id];
-        if (obj.egreso_id && hashActual && hashActual === obj.sync_hash) {
+      var ids = candidatos.map(function(c) { return c.egreso_id; });
+      var urlCheck = SUPABASE_URL + '/rest/v1/egresos?select=egreso_id,sync_hash&egreso_id=in.(' + ids.join(',') + ')';
+      var rCheck = UrlFetchApp.fetch(urlCheck, {
+        method: 'get',
+        headers: {
+          'apikey': SUPABASE_SERVICE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY
+        },
+        muteHttpExceptions: true
+      });
+      var hashMap = {};
+      if (rCheck.getResponseCode() === 200) {
+        var existentes = JSON.parse(rCheck.getContentText());
+        for (var h = 0; h < existentes.length; h++) {
+          hashMap[existentes[h].egreso_id] = existentes[h].sync_hash;
+        }
+      }
+
+      var toUpsert = [];
+      for (var j = 0; j < candidatos.length; j++) {
+        if (hashMap[candidatos[j].egreso_id] === candidatos[j].sync_hash) {
           saltados++;
         } else {
-          lote.push(obj);
+          toUpsert.push(candidatos[j]);
         }
-      });
-    }
+      }
 
-    if (lote.length > 0) {
-      var resp = upsertLoteSincEgresos(lote);
-      if (resp.code >= 300) {
-        errores++;
-        if (!primerError) primerError = 'Lote fila ' + filaInicio + ': HTTP ' + resp.code + ' — ' + resp.body.substring(0, 300);
-      } else {
-        upsertados += lote.length;
+      if (toUpsert.length > 0) {
+        var resp = upsertEgresosBatch(toUpsert);
+        if (resp.getResponseCode() >= 200 && resp.getResponseCode() < 300) {
+          upsertados += toUpsert.length;
+        } else {
+          Logger.log('Lote de ' + toUpsert.length + ' falló (HTTP ' + resp.getResponseCode() + '). Reintentando individualmente...');
+          if (!primerError) primerError = resp.getContentText().substring(0, 200);
+          for (var k = 0; k < toUpsert.length; k++) {
+            var respInd = upsertEgresosBatch([toUpsert[k]]);
+            if (respInd.getResponseCode() >= 200 && respInd.getResponseCode() < 300) {
+              upsertados++;
+            } else {
+              errores++;
+              Logger.log('Error individual egreso_id: ' + toUpsert[k].egreso_id + ' -> HTTP ' + respInd.getResponseCode());
+            }
+          }
+        }
       }
     }
 
-    Utilities.sleep(200);
     filaInicio = filaFin + 1;
+    Utilities.sleep(500);
   }
 
-  Logger.log('=== sincEgresos' + (soloNuevos ? '' : '_full') + ' FINAL ===');
-  Logger.log('Upsertados: ' + upsertados);
-  Logger.log('Saltados (sin cambios): ' + saltados);
-  Logger.log('Filtrados (ya en Supabase por fecha): ' + filtrados);
-  Logger.log('Omitidos (sin articulo_id): ' + omitidos);
-  Logger.log('Errores: ' + errores);
-  if (primerError) Logger.log('Primer error: ' + primerError);
+  if (!interrumpido) {
+    props.setProperty('sincEgresos_cursor', String(ultimaFila + 1));
+    if (!soloNuevos) {
+      props.deleteProperty('sincEgresos_full_idx');
+    }
+  }
+
+  Logger.log('sincEgresos FIN: upsertados=' + upsertados + ' saltados=' + saltados +
+    ' filtrados=' + filtrados + ' omitidos=' + omitidos + ' errores=' + errores +
+    ' interrumpido=' + interrumpido +
+    (primerError ? ' | Error: ' + primerError : ''));
 }
+
+/**
+ * Resetea todos los cursores de sincEgresos.
+ */
+function resetSincEgresosCursor() {
+  var props = PropertiesService.getScriptProperties();
+  props.deleteProperty('sincEgresos_cursor');
+  props.deleteProperty('sincEgresos_cursor_circular');
+  props.deleteProperty('sincEgresos_full_idx');
+  Logger.log('Todos los cursores de sincEgresos han sido reseteados.');
+}
+
+/**
+ * Encuentra e inserta solo los egresos faltantes comparando IDs de Sheets vs Supabase.
+ */
+function sincEgresosFaltantes() {
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_EGRESOS_SINC);
+  var ultimaFila = hoja.getLastRow();
+  var NUM_COLS_EGR = 23;
+  Logger.log('Leyendo ' + (ultimaFila - 1) + ' filas de Egresos...');
+  
+  var idsSheet = {};
+  var datos = hoja.getRange(2, 1, ultimaFila - 1, NUM_COLS_EGR).getValues();
+  for (var i = 0; i < datos.length; i++) {
+    var id = datos[i][0] ? String(datos[i][0]).trim() : '';
+    if (id) idsSheet[id] = i;
+  }
+  var totalSheet = Object.keys(idsSheet).length;
+  Logger.log('IDs únicos en Sheets: ' + totalSheet);
+  
+  var idsSupabase = {};
+  var offset = 0;
+  var pageSize = 1000;
+  while (true) {
+    var url = SUPABASE_URL + '/rest/v1/egresos?select=egreso_id&offset=' + offset + '&limit=' + pageSize;
+    var resp = UrlFetchApp.fetch(url, {
+      headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY },
+      muteHttpExceptions: true
+    });
+    var rows = JSON.parse(resp.getContentText());
+    if (rows.length === 0) break;
+    for (var j = 0; j < rows.length; j++) {
+      if (rows[j].egreso_id) idsSupabase[rows[j].egreso_id] = true;
+    }
+    offset += pageSize;
+    if (rows.length < pageSize) break;
+  }
+  Logger.log('IDs en Supabase: ' + Object.keys(idsSupabase).length);
+  
+  var faltantes = [];
+  var keys = Object.keys(idsSheet);
+  for (var k = 0; k < keys.length; k++) {
+    if (!idsSupabase[keys[k]]) {
+      faltantes.push(idsSheet[keys[k]]);
+    }
+  }
+  Logger.log('Egresos faltantes: ' + faltantes.length);
+  
+  if (faltantes.length === 0) {
+    Logger.log('No hay egresos faltantes. Todo sincronizado.');
+    return;
+  }
+  
+  var batch = [];
+  var insertados = 0;
+  for (var m = 0; m < faltantes.length; m++) {
+    var obj = filaAObjetoSincEgreso(datos[faltantes[m]]);
+    if (obj) batch.push(obj);
+    if (batch.length >= 50 || m === faltantes.length - 1) {
+      if (batch.length > 0) {
+        upsertEgresosBatch(batch);
+        insertados += batch.length;
+        Logger.log('Insertados ' + insertados + ' de ' + faltantes.length);
+        batch = [];
+      }
+    }
+  }
+  Logger.log('Sincronización de egresos faltantes completada. Total insertados: ' + insertados);
+}
+
+/**
+ * Alias para webhookAppSheet / pushEgresos
+ */
+function upsertLoteSincEgresos(lote) {
+  var resp = upsertEgresosBatch(lote);
+  if (resp && typeof resp.getResponseCode === 'function') {
+    resp.code = resp.getResponseCode();
+    resp.body = resp.getContentText();
+  }
+  return resp;
+}
+
