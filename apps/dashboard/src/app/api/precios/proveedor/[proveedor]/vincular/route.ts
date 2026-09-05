@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { friendlyError } from '@/lib/friendlyError';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +56,7 @@ export async function POST(
         }
 
         if (aliasErr) {
-            return NextResponse.json({ ok: false, error: `Error guardando alias: ${aliasErr.message}` }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(aliasErr) }, { status: 500 });
         }
 
         // 2. Si se proporcionó valor de costo, insertar o actualizar directamente en costos_articulo
@@ -82,7 +83,7 @@ export async function POST(
                 });
 
             if (costoErr) {
-                return NextResponse.json({ ok: false, error: `Error guardando costo: ${costoErr.message}` }, { status: 500 });
+                return NextResponse.json({ ok: false, error: friendlyError(costoErr) }, { status: 500 });
             }
         }
 
@@ -93,6 +94,6 @@ export async function POST(
             articulo_id
         });
     } catch (err: any) {
-        return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(err) }, { status: 500 });
     }
 }

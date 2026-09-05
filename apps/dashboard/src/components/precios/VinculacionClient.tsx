@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { VinculacionCategoria } from './VinculacionCategoria';
 import { AlertCircle, FileX, Loader2, RefreshCw, Unlink } from 'lucide-react';
+import { toast } from 'sonner';
 import {
     MatchItem,
     VinculacionCategoriaId,
@@ -162,7 +163,7 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fila_num: item.fila_num }),
         });
-        if (!res.ok) { alert('No se pudo restaurar. Inténtalo de nuevo.'); return; }
+        if (!res.ok) { toast.error('No se pudo restaurar. Inténtalo de nuevo.'); return; }
         fetchCategoria('rechazado', 0, false);
         setCats((prev) => ({
             ...prev,
@@ -187,7 +188,7 @@ export function VinculacionClient({ importacionId, proveedor }: Props) {
                 modelo_excel: item.sku_proveedor,
             }),
         });
-        if (!res.ok) { alert('No se pudo desvincular. Inténtalo de nuevo.'); return; }
+        if (!res.ok) { toast.error('No se pudo desvincular. Inténtalo de nuevo.'); return; }
         fetchCategoria('ya_vinculado', 0, false);
         setCats((prev) => ({
             ...prev,

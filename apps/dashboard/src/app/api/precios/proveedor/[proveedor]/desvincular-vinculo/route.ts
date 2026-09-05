@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase';
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +36,7 @@ export async function POST(
 
     const { error } = await query;
     if (error) {
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
     }
 
     // Re-materializar para que la fila vuelva a su categoría automática.

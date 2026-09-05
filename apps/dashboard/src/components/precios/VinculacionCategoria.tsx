@@ -1,6 +1,8 @@
 'use client';
 import React, { Fragment, useState } from 'react';
-import { Check, X, ChevronDown, ChevronUp, Package, Building2 } from 'lucide-react';
+import { Check, X, ChevronDown, ChevronUp, Package, Building2, Shuffle } from 'lucide-react';
+import { toast } from 'sonner';
+import { VincularArticuloModal } from './VincularArticuloModal';
 import { MatchItem } from './vinculacion-types';
 
 interface Props {
@@ -42,6 +44,7 @@ export function VinculacionCategoria({
     const [aceptados, setAceptados] = useState<Set<number>>(new Set());
     const [rechazados, setRechazados] = useState<Set<number>>(new Set());
     const [removing, setRemoving] = useState<Set<number>>(new Set());
+    const [remapItem, setRemapItem] = useState<MatchItem | null>(null);
 
     const pendientes = items.filter(
         (i) => !aceptados.has(i.fila_num) && !rechazados.has(i.fila_num) && !removing.has(i.fila_num)
@@ -93,7 +96,7 @@ export function VinculacionCategoria({
                 return n;
             });
             onRollback();
-            alert(`Error al vincular: ${e?.message || 'Error de red'}`);
+            toast.error(`No se pudo vincular: ${e?.message || 'Error de red'}`);
         });
     };
 
@@ -149,7 +152,7 @@ export function VinculacionCategoria({
                 return n;
             });
             onRollback();
-            alert(`Error al ignorar: ${e?.message || 'Error de red'}`);
+            toast.error(`No se pudo ignorar: ${e?.message || 'Error de red'}`);
         });
     };
 
@@ -159,7 +162,49 @@ export function VinculacionCategoria({
         return val1.trim().toLowerCase() !== val2.trim().toLowerCase();
     };
 
+    // Acción (compartida entre escritorio y móvil).
+    const renderAccion = (item: MatchItem, isAceptado: boolean, isRechazado: boolean) => {
+        if (isAceptado) {
+            return (
+                <span className="inline-flex items-center justify-center gap-1.5 text-[var(--ok)] font-bold text-xs border border-[var(--ok)]/30 bg-[var(--ok)]/10 py-2 px-2 rounded-lg">
+                    <Check className="w-4 h-4" /> Vinculado
+                </span>
+            );
+        }
+        if (isRechazado) {
+            return (
+                <span className="inline-flex items-center justify-center gap-1.5 text-[var(--text-muted)] font-bold text-xs bg-[var(--surface-2)] border border-[var(--border)] py-2 px-2 rounded-lg">
+                    <X className="w-4 h-4" /> Ignorado
+                </span>
+            );
+        }
+        return (
+            <div className="flex gap-1.5 items-stretch">
+                <button
+                    onClick={() => handleAceptarUno(item)}
+                    className="flex-1 py-1.5 px-2 bg-[var(--ok)]/15 hover:bg-[var(--ok)]/25 border border-[var(--ok)]/30 text-[var(--ok)] rounded-lg font-bold text-xs transition-colors inline-flex items-center justify-center gap-1.5"
+                >
+                    <Check className="w-3.5 h-3.5" /> Aceptar
+                </button>
+                <button
+                    onClick={() => setRemapItem(item)}
+                    title="Cambiar artículo"
+                    className="px-2 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] rounded-lg font-bold text-xs transition-colors inline-flex items-center justify-center"
+                >
+                    <Shuffle className="w-3.5 h-3.5" />
+                </button>
+                <button
+                    onClick={() => confirmarRechazo(item)}
+                    className="flex-1 py-1.5 px-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] rounded-lg font-bold text-xs transition-colors inline-flex items-center justify-center gap-1.5"
+                >
+                    <X className="w-3.5 h-3.5" /> Ignorar
+                </button>
+            </div>
+        );
+    };
+
     return (
+        <>
         <div className="rounded-lg border border-[var(--border)] overflow-hidden shadow-sm mb-6 bg-[var(--surface)]">
             {/* Header de categoría */}
             <div className="px-3 py-1.5 flex items-center justify-between gap-3 border-b border-[var(--border)]">
@@ -192,7 +237,7 @@ export function VinculacionCategoria({
 
             {expandido && (
                 <>
-                    <div className="overflow-x-auto">
+                    <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-xs border-collapse">
                             <thead className="bg-[var(--surface-2)]">
                                 <tr className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-faint)] border-b border-[var(--border)]">
@@ -247,30 +292,7 @@ export function VinculacionCategoria({
                                                 </td>
                                                 <td className="py-1.5 px-2 text-[var(--text-faint)]">—</td>
                                                 <td className="py-1.5 px-2 text-center align-middle border-l border-[var(--border)]" rowSpan={2}>
-                                                    {isAceptado ? (
-                                                        <span className="inline-flex items-center justify-center gap-1.5 text-[var(--ok)] font-bold text-xs border border-[var(--ok)]/30 bg-[var(--ok)]/10 py-2 px-2 rounded-lg">
-                                                            <Check className="w-4 h-4" /> Vinculado
-                                                        </span>
-                                                    ) : isRechazado ? (
-                                                        <span className="inline-flex items-center justify-center gap-1.5 text-[var(--text-muted)] font-bold text-xs bg-[var(--surface-2)] border border-[var(--border)] py-2 px-2 rounded-lg">
-                                                            <X className="w-4 h-4" /> Ignorado
-                                                        </span>
-                                                    ) : (
-                                                        <div className="flex flex-col gap-1.5 items-stretch">
-                                                            <button
-                                                                onClick={() => handleAceptarUno(item)}
-                                                                className="py-1.5 px-2 bg-[var(--ok)]/15 hover:bg-[var(--ok)]/25 border border-[var(--ok)]/30 text-[var(--ok)] rounded-lg font-bold text-xs transition-colors inline-flex items-center justify-center gap-1.5"
-                                                            >
-                                                                <Check className="w-3.5 h-3.5" /> Aceptar
-                                                            </button>
-                                                            <button
-                                                                onClick={() => confirmarRechazo(item)}
-                                                                className="py-1.5 px-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] rounded-lg font-bold text-xs transition-colors inline-flex items-center justify-center gap-1.5"
-                                                            >
-                                                                <X className="w-3.5 h-3.5" /> Ignorar
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                                    {renderAccion(item, isAceptado, isRechazado)}
                                                 </td>
                                             </tr>
 
@@ -306,6 +328,56 @@ export function VinculacionCategoria({
                         </table>
                     </div>
 
+                    {/* Móvil: apilado campo por campo (sin scroll horizontal) */}
+                    <div className="md:hidden divide-y divide-[var(--border)]">
+                        {items.map((item) => {
+                            const isAceptado = aceptados.has(item.fila_num);
+                            const isRechazado = rechazados.has(item.fila_num);
+                            const isRemoving = removing.has(item.fila_num);
+                            const diffMarca = highlightDiff(item.marca_catalogo, item.marca_proveedor);
+                            const diffModelo = highlightDiff(item.modelo_catalogo, item.sku_proveedor);
+                            const diffCodigo = highlightDiff(item.codigo_universal, item.codigo_barra);
+                            const rowState = isAceptado ? 'bg-[var(--ok)]/5' : isRechazado ? 'opacity-40' : '';
+                            const fade = isRemoving
+                                ? 'opacity-0 scale-[0.98] pointer-events-none transition-all duration-150 ease-out'
+                                : 'transition-all duration-150 ease-out';
+                            return (
+                                <div key={item.fila_num} className={`px-3 py-2.5 space-y-2 ${rowState} ${fade}`}>
+                                    <div>
+                                        <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--text-faint)]">
+                                            <Package className="w-3.5 h-3.5" /> Catálogo
+                                        </div>
+                                        <p className="font-semibold text-[var(--text)] text-sm leading-snug">{item.nombre_catalogo || '—'}</p>
+                                        <p className="text-xs text-[var(--text-muted)] mt-0.5 break-words">
+                                            <span className={diffMarca ? 'text-[var(--warn)] font-bold' : ''}>{item.marca_catalogo || '—'}</span>
+                                            <span className="opacity-50"> · </span>
+                                            <span className={`font-mono ${diffModelo ? 'text-[var(--warn)] font-bold' : ''}`}>{item.modelo_catalogo || '—'}</span>
+                                            <span className="opacity-50"> · EAN </span>
+                                            <span className={`font-mono ${diffCodigo ? 'text-[var(--warn)] font-bold' : ''}`}>{item.codigo_universal || '—'}</span>
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
+                                            <Building2 className="w-3.5 h-3.5" /> Proveedor
+                                        </div>
+                                        <p className="text-[var(--text)] text-sm leading-snug">{item.descripcion_proveedor || item.sku_proveedor || '—'}</p>
+                                        <p className="text-xs text-[var(--text-muted)] mt-0.5 break-words">
+                                            <span className="font-mono font-semibold">{item.sku_proveedor || '—'}</span>
+                                            <span className="opacity-50"> · </span>
+                                            <span>{item.marca_proveedor || '—'}</span>
+                                            <span className="opacity-50"> · EAN </span>
+                                            <span className="font-mono">{item.codigo_barra || '—'}</span>
+                                        </p>
+                                        <p className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">
+                                            Dist: <b className="text-[var(--text)]">{fmtMx(item.dist)}</b> · Men: <b className="text-[var(--text)]">{fmtMx(item.menudeo)}</b>
+                                        </p>
+                                    </div>
+                                    {renderAccion(item, isAceptado, isRechazado)}
+                                </div>
+                            );
+                        })}
+                    </div>
+
                     {hasMore && (
                         <div className="px-4 py-3 border-t border-[var(--border)] flex justify-center bg-[var(--bg)]">
                             <button
@@ -321,5 +393,23 @@ export function VinculacionCategoria({
                 </>
             )}
         </div>
-    );
+        {remapItem && (
+            <VincularArticuloModal
+                proveedor={proveedor}
+                importacionId={importacionId}
+                itemProveedor={{
+                    codigo: remapItem.codigo_barra,
+                    modelo: remapItem.sku_proveedor,
+                    marca: remapItem.marca_proveedor,
+                    descripcion: remapItem.descripcion_proveedor,
+                }}
+                onClose={() => setRemapItem(null)}
+                onSuccess={() => {
+                    onAccepted([remapItem]);
+                    setRemapItem(null);
+                }}
+            />
+        )}
+    </>
+);
 }

@@ -15,9 +15,12 @@ export default async function ResumenLotePage(props: {
     // Datos de esta importación
     const { data: imp } = await supabaseAdmin
         .from('importaciones_excel')
-        .select('id, nombre_archivo, creado_el, total_filas, estado')
+        .select('id, nombre_archivo, creado_el, total_filas, estado, mapeo_columnas')
         .eq('id', importacionId)
         .single();
+
+    // Identificador de producto según el mapeo (columna_modelo = CÓDIGO).
+    const colModelo = imp?.mapeo_columnas?.columna_modelo || 'CLAVE';
 
     // Filas de ESTA lista (nueva)
     let allRaw: any[] = [];
@@ -66,7 +69,7 @@ export default async function ResumenLotePage(props: {
     const preciosAnteriores = new Map<string, any>();
     allRawAnterior.forEach(r => {
         const p = r.payload || {};
-        const sku = p['CLAVE'] || p['CÓDIGO'] || p['Codigo'] || '';
+        const sku = p[colModelo] || '';
         if (sku) {
             preciosAnteriores.set(sku, {
                 distribuidor: parseFloat(p['P.DIST (CON IVA)'] || p['P.DIST'] || '0') || 0,
@@ -88,7 +91,7 @@ export default async function ResumenLotePage(props: {
 
     allRaw.forEach(r => {
         const p = r.payload || {};
-        const sku = p['CLAVE'] || p['CÓDIGO'] || p['Codigo'] || '';
+        const sku = p[colModelo] || '';
         if (!sku) return;
 
         descontinuadosSkus.delete(sku); // Si aparece en la nueva, NO está descontinuado

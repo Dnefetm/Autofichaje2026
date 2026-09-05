@@ -132,6 +132,7 @@ export default function PendientesPage() {
       .filter((r) => selectedIds.has(r.id) && r._sugerencia)
       .map((r) => ({ publicacion_id: r.id, articulo_id: r._sugerencia!.articulo_id }));
     if (vinculos.length === 0) return;
+    if (!confirm(`¿Vincular ${vinculos.length} publicaciones a sus productos sugeridos? Se propagará a sus relacionadas.`)) return;
     setBulkVinculando(true);
     try {
       const res = await fetch('/api/vinculacion/confirmar-lote', {
@@ -180,7 +181,7 @@ export default function PendientesPage() {
         </div>
         <button
           onClick={load}
-          className="px-3 py-2 bg-[var(--surface-2)] hover:bg-slate-200 rounded-lg flex items-center gap-2 text-sm"
+          className="px-3 py-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] rounded-lg flex items-center gap-2 text-sm"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refrescar
         </button>
@@ -304,14 +305,14 @@ export default function PendientesPage() {
           <button
             disabled={page === 0}
             onClick={() => setPage((p) => Math.max(0, p - 1))}
-            className="px-3 py-1.5 bg-[var(--surface-2)] hover:bg-slate-200 rounded-lg disabled:opacity-40"
+            className="px-3 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] rounded-lg disabled:opacity-40"
           >
             Anterior
           </button>
           <button
             disabled={(page + 1) * PAGE_SIZE >= total}
             onClick={() => setPage((p) => p + 1)}
-            className="px-3 py-1.5 bg-[var(--surface-2)] hover:bg-slate-200 rounded-lg disabled:opacity-40"
+            className="px-3 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] rounded-lg disabled:opacity-40"
           >
             Siguiente
           </button>

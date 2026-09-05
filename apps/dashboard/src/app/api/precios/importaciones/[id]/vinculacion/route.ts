@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase';
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -52,7 +53,7 @@ export async function GET(
         });
         if (matErr) {
             console.error('[vinculacion] materializar error:', matErr);
-            return NextResponse.json({ ok: false, error: `Error materializando: ${matErr.message}` }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(matErr) }, { status: 500 });
         }
     }
 
@@ -88,7 +89,7 @@ export async function GET(
 
     if (error) {
         console.error('[vinculacion] query error:', error);
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
     }
 
     const rows = (data ?? []).map((r: any) => ({

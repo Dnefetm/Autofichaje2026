@@ -15,7 +15,8 @@ export function VincularArticuloModal({
     proveedor,
     itemProveedor,
     onClose,
-    onSuccess
+    onSuccess,
+    importacionId
 }: {
     proveedor: string;
     itemProveedor: {
@@ -27,6 +28,7 @@ export function VincularArticuloModal({
     };
     onClose: () => void;
     onSuccess: () => void;
+    importacionId?: string;
 }) {
     const [query, setQuery] = useState(itemProveedor.modelo || itemProveedor.codigo || '');
     const [resultados, setResultados] = useState<ArticuloSearchResult[]>([]);
@@ -68,19 +70,37 @@ export function VincularArticuloModal({
         setVinculando(articulo.articulo_id);
         setError(null);
         try {
-            const res = await fetch(`/api/precios/proveedor/${encodeURIComponent(proveedor)}/vincular`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    articulo_id: articulo.articulo_id,
-                    codigo_excel: itemProveedor.codigo || '',
-                    marca_excel: itemProveedor.marca || '',
-                    modelo_excel: itemProveedor.modelo || '',
-                    valor: itemProveedor.precio_distribuidor,
-                    tipo_costo: 'distribuidor',
-                    moneda: 'MXN'
-                })
-            });
+            let res: Response;
+            if (importacionId) {
+                // Contexto vinculación: crea alias LOCKED (para que pase a "ya_vinculado").
+                res = await fetch(`/api/precios/proveedor/${encodeURIComponent(proveedor)}/vincular-lote`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        importacion_id: importacionId,
+                        items: [{
+                            codigo_excel: itemProveedor.codigo || '',
+                            modelo_excel: itemProveedor.modelo || '',
+                            marca_excel: itemProveedor.marca || '',
+                            articulo_id: articulo.articulo_id
+                        }]
+                    })
+                });
+            } else {
+                res = await fetch(`/api/precios/proveedor/${encodeURIComponent(proveedor)}/vincular`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        articulo_id: articulo.articulo_id,
+                        codigo_excel: itemProveedor.codigo || '',
+                        marca_excel: itemProveedor.marca || '',
+                        modelo_excel: itemProveedor.modelo || '',
+                        valor: itemProveedor.precio_distribuidor,
+                        tipo_costo: 'distribuidor',
+                        moneda: 'MXN'
+                    })
+                });
+            }
 
             const data = await res.json();
             if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo vincular');

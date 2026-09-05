@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase';
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,7 @@ export async function POST(
         .upsert({ importacion_id: importacionId, fila_num }, { onConflict: 'importacion_id,fila_num' });
 
     if (error) {
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
     }
 
     await rematerializar(importacionId);
@@ -47,7 +48,7 @@ export async function DELETE(
         .eq('fila_num', fila_num);
 
     if (error) {
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
     }
 
     await rematerializar(importacionId);
