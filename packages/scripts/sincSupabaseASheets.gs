@@ -7,6 +7,15 @@
 
 var HOJAS_REVERSO = { articulos: 'Artículos', ingresos: 'Ingresos', egresos: 'Egresos' };
 
+// Columnas (0-based) que el reverso SÍ gestiona. El resto se preserva en updates
+// (G=Disponibles, H/Hora, K/L/M imágenes, etc.) para no borrarlas.
+// OJO: VERIFICAR contra los encabezados reales del Sheet (repo != desplegado).
+var COLUMNAS_GESTIONADAS = {
+  articulos: [0,1,2,3,4,5,9,11,14,16,18,20,21,22,23,24,27,28,29,30,34],
+  ingresos:  [0,2,3,4,5,6,7,8,9,10,11,12],
+  egresos:   [0,2,3,4,5,6,7,8,9,13,14,15,16,17,18,19,20,21]
+};
+
 function sincSupabaseASheets() {
   var pendientes = leerOutboxPendiente(500);
   if (!pendientes.length) { Logger.log('Reverso: outbox vacío.'); return; }
@@ -36,7 +45,6 @@ function sincSupabaseASheets() {
 
       var nuevas = [];
       var updates = [];   // [{fila, filaSheet}]
-      var idsOk = [];
 
       filas.forEach(function(fila){
         var filaSheet = serializar(tabla, fila);
@@ -46,35 +54,24 @@ function sincSupabaseASheets() {
         } else {
           nuevas.push(filaSheet);
         }
-        idsOk.push(clave);
       });
 
-      // escritura por BLOQUES: un solo setValues para updates, un solo append para nuevas
-      if (updates.length) {
-        var filasOrdenadas = updates.sort(function(a,b){ return a.fila - b.fila; });
-        // para simplicidad y sin huecos grandes: actualizar por rango individual sería N calls;
-        // aquí agrupamos en un solo 2D por hoja (asumiendo filas contiguas razonables)
-        var minFila = filasOrdenadas[0].fila, maxFila = filasOrdenadas[filasOrdenadas.length-1].fila;
-        var ancho = filasOrdenadas[0].filaSheet.length;
-        var bloque = [];
-        for (var f = minFila; f <= maxFila; f++) {
-          var hit = null;
-          filasOrdenadas.forEach(function(u){ if (u.fila === f) hit = u; });
-          if (hit) { bloque.push(hit.filaSheet); }
-          else {
-            var filaActual = hoja.getRange(f, 1, 1, ancho).getValues()[0];
-            bloque.push(filaActual);
-          }
-        }
-        hoja.getRange(minFila, 1, bloque.length, ancho).setValues(bloque);
-      }
+      // Actualizaciones: read-merge-write. Leer la fila existente, pisar SOLO las
+      // columnas gestionadas y preservar el resto (evita borrar Disponibles, imágenes, etc.).
+      var gestionadas = COLUMNAS_GESTIONADAS[tabla] || [];
+      updates.forEach(function(u){
+        var ancho = u.filaSheet.length;
+        var existente = hoja.getRange(u.fila, 1, 1, ancho).getValues()[0];
+        var merged = existente.slice();
+        gestionadas.forEach(function(i){ merged[i] = u.filaSheet[i]; });
+        hoja.getRange(u.fila, 1, 1, ancho).setValues([merged]);
+      });
+
+      // Altas nuevas: un solo append en rango
       if (nuevas.length) {
-        // append de todas las nuevas en un solo rango
         hoja.getRange(ultima + 1, 1, nuevas.length, nuevas[0].length).setValues(nuevas);
       }
 
-      // marcar outbox en lote
-      idsOk.forEach(function(clave){ /* mapear de vuelta a outbox id */ });
       items.forEach(function(x){ marcarOutbox(x.id, 'enviado', null); });
       enviados += items.length;
     } catch (err) {
