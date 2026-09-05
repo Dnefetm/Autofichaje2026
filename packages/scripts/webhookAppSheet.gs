@@ -3,7 +3,7 @@
 // REGLA DE ORO: NUNCA lanzar excepcion. Siempre retornar 200 OK con JSON.
 // AppSheet se detiene si el webhook falla, asi que todo va en try/catch.
 
-function doPost(e) {
+function doPost_OLD(e) {
   try {
     var body = JSON.parse(e.postData.contents);
     var tabla = body.tabla;   // 'ingresos' o 'egresos'
