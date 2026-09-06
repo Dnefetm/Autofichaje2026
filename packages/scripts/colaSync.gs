@@ -40,7 +40,13 @@ function doPost(e) {
       return _colaRespJson({ status: 'ignored' });
     }
 
-    _colaEncolar(tabla, id);
+    if (data.accion === 'delete') {
+      if (typeof eliminarDeSupabase === 'function') {
+         eliminarDeSupabase(tabla, (tabla === 'egresos' ? 'egreso_id' : 'ingreso_id'), id);
+      }
+    } else {
+      _colaEncolar(tabla, id);
+    }
 
     return _colaRespJson({ status: 'queued' });
   } catch (err) {
