@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     _decisiones: decisiones,
   });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: friendlyError(error) }, { status: 500 });
   
   // Need to return pendientes_restantes for the UI
   const { count: pendientes } = await supabaseAdmin

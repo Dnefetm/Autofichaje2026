@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -12,7 +13,7 @@ export async function GET() {
     if (error) {
         // Si la tabla no existe todavía (migración no aplicada), devolver vacío sin fallar.
         if (error.code === '42P01') return NextResponse.json({ proveedores: [] });
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: friendlyError(error) }, { status: 500 });
     }
     return NextResponse.json({ proveedores: data ?? [] });
 }
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
         .insert({ nombre })
         .select()
         .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: friendlyError(error) }, { status: 500 });
     return NextResponse.json(data);
 }
 
@@ -44,6 +45,6 @@ export async function PATCH(req: Request) {
         .eq('nombre', nombre)
         .select()
         .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: friendlyError(error) }, { status: 500 });
     return NextResponse.json(data);
 }

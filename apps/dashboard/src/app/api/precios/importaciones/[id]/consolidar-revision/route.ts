@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -38,7 +39,7 @@ export async function POST(
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     return NextResponse.json(
-      { ok: false, error: error.message || 'Error al consolidar la importación' },
+      { ok: false, error: friendlyError(error) || 'Error al consolidar la importación' },
       { status: 500 }
     );
   }

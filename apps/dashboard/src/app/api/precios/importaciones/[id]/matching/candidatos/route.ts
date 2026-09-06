@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
         if (error) {
             console.error("Error al obtener candidatos:", error);
-            return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
         }
 
         return NextResponse.json({
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
             }
         });
     } catch (e: any) {
-        return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(e) }, { status: 500 });
     }
 }
 
@@ -85,11 +86,11 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
         if (error) {
             console.error("Error al actualizar candidatos:", error);
-            return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
         }
 
         return NextResponse.json({ ok: true, data });
     } catch (e: any) {
-        return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(e) }, { status: 500 });
     }
 }

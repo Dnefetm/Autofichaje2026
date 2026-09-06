@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 /**
  * GET /api/precios/importar/[id]/eventos
  *
@@ -22,11 +23,11 @@ export async function GET(
             .order('creado_el', { ascending: true });
 
         if (error) {
-            return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
         }
 
         return NextResponse.json({ ok: true, eventos });
     } catch (err: any) {
-        return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(err) }, { status: 500 });
     }
 }

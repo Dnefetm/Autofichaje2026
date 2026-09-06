@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 /**
  * POST /api/precios/importar/[id]/cancelar
  *
@@ -53,6 +54,6 @@ export async function POST(
 
         return NextResponse.json({ ok: true });
     } catch (err: any) {
-        return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(err) }, { status: 500 });
     }
 }

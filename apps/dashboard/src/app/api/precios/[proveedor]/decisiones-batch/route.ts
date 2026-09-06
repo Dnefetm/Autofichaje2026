@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -41,6 +42,6 @@ export async function POST(req: Request, props: { params: Promise<{ proveedor: s
 
         return NextResponse.json({ success: true, count: updatedCount });
     } catch (e: any) {
-        return NextResponse.json({ error: e.message }, { status: 500 });
+        return NextResponse.json({ error: friendlyError(e) }, { status: 500 });
     }
 }

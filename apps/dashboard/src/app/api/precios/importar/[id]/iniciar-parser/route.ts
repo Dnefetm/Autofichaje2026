@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 /**
  * POST /api/precios/importar/[id]/iniciar-parser
  *

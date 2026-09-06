@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
     .limit(1)
     .maybeSingle();
   if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
   }
   return NextResponse.json({ ok: true, activa: data ?? null });
 }

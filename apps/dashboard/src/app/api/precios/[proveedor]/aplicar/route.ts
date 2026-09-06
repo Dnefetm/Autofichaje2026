@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 // DEPRECADO (Flujo A). No se usa desde la UI: el "Ir a Aplicar" ahora va al resumen.
 // Su trabajo lo cubren "Activar como Vigente" (activar route) y el trigger
 // fn_tg_promote_pendientes (que ya marca vigente=true al vincular).
@@ -41,6 +42,6 @@ export async function POST(req: Request, props: { params: Promise<{ proveedor: s
 
         return NextResponse.json({ success: true });
     } catch (e: any) {
-        return NextResponse.json({ error: e.message }, { status: 500 });
+        return NextResponse.json({ error: friendlyError(e) }, { status: 500 });
     }
 }

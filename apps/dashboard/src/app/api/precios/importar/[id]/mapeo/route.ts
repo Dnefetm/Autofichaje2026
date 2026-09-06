@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -61,6 +62,6 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
         return NextResponse.json({ ok: true, mapeo_columnas: merged });
     } catch (err: any) {
-        return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(err) }, { status: 500 });
     }
 }

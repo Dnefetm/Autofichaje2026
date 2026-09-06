@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -24,7 +25,7 @@ if (id) {
 const { data, error } = await q.in('estado', ACTIVOS as unknown as string[]).select('id, proveedor, estado');
 
 if (error) {
-return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
 }
 return NextResponse.json({ ok: true, canceladas: data?.length ?? 0, items: data ?? [] });
 }

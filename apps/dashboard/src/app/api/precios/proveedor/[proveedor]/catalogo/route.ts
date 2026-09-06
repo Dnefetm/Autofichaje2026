@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -54,7 +55,7 @@ export async function GET(
     const { data: rows, count, error } = await query;
 
     if (error) {
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
     }
 
     // Consultar alias existentes para este proveedor

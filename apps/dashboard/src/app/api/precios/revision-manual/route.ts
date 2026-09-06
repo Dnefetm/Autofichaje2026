@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -29,6 +30,6 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (e: any) {
-        return NextResponse.json({ error: e.message || 'Error interno del servidor' }, { status: 500 });
+        return NextResponse.json({ error: friendlyError(e) || 'Error interno del servidor' }, { status: 500 });
     }
 }

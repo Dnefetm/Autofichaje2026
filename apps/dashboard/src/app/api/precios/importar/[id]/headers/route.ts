@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
@@ -44,6 +45,6 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
 
         return NextResponse.json({ ok: true, headers, preview, mapeo_actual: m });
     } catch (err: any) {
-        return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(err) }, { status: 500 });
     }
 }

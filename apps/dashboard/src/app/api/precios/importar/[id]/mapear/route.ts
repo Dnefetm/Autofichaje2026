@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 /**
  * PATCH /api/precios/importar/[id]/mapear
  *
@@ -116,7 +117,7 @@ async function procesarMapear(req: NextRequest, props: { params: Promise<{ id: s
         } catch (err: any) {
             console.error("[Mapear] Error en matching:", err);
             await supabaseAdmin.from('importaciones_excel').update({ estado: 'error', error_mensaje: err.message, ultima_actividad: new Date().toISOString() }).eq('id', id);
-            return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(err) }, { status: 500 });
         }
 
     return NextResponse.json({

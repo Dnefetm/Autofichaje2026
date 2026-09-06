@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 ﻿import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
@@ -95,7 +96,7 @@ export async function GET(req: Request) {
             step1, step2, step3, diffPendienteCount: totalPendientes
         });
     } catch (e: any) {
-        return NextResponse.json({ error: e.message }, { status: 500 });
+        return NextResponse.json({ error: friendlyError(e) }, { status: 500 });
     }
 }
 
