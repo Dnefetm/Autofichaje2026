@@ -395,6 +395,11 @@ setSiblingsLoading(false);
 }
 async function handleSave() {
 setSaving(true);
+// Compensación: snapshot de los mapeos actuales para restaurar si falla a mitad.
+const { data: mapeosPrevios } = await supabase
+.from('mapeo_publicacion_articulo')
+.select('publicacion_id, articulo_id, cantidad_requerida')
+.eq('publicacion_id', listing.id);
 try {
 const { error: delError } = await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', listing.id);
 if (delError) throw delError;
@@ -445,7 +450,16 @@ await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publi
 dispatchWorker();
 onSuccess();
 onClose();
-} catch (error) { console.error('Error guardando el mapeo:', error); alert('Ocurrio un error al guardar el mapeo.'); }
+} catch (error) {
+console.error('Error guardando el mapeo:', error);
+// Rollback de compensación: restaura los mapeos previos del listing.
+if (mapeosPrevios?.length) {
+await supabase.from('mapeo_publicacion_articulo')
+.upsert(mapeosPrevios, { onConflict: 'publicacion_id,articulo_id' })
+.then(() => {}, () => {});
+}
+alert('Ocurrio un error al guardar el mapeo. Se restauraron los mapeos anteriores.');
+}
 finally { setSaving(false); }
 }
 const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel => sel.sku === s.articulo_id));

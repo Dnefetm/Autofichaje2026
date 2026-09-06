@@ -108,7 +108,7 @@ function crearTriggerColaSync() {
   }
   ScriptApp.newTrigger('procesarColaSync')
     .timeBased()
-    .everyMinutes(2)
+    .everyMinutes(1)
     .create();
   Logger.log('Trigger procesarColaSync creado: cada 2 minutos');
 }

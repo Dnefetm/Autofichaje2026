@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
 import { Package, Calendar, Clock, ArrowRight } from 'lucide-react';
 import { ProveedorArchivarButton } from '@/components/precios/ProveedorArchivarButton';
+import { ProveedorRenombrarButton } from '@/components/precios/ProveedorRenombrarButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -64,7 +65,7 @@ export default async function PreciosPage() {
                                 >
                                     <div className="absolute top-0 right-0 w-24 h-24 bg-[var(--accent)]/10 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:bg-[var(--accent)]/20 transition-colors" />
 
-                                    <h3 className="text-xl font-semibold text-[var(--text)] group-hover:text-[var(--accent)] transition-colors mb-4 relative z-10 pr-10">
+                                    <h3 className="text-xl font-semibold text-[var(--text)] group-hover:text-[var(--accent)] transition-colors mb-4 relative z-10 pr-20">
                                         {p.proveedor}
                                         {archivado && <span className="ml-2 text-xs font-bold text-[var(--text-faint)] bg-[var(--surface-2)] px-2 py-0.5 rounded">Archivado</span>}
                                     </h3>
@@ -89,6 +90,7 @@ export default async function PreciosPage() {
                                         <ArrowRight className="w-4 h-4 ml-1 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
                                     </div>
                                 </Link>
+                                <ProveedorRenombrarButton proveedor={p.proveedor} />
                                 <ProveedorArchivarButton proveedor={p.proveedor} archivado={archivado} />
                             </div>
                         );

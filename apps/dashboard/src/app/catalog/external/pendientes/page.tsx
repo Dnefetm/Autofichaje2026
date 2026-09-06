@@ -133,7 +133,12 @@ export default function PendientesPage() {
       .map((r) => ({ publicacion_id: r.id, articulo_id: r._sugerencia!.articulo_id }));
     if (vinculos.length === 0) return;
     if (!confirm(`¿Vincular ${vinculos.length} publicaciones a sus productos sugeridos? Se propagará a sus relacionadas.`)) return;
+    const idsVinculados = new Set(vinculos.map((v) => v.publicacion_id));
+    const snapshot = rows; // para rollback si falla
     setBulkVinculando(true);
+    // Optimista: quita las tarjetas de inmediato.
+    setRows((prev) => prev.filter((r) => !idsVinculados.has(r.id)));
+    setSelectedIds(new Set());
     try {
       const res = await fetch('/api/vinculacion/confirmar-lote', {
         method: 'POST',
@@ -142,13 +147,12 @@ export default function PendientesPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error');
-      const idsVinculados = new Set(vinculos.map((v) => v.publicacion_id));
-      setRows((prev) => prev.filter((r) => !idsVinculados.has(r.id)));
-      setSelectedIds(new Set());
       load();
       alert(`Vinculadas ${data.vinculados} (+${data.propagados} relacionadas).`);
     } catch (e) {
       console.error(e);
+      // Rollback: restaura las tarjetas quitadas.
+      setRows(snapshot);
       alert('Error al vincular en lote.');
     } finally {
       setBulkVinculando(false);
