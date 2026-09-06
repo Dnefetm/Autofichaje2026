@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 /**
  * GET /api/precios/importar/[id]/costos
  *
@@ -86,7 +87,7 @@ export async function GET(
 
     if (costosErr) {
         return NextResponse.json(
-            { ok: false, error: `Error al consultar costos: ${costosErr.message}` },
+            { ok: false, error: friendlyError(costosErr) },
             { status: 500 }
         );
     }

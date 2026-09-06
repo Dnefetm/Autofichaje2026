@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { friendlyError } from '@/lib/friendlyError';
 import { ImportacionEstado } from '@/lib/types/importacion';
 
 export const dynamic = 'force-dynamic';
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
     // 23505 = unique_violation (indice parcial de importacion activa)
     const isDup = (error as { code?: string } | null)?.code === '23505';
     return NextResponse.json(
-      { ok: false, error: error?.message ?? 'No se pudo registrar' },
+      { ok: false, error: friendlyError(error) },
       { status: isDup ? 409 : 500 }
     );
   }

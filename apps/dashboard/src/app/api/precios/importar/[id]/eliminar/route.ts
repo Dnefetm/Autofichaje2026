@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -41,7 +42,7 @@ export async function DELETE(
         .eq('id', id);
 
     if (delErr) {
-        return NextResponse.json({ ok: false, error: delErr.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(delErr) }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });

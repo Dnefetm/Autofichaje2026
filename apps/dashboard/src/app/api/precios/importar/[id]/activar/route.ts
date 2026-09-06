@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -47,7 +48,7 @@ export async function POST(
                 p_finalizar: false
             });
             if (matchErr) {
-                return NextResponse.json({ ok: false, error: `Error en matching previo a activación: ${matchErr.message}` }, { status: 500 });
+                return NextResponse.json({ ok: false, error: friendlyError(matchErr) }, { status: 500 });
             }
         }
     }
@@ -92,7 +93,7 @@ export async function POST(
             });
 
         if (insertErr) {
-            return NextResponse.json({ ok: false, error: insertErr.message }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(insertErr) }, { status: 500 });
         }
     }
 
@@ -106,7 +107,7 @@ export async function POST(
         .eq('id', id);
 
     if (updateErr) {
-        return NextResponse.json({ ok: false, error: updateErr.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(updateErr) }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, proveedor: imp.proveedor });

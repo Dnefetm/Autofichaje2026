@@ -57,7 +57,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
             .eq('id', id);
 
         if (uErr) {
-            return NextResponse.json({ ok: false, error: uErr.message }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(uErr) }, { status: 500 });
         }
 
         return NextResponse.json({ ok: true, mapeo_columnas: merged });

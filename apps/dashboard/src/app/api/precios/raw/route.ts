@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
         });
 
         if (fetchErr) {
-            return NextResponse.json({ ok: false, error: fetchErr.message }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(fetchErr) }, { status: 500 });
         }
 
         return NextResponse.json({ ok: true, filas });

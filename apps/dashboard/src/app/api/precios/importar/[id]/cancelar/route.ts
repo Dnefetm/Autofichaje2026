@@ -47,7 +47,7 @@ export async function POST(
             .eq('id', id);
 
         if (updateErr) {
-            return NextResponse.json({ ok: false, error: updateErr.message }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(updateErr) }, { status: 500 });
         }
 
         await logEvento(supabaseAdmin, id, 'CANCELADO', 'Importación cancelada manualmente desde la interfaz.');

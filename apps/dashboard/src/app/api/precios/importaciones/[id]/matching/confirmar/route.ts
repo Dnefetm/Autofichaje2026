@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
             .not('articulo_id_final', 'is', null);
 
         if (decErr) {
-            return NextResponse.json({ ok: false, error: 'Error leyendo decisiones: ' + decErr.message }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(decErr) }, { status: 500 });
         }
 
         if (!decisiones || decisiones.length === 0) {
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         if (rpcErr) {
             // Si no existe la función, la crearemos o haremos el cruce aquí
             console.error("Error en RPC de consolidación:", rpcErr);
-            return NextResponse.json({ ok: false, error: rpcErr.message }, { status: 500 });
+            return NextResponse.json({ ok: false, error: friendlyError(rpcErr) }, { status: 500 });
         }
 
         // Actualizar estado de importación

@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 /**
  * POST /api/precios/importar/[id]/iniciar-matching
  *
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     if (insertJobErr) {
         console.error("Error al encolar matching:", insertJobErr);
-        return NextResponse.json({ ok: false, error: 'No se pudo crear trabajo de matching: ' + insertJobErr.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(insertJobErr) }, { status: 500 });
     }
 
     // 4. El proceso de matching se disparará automáticamente vía pg_net (Database Trigger)

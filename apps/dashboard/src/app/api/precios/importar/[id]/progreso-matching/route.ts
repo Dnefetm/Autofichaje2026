@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
         .single();
 
     if (jobErr && jobErr.code !== 'PGRST116') { // PGRST116 is not found
-        return NextResponse.json({ ok: false, error: jobErr.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(jobErr) }, { status: 500 });
     }
 
     if (!job) {

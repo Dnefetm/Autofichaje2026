@@ -91,7 +91,7 @@ async function procesarMapear(req: NextRequest, props: { params: Promise<{ id: s
         .eq('id', id);
 
     if (updateErr) {
-        return NextResponse.json({ ok: false, error: updateErr.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(updateErr) }, { status: 500 });
     }
 
     // 1) Ejecutar la preparación y el diff de manera asíncrona

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { friendlyError } from '@/lib/friendlyError';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     .createSignedUploadUrl(path);
 
   if (error || !data) {
-    return NextResponse.json({ ok: false, error: error?.message ?? 'No se pudo crear signed url' }, { status: 500 });
+    return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
   }
 
   return NextResponse.json({

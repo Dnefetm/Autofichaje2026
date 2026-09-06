@@ -1,3 +1,4 @@
+import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -43,7 +44,7 @@ export async function POST(
         .eq('articulo_id', articulo_id);
 
     if (updateErr) {
-        return NextResponse.json({ ok: false, error: updateErr.message }, { status: 500 });
+        return NextResponse.json({ ok: false, error: friendlyError(updateErr) }, { status: 500 });
     }
 
     // Update matching_decisiones so that if the user goes back to the import tool, it shows as un-matched.
