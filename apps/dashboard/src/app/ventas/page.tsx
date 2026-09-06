@@ -243,7 +243,7 @@ export default function VentasPage() {
                                     <tr key={it.id}
                                         className={cn(
                                             "border-b border-[var(--border)] hover:bg-[var(--bg)]/50 transition-colors cursor-pointer",
-                                            isExpanded && "bg-[var(--accent)]/10/30"
+                                            isExpanded && "bg-[var(--accent)]/10"
                                         )}
                                         onClick={() => setExpandedId(isExpanded ? null : o.id)}>
                                         {/* Col 1: Venta — Pack ID, #Orden, Tienda */}

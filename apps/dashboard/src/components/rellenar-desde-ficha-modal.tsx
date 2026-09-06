@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 import React, { useState, useEffect } from 'react';
 import { X, Check, RefreshCw, Sparkles, FileText, CheckCheck } from 'lucide-react';
 
@@ -90,7 +91,7 @@ export default function RellenarDesdeFichaModal({
       if (!res.ok) throw new Error(data.error || 'Error de síntesis');
       patch(i, { propuesta: data.sugerencia, origen: 'sintesis', estado: 'pendiente' });
     } catch (e: any) {
-      alert(e.message || 'Error al sintetizar');
+      toast.error(e.message || 'Error al sintetizar');
       patch(i, { estado: 'pendiente' });
     }
   }
@@ -115,7 +116,7 @@ export default function RellenarDesdeFichaModal({
       onSuccess();
       onClose();
     } catch (e: any) {
-      alert(e.message || 'Error al aplicar');
+      toast.error(e.message || 'Error al aplicar');
     } finally {
       setSaving(false);
     }

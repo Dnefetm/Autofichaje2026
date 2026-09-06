@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, X, Loader2 } from 'lucide-react';
@@ -37,10 +38,10 @@ export function VinculacionActions({ proveedor, importacionId, filaNum, codigoEx
                 setDone('aceptado');
             } else {
                 const d = await res.json();
-                alert(`Error: ${d.error}`);
+                toast.error(`Error: ${d.error}`);
             }
         } catch {
-            alert('Error de red');
+            toast.error('Error de red');
         } finally {
             setLoading(null);
         }

@@ -137,29 +137,29 @@ export default async function ResumenLotePage(props: {
     return (
         <div className="min-h-screen bg-[var(--bg)]">
             {/* Header */}
-            <header className="bg-[var(--surface)] border-b border-[var(--border)] px-8 py-5">
+            <header className="bg-[var(--surface)] border-b border-[var(--border)] px-4 py-2">
                 <Link
                     href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial`}
-                    className="inline-flex items-center text-sm text-[var(--text-muted)] hover:text-[var(--accent)] mb-3"
+                    className="inline-flex items-center text-xs text-[var(--text-muted)] hover:text-[var(--accent)] mb-1"
                 >
                     <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Historial
                 </Link>
-                <div className="flex items-start justify-between gap-4 flex-col lg:flex-row lg:items-center">
-                    <div>
-                        <h1 className="text-2xl font-bold text-[var(--text)]">
+                <div className="flex items-start justify-between gap-3 flex-col lg:flex-row lg:items-center">
+                    <div className="min-w-0">
+                        <h1 className="text-base font-bold text-[var(--text)] leading-tight">
                             Resumen del Lote
                         </h1>
-                        <p className="text-sm text-[var(--text-muted)] mt-1">
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">
                             {imp?.nombre_archivo} · {imp?.total_filas?.toLocaleString()} productos ·{' '}
                             {imp?.creado_el ? new Date(imp.creado_el).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
                         </p>
                         {imp?.estado === 'completado' && (
-                            <span className="mt-2 inline-flex items-center text-xs font-bold text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/30 px-2.5 py-1 rounded-lg">
+                            <span className="mt-1 inline-flex items-center text-[11px] font-bold text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/30 px-2 py-0.5 rounded">
                                 ● Lista Activa y Vigente
                             </span>
                         )}
                         {!hasPrevious && (
-                            <div className="mt-2 text-xs text-[var(--warn)] bg-[var(--warn)]/10 border border-[var(--warn)]/30 px-3 py-2 rounded-lg inline-block">
+                            <div className="mt-1 text-xs text-[var(--warn)] bg-[var(--warn)]/10 border border-[var(--warn)]/30 px-2 py-1 rounded inline-block">
                                 Sin lista anterior para comparar. Todo aparece como Nuevo.
                             </div>
                         )}
@@ -248,7 +248,7 @@ export default async function ResumenLotePage(props: {
                                 </thead>
                                 <tbody className="divide-y divide-[var(--border)]">
                                     {actualizados.slice(0, 500).map((item, i) => (
-                                        <tr key={i} className="hover:bg-[var(--warn)]/10/30">
+                                        <tr key={i} className="hover:bg-[var(--warn)]/10">
                                             <td className="py-2.5 px-4">
                                                 <span className="font-mono font-bold text-[var(--text)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{item.sku}</span>
                                                 <p className="text-[var(--text-muted)] mt-0.5 line-clamp-1">{item.descripcion}</p>
@@ -289,7 +289,7 @@ export default async function ResumenLotePage(props: {
                                 </thead>
                                 <tbody className="divide-y divide-[var(--border)]">
                                     {descontinuados.slice(0, 200).map((item, i) => (
-                                        <tr key={i} className="hover:bg-[var(--err)]/10/30 opacity-70">
+                                        <tr key={i} className="hover:bg-[var(--err)]/10 opacity-70">
                                             <td className="py-2.5 px-4">
                                                 <span className="font-mono font-bold text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{item.sku}</span>
                                                 <p className="text-[var(--text-faint)] mt-0.5 line-clamp-1">{item.descripcion}</p>

@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -109,11 +110,11 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                 // (ahí está el botón "Activar como Vigente"). La ruta /aplicar quedó deprecada.
                 router.push(`/precios/${encodeURIComponent(proveedor)}/historial/${importacion.id}/resumen`);
             } else {
-                alert('Error al guardar decisiones');
+                toast.error('Error al guardar decisiones');
                 setLoading(false);
             }
         } catch (e) {
-            alert('Error de red');
+            toast.error('Error de red');
             setLoading(false);
         }
     };

@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 /**
  * /precios/importar — Wizard de importación de Excel de precios del proveedor
  *
@@ -381,13 +382,13 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
   // Colores por rol para el preview
   type ColInfo = { label: string; emoji: string; hCls: string; cCls: string };
   const colRole: Record<string, ColInfo> = {};
-  if (columnaModelo) colRole[columnaModelo] = { label: 'Modelo', emoji: '🔑', hCls: 'bg-[var(--accent)]/10 text-[var(--accent)]', cCls: 'bg-[var(--accent)]/10/40 font-bold' };
-  if (columnaMarca) colRole[columnaMarca] = { label: 'Marca', emoji: '🏷️', hCls: 'bg-violet-500/10 text-violet-300', cCls: 'bg-violet-500/10 font-bold' };
-  if (columnaCodigo) colRole[columnaCodigo] = { label: 'Código', emoji: '🔢', hCls: 'bg-[var(--warn)]/10 text-[var(--warn)]', cCls: 'bg-[var(--warn)]/10/40 font-bold' };
-  if (columnaDescripcion) colRole[columnaDescripcion] = { label: 'Descripción', emoji: '📝', hCls: 'bg-teal-500/10 text-teal-300', cCls: 'bg-teal-500/10' };
-  if (columnaMoneda) colRole[columnaMoneda] = { label: 'Moneda', emoji: '🌐', hCls: 'bg-sky-500/10 text-sky-300', cCls: 'bg-sky-500/10' };
+  if (columnaModelo) colRole[columnaModelo] = { label: 'Modelo', emoji: '🔑', hCls: 'bg-[var(--accent)]/10 text-[var(--accent)]', cCls: 'bg-[var(--accent)]/10 font-bold' };
+  if (columnaMarca) colRole[columnaMarca] = { label: 'Marca', emoji: '🏷️', hCls: 'bg-[var(--info)]/10 text-[var(--info)]', cCls: 'bg-[var(--info)]/10 font-bold' };
+  if (columnaCodigo) colRole[columnaCodigo] = { label: 'Código', emoji: '🔢', hCls: 'bg-[var(--warn)]/10 text-[var(--warn)]', cCls: 'bg-[var(--warn)]/10 font-bold' };
+  if (columnaDescripcion) colRole[columnaDescripcion] = { label: 'Descripción', emoji: '📝', hCls: 'bg-[var(--surface-2)] text-[var(--text-muted)]', cCls: 'bg-[var(--surface-2)]' };
+  if (columnaMoneda) colRole[columnaMoneda] = { label: 'Moneda', emoji: '🌐', hCls: 'bg-[var(--surface-2)] text-[var(--text-muted)]', cCls: 'bg-[var(--surface-2)]' };
   precios.forEach((p) => {
-    if (p.columna) colRole[p.columna] = { label: TIPOS_COSTO.find((t) => t.value === p.tipo_costo)?.label ?? p.tipo_costo, emoji: '💲', hCls: 'bg-[var(--ok)]/10 text-[var(--ok)]', cCls: 'bg-[var(--ok)]/10/40 text-[var(--ok)] font-bold' };
+    if (p.columna) colRole[p.columna] = { label: TIPOS_COSTO.find((t) => t.value === p.tipo_costo)?.label ?? p.tipo_costo, emoji: '💲', hCls: 'bg-[var(--ok)]/10 text-[var(--ok)]', cCls: 'bg-[var(--ok)]/10 text-[var(--ok)] font-bold' };
   });
 
   function Sel({ id, value, onChange, placeholder = '-- Seleccionar --' }: { id: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
@@ -416,10 +417,10 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
       <div className="flex flex-wrap gap-2">
         {[
           { emoji: '🔑', label: 'Modelo', cls: 'bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/30' },
-          { emoji: '🏷️', label: 'Marca', cls: 'bg-violet-500/10 text-violet-300 border-violet-500/30' },
+          { emoji: '🏷️', label: 'Marca', cls: 'bg-[var(--info)]/10 text-[var(--info)] border-[var(--info)]/30' },
           { emoji: '💲', label: 'Precio', cls: 'bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30' },
           { emoji: '🔢', label: 'Código', cls: 'bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30' },
-          { emoji: '📝', label: 'Descripción', cls: 'bg-teal-500/10 text-teal-300 border-teal-500/30' },
+          { emoji: '📝', label: 'Descripción', cls: 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]' },
         ].map(l => <span key={l.label} className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${l.cls}`}>{l.emoji} {l.label}</span>)}
       </div>
 
@@ -468,7 +469,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
            {headers.map((h) => {
              const isChecked = columnasAGuardar.includes(h);
              return (
-               <label key={h} className={cn("flex items-center gap-2 p-2 text-xs border rounded-lg cursor-pointer transition-colors", isChecked ? "border-[var(--accent)]/70 bg-[var(--accent)]/10/30" : "border-[var(--border)] bg-[var(--bg)] opacity-75")}>
+               <label key={h} className={cn("flex items-center gap-2 p-2 text-xs border rounded-lg cursor-pointer transition-colors", isChecked ? "border-[var(--accent)]/70 bg-[var(--accent)]/10" : "border-[var(--border)] bg-[var(--bg)] opacity-75")}>
                  <input type="checkbox" checked={isChecked} onChange={(e) => {
                    if(e.target.checked) setColumnasAGuardar(p => [...p, h]);
                    else setColumnasAGuardar(p => p.filter(x => x !== h));
@@ -659,7 +660,7 @@ function RemapModal({ costoId, onSelect, onClose }: {
               <div className="min-w-0">
                 <p className="font-semibold text-sm text-[var(--text)] truncate">{art.nombre}</p>
                 <p className="text-xs text-[var(--text-faint)] font-mono">
-                  <span className="text-violet-300 font-bold">{art.marca}</span> · {art.modelo}
+                  <span className="text-[var(--info)] font-bold">{art.marca}</span> · {art.modelo}
                   {art.codigo_universal && <span className="ml-2 text-[var(--warn)]">{art.codigo_universal}</span>}
                   <span className="ml-2 px-1 bg-[var(--surface-2)] rounded text-[var(--text-muted)] border border-[var(--border)]">📍 {art.caja_madre || '—'}</span>
                 </p>
@@ -853,15 +854,15 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
       const res = await fetch(`/api/precios/importar/batches/${batchIdConfirmado}/revert`, { method: 'DELETE' });
       const d = await res.json();
       if (!d.ok) {
-        alert('Error al revertir: ' + d.error);
+        toast.error('Error al revertir: ' + d.error);
       } else {
-        alert(`¡Lote revertido con éxito! Se restauraron ${d.revertidos} registros de precios.`);
+        toast.success(`¡Lote revertido con éxito! Se restauraron ${d.revertidos} registros de precios.`);
         setBatchIdConfirmado(null);
         setGuardadoOk(false);
         await refrescarCostos();
       }
     } catch (e: any) {
-      alert('Error en llamada a Revert: ' + e.message);
+      toast.error('Error en llamada a Revert: ' + e.message);
     } finally {
       setRevertiendo(false);
     }

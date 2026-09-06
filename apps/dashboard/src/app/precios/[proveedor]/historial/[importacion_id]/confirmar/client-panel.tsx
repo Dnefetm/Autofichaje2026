@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 
 import { useState } from 'react';
 import { CheckSquare, ArrowUpRight, ArrowDownRight, Check, Loader2, Sparkles, Filter } from 'lucide-react';
@@ -136,10 +137,10 @@ export function PriceConfirmationPanelClient({
 
             if (!res.ok) throw new Error('Error al confirmar precios');
 
-            alert('¡Precios actualizados y vigentes con éxito!');
+            toast.success('¡Precios actualizados y vigentes con éxito!');
             router.push(`/precios/${encodeURIComponent(proveedor)}`);
         } catch (e: any) {
-            alert(e.message || 'Error al confirmar');
+            toast.error(e.message || 'Error al confirmar');
         } finally {
             setLoading(false);
         }
@@ -216,8 +217,75 @@ export function PriceConfirmationPanelClient({
                 </span>
             </div>
 
-            {/* Tabla: 1 FILA POR PRODUCTO CON COMPARATIVA EN 2 RENGLONES */}
-            <div className="overflow-x-auto">
+            {/* Mobile: tarjetas apiladas (sin scroll horizontal) */}
+            <div className="md:hidden divide-y divide-[var(--border)]">
+                {productosFiltrados.length === 0 ? (
+                    <div className="py-12 text-center text-[var(--text-faint)] text-sm">No hay productos para mostrar.</div>
+                ) : (
+                    productosFiltrados.map(prod => {
+                        const checked = selectedKeys.has(prod.key);
+                        return (
+                            <div key={prod.key} className="p-4 space-y-2.5">
+                                <div className="flex items-start gap-3">
+                                    <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={e => handleSelectOne(prod.key, e.target.checked)}
+                                        className="mt-0.5 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-mono font-bold text-[var(--text)] bg-[var(--surface-2)] px-2 py-0.5 rounded text-[11px]">{prod.modelo || prod.codigo}</span>
+                                            <span className="text-[var(--text-muted)] font-semibold text-xs">{prod.marca}</span>
+                                        </div>
+                                        <p className="text-xs text-[var(--text-muted)] mt-1 line-clamp-1" title={prod.descripcion}>{prod.descripcion}</p>
+                                        <span className="text-[10px] text-[var(--text-faint)] font-mono">ID Catálogo: {prod.articulo_id}</span>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {tiposCostoOrden.map(tipo => {
+                                        const pInfo = prod.precios.find(pr => pr.tipo_costo?.toLowerCase() === tipo);
+                                        const label = tipo.charAt(0).toUpperCase() + tipo.slice(1);
+                                        if (!pInfo) {
+                                            return (
+                                                <div key={tipo} className="text-xs border border-[var(--border)] rounded-lg p-2">
+                                                    <div className="text-[var(--text-faint)]">{label}</div>
+                                                    <div className="text-[var(--text-faint)]">—</div>
+                                                </div>
+                                            );
+                                        }
+                                        const tienePrevio = pInfo.valor_anterior !== null;
+                                        const subio = pInfo.delta_val !== null && pInfo.delta_val > 0;
+                                        const bajo = pInfo.delta_val !== null && pInfo.delta_val < 0;
+                                        return (
+                                            <div key={tipo} className="text-xs border border-[var(--border)] rounded-lg p-2">
+                                                <div className="text-[var(--text-faint)]">{label}</div>
+                                                {tienePrevio && <div className="text-[var(--text-faint)] line-through">{fmtMx.format(pInfo.valor_anterior!)}</div>}
+                                                <div className="font-bold text-[var(--text)] flex items-center gap-1 flex-wrap">
+                                                    {fmtMx.format(pInfo.valor)}
+                                                    {subio && (
+                                                        <span className="text-[10px] font-bold text-[var(--err)] bg-[var(--err)]/10 px-1 py-0.5 rounded flex items-center">
+                                                            <ArrowUpRight className="w-3 h-3" />+{pInfo.delta_pct?.toFixed(1)}%
+                                                        </span>
+                                                    )}
+                                                    {bajo && (
+                                                        <span className="text-[10px] font-bold text-[var(--ok)] bg-[var(--ok)]/10 px-1 py-0.5 rounded flex items-center">
+                                                            <ArrowDownRight className="w-3 h-3" />{pInfo.delta_pct?.toFixed(1)}%
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+
+            {/* Desktop: tabla (1 FILA POR PRODUCTO CON COMPARATIVA EN 2 RENGLONES) */}
+            <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-[var(--bg)]/80 border-b border-[var(--border)] text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">

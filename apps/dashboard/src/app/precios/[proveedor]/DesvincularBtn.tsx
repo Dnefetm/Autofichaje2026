@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 
 import { useState } from 'react';
 import { Unlink, Loader2 } from 'lucide-react';
@@ -19,12 +20,12 @@ export function DesvincularBtn({ proveedor, articuloId }: { proveedor: string; a
             });
             const data = await res.json();
             if (!data.ok) {
-                alert(data.error || "Error al desvincular");
+                toast.error(data.error || "Error al desvincular");
             } else {
                 router.refresh();
             }
         } catch (e: any) {
-            alert(e.message);
+            toast.error(e.message);
         } finally {
             setLoading(false);
         }

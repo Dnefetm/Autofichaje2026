@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 
 import { useState } from 'react';
 import { AlertCircle, ArrowRight, X, Loader2 } from 'lucide-react';
@@ -21,7 +22,7 @@ export function BannerImportacionActiva({ activa, onContinuar, onCancelar }: Pro
       await onCancelar();
     } catch (err: any) {
       // Use sonner toast to show the exact error (imported dynamically or assume toast exists in scope, or just alert)
-      alert('Error cancelando: ' + (err?.message || err));
+      toast.error('Error cancelando: ' + (err?.message || err));
     } finally {
       setLoadingCancelar(false);
     }

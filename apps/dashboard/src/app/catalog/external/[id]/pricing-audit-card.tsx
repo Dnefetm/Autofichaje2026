@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -176,7 +177,7 @@ export default function PricingAuditCard({
             onOverrideUpdated();
         } catch (err: any) {
             console.error(err);
-            alert('Error guardando modificadores: ' + err.message);
+            toast.error('Error guardando modificadores: ' + err.message);
         } finally {
             setSaving(false);
         }
@@ -214,7 +215,7 @@ export default function PricingAuditCard({
             onOverrideUpdated();
         } catch (err: any) {
             console.error(err);
-            alert('Error: ' + (err.message || 'Desconocido'));
+            toast.error('Error: ' + (err.message || 'Desconocido'));
         } finally {
             setRecalculating(false);
         }
@@ -243,11 +244,11 @@ export default function PricingAuditCard({
                 setEditablePrice('');
                 onOverrideUpdated();
             } else if (data.error) {
-                alert('Error: ' + data.error);
+                toast.error('Error: ' + data.error);
             }
         } catch (err: any) {
             console.error(err);
-            alert('Error: ' + (err.message || 'Desconocido'));
+            toast.error('Error: ' + (err.message || 'Desconocido'));
         } finally {
             setApplying(false);
         }

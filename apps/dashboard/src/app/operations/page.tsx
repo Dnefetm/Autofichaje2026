@@ -118,7 +118,7 @@ export default function OperationsPage() {
             {/* Zona de Carga */}
             <div className={cn(
                 "bg-[var(--surface)] border-2 border-dashed rounded-2xl p-12 transition-all flex flex-col items-center gap-4",
-                status === 'idle' ? "border-[var(--border)] hover:border-[var(--accent)]/50" : "border-indigo-100 bg-[var(--accent)]/10/20"
+                status === 'idle' ? "border-[var(--border)] hover:border-[var(--accent)]/50" : "border-indigo-100 bg-[var(--accent)]/10"
             )}>
                 <div className={cn(
                     "w-16 h-16 rounded-full flex items-center justify-center mb-2",

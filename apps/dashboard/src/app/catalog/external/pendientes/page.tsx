@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import MappingModal from '@/components/mapping-modal';
@@ -148,12 +149,12 @@ export default function PendientesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error');
       load();
-      alert(`Vinculadas ${data.vinculados} (+${data.propagados} relacionadas).`);
+      toast.success(`Vinculadas ${data.vinculados} (+${data.propagados} relacionadas).`);
     } catch (e) {
       console.error(e);
       // Rollback: restaura las tarjetas quitadas.
       setRows(snapshot);
-      alert('Error al vincular en lote.');
+      toast.error('Error al vincular en lote.');
     } finally {
       setBulkVinculando(false);
     }

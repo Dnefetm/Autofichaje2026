@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useState } from 'react';
 import { AlertCircle, Save, Edit2, Image as ImageIcon, FileText, Link2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -83,7 +84,7 @@ export function SkuCard({
             setStockInput(String(newStock)); // sincronizar input string tras guardar
             setEditing(false);
         } catch (err) {
-            alert('Error al intentar actualizar el stock');
+            toast.error('Error al intentar actualizar el stock');
         } finally {
             setSaving(false);
         }
@@ -106,7 +107,7 @@ export function SkuCard({
             if (!res.ok || !data.id) throw new Error(data?.error || 'Error al crear la ficha');
             router.push(`/fichas/${data.id}`);
         } catch (err: any) {
-            alert(err?.message || 'No se pudo crear la ficha técnica');
+            toast.error(err?.message || 'No se pudo crear la ficha técnica');
             setCreatingFicha(false);
         }
     };

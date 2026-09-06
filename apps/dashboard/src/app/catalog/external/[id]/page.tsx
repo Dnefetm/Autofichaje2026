@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -356,7 +357,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             if (!res.ok) throw new Error(data.error || 'Error');
             window.location.href = `/fichas/${data.id}`;
         } catch (err: any) {
-            alert(err.message || 'Error al generar la ficha');
+            toast.error(err.message || 'Error al generar la ficha');
             setGenerandoFicha(false);
         }
     }

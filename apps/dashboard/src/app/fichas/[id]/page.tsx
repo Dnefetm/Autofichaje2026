@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -284,10 +285,10 @@ export default function FichaDetallePage() {
                 urlObj.searchParams.set('t', Date.now().toString());
                 window.open(urlObj.toString(), '_blank');
             } else {
-                alert('Error al generar PDF: ' + (data.error || 'Desconocido'));
+                toast.error('Error al generar PDF: ' + (data.error || 'Desconocido'));
             }
         } catch (e: any) {
-            alert('Error al generar PDF: ' + e.message);
+            toast.error('Error al generar PDF: ' + e.message);
         } finally {
             setGenerandoPdf(false);
         }
@@ -547,14 +548,14 @@ export default function FichaDetallePage() {
             });
             const data = await res.json();
             if (!res.ok) {
-                alert(data.error || 'Error al cambiar de estado');
+                toast.error(data.error || 'Error al cambiar de estado');
             } else {
                 setFicha(p => p ? { ...p, estado: e } : p);
                 setSavedOk(true);
                 setTimeout(() => setSavedOk(false), 2000);
             }
         } catch (err) {
-            alert('Error de red al intentar cambiar estado');
+            toast.error('Error de red al intentar cambiar estado');
         }
         setSaving(false);
     }

@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -22,13 +23,13 @@ export function HubRowActions({ articuloId, proveedor, estadoActualizacion }: { 
             });
             if (!res.ok) {
                 const data = await res.json();
-                alert(data.error || 'Error al guardar revisión');
+                toast.error(data.error || 'Error al guardar revisión');
             } else {
                 // Ideally refresh the data, or just show a success toast.
                 router.refresh();
             }
         } catch (e: any) {
-            alert('Error de red');
+            toast.error('Error de red');
         } finally {
             setLoading(false);
         }

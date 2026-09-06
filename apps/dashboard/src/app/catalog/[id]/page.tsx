@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -135,7 +136,7 @@ export default function ArticuloDetailPage() {
             if (!res.ok || !data.id) throw new Error(data?.error || 'Error al crear la ficha');
             router.push(`/fichas/${data.id}`);
         } catch (err: any) {
-            alert(err?.message || 'No se pudo crear la ficha técnica');
+            toast.error(err?.message || 'No se pudo crear la ficha técnica');
             setCreatingFicha(false);
         }
     };

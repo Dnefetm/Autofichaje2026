@@ -530,7 +530,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                 const pricesDiffer = prices.length > 1 && (Math.max(...prices) - Math.min(...prices)) > 0;
                 const stocksDiffer = variations.some(x => x.stock_publicado !== v.stock_publicado);
                 return (
-                    <tr key={v.id} className="bg-[var(--accent)]/10/30 border-t border-[var(--border)]">
+                    <tr key={v.id} className="bg-[var(--accent)]/10 border-t border-[var(--border)]">
                         {/* Estado + ID */}
                         <td className="px-4 py-2 pl-12 align-top">
                             <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[v.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>

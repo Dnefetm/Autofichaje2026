@@ -15,19 +15,19 @@ export default async function HistorialProveedorPage(props: { params: Promise<{ 
 
     return (
         <div className="flex flex-col h-[calc(100vh-80px)]">
-            <header className="flex items-center justify-between gap-3 flex-wrap px-6 py-4 border-b border-[var(--border)] bg-[var(--surface)] shrink-0">
-                <div className="flex flex-col">
-                    <div className="flex items-center text-sm text-[var(--text-muted)] mb-1">
+            <header className="flex items-center justify-between gap-3 flex-wrap px-4 py-2 border-b border-[var(--border)] bg-[var(--surface)] shrink-0">
+                <div className="flex flex-col min-w-0">
+                    <div className="flex items-center text-xs text-[var(--text-muted)] mb-0.5">
                         <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}`} className="hover:text-[var(--accent)] transition flex items-center">
                             <ArrowLeft className="w-3 h-3 mr-1" /> {proveedorDecoded}
                         </Link>
                         <span className="mx-2">/</span>
                         <span className="font-medium text-[var(--text-muted)]">Historial</span>
                     </div>
-                    <h1 className="text-2xl font-bold text-[var(--text)] tracking-tight">Historial de Importaciones</h1>
+                    <h1 className="text-base font-bold text-[var(--text)] leading-tight">Historial de Importaciones</h1>
                 </div>
                 <div className="flex space-x-3">
-                    <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}/subir`} className="inline-flex items-center px-4 py-2 bg-[var(--accent)] text-[var(--accent-ink)] rounded-md font-medium hover:brightness-110 transition-colors shadow-sm">
+                    <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}/subir`} className="inline-flex items-center px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] rounded-md font-medium hover:brightness-110 transition-colors shadow-sm text-sm">
                         Actualizar Lista
                     </Link>
                 </div>

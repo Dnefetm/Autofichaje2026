@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -44,7 +45,7 @@ export function ReglaForm() {
         });
         setLoading(false);
         if(res.ok) router.refresh();
-        else alert('Error guardando la regla');
+        else toast.error('Error guardando la regla');
     };
 
     return (

@@ -119,9 +119,9 @@ export default async function HubProveedorPage(props: {
 
     return (
         <div className="flex flex-col h-full bg-[var(--surface)] relative">
-            <header className="flex items-center justify-between px-8 py-6 border-b border-[var(--border)]">
+            <header className="px-4 py-2 border-b border-[var(--border)] shrink-0">
                 <div className="flex flex-col flex-1">
-                    <div className="flex items-center text-sm text-[var(--text-muted)] mb-2">
+                    <div className="flex items-center text-xs text-[var(--text-muted)] mb-0.5">
                         <Link href="/precios" className="hover:text-[var(--accent)] transition flex items-center">
                             <ArrowLeft className="w-3 h-3 mr-1" /> Precios
                         </Link>
@@ -132,24 +132,24 @@ export default async function HubProveedorPage(props: {
                             <History className="w-3.5 h-3.5" /> Historial de Lotes
                         </Link>
                     </div>
-                    <div className="flex items-end justify-between gap-4 flex-wrap">
-                        <div>
-                            <h1 className="text-3xl font-bold text-[var(--text)] tracking-tight">{proveedorDecoded}</h1>
-                            <p className="text-sm text-[var(--text-muted)] mt-1">
-                                {(totalFilas || 0).toLocaleString()} SKUs en catálogo
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="min-w-0">
+                            <h1 className="text-base font-bold text-[var(--text)] leading-tight truncate">{proveedorDecoded}</h1>
+                            <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">
+                                {(totalFilas || 0).toLocaleString()} SKUs
                                 {' · '}Última act. {fechaAct ? new Date(fechaAct).toLocaleDateString('es-MX') : '—'}
                                 {' · '}
                                 {estaVigente
                                     ? <span className="text-[var(--ok)] font-semibold">● Lista Vigente</span>
-                                    : <span className="text-[var(--warn)] font-semibold">⚠ Lista sin activar — ve al historial para activarla</span>
+                                    : <span className="text-[var(--warn)] font-semibold">⚠ Lista sin activar</span>
                                 }
                             </p>
                         </div>
                         <Link
                             href={`/precios/${encodeURIComponent(proveedorDecoded)}/subir`}
-                            className="bg-[var(--accent)] text-[var(--accent-ink)] px-6 py-3 rounded-xl font-bold shadow-sm hover:brightness-110 transition-all flex items-center text-sm"
+                            className="bg-[var(--accent)] text-[var(--accent-ink)] px-4 py-2 rounded-lg font-bold shadow-sm hover:brightness-110 transition-all flex items-center text-sm shrink-0"
                         >
-                            <span className="mr-2 text-lg">+</span> Actualizar lista de precios
+                            <span className="mr-1.5 text-base">+</span> Actualizar lista
                         </Link>
                     </div>
                 </div>

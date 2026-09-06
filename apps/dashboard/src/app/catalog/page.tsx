@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -364,7 +365,7 @@ function CatalogPageInner() {
                 selectedSkus={selectedSkus}
                 onSuccess={() => {
                     setSelectedSkus(new Set());
-                    alert('Lote de actualización enviado al Worker correctamente.');
+                    toast.success('Lote de actualización enviado al Worker correctamente.');
                 }}
             />
         </div>

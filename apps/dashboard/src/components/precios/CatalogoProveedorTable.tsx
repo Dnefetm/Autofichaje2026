@@ -49,7 +49,49 @@ export function CatalogoProveedorTable({
                 </div>
             )}
 
-            <div className="overflow-x-auto">
+            {/* Mobile: tarjetas apiladas (sin scroll horizontal) */}
+            <div className="md:hidden divide-y divide-[var(--border)]">
+                {paginatedItems.length === 0 ? (
+                    <div className="py-12 text-center text-[var(--text-faint)] text-sm">No hay productos para mostrar.</div>
+                ) : (
+                    paginatedItems.map(item => {
+                        const vinculado = !!item.articulo_id_vinculado || localVinculados.has(item.id);
+                        return (
+                            <div key={item.id} className="p-4 space-y-2.5">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="font-mono font-bold text-[var(--text)] bg-[var(--surface-2)] px-2 py-0.5 rounded text-[11px]">{item.modelo || item.codigo}</span>
+                                            <span className="text-[var(--text-faint)] text-[10px]">{item.marca}</span>
+                                        </div>
+                                        {item.codigo && item.codigo !== item.modelo && (
+                                            <div className="text-[10px] text-[var(--text-faint)] font-mono mt-0.5">EAN: {item.codigo}</div>
+                                        )}
+                                    </div>
+                                    {vinculado ? (
+                                        <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30"><Check className="w-3 h-3" /> Vinculado</span>
+                                    ) : (
+                                        <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--surface-2)] text-[var(--text-muted)]">No vinculado</span>
+                                    )}
+                                </div>
+                                {item.descripcion && <p className="text-xs text-[var(--text-muted)] line-clamp-2">{item.descripcion}</p>}
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                                    <div className="flex justify-between"><span className="text-[var(--text-faint)]">Distribuidor</span><span className="font-bold text-[var(--text)]">{item.precio_distribuidor ? fmtMx.format(parseFloat(item.precio_distribuidor)) : '—'}</span></div>
+                                    <div className="flex justify-between"><span className="text-[var(--text-faint)]">Subdistr</span><span className="text-[var(--text-muted)]">{item.precio_subdistribuidor ? fmtMx.format(parseFloat(item.precio_subdistribuidor)) : '—'}</span></div>
+                                    <div className="flex justify-between"><span className="text-[var(--text-faint)]">Mayoreo</span><span className="text-[var(--text-muted)]">{item.precio_mayoreo ? fmtMx.format(parseFloat(item.precio_mayoreo)) : '—'}</span></div>
+                                    <div className="flex justify-between"><span className="text-[var(--text-faint)]">Menudeo</span><span className="text-[var(--text-muted)]">{item.precio_menudeo ? fmtMx.format(parseFloat(item.precio_menudeo)) : '—'}</span></div>
+                                </div>
+                                <button onClick={() => setSelectedItem(item)} className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center justify-center gap-1 ${vinculado ? 'bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}>
+                                    {vinculado ? <><LinkIcon className="w-3 h-3" /> Cambiar</> : <><Plus className="w-3 h-3" /> Vincular</>}
+                                </button>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+
+            {/* Desktop: tabla */}
+            <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-[var(--bg)]/80 border-b border-[var(--border)] text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">

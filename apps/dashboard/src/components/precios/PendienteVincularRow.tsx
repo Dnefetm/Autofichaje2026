@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AutocompleteArticulo } from '@/components/AutocompleteArticulo';
@@ -27,7 +28,7 @@ export function PendienteVincularRow({ pendiente }: { pendiente: any }) {
             if (res.ok) {
                 router.refresh();
             } else {
-                alert('Error al vincular');
+                toast.error('Error al vincular');
             }
         } finally {
             setLoading(false);

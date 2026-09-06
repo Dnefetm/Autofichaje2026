@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { RefreshCw, Download, Loader2 } from 'lucide-react';
 
@@ -19,12 +20,12 @@ export function HubTableActions({ proveedor, count }: { proveedor: string, count
             if (res.ok) {
                 const data = await res.json();
                 setBatchStatus(data);
-                alert(`${data.enqueued} publicaciones encoladas. Procesando en segundo plano.`);
+                toast.success(`${data.enqueued} publicaciones encoladas. Procesando en segundo plano.`);
             } else {
-                alert('Error al encolar.');
+                toast.error('Error al encolar.');
             }
         } catch (e) {
-            alert('Error de red');
+            toast.error('Error de red');
         } finally {
             setRecalculating(false);
         }

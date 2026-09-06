@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -29,7 +30,7 @@ export function AplicarPanel({ importacion, loteNum, stats, proveedor }: { impor
             await mutate();
             setStep('exito');
         } catch (e) {
-            alert('Error al aplicar cambios');
+            toast.error('Error al aplicar cambios');
             setStep('resumen');
         }
     };

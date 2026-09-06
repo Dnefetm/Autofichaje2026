@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -50,7 +51,7 @@ export default function AuditoriaPricingPage() {
             await loadDrafts();
         } catch (err) {
             console.error(err);
-            alert('Error aprobando');
+            toast.error('Error aprobando');
         } finally {
             setApproving(false);
         }

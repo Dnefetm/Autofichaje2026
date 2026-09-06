@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Pencil } from 'lucide-react';
@@ -22,7 +23,7 @@ export function ProveedorRenombrarButton({ proveedor }: { proveedor: string }) {
             });
             const data = await res.json().catch(() => null);
             if (!res.ok) {
-                alert(data?.error || 'No se pudo renombrar el proveedor.');
+                toast.error(data?.error || 'No se pudo renombrar el proveedor.');
                 return;
             }
             router.refresh();

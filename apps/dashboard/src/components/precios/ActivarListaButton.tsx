@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, CheckCircle2 } from 'lucide-react';
@@ -23,10 +24,10 @@ export function ActivarListaButton({ importacionId, proveedor }: { importacionId
                     router.push(`/precios/${encodeURIComponent(proveedor)}`);
                 }, 1500);
             } else {
-                alert(`Error: ${data.error}`);
+                toast.error(`Error: ${data.error}`);
             }
         } catch (e) {
-            alert('Error de red');
+            toast.error('Error de red');
         } finally {
             setLoading(false);
         }

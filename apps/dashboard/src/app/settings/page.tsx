@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 // Force fast refresh 1
 
 import React, { useState, useEffect, Suspense } from 'react';
@@ -92,7 +93,7 @@ function SettingsContent() {
         } else if (configs.length > 0) {
             window.location.href = `/api/auth/meli?marketplace_id=${configs[0].id}`;
         } else {
-            alert('Primero crea una configuración de tienda en la base de datos.');
+            toast.error('Primero crea una configuración de tienda en la base de datos.');
         }
     };
 
@@ -295,7 +296,7 @@ function WebhookControlPanel() {
             setPendingChanges(prev => { const n = { ...prev }; delete n[topic]; return n; });
         } catch (err) {
             console.error(err);
-            alert('Error al guardar la configuración.');
+            toast.error('Error al guardar la configuración.');
         } finally {
             setSaving(null);
         }

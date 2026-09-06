@@ -113,7 +113,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
         <div className="flex justify-center pt-2 w-full">
            {s.estado === 'en_revision' && s.resumen_diff && (
              <div className="flex flex-col items-center gap-4 w-full">
-                <div className="w-full bg-[var(--warn)]/10/50 border border-[var(--warn)]/30 p-4 rounded-xl flex flex-col sm:flex-row justify-around gap-4 shadow-sm">
+                <div className="w-full bg-[var(--warn)]/10 border border-[var(--warn)]/30 p-4 rounded-xl flex flex-col sm:flex-row justify-around gap-4 shadow-sm">
                    <div className="text-center">
                      <span className="block text-2xl font-black text-[var(--ok)]">{s.resumen_diff.nuevos ?? 0}</span>
                      <span className="text-xs uppercase font-bold text-[var(--text-muted)]">Nuevos</span>

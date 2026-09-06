@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dispatchWorker } from '@/lib/dispatch-worker';
@@ -173,7 +174,7 @@ export default function VincularVitrinaModal({
       cargarSugerencias();
     } catch (e) {
       console.error(e);
-      alert('Error al desvincular');
+      toast.error('Error al desvincular');
     }
   }
 
@@ -254,7 +255,7 @@ export default function VincularVitrinaModal({
       onSuccess();
       onClose();
     } catch (e: any) {
-      alert(e.message || 'Error al vincular');
+      toast.error(e.message || 'Error al vincular');
     } finally {
       setSaving(false);
     }

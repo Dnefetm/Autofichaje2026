@@ -87,7 +87,66 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
 
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
-      <div className="overflow-x-auto">
+      {/* Mobile: tarjetas apiladas (sin scroll horizontal) */}
+      <div className="md:hidden divide-y divide-[var(--border)]">
+        {rows.map((row) => (
+          <div key={row.id} className="p-4 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-semibold text-[var(--text)] text-sm">{row.proveedor || 'Sin proveedor'}</div>
+              <BadgeEstado estado={row.estado} />
+            </div>
+            <div className="flex items-center gap-2 text-[var(--text-muted)] text-xs">
+              <FileText className="w-4 h-4 text-[var(--text-faint)] shrink-0" />
+              <span className="truncate" title={row.nombre_archivo}>{row.nombre_archivo}</span>
+            </div>
+            {row.estado === 'error' && row.error_mensaje && (
+              <div className="text-xs text-[var(--err)] font-medium bg-[var(--err)]/10 p-1.5 rounded">{row.error_mensaje}</div>
+            )}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-[var(--text-muted)]">
+                <span>{row.filas_procesadas} / {row.total_filas} filas</span>
+                <span className="font-semibold">{Math.round(row.pct_progreso)}%</span>
+              </div>
+              <div className="h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                <div
+                  className={cn("h-full transition-all duration-500 ease-out",
+                    ['mapeando', 'procesando'].includes(row.estado) ? "bg-[var(--accent)]/100" :
+                    row.estado === 'error' ? "bg-[var(--err)]/100" : "bg-[var(--ok)]/100"
+                  )}
+                  style={{ width: `${Math.max(row.pct_progreso, 0)}%` }}
+                />
+              </div>
+            </div>
+            <div className="text-xs text-[var(--text-faint)]">Creado {formatDistanceToNow(new Date(row.created_at), { addSuffix: true, locale: es })}</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {row.estado === 'en_revision' && (
+                <button onClick={() => router.push(`/precios/importaciones/${row.id}`)} className="bg-[var(--warn)]/10 text-[var(--warn)] hover:bg-[var(--warn)]/20 px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-colors">Revisar Cambios <ArrowRight className="w-3.5 h-3.5" /></button>
+              )}
+              {row.estado === 'completado' && (
+                <button onClick={() => router.push(`/precios/matching?importacion_id=${row.id}`)} className="bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20 px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-colors">Correr Matching <ArrowRight className="w-3.5 h-3.5" /></button>
+              )}
+              {row.estado === 'matching_completo' && (
+                <button onClick={() => router.push(`/precios/matching?importacion_id=${row.id}`)} className="bg-[var(--ok)]/10 text-[var(--ok)] hover:bg-[var(--ok)]/20 px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-colors">Continuar Revisión <ArrowRight className="w-3.5 h-3.5" /></button>
+              )}
+              {['pendiente_mapeo', 'mapeando'].includes(row.estado) && (
+                <button onClick={() => router.push(`/precios/matching?importacion_id=${row.id}`)} className="bg-[var(--info)]/10 text-[var(--info)] hover:bg-[var(--info)]/20 px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-colors">Mapear Columnas <ArrowRight className="w-3.5 h-3.5" /></button>
+              )}
+              <div className="flex items-center gap-2 ml-auto text-[var(--text-faint)]">
+                {row.estado === 'error' && (
+                  <button onClick={() => handleAction(row.id, 'reintentar')} className="hover:text-[var(--warn)] p-1.5 transition-colors" title="Reintentar"><RefreshCcw className="w-4 h-4" /></button>
+                )}
+                {['pendiente_mapeo', 'mapeando', 'procesando'].includes(row.estado) && (
+                  <button onClick={() => handleAction(row.id, 'cancelar')} className="hover:text-[var(--text-muted)] p-1.5 transition-colors" title="Cancelar"><XCircle className="w-4 h-4" /></button>
+                )}
+                <button disabled={deletingId === row.id} onClick={() => handleDelete(row.id, row.nombre_archivo)} className="hover:text-[var(--err)] p-1.5 transition-colors" title="Eliminar permanentemente"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop: tabla */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm text-left">
           <thead className="bg-[var(--bg)] border-b border-[var(--border)] text-[var(--text-muted)] font-medium">
             <tr>

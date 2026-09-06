@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dispatchWorker } from '@/lib/dispatch-worker';
@@ -458,7 +459,7 @@ await supabase.from('mapeo_publicacion_articulo')
 .upsert(mapeosPrevios, { onConflict: 'publicacion_id,articulo_id' })
 .then(() => {}, () => {});
 }
-alert('Ocurrio un error al guardar el mapeo. Se restauraron los mapeos anteriores.');
+toast.error('Ocurrio un error al guardar el mapeo. Se restauraron los mapeos anteriores.');
 }
 finally { setSaving(false); }
 }

@@ -47,7 +47,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
               <div className="grid grid-cols-[70px_80px_100px_130px_minmax(0,1fr)] items-center gap-2 px-4 py-2 bg-[var(--bg)] border-b border-[var(--border)]">
                  <div className="text-[10px] uppercase text-[var(--text-faint)] font-bold truncate tracking-wider">L1 Excel</div>
                  <div className="font-bold text-[var(--text)] truncate" title={g.excel.modelo || ''}>{g.excel.modelo || '—'}</div>
-                 <div className="truncate text-violet-300 font-semibold" title={g.excel.marca || ''}>{g.excel.marca || '—'}</div>
+                 <div className="truncate text-[var(--info)] font-semibold" title={g.excel.marca || ''}>{g.excel.marca || '—'}</div>
                  <div className="font-mono text-xs text-[var(--text-muted)] truncate" title={g.excel.codigo_universal || ''}>{g.excel.codigo_universal || '—'}</div>
                  <div className="truncate min-w-0 font-medium text-[var(--text-muted)] pr-2" title={g.excel.descripcion || ''}>
                    {g.excel.descripcion?.trim() || '—'}
@@ -55,7 +55,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
               </div>
 
               {/* L2: Catálogo */}
-              <div className="grid grid-cols-[70px_80px_100px_130px_minmax(0,1fr)] items-center gap-2 px-4 py-2 bg-[var(--accent)]/10/30 border-b border-[var(--border)] shadow-[inset_0_1px_4px_rgba(0,0,0,0.01)]">
+              <div className="grid grid-cols-[70px_80px_100px_130px_minmax(0,1fr)] items-center gap-2 px-4 py-2 bg-[var(--accent)]/10 border-b border-[var(--border)] shadow-[inset_0_1px_4px_rgba(0,0,0,0.01)]">
                  <div className="text-[10px] uppercase text-[var(--accent)] font-bold truncate tracking-wider">L2 Sugg.</div>
                  {g.catalogo_sugerido ? (
                    <>
@@ -72,7 +72,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
               </div>
 
               {/* L3: Precios Nuevos (Excel) */}
-              <div className="flex items-stretch gap-2 px-4 bg-[var(--ok)]/10/20 border-b border-[var(--border)] relative">
+              <div className="flex items-stretch gap-2 px-4 bg-[var(--ok)]/10 border-b border-[var(--border)] relative">
                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--ok)]/80"></div>
                  <div className="w-14 pl-2 text-[10px] uppercase text-[var(--ok)]/80 font-bold shrink-0 tracking-wider flex items-center">L3 Nuevos</div>
                  <div className="flex-1 grid py-2.5" style={{ gridTemplateColumns: `repeat(${tiersGrupo.length}, minmax(120px, 1fr))` }}>
@@ -128,7 +128,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
                <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1.5">
                      {seleccionadoId && g.candidatos_jsonb.find(c => c.articulo_id === seleccionadoId)?.metodo_match === 'manual' ? (
-                        <span className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-fuchsia-500/10 text-fuchsia-300">MANUAL</span>
+                        <span className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-[var(--warn)]/10 text-[var(--warn)]">MANUAL</span>
                      ) : g.estado_grupo === 'match_exacto' ? (
                         <span className="inline-flex w-fit items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--ok)]/10 text-[var(--ok)]">
                           <CheckCircle2 className="w-3.5 h-3.5" /> EXACTO

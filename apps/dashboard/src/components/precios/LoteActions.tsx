@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Trash2, RotateCcw, BarChart2 } from 'lucide-react';
@@ -24,10 +25,10 @@ export function LoteActions({ importacion, proveedor }: { importacion: any, prov
                 router.refresh();
             } else {
                 const data = await res.json();
-                alert(`Error: ${data.error}`);
+                toast.error(`Error: ${data.error}`);
             }
         } catch (e) {
-            alert('Error de red');
+            toast.error('Error de red');
         } finally {
             setRestoring(false);
         }
@@ -45,10 +46,10 @@ export function LoteActions({ importacion, proveedor }: { importacion: any, prov
             if (res.ok && data.ok) {
                 router.refresh();
             } else {
-                alert(`Error: ${data.error}`);
+                toast.error(`Error: ${data.error}`);
             }
         } catch (e) {
-            alert('Error de red');
+            toast.error('Error de red');
         } finally {
             setDeleting(false);
         }

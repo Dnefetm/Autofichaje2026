@@ -167,7 +167,7 @@ export function VincularArticuloModal({
                         resultados.map(art => (
                             <div
                                 key={art.articulo_id}
-                                className="p-3.5 rounded-xl border border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--accent)]/10/30 transition-all flex items-center justify-between gap-4 group"
+                                className="p-3.5 rounded-xl border border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--accent)]/10 transition-all flex items-center justify-between gap-4 group"
                             >
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">

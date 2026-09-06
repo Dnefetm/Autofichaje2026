@@ -1,4 +1,5 @@
 'use client';
+import { toast } from 'sonner';
 
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
@@ -44,7 +45,7 @@ export function ReviewClient({ importacionId, rows }: { importacionId: string; r
     });
     const json = await res.json();
     if (res.ok) setJobId(json.job_id);
-    else alert(`Error: ${json.error}`);
+    else toast.error(`Error: ${json.error}`);
   }
 
   return (
