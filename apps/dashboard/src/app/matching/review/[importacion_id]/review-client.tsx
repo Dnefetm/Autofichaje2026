@@ -28,7 +28,7 @@ export function ReviewClient({ importacionId, rows }: { importacionId: string; r
   const { data: jobStatus } = useSWR(
     jobId ? `/api/matching/jobs/${jobId}` : null,
     fetcher,
-    { refreshInterval: (d: any) => (d?.status === 'done' || d?.status === 'failed') ? 0 : 2000 },
+    { refreshInterval: (d: any) => (d?.status === 'done' || d?.status === 'failed') ? 0 : 5000 },
   );
 
   async function submit(rowsToConfirm: Row[]) {

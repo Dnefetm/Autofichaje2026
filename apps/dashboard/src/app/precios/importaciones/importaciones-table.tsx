@@ -41,7 +41,7 @@ export function ImportacionesTable({ initial }: { initial: ImportacionRow[] }) {
       } catch (err) {
         toast.error('Error de red al actualizar estado');
       }
-    }, 5000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [rows]);

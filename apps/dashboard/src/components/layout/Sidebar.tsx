@@ -9,7 +9,7 @@ import {
     LayoutDashboard, Database, Activity, Settings,
     Package, PlusCircle, RefreshCcw, Store,
     ChevronLeft, ChevronRight, ShoppingCart, FileText,
-    Upload, ClipboardList, Users, ReceiptText,
+    Upload, ClipboardList, Users, ReceiptText, ShoppingBag, UserPlus,
 } from 'lucide-react';
 
 export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
@@ -41,7 +41,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
             if (!cancel) setPendingCount(count ?? 0);
         }
         fetchCount();
-        const t = setInterval(fetchCount, 60_000);
+        const t = setInterval(fetchCount, 300_000);
         return () => {
             cancel = true;
             clearInterval(t);
@@ -70,6 +70,8 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
         { name: 'Ventas MeLi',      icon: ShoppingCart,    href: '/ventas' },
         { name: 'Clientes',         icon: Users,           href: '/ventas/clientes' },
         { name: 'Pedidos',          icon: ReceiptText,     href: '/ventas/pedidos' },
+        { name: 'Compras',          icon: ShoppingBag,     href: '/ventas/compras' },
+        { name: 'Vendedores',       icon: UserPlus,        href: '/ventas/vendedores' },
         { name: 'Crear con IA',     icon: PlusCircle,      href: '/autoficha' },
         { name: 'Fichas Técnicas',  icon: FileText,        href: '/fichas' },
         { name: 'Precios',          icon: Upload,          href: '/precios' },
