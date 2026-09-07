@@ -43,6 +43,14 @@ RESULTADO ESPERADO: nuevos=15237  actualizados=0  sin_cambio=0  descontinuados=0
 y "0 descontinuados" — es correcto, no hay base anterior. La siguiente subida mensual SÍ tendrá
 base válida (el lote AGO `f93e4c8b` conserva sus 15 369 filas crudas).
 
+**Hallazgo adicional (duplicados del proveedor) — detectado por Antigravity, confirmado aquí**:
+el crudo de Urrea trae **132 SKUs repetidos** (= 528 pares `(sku, tipo_costo)` duplicados;
+p. ej. `CH111C` aparece en filas 261 y 263 con los mismos 4 precios). La primera versión de la
+función insertaba todas las filas y chocaba contra el `UNIQUE` `ux_precios_proveedor_vigente`.
+**Fix aplicado**: `DISTINCT ON (sku, tipo_costo)` con `ORDER BY sku, tipo_costo, (valor IS NULL), fila_num`
+en las CTE `nueva` y `anterior` (se toma la primera ocurrencia por fila; si una tiene precio nulo
+se prefiere la que sí tiene precio). El conteo por SKU NO cambia: sigue `nuevos=15237`.
+
 **Criterio de aceptación**: al aplicar la migración y ejecutar
 `SELECT fn_procesar_precios_proveedor('f93e4c8b-4eee-4b03-8d2a-188cedae3c63')`,
 debe devolver exactamente `nuevos=15237, actualizados=0, sin_cambio=0, descontinuados=0`.

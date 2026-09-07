@@ -98,25 +98,37 @@ BEGIN
 
   -- Insertar filas de la lista nueva, clasificando contra la anterior
   WITH nueva AS (
-    SELECT
-      COALESCE(NULLIF(trim(r.payload->>v_col_modelo), ''), '') AS sku,
-      COALESCE(r.payload->>v_col_marca, '') AS marca,
-      COALESCE(r.payload->>v_col_desc, '') AS descripcion,
-      pe->>'tipo_costo' AS tipo_costo,
-      public.fn_parse_precio(r.payload->>(pe->>'columna')) AS valor,
-      COALESCE((pe->>'incluye_iva')::boolean, false) AS incluye_iva
-    FROM public.listas_precios_raw r
-    CROSS JOIN LATERAL jsonb_array_elements(v_precios) pe
-    WHERE r.importacion_id = p_importacion_id
+    SELECT DISTINCT ON (sku, tipo_costo)
+      sku, marca, descripcion, tipo_costo, valor, incluye_iva
+    FROM (
+      SELECT
+        r.fila_num,
+        COALESCE(NULLIF(trim(r.payload->>v_col_modelo), ''), '') AS sku,
+        COALESCE(r.payload->>v_col_marca, '') AS marca,
+        COALESCE(r.payload->>v_col_desc, '') AS descripcion,
+        pe->>'tipo_costo' AS tipo_costo,
+        public.fn_parse_precio(r.payload->>(pe->>'columna')) AS valor,
+        COALESCE((pe->>'incluye_iva')::boolean, false) AS incluye_iva
+      FROM public.listas_precios_raw r
+      CROSS JOIN LATERAL jsonb_array_elements(v_precios) pe
+      WHERE r.importacion_id = p_importacion_id
+    ) x
+    ORDER BY sku, tipo_costo, (valor IS NULL), fila_num
   ),
   anterior AS (
-    SELECT
-      COALESCE(NULLIF(trim(r.payload->>v_col_modelo), ''), '') AS sku,
-      pe->>'tipo_costo' AS tipo_costo,
-      public.fn_parse_precio(r.payload->>(pe->>'columna')) AS valor
-    FROM public.listas_precios_raw r
-    CROSS JOIN LATERAL jsonb_array_elements(v_precios) pe
-    WHERE r.importacion_id = v_prev_id
+    SELECT DISTINCT ON (sku, tipo_costo)
+      sku, tipo_costo, valor
+    FROM (
+      SELECT
+        r.fila_num,
+        COALESCE(NULLIF(trim(r.payload->>v_col_modelo), ''), '') AS sku,
+        pe->>'tipo_costo' AS tipo_costo,
+        public.fn_parse_precio(r.payload->>(pe->>'columna')) AS valor
+      FROM public.listas_precios_raw r
+      CROSS JOIN LATERAL jsonb_array_elements(v_precios) pe
+      WHERE r.importacion_id = v_prev_id
+    ) x
+    ORDER BY sku, tipo_costo, (valor IS NULL), fila_num
   ),
   comparado AS (
     SELECT
@@ -189,11 +201,13 @@ BEGIN
 END;
 $$;
 
--- 3. Permisos y RLS
+-- 3. Permisos y RLS (idempotente: DROP POLICY IF EXISTS para permitir re-ejecución)
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.precios_proveedor TO authenticated, service_role;
 ALTER TABLE public.precios_proveedor ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "precios_proveedor select autenticados" ON public.precios_proveedor;
 CREATE POLICY "precios_proveedor select autenticados" ON public.precios_proveedor
   FOR SELECT USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "precios_proveedor write service" ON public.precios_proveedor;
 CREATE POLICY "precios_proveedor write service" ON public.precios_proveedor
   FOR ALL USING (current_setting('role', true) = 'service_role');
 
