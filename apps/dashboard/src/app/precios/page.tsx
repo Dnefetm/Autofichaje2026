@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Package, Calendar, Clock, ArrowRight } from 'lucide-react';
 import { ProveedorArchivarButton } from '@/components/precios/ProveedorArchivarButton';
 import { ProveedorRenombrarButton } from '@/components/precios/ProveedorRenombrarButton';
+import { NuevoProveedorButton } from '@/components/precios/NuevoProveedorButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -41,6 +42,7 @@ export default async function PreciosPage() {
                     <h1 className="text-2xl font-bold text-[var(--text)] tracking-tight">Listas de Precios</h1>
                     <p className="text-[var(--text-muted)] mt-1">Gestión de costos y precios por proveedor comercial. Selecciona un proveedor para actualizar su lista.</p>
                 </div>
+                <NuevoProveedorButton />
             </header>
 
             {error ? (
