@@ -59,6 +59,16 @@ export default async function HubProveedorPage(props: {
     const colMarca = mapeo?.columna_marca || 'MARCA';
     const colDescripcion = mapeo?.columna_descripcion || 'DESCRIPCIÓN LARGA';
 
+    // Precios según el mapeo del operador (no columnas fijas de Urrea)
+    const preciosCol: Record<string, string> = {};
+    (mapeo?.precios || []).forEach((pr: any) => {
+        const t = (pr.tipo_costo || '').toLowerCase();
+        if (t.includes('subdistribuidor')) preciosCol.subdistribuidor = pr.columna;
+        else if (t.includes('distribuidor')) preciosCol.distribuidor = pr.columna;
+        else if (t.includes('mayoreo')) preciosCol.mayoreo = pr.columna;
+        else if (t.includes('menudeo')) preciosCol.menudeo = pr.columna;
+    });
+
     // 2. Traer filas del catálogo con búsqueda en BD
     let listado: any[] = [];
     let totalEncontrados = 0;
@@ -107,10 +117,10 @@ export default async function HubProveedorPage(props: {
             codigo,
             marca: p[colMarca] || '',
             descripcion: p[colDescripcion] || '',
-            precio_distribuidor: p['P.DIST (CON IVA)'] || p['P.DIST'] || null,
-            precio_subdistribuidor: p['PRECIO SUBDISTRIBUIDOR (CON IVA)'] || null,
-            precio_mayoreo: p['PRECIO MAYORE (CON IVA)'] || null,
-            precio_menudeo: p['PRECIO MENUDEO (CON IVA)'] || null,
+            precio_distribuidor: preciosCol.distribuidor ? p[preciosCol.distribuidor] || null : null,
+            precio_subdistribuidor: preciosCol.subdistribuidor ? p[preciosCol.subdistribuidor] || null : null,
+            precio_mayoreo: preciosCol.mayoreo ? p[preciosCol.mayoreo] || null : null,
+            precio_menudeo: preciosCol.menudeo ? p[preciosCol.menudeo] || null : null,
             articulo_id_vinculado: articuloId
         };
     });
@@ -145,12 +155,20 @@ export default async function HubProveedorPage(props: {
                                 }
                             </p>
                         </div>
-                        <Link
-                            href={`/precios/${encodeURIComponent(proveedorDecoded)}/subir`}
-                            className="bg-[var(--accent)] text-[var(--accent-ink)] px-4 py-2 rounded-lg font-bold shadow-sm hover:brightness-110 transition-all flex items-center text-sm shrink-0"
-                        >
-                            <span className="mr-1.5 text-base">+</span> Actualizar lista
-                        </Link>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <Link
+                                href={`/precios/${encodeURIComponent(proveedorDecoded)}/revisar`}
+                                className="bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text)] px-4 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center text-sm"
+                            >
+                                Auditar cambios
+                            </Link>
+                            <Link
+                                href={`/precios/${encodeURIComponent(proveedorDecoded)}/subir`}
+                                className="bg-[var(--accent)] text-[var(--accent-ink)] px-4 py-2 rounded-lg font-bold shadow-sm hover:brightness-110 transition-all flex items-center text-sm"
+                            >
+                                <span className="mr-1.5 text-base">+</span> Actualizar lista
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -164,7 +182,7 @@ export default async function HubProveedorPage(props: {
                             <input
                                 type="text"
                                 name="q"
-                                placeholder="Buscar por clave, código de barras o descripción..."
+                                placeholder="Buscar por modelo, código universal o descripción..."
                                 defaultValue={searchParams.q || ''}
                                 className="pl-10 pr-4 py-2.5 w-full text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--bg)]/50"
                             />

@@ -384,7 +384,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
   const colRole: Record<string, ColInfo> = {};
   if (columnaModelo) colRole[columnaModelo] = { label: 'Modelo', emoji: '🔑', hCls: 'bg-[var(--accent)]/10 text-[var(--accent)]', cCls: 'bg-[var(--accent)]/10 font-bold' };
   if (columnaMarca) colRole[columnaMarca] = { label: 'Marca', emoji: '🏷️', hCls: 'bg-[var(--info)]/10 text-[var(--info)]', cCls: 'bg-[var(--info)]/10 font-bold' };
-  if (columnaCodigo) colRole[columnaCodigo] = { label: 'Código', emoji: '🔢', hCls: 'bg-[var(--warn)]/10 text-[var(--warn)]', cCls: 'bg-[var(--warn)]/10 font-bold' };
+  if (columnaCodigo) colRole[columnaCodigo] = { label: 'Código Universal', emoji: '🔢', hCls: 'bg-[var(--warn)]/10 text-[var(--warn)]', cCls: 'bg-[var(--warn)]/10 font-bold' };
   if (columnaDescripcion) colRole[columnaDescripcion] = { label: 'Descripción', emoji: '📝', hCls: 'bg-[var(--surface-2)] text-[var(--text-muted)]', cCls: 'bg-[var(--surface-2)]' };
   if (columnaMoneda) colRole[columnaMoneda] = { label: 'Moneda', emoji: '🌐', hCls: 'bg-[var(--surface-2)] text-[var(--text-muted)]', cCls: 'bg-[var(--surface-2)]' };
   precios.forEach((p) => {
@@ -419,7 +419,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
           { emoji: '🔑', label: 'Modelo', cls: 'bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/30' },
           { emoji: '🏷️', label: 'Marca', cls: 'bg-[var(--info)]/10 text-[var(--info)] border-[var(--info)]/30' },
           { emoji: '💲', label: 'Precio', cls: 'bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30' },
-          { emoji: '🔢', label: 'Código', cls: 'bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30' },
+          { emoji: '🔢', label: 'Código Universal', cls: 'bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30' },
           { emoji: '📝', label: 'Descripción', cls: 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]' },
         ].map(l => <span key={l.label} className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${l.cls}`}>{l.emoji} {l.label}</span>)}
       </div>

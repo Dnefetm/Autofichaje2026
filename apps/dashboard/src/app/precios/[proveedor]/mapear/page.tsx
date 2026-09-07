@@ -107,8 +107,15 @@ export default function MapearColumnasPage() {
                 throw new Error(jParse.error || 'Error al iniciar procesamiento.');
             }
 
-            // Redirigir a revisión
-            router.push(`/precios/matching?importacion_id=${importacionId}&proveedor=${encodeURIComponent(proveedor)}`);
+            // Procesar precios (Mundo 1: autónomo, sin matching)
+            const rProc = await fetch(`/api/precios/importar/${importacionId}/procesar`, { method: 'POST' });
+            if (!rProc.ok) {
+                const jProc = await rProc.json().catch(() => ({}));
+                throw new Error(jProc.error || 'Error al procesar precios.');
+            }
+
+            // Redirigir al resumen del lote (ahí están la auditoría y la activación)
+            router.push(`/precios/${encodeURIComponent(proveedor)}/historial/${importacionId}/resumen`);
 
         } catch (e: any) {
             setError(e.message);
@@ -133,14 +140,14 @@ export default function MapearColumnasPage() {
                     
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna CÓDIGO DE BARRAS *</label>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna Código Universal (UPC/EAN/GTIN) *</label>
                             <select className="w-full border p-2 rounded-md" value={colCodigo} onChange={e => setColCodigo(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
                                 {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna MODELO / CLAVE *</label>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna Modelo (Referencia / N° de parte) *</label>
                             <select className="w-full border p-2 rounded-md" value={colModelo} onChange={e => setColModelo(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
                                 {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}

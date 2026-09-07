@@ -9,7 +9,7 @@ import {
     LayoutDashboard, Database, Activity, Settings,
     Package, PlusCircle, RefreshCcw, Store,
     ChevronLeft, ChevronRight, ShoppingCart, FileText,
-    Upload, ClipboardList,
+    Upload, ClipboardList, Users, ReceiptText,
 } from 'lucide-react';
 
 export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
@@ -67,7 +67,9 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
         { name: 'Dashboard',        icon: LayoutDashboard, href: '/' },
         { name: 'Catálogo Maestro', icon: Package,         href: '/catalog' },
         { name: 'Vitrinas MeLi',   icon: Store,            href: '/catalog/external' },
-        { name: 'Ventas',           icon: ShoppingCart,    href: '/ventas' },
+        { name: 'Ventas MeLi',      icon: ShoppingCart,    href: '/ventas' },
+        { name: 'Clientes',         icon: Users,           href: '/ventas/clientes' },
+        { name: 'Pedidos',          icon: ReceiptText,     href: '/ventas/pedidos' },
         { name: 'Crear con IA',     icon: PlusCircle,      href: '/autoficha' },
         { name: 'Fichas Técnicas',  icon: FileText,        href: '/fichas' },
         { name: 'Precios',          icon: Upload,          href: '/precios' },
@@ -121,7 +123,9 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
                 {menuItems.map((item) => {
                     const isActive = item.href === '/'
                         ? pathname === '/'
-                        : pathname.startsWith(item.href) && !pathname.startsWith('/catalog/external/pendientes');
+                        : item.href === '/ventas'
+                            ? pathname === '/ventas'
+                            : pathname.startsWith(item.href) && !pathname.startsWith('/catalog/external/pendientes');
 
                     return (
                         <Link
