@@ -76,18 +76,20 @@ export default async function ResumenLotePage(props: {
         else sinCambio.push(g);
     }
 
-    // Descontinuados agrupados por sku
+    // Descontinuados agrupados por sku (tipos de precio dinámicos)
     const descMap = new Map<string, any>();
     for (const r of descontinuadosRows || []) {
         const sku = r.sku_proveedor;
         if (!sku) continue;
-        if (!descMap.has(sku)) descMap.set(sku, { sku, marca: r.marca || '', descripcion: r.descripcion || '', distribuidor: 0, menudeo: 0 });
+        if (!descMap.has(sku)) descMap.set(sku, { sku, marca: r.marca || '', descripcion: r.descripcion || '', tiers: {} as Record<string, number> });
         const g = descMap.get(sku);
-        const t = (r.tipo_costo || '').toLowerCase();
-        if (t === 'distribuidor') g.distribuidor = Number(r.valor);
-        if (t === 'menudeo') g.menudeo = Number(r.valor);
+        g.tiers[(r.tipo_costo || '').toLowerCase()] = Number(r.valor);
     }
     const descontinuados = Array.from(descMap.values());
+
+    // Columnas dinámicas de precio (unión de los tipos presentes en cada grupo)
+    const tierKeysActualizados = Array.from(new Set(actualizados.flatMap((g: any) => Object.keys(g.tiers)))).sort();
+    const tierKeysDescontinuados = Array.from(new Set(descontinuados.flatMap((g: any) => Object.keys(g.tiers)))).sort();
 
     const hasPrevious = prevId != null;
 
@@ -179,39 +181,28 @@ export default async function ResumenLotePage(props: {
                                 <thead className="bg-[var(--bg)] sticky top-0">
                                     <tr className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)]">
                                         <th className="py-3 px-4 text-left min-w-[180px]">SKU / Descripción</th>
-                                        <th className="py-3 px-4 text-right">Dist. Anterior</th>
-                                        <th className="py-3 px-4 text-right">Dist. Nuevo</th>
-                                        <th className="py-3 px-4 text-right">Subdist. Ant.</th>
-                                        <th className="py-3 px-4 text-right">Subdist. Nuevo</th>
-                                        <th className="py-3 px-4 text-right">Mayor. Ant.</th>
-                                        <th className="py-3 px-4 text-right">Mayor. Nuevo</th>
-                                        <th className="py-3 px-4 text-right">Menu. Ant.</th>
-                                        <th className="py-3 px-4 text-right">Menu. Nuevo</th>
+                                        {tierKeysActualizados.flatMap(k => [
+                                            <th key={`${k}-ant`} className="py-3 px-4 text-right capitalize">{k.replace(/_/g, ' ')} Ant.</th>,
+                                            <th key={`${k}-nuevo`} className="py-3 px-4 text-right capitalize">{k.replace(/_/g, ' ')} Nuevo</th>,
+                                        ])}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[var(--border)]">
-                                    {actualizados.slice(0, 500).map((g, i) => {
-                                        const d = g.tiers.distribuidor;
-                                        const s = g.tiers.subdistribuidor;
-                                        const m = g.tiers.mayoreo;
-                                        const mn = g.tiers.menudeo;
-                                        return (
-                                            <tr key={i} className="hover:bg-[var(--warn)]/10">
-                                                <td className="py-2.5 px-4">
-                                                    <span className="font-mono font-bold text-[var(--text)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{g.sku}</span>
-                                                    <p className="text-[var(--text-muted)] mt-0.5 line-clamp-1">{g.descripcion}</p>
-                                                </td>
-                                                <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{d?.valor_anterior != null && d.valor_anterior > 0 ? fmtMx(d.valor_anterior) : '—'}</td>
-                                                <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{d ? fmtMx(d.valor) : '—'}</td>
-                                                <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{s?.valor_anterior != null && s.valor_anterior > 0 ? fmtMx(s.valor_anterior) : '—'}</td>
-                                                <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{s ? fmtMx(s.valor) : '—'}</td>
-                                                <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{m?.valor_anterior != null && m.valor_anterior > 0 ? fmtMx(m.valor_anterior) : '—'}</td>
-                                                <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{m ? fmtMx(m.valor) : '—'}</td>
-                                                <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{mn?.valor_anterior != null && mn.valor_anterior > 0 ? fmtMx(mn.valor_anterior) : '—'}</td>
-                                                <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{mn ? fmtMx(mn.valor) : '—'}</td>
-                                            </tr>
-                                        );
-                                    })}
+                                    {actualizados.slice(0, 500).map((g, i) => (
+                                        <tr key={i} className="hover:bg-[var(--warn)]/10">
+                                            <td className="py-2.5 px-4">
+                                                <span className="font-mono font-bold text-[var(--text)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{g.sku}</span>
+                                                <p className="text-[var(--text-muted)] mt-0.5 line-clamp-1">{g.descripcion}</p>
+                                            </td>
+                                            {tierKeysActualizados.flatMap(k => {
+                                                const t = g.tiers[k];
+                                                return [
+                                                    <td key={`${k}-ant`} className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{t?.valor_anterior != null && t.valor_anterior > 0 ? fmtMx(t.valor_anterior) : '—'}</td>,
+                                                    <td key={`${k}-nuevo`} className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{t ? fmtMx(t.valor) : '—'}</td>,
+                                                ];
+                                            })}
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
@@ -231,8 +222,9 @@ export default async function ResumenLotePage(props: {
                                 <thead className="bg-[var(--bg)] sticky top-0">
                                     <tr className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)]">
                                         <th className="py-3 px-4 text-left">SKU / Descripción</th>
-                                        <th className="py-3 px-4 text-right">Último Dist.</th>
-                                        <th className="py-3 px-4 text-right">Último Menudeo</th>
+                                        {tierKeysDescontinuados.map(k => (
+                                            <th key={k} className="py-3 px-4 text-right capitalize">Último {k.replace(/_/g, ' ')}</th>
+                                        ))}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[var(--border)]">
@@ -242,8 +234,9 @@ export default async function ResumenLotePage(props: {
                                                 <span className="font-mono font-bold text-[var(--text-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{item.sku}</span>
                                                 <p className="text-[var(--text-faint)] mt-0.5 line-clamp-1">{item.descripcion}</p>
                                             </td>
-                                            <td className="py-2.5 px-4 text-right text-[var(--text-muted)]">{item.distribuidor > 0 ? fmtMx(item.distribuidor) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right text-[var(--text-muted)]">{item.menudeo > 0 ? fmtMx(item.menudeo) : '—'}</td>
+                                            {tierKeysDescontinuados.map(k => (
+                                                <td key={k} className="py-2.5 px-4 text-right text-[var(--text-muted)]">{item.tiers[k] > 0 ? fmtMx(item.tiers[k]) : '—'}</td>
+                                            ))}
                                         </tr>
                                     ))}
                                 </tbody>

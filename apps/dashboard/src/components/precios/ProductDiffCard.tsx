@@ -1,12 +1,15 @@
 import React from 'react';
-import { Check, X, AlertCircle } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function ProductDiffCard({ product, decision, onDecision }: { product: any, decision: string, onDecision: (d: 'aprobado'|'rechazado'|'pendiente') => void }) {
-    
+
     const { row_class, tiers } = product;
-    
-    // Formatting helper
+
+    // Tipos de precio dinámicos (no fijos): cada proveedor define los suyos.
+    const tierKeys = Object.keys(tiers || {}).sort();
+    const gridCols = `140px repeat(${tierKeys.length}, minmax(0, 1fr))`;
+
     const fmt = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
     const isNuevo = row_class === 'nuevo';
@@ -14,12 +17,12 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
     const isSinCambio = row_class === 'sin_cambio';
 
     const renderTierDelta = (tier: any) => {
-        if (!tier.delta_pct) return null;
+        if (!tier || tier.delta_pct == null) return null;
         const isUp = tier.delta_pct > 0;
         return (
-            <div 
+            <div
                 className={cn("text-[11px] font-medium mt-0.5 cursor-help", isUp ? "text-[var(--err)]" : "text-[var(--ok)]")}
-                title={`Diferencia: ${isUp ? '+' : ''}${fmt.format(tier.delta_val)}`}
+                title={`Diferencia: ${isUp ? '+' : ''}${fmt.format(tier.delta_val || 0)}`}
             >
                 {isUp ? '+' : ''}{tier.delta_pct.toFixed(1)}% {isUp ? '🔴' : '🟢'}
             </div>
@@ -32,14 +35,13 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
     return (
         <div className={cn(
             "bg-[var(--surface)] rounded-lg border mb-6 shadow-sm overflow-hidden transition-all",
-            isAprobado ? "border-[var(--ok)]/40 ring-1 ring-[var(--ok)]/20" : 
-            isRechazado ? "border-[var(--err)]/40 ring-1 ring-[var(--err)]/20" : 
+            isAprobado ? "border-[var(--ok)]/40 ring-1 ring-[var(--ok)]/20" :
+            isRechazado ? "border-[var(--err)]/40 ring-1 ring-[var(--err)]/20" :
             isAusente ? "border-[var(--border)] opacity-75" : "border-[var(--border)]"
         )}>
             {/* Row 1: Header */}
             <div className="px-5 py-3 border-b border-[var(--border)] flex items-start justify-between bg-[var(--surface)]">
                 <div className="flex items-start">
-                    {/* Simplified Checkbox for visual consistency */}
                     <div className="mt-1 mr-3 flex-shrink-0">
                         {isAprobado ? (
                             <div className="w-5 h-5 bg-[var(--ok)]/100 text-[var(--accent-ink)] rounded flex items-center justify-center">
@@ -56,7 +58,7 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                     <div>
                         <div className="flex items-center flex-wrap gap-2">
                             <span className={cn("font-semibold text-[var(--text)]", isAusente && "line-through text-[var(--text-muted)]")}>
-                                {product.marca} · {product.modelo} · <span className="font-mono text-sm">{product.codigo_universal}</span>
+                                {product.marca}{product.marca ? ' · ' : ''}<span className="font-mono text-sm">{product.codigo_universal}</span>
                             </span>
                             {isNuevo && <span className="text-[10px] font-bold tracking-wider uppercase bg-[var(--accent)]/20 text-[var(--accent)] px-1.5 py-0.5 rounded">Nuevo</span>}
                             {isAusente && <span className="text-[10px] font-bold tracking-wider uppercase bg-[var(--surface-2)] text-[var(--text-muted)] px-1.5 py-0.5 rounded">Ausente</span>}
@@ -65,9 +67,9 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                         <p className="text-[13px] text-[var(--text-muted)] mt-0.5 truncate max-w-xl" title={product.nombre}>{product.nombre}</p>
                     </div>
                 </div>
-                
+
                 <div className="flex space-x-1 ml-4 flex-shrink-0">
-                    <button 
+                    <button
                         onClick={() => onDecision(isAprobado ? 'pendiente' : 'aprobado')}
                         className={cn(
                             "px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center",
@@ -77,7 +79,7 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                         {isAprobado && <Check className="w-4 h-4 mr-1.5" />}
                         {isNuevo ? 'Añadir a lista' : isAusente ? 'Marcar descontinuado' : 'Aprobar'}
                     </button>
-                    <button 
+                    <button
                         onClick={() => onDecision(isRechazado ? 'pendiente' : 'rechazado')}
                         className={cn(
                             "px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center",
@@ -90,58 +92,44 @@ export function ProductDiffCard({ product, decision, onDecision }: { product: an
                 </div>
             </div>
 
-            {/* If not expanded and sin cambio, we could collapse, but mockup shows it open or implies it. Let's collapse if sin_cambio */}
             {!isSinCambio && (
                 <div className="flex flex-col">
-                    {/* Row 2: Headers */}
-                    <div className="bg-[var(--surface-2)] grid grid-cols-5 px-5 py-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)]">
+                    {/* Headers dinámicos por tipo de precio */}
+                    <div className="bg-[var(--surface-2)] grid px-5 py-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)]" style={{ gridTemplateColumns: gridCols }}>
                         <div></div>
-                        <div className="text-right">Distribuidor</div>
-                        <div className="text-right">Subdistribuidor</div>
-                        <div className="text-right">Mayoreo</div>
-                        <div className="text-right">Menudeo</div>
+                        {tierKeys.map(k => (
+                            <div key={k} className="text-right capitalize">{k.replace(/_/g, ' ')}</div>
+                        ))}
                     </div>
 
-                    {/* Row 3: Vigente */}
-                    <div className="grid grid-cols-5 px-5 py-2.5 items-center border-b border-[var(--border)]">
+                    {/* Vigente */}
+                    <div className="grid px-5 py-2.5 items-center border-b border-[var(--border)]" style={{ gridTemplateColumns: gridCols }}>
                         <div className="text-[13px] font-medium text-[var(--text-muted)] flex items-center">
                             <span className="w-2 h-2 rounded-full bg-[var(--text-faint)] mr-2"></span> Vigente
                         </div>
-                        <div className="text-right text-sm text-[var(--text-muted)]">{product.tiers.distribuidor.vigente ? fmt.format(product.tiers.distribuidor.vigente) : '—'}</div>
-                        <div className="text-right text-sm text-[var(--text-muted)]">{product.tiers.subdistribuidor.vigente ? fmt.format(product.tiers.subdistribuidor.vigente) : '—'}</div>
-                        <div className="text-right text-sm text-[var(--text-muted)]">{product.tiers.mayoreo.vigente ? fmt.format(product.tiers.mayoreo.vigente) : '—'}</div>
-                        <div className="text-right text-sm text-[var(--text-muted)]">{product.tiers.menudeo.vigente ? fmt.format(product.tiers.menudeo.vigente) : '—'}</div>
+                        {tierKeys.map(k => (
+                            <div key={k} className="text-right text-sm text-[var(--text-muted)]">
+                                {tiers[k]?.vigente != null ? fmt.format(tiers[k].vigente) : '—'}
+                            </div>
+                        ))}
                     </div>
 
-                    {/* Row 4: Nuevo */}
-                    <div className="grid grid-cols-5 px-5 py-3 items-start bg-[var(--accent)]/5">
+                    {/* Nuevo */}
+                    <div className="grid px-5 py-3 items-start bg-[var(--accent)]/5" style={{ gridTemplateColumns: gridCols }}>
                         <div className="text-[13px] font-bold text-[var(--accent)] flex items-center pt-1">
                             <span className="w-2 h-2 rounded-full bg-[var(--accent)]/100 mr-2"></span> Nuevo
                         </div>
-                        
                         {isAusente ? (
-                            <div className="col-span-4 text-center text-[13px] italic text-[var(--text-muted)] py-1">
+                            <div className="col-span-full text-center text-[13px] italic text-[var(--text-muted)] py-1">
                                 — no vino en Excel —
                             </div>
                         ) : (
-                            <>
-                                <div className="text-right">
-                                    <div className="text-sm font-bold text-[var(--text)]">{product.tiers.distribuidor.nuevo ? fmt.format(product.tiers.distribuidor.nuevo) : '—'}</div>
-                                    {renderTierDelta(product.tiers.distribuidor)}
+                            tierKeys.map(k => (
+                                <div key={k} className="text-right">
+                                    <div className="text-sm font-bold text-[var(--text)]">{tiers[k]?.nuevo != null ? fmt.format(tiers[k].nuevo) : '—'}</div>
+                                    {renderTierDelta(tiers[k])}
                                 </div>
-                                <div className="text-right">
-                                    <div className="text-sm font-bold text-[var(--text)]">{product.tiers.subdistribuidor.nuevo ? fmt.format(product.tiers.subdistribuidor.nuevo) : '—'}</div>
-                                    {renderTierDelta(product.tiers.subdistribuidor)}
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-sm font-bold text-[var(--text)]">{product.tiers.mayoreo.nuevo ? fmt.format(product.tiers.mayoreo.nuevo) : '—'}</div>
-                                    {renderTierDelta(product.tiers.mayoreo)}
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-sm font-bold text-[var(--text)]">{product.tiers.menudeo.nuevo ? fmt.format(product.tiers.menudeo.nuevo) : '—'}</div>
-                                    {renderTierDelta(product.tiers.menudeo)}
-                                </div>
-                            </>
+                            ))
                         )}
                     </div>
                 </div>

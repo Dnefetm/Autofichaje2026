@@ -1,31 +1,18 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { ProductDiffPanel } from './ProductDiffPanel';
 
-const TIER_KEYS = ['distribuidor', 'subdistribuidor', 'mayoreo', 'menudeo'] as const;
+// Los tipos de precio son LIBRES por proveedor (Urrea: 4 niveles; Victorinox: menudeo sin/con IVA).
+// No se fuerzan a un set fijo: cada tipo_costo del mapeo se convierte en una columna dinámica.
+type TierValor = { vigente: number | null; nuevo: number | null; delta_pct: number | null; delta_val: number | null };
 
-function tierKeyOf(tipo: string): (typeof TIER_KEYS)[number] | null {
-    const t = (tipo || '').toLowerCase();
-    if (t.includes('subdistribuidor')) return 'subdistribuidor';
-    if (t.includes('distribuidor')) return 'distribuidor';
-    if (t.includes('mayoreo')) return 'mayoreo';
-    if (t.includes('menudeo')) return 'menudeo';
-    return null;
-}
-
-function emptyTiers() {
-    return {
-        distribuidor:    { vigente: null as number | null, nuevo: null as number | null, delta_pct: null as number | null, delta_val: null as number | null },
-        subdistribuidor: { vigente: null as number | null, nuevo: null as number | null, delta_pct: null as number | null, delta_val: null as number | null },
-        mayoreo:         { vigente: null as number | null, nuevo: null as number | null, delta_pct: null as number | null, delta_val: null as number | null },
-        menudeo:         { vigente: null as number | null, nuevo: null as number | null, delta_pct: null as number | null, delta_val: null as number | null },
-    };
+function emptyTier(): TierValor {
+    return { vigente: null, nuevo: null, delta_pct: null, delta_val: null };
 }
 
 export default async function RevisarPaso2(props: { params: Promise<{ proveedor: string }> }) {
     const params = await props.params;
     const proveedorDecoded = decodeURIComponent(params.proveedor);
 
-    // Última importación del proveedor
     const { data: ultimas } = await supabaseAdmin
         .from('v_importaciones_historial')
         .select('*')
@@ -49,15 +36,12 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
         .lte('creado_el', latestBatch.creado_el);
     const loteNum = c || 1;
 
-    // Mundo 1: los precios del proveedor viven en precios_proveedor (autónomos del catálogo).
-    // Filas vigentes de ESTA importación → nuevo / cambio / sin_cambio.
     const { data: filasActuales } = await supabaseAdmin
         .from('precios_proveedor')
         .select('*')
         .eq('importacion_id', latestBatch.id)
         .eq('vigente', true);
 
-    // Importación anterior completada (para los descontinuados)
     const { data: anterior } = await supabaseAdmin
         .from('importaciones_excel')
         .select('id')
@@ -84,10 +68,9 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
                 articulo_id: sku,
                 codigo_universal: sku,
                 marca: ref.marca || '',
-                modelo: sku,
                 nombre: ref.descripcion || '',
                 row_class: 'sin_cambio',
-                tiers: emptyTiers(),
+                tiers: {} as Record<string, TierValor>,
                 isConfirmado: false,
                 decision: 'pendiente',
             });
@@ -95,13 +78,15 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
         return grouped.get(sku);
     };
 
-    // Filas del lote actual: valor = nuevo, valor_anterior = vigente
+    const tierKey = (tipo: string) => (tipo || '').toLowerCase().trim();
+
     for (const r of filasActuales || []) {
         const sku = r.sku_proveedor;
         if (!sku) continue;
         const g = getOrCreate(sku, r);
-        const k = tierKeyOf(r.tipo_costo);
+        const k = tierKey(r.tipo_costo);
         if (!k) continue;
+        if (!g.tiers[k]) g.tiers[k] = emptyTier();
         g.tiers[k].nuevo = Number(r.valor);
         g.tiers[k].vigente = r.valor_anterior != null ? Number(r.valor_anterior) : null;
         g.tiers[k].delta_pct = r.delta_pct != null ? Number(r.delta_pct) : null;
@@ -115,14 +100,14 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
         else if (r.confirmado_por === 'rechazado') { g.decision = 'rechazado'; }
     }
 
-    // Descontinuados: filas de la lista anterior ausentes en la nueva
     for (const r of filasDescontinuadas || []) {
         const sku = r.sku_proveedor;
         if (!sku) continue;
         const g = getOrCreate(sku, r);
         g.row_class = 'ausente';
-        const k = tierKeyOf(r.tipo_costo);
+        const k = tierKey(r.tipo_costo);
         if (!k) continue;
+        if (!g.tiers[k]) g.tiers[k] = emptyTier();
         g.tiers[k].vigente = Number(r.valor);
         g.tiers[k].nuevo = null;
         g.tiers[k].delta_pct = null;

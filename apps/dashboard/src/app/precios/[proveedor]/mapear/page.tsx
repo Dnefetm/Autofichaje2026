@@ -25,8 +25,10 @@ export default function MapearColumnasPage() {
     const [colDescripcion, setColDescripcion] = useState('');
     const [moneda, setMoneda] = useState('MXN');
     const [precios, setPrecios] = useState<{ columna: string, tipo_costo: string, incluye_iva: boolean }[]>([]);
+    const [marcaDefault, setMarcaDefault] = useState('');
+    const [sustitucionesMarca, setSustitucionesMarca] = useState('');
     
-    // Lista de tipos de costos predefinidos para agilizar
+    // Lista de tipos de costos predefinidos para agilizar (solo sugerencias, el campo es libre)
     const tiposCosto = ['distribuidor', 'subdistribuidor', 'mayoreo', 'menudeo'];
 
     useEffect(() => {
@@ -49,6 +51,9 @@ export default function MapearColumnasPage() {
                 setColMarca(m.columna_marca || '');
                 setColDescripcion(m.columna_descripcion || '');
                 setMoneda(m.moneda_default || 'MXN');
+                setMarcaDefault(m.marca_default || '');
+                const sust = m.sustituciones_marca || {};
+                setSustitucionesMarca(Object.entries(sust).map(([k, v]) => `${k}=${v}`).join('\n'));
                 
                 if (Array.isArray(m.precios) && m.precios.length > 0) {
                     setPrecios(m.precios);
@@ -82,6 +87,17 @@ export default function MapearColumnasPage() {
         setSaving(true);
         setError(null);
         try {
+            // Parsear sustituciones "clave=valor" por línea
+            const sustituciones: Record<string, string> = {};
+            sustitucionesMarca.split('\n').forEach(line => {
+                const idx = line.indexOf('=');
+                if (idx > 0) {
+                    const k = line.slice(0, idx).trim();
+                    const v = line.slice(idx + 1).trim();
+                    if (k && v) sustituciones[k] = v;
+                }
+            });
+
             // Guardar mapeo
             const rMap = await fetch(`/api/precios/importar/${importacionId}/mapeo`, {
                 method: 'PATCH',
@@ -89,11 +105,13 @@ export default function MapearColumnasPage() {
                 body: JSON.stringify({
                     columna_codigo: colCodigo,
                     columna_modelo: colModelo,
-                    columna_marca: colMarca,
+                    columna_marca: colMarca || null,
                     columna_descripcion: colDescripcion,
                     moneda_default: moneda,
                     precios: precios.filter(p => p.columna), // Guardar solo los que tengan columna asignada
-                    columnas_a_guardar: headers // Por defecto guardamos todas las leidas para facilitar la vista
+                    columnas_a_guardar: headers, // Por defecto guardamos todas las leidas para facilitar la vista
+                    marca_default: marcaDefault || null,
+                    sustituciones_marca: Object.keys(sustituciones).length ? sustituciones : null,
                 })
             });
 
@@ -154,11 +172,21 @@ export default function MapearColumnasPage() {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna MARCA</label>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna MARCA <span className="text-[var(--text-faint)]">(opcional)</span></label>
                             <select className="w-full border p-2 rounded-md" value={colMarca} onChange={e => setColMarca(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
                                 {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
                             </select>
+                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Si la lista no trae columna de marca (monomarca), déjala vacía y define la marca por defecto abajo.</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Marca por defecto</label>
+                            <input type="text" className="w-full border p-2 rounded-md bg-[var(--surface)]" value={marcaDefault} onChange={e => setMarcaDefault(e.target.value)} placeholder="ej. Victorinox" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Sustituciones de marca</label>
+                            <textarea className="w-full border p-2 rounded-md bg-[var(--surface)] font-mono text-xs" rows={3} value={sustitucionesMarca} onChange={e => setSustitucionesMarca(e.target.value)} placeholder={'SAK=Victorinox\nKitchen=Victorinox'} />
+                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Una por línea: valor_del_excel=marca_real. Si el valor coincide, se reemplaza.</p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna DESCRIPCIÓN</label>

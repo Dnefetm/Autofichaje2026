@@ -3,9 +3,26 @@ import { toast } from 'sonner';
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Download, Check, X, ArrowRight, MousePointerClick } from 'lucide-react';
+import { Search, Download, Check, ArrowRight } from 'lucide-react';
 import { ProductDiffCard } from '@/components/precios/ProductDiffCard';
 import { usePricingFlowState } from '@/components/precios/flow/usePricingFlowState';
+
+// Clasifica un "cambio" de precio en 3 categorías (regla de negocio):
+// - aumento_normal: todas las variaciones son aumentos < 10% (aprobable en lote)
+// - aumento_atipico: algún aumento >= 10% (revisar uno a uno)
+// - disminucion: alguna disminución (rara, revisar uno a uno)
+function subClassOf(d: any): 'aumento_normal' | 'aumento_atipico' | 'disminucion' | null {
+    if (d.row_class !== 'cambio') return null;
+    const pcts = Object.values(d.tiers)
+        .map((t: any) => t.delta_pct ?? 0)
+        .filter((p: number) => Math.abs(p) > 0.01);
+    if (pcts.length === 0) return 'aumento_normal';
+    const minPct = Math.min(...pcts);
+    const maxPct = Math.max(...pcts);
+    if (minPct < 0) return 'disminucion';
+    if (maxPct >= 10) return 'aumento_atipico';
+    return 'aumento_normal';
+}
 
 export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: { importacion: any, loteNum: number, proveedor: string, diffData: any[] }) {
     const router = useRouter();
@@ -13,11 +30,10 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
 
     // Filter states
     const [activeChip, setActiveChip] = useState<'todos' | 'nuevo' | 'cambio' | 'ausente' | 'sin_cambio'>('todos');
+    const [subFilter, setSubFilter] = useState<'todas' | 'aumento_atipico' | 'disminucion'>('todas');
     const [search, setSearch] = useState('');
-    const [soloCambiosMayores, setSoloCambiosMayores] = useState(false);
-    const [soloAumentos, setSoloAumentos] = useState(false);
 
-    // Decision state per product: key is articulo_id
+    // Decision state per product: key is articulo_id (sku_proveedor)
     const [decisions, setDecisions] = useState<Record<string, 'aprobado'|'rechazado'|'pendiente'>>(
         () => {
             const initial: any = {};
@@ -40,6 +56,18 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
         return { nuevos, cambios, ausentes, sinCambio };
     }, [diffData]);
 
+    // Conteos por regla de negocio (solo aplica a "cambio")
+    const subStats = useMemo(() => {
+        let normal = 0, atipico = 0, disminucion = 0;
+        diffData.forEach(d => {
+            const sc = subClassOf(d);
+            if (sc === 'aumento_normal') normal++;
+            else if (sc === 'aumento_atipico') atipico++;
+            else if (sc === 'disminucion') disminucion++;
+        });
+        return { normal, atipico, disminucion };
+    }, [diffData]);
+
     const globalStats = useMemo(() => {
         let aprobados = 0, rechazados = 0, pendientes = 0;
         Object.values(decisions).forEach(val => {
@@ -54,43 +82,28 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
     const filteredData = useMemo(() => {
         return diffData.filter(d => {
             if (activeChip !== 'todos' && d.row_class !== activeChip) return false;
+            if (subFilter !== 'todas' && subClassOf(d) !== subFilter) return false;
             if (search) {
                 const s = search.toLowerCase();
                 if (!d.articulo_id?.toLowerCase().includes(s) && !d.modelo?.toLowerCase().includes(s) && !d.codigo_universal?.includes(s)) return false;
             }
-            if (soloCambiosMayores && d.row_class === 'cambio') {
-                const maxPct = Math.max(...Object.values(d.tiers).map((t:any) => Math.abs(t.delta_pct || 0)));
-                if (maxPct < 5) return false;
-            }
-            if (soloAumentos && d.row_class === 'cambio') {
-                const maxPct = Math.max(...Object.values(d.tiers).map((t:any) => t.delta_pct || 0));
-                if (maxPct <= 0) return false;
-            }
             return true;
         });
-    }, [diffData, activeChip, search, soloCambiosMayores, soloAumentos]);
+    }, [diffData, activeChip, subFilter, search]);
 
     const handleDecision = (articulo_id: string, decision: 'aprobado'|'rechazado') => {
         setDecisions(prev => ({ ...prev, [articulo_id]: decision }));
     };
 
-    const handleBulkDecision = (decision: 'aprobado'|'rechazado') => {
+    // Regla de negocio: aprobar en lote SOLO los aumentos < 10%.
+    // Las disminuciones y los aumentos atípicos (>=10%) se revisan uno a uno.
+    const handleAprobarAumentosNormales = () => {
+        const normales = diffData.filter(d => subClassOf(d) === 'aumento_normal');
+        if (normales.length === 0) { toast.info('No hay aumentos <10% para aprobar en lote.'); return; }
         const next = { ...decisions };
-        filteredData.forEach(d => {
-            next[d.articulo_id] = decision;
-        });
+        normales.forEach(d => { next[d.articulo_id] = 'aprobado'; });
         setDecisions(next);
-    };
-
-    const handleAprobarLote = () => {
-        if (!confirm('¿Estás seguro de aprobar todo el lote? Esto sobrescribirá las decisiones manuales.')) return;
-        const next = { ...decisions };
-        diffData.forEach(d => {
-            next[d.articulo_id] = 'aprobado';
-        });
-        setDecisions(next);
-        // Then auto-apply
-        applyChanges(next);
+        toast.success(`${normales.length} aumentos <10% aprobados en lote.`);
     };
 
     const applyChanges = async (currentDecisions: Record<string, string>) => {
@@ -107,7 +120,6 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
             if (res.ok) {
                 await mutate();
                 // Flujo B: tras guardar las decisiones, se va al resumen del lote
-                // (ahí está el botón "Activar como Vigente"). La ruta /aplicar quedó deprecada.
                 router.push(`/precios/${encodeURIComponent(proveedor)}/historial/${importacion.id}/resumen`);
             } else {
                 toast.error('Error al guardar decisiones');
@@ -132,8 +144,8 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                             <span className="text-[var(--text-muted)] bg-[var(--surface-2)] px-3 py-1 rounded-full">{globalStats.pendientes} pendientes</span>
                         </div>
                     </div>
-                    
-                    <div className="flex flex-wrap gap-3 mb-6">
+
+                    <div className="flex flex-wrap gap-3 mb-3">
                         <button onClick={() => setActiveChip('todos')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeChip === 'todos' ? 'bg-[var(--surface)] text-[var(--text)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--bg)]'}`}>
                             Todos ({diffData.length})
                         </button>
@@ -151,44 +163,42 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                         </button>
                     </div>
 
+                    {/* Regla de negocio: revisar uno a uno las disminuciones y los aumentos atípicos */}
+                    <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
+                        <span className="text-[var(--text-faint)] font-medium">Revisar uno a uno:</span>
+                        <button onClick={() => setSubFilter(subFilter === 'disminucion' ? 'todas' : 'disminucion')} className={`px-3 py-1 rounded-full font-semibold transition-colors ${subFilter === 'disminucion' ? 'bg-[var(--err)]/15 text-[var(--err)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--bg)]'}`}>
+                            ↓ Disminuciones ({subStats.disminucion})
+                        </button>
+                        <button onClick={() => setSubFilter(subFilter === 'aumento_atipico' ? 'todas' : 'aumento_atipico')} className={`px-3 py-1 rounded-full font-semibold transition-colors ${subFilter === 'aumento_atipico' ? 'bg-[var(--warn)]/15 text-[var(--warn)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--bg)]'}`}>
+                            ↑ Aumentos ≥10% ({subStats.atipico})
+                        </button>
+                    </div>
+
                     <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-6">
                             <div className="relative w-72">
                                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-[var(--text-faint)]" />
-                                <input 
-                                    type="text" 
-                                    placeholder="Buscar SKU/modelo..." 
+                                <input
+                                    type="text"
+                                    placeholder="Buscar SKU/modelo..."
                                     value={search}
                                     onChange={e => setSearch(e.target.value)}
                                     className="pl-9 pr-4 py-2 w-full border border-[var(--border)] rounded-md focus:ring-[var(--accent)] focus:border-[var(--accent)]"
                                 />
                             </div>
-                            <label className="flex items-center space-x-2 text-[var(--text-muted)] cursor-pointer">
-                                <input type="checkbox" checked={soloCambiosMayores} onChange={e => setSoloCambiosMayores(e.target.checked)} className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]" />
-                                <span>Solo cambios &gt; 5%</span>
-                            </label>
-                            <label className="flex items-center space-x-2 text-[var(--text-muted)] cursor-pointer">
-                                <input type="checkbox" checked={soloAumentos} onChange={e => setSoloAumentos(e.target.checked)} className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]" />
-                                <span>Solo aumentos</span>
-                            </label>
                         </div>
-                        <div className="flex items-center space-x-2">
-                            <button onClick={() => handleBulkDecision('aprobado')} className="flex items-center px-3 py-1.5 text-[var(--ok)] bg-[var(--ok)]/10 hover:bg-[var(--ok)]/20 rounded text-sm font-medium transition-colors">
-                                <Check className="w-4 h-4 mr-1" /> Aprobar {filteredData.length} visibles
-                            </button>
-                            <button onClick={() => handleBulkDecision('rechazado')} className="flex items-center px-3 py-1.5 text-[var(--err)] bg-[var(--err)]/10 hover:bg-[var(--err)]/20 rounded text-sm font-medium transition-colors">
-                                <X className="w-4 h-4 mr-1" /> Rechazar {filteredData.length} visibles
-                            </button>
-                        </div>
+                        <button onClick={handleAprobarAumentosNormales} className="flex items-center px-4 py-2 text-[var(--ok)] bg-[var(--ok)]/10 hover:bg-[var(--ok)]/20 rounded-lg text-sm font-semibold transition-colors">
+                            <Check className="w-4 h-4 mr-1" /> Aprobar aumentos &lt;10% ({subStats.normal})
+                        </button>
                     </div>
                 </div>
 
                 {/* Cards List */}
                 <div className="p-8 max-w-5xl mx-auto">
                     {filteredData.map(d => (
-                        <ProductDiffCard 
-                            key={d.articulo_id} 
-                            product={d} 
+                        <ProductDiffCard
+                            key={d.articulo_id}
+                            product={d}
                             decision={decisions[d.articulo_id]}
                             onDecision={(decision) => handleDecision(d.articulo_id, decision as "aprobado" | "rechazado")}
                         />
@@ -214,28 +224,9 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                     <button className="inline-flex items-center px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg font-medium text-[var(--text-muted)] hover:bg-[var(--bg)] shadow-sm text-sm transition-colors">
                         <Download className="w-4 h-4 mr-2" /> Exportar diff
                     </button>
-                    <button 
-                        onClick={handleAprobarLote}
+                    <button
+                        onClick={() => applyChanges(decisions)}
                         disabled={loading}
-                        className="inline-flex items-center px-4 py-2 bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30 rounded-lg font-medium hover:bg-[var(--ok)]/20 shadow-sm text-sm transition-colors disabled:opacity-50"
-                    >
-                        <Check className="w-4 h-4 mr-2" /> Aprobar todo el lote
-                    </button>
-                    <button 
-                        onClick={() => {
-                            if (globalStats.pendientes > 0) {
-                                if (!confirm(`Tienes ${globalStats.pendientes} SKUs sin decisión. ¿Deseas aprobarlos automáticamente y continuar?`)) return;
-                                const next = { ...decisions };
-                                Object.keys(next).forEach(k => {
-                                    if (next[k] === 'pendiente') next[k] = 'aprobado';
-                                });
-                                setDecisions(next);
-                                applyChanges(next);
-                                return;
-                            }
-                            applyChanges(decisions);
-                        }}
-                        disabled={loading || globalStats.aprobados === 0 && globalStats.pendientes === 0}
                         className="inline-flex items-center px-8 py-3 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg font-medium hover:brightness-110 shadow-md transition-colors disabled:opacity-50 text-base"
                     >
                         {loading ? 'Guardando...' : 'Guardar y continuar'} <ArrowRight className="w-5 h-5 ml-2" />

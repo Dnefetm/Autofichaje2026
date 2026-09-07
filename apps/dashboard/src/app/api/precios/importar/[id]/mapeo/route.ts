@@ -45,6 +45,8 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
             moneda_default: body.moneda_default ?? 'MXN',
             precios: body.precios, // [{columna, tipo_costo, incluye_iva}]
             columnas_a_guardar: body.columnas_a_guardar ?? [],
+            marca_default: body.marca_default ?? null,
+            sustituciones_marca: body.sustituciones_marca ?? null,
         };
 
         const { error: uErr } = await supabaseAdmin
