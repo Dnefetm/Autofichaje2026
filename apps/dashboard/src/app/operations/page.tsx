@@ -118,11 +118,11 @@ export default function OperationsPage() {
             {/* Zona de Carga */}
             <div className={cn(
                 "bg-[var(--surface)] border-2 border-dashed rounded-2xl p-12 transition-all flex flex-col items-center gap-4",
-                status === 'idle' ? "border-[var(--border)] hover:border-[var(--accent)]/50" : "border-indigo-100 bg-[var(--accent)]/10"
+                status === 'idle' ? "border-[var(--border)] hover:border-[var(--accent)]/50" : "border-[var(--accent)]/30 bg-[var(--accent)]/10"
             )}>
                 <div className={cn(
                     "w-16 h-16 rounded-full flex items-center justify-center mb-2",
-                    operation === 'stock' ? "bg-[var(--ok)]/10 text-[var(--ok)]" : "bg-blue-50 text-blue-600"
+                    operation === 'stock' ? "bg-[var(--ok)]/10 text-[var(--ok)]" : "bg-[var(--info)]/10 text-[var(--info)]"
                 )}>
                     {operation === 'stock' ? <Database className="w-8 h-8" /> : <FileSpreadsheet className="w-8 h-8" />}
                 </div>
@@ -151,7 +151,7 @@ export default function OperationsPage() {
                     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
                         <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--bg)]/50">
                             <div className="flex items-center gap-2">
-                                <FileCheck className="w-4 h-4 text-emerald-500" />
+                                <FileCheck className="w-4 h-4 text-[var(--ok)]" />
                                 <span className="font-bold text-sm">Vista Previa: {previewData.length} filas detectadas</span>
                             </div>
                             <div className="flex gap-3">
@@ -213,7 +213,7 @@ export default function OperationsPage() {
                         <div className="bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-xl p-6 flex gap-4 animate-in zoom-in-95 duration-300">
                             <CheckCircle2 className="w-6 h-6 text-[var(--ok)] flex-shrink-0" />
                             <div>
-                                <h4 className="font-bold text-emerald-900">¡Actualización Exitosa!</h4>
+                                <h4 className="font-bold text-[var(--ok)]">¡Actualización Exitosa!</h4>
                                 <p className="text-[var(--ok)] text-sm">Los datos han sido persistidos en Supabase. El Worker iniciará la sincronización con los marketplaces en su próximo ciclo.</p>
                             </div>
                         </div>
@@ -223,7 +223,7 @@ export default function OperationsPage() {
                         <div className="bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl p-6 flex gap-4 animate-in zoom-in-95 duration-300">
                             <AlertTriangle className="w-6 h-6 text-[var(--err)] flex-shrink-0" />
                             <div>
-                                <h4 className="font-bold text-rose-900">Error en el Proceso</h4>
+                                <h4 className="font-bold text-[var(--err)]">Error en el Proceso</h4>
                                 <p className="text-[var(--err)] text-sm">{errorMessage}</p>
                             </div>
                         </div>

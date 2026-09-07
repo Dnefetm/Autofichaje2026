@@ -172,27 +172,27 @@ export default function PromptProfilesPage() {
                                     value={formName}
                                     onChange={e => setFormName(e.target.value)}
                                     placeholder="Nombre del perfil"
-                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                                 />
                                 <textarea
                                     value={formPrompt}
                                     onChange={e => setFormPrompt(e.target.value)}
                                     rows={7}
                                     placeholder="Prompt del sistema (fórmula/estilo)"
-                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono"
+                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
                                 />
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
                                         <label className="text-[10px] font-bold text-[var(--text-faint)] uppercase block mb-1">Temperatura</label>
-                                        <input type="number" step="0.1" min="0" max="1" value={formTemp} onChange={e => setFormTemp(e.target.value)} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+                                        <input type="number" step="0.1" min="0" max="1" value={formTemp} onChange={e => setFormTemp(e.target.value)} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-bold text-[var(--text-faint)] uppercase block mb-1">Máx caracteres</label>
-                                        <input type="number" value={formMax} onChange={e => setFormMax(e.target.value)} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+                                        <input type="number" value={formMax} onChange={e => setFormMax(e.target.value)} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button onClick={save} disabled={saving !== null} className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[var(--accent)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
+                                    <button onClick={save} disabled={saving !== null} className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
                                         {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Guardar
                                     </button>
                                     <button onClick={() => setEditingId('__cancel__')} className="px-4 py-2 text-xs font-bold text-[var(--text-muted)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)] transition-colors">Cancelar</button>

@@ -117,7 +117,7 @@ export default function BundlesPage() {
                         <Link href="/catalog" className="text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors">
                             Catálogo
                         </Link>
-                        <span className="text-slate-300">/</span>
+                        <span className="text-[var(--text-faint)]">/</span>
                         <span className="font-medium text-[var(--text-muted)]">Kits y Combos</span>
                     </div>
                     <h2 className="text-2xl font-bold text-[var(--text)] flex items-center gap-2">
@@ -169,7 +169,7 @@ export default function BundlesPage() {
                                             {comp.image ? (
                                                 <img src={comp.image} alt={comp.name} className="w-12 h-12 rounded object-cover border" />
                                             ) : (
-                                                <div className="w-12 h-12 rounded bg-slate-200 border flex items-center justify-center">
+                                                <div className="w-12 h-12 rounded bg-[var(--surface-2)] border flex items-center justify-center">
                                                     <Package className="w-5 h-5 text-[var(--text-faint)]" />
                                                 </div>
                                             )}
@@ -192,7 +192,7 @@ export default function BundlesPage() {
 
                                             <button
                                                 onClick={() => removeComponent(comp.sku)}
-                                                className="absolute -top-2 -right-2 bg-red-100 text-red-600 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200"
+                                                className="absolute -top-2 -right-2 bg-[var(--err)]/10 text-[var(--err)] p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--err)]/20"
                                             >
                                                 <X className="w-4 h-4" />
                                             </button>
@@ -205,7 +205,7 @@ export default function BundlesPage() {
 
                     <div className="p-4 border-t border-[var(--border)] bg-[var(--bg)] space-y-3">
                         {statusMessage.text && (
-                            <div className={`text-xs p-2 rounded ${statusMessage.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-[var(--ok)]/10 text-[var(--ok)]'}`}>
+                            <div className={`text-xs p-2 rounded ${statusMessage.type === 'error' ? 'bg-[var(--err)]/10 text-[var(--err)]' : 'bg-[var(--ok)]/10 text-[var(--ok)]'}`}>
                                 {statusMessage.text}
                             </div>
                         )}
@@ -229,14 +229,14 @@ export default function BundlesPage() {
                             placeholder="Buscar productos por SKU o Nombre para agregar..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[var(--accent)] outline-none text-sm shadow-sm"
+                            className="w-full pl-10 pr-4 py-2.5 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] outline-none text-sm shadow-sm"
                         />
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-2 bg-[var(--bg)]/50">
                         {isSearching ? (
                             <div className="flex justify-center py-12">
-                                <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+                                <Loader2 className="w-8 h-8 text-[var(--accent)] animate-spin" />
                             </div>
                         ) : searchResults.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-2">
@@ -246,7 +246,7 @@ export default function BundlesPage() {
                                             <img src={result.imagenes[0]} alt="" className="w-12 h-12 rounded bg-[var(--surface-2)] object-cover" />
                                         ) : (
                                             <div className="w-12 h-12 rounded bg-[var(--surface-2)] flex items-center justify-center">
-                                                <Package className="w-5 h-5 text-slate-300" />
+                                                <Package className="w-5 h-5 text-[var(--text-faint)]" />
                                             </div>
                                         )}
                                         <div className="flex-1 min-w-0">

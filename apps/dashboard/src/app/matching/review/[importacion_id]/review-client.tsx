@@ -56,7 +56,7 @@ export function ReviewClient({ importacionId, rows }: { importacionId: string; r
         <div className="mb-4 p-3 rounded bg-[var(--bg)] border">
           Job <code>{jobStatus.id?.slice(0,8)}</code> — <b>{jobStatus.status}</b>
           {' '}({jobStatus.processed}/{jobStatus.total} — {jobStatus.alias_aprendidos} alias nuevos)
-          {jobStatus.error && <span className="text-red-600"> · {jobStatus.error}</span>}
+          {jobStatus.error && <span className="text-[var(--err)]"> · {jobStatus.error}</span>}
         </div>
       )}
 
@@ -64,7 +64,7 @@ export function ReviewClient({ importacionId, rows }: { importacionId: string; r
         {(['A','B','C','D'] as const).map(k => (
           <button key={k}
             onClick={() => setTab(k)}
-            className={`px-3 py-1 rounded ${tab===k?'bg-black text-[var(--accent-ink)]':'bg-[var(--surface-2)]'}`}>
+            className={`px-3 py-1 rounded ${tab===k?'bg-[var(--accent)] text-[var(--accent-ink)]':'bg-[var(--surface-2)]'}`}>
             {k} · {k==='A'?'GTIN exacto':k==='B'?'Candidatos':k==='C'?'Ambigüedad':'Sin candidato'}
             {' '}({buckets[k].length})
           </button>
@@ -93,7 +93,7 @@ function SectionA({ rows, sel, setSel, onSubmit }: any) {
         <button
           disabled={!toConfirm.length}
           onClick={() => onSubmit(toConfirm)}
-          className="px-4 py-2 bg-emerald-600 text-[var(--accent-ink)] rounded disabled:opacity-50">
+          className="px-4 py-2 bg-[var(--ok)] text-[var(--accent-ink)] rounded disabled:opacity-50">
           Confirmar {toConfirm.length} seleccionadas
         </button>
       </div>
@@ -111,7 +111,7 @@ function SectionA({ rows, sel, setSel, onSubmit }: any) {
               <td>{r.marca_excel} / {r.modelo_excel}</td>
               <td>{r.proveedor}</td>
               <td className="font-mono text-xs">{r.candidatos?.[0]?.articulo_id}</td>
-              <td>{r.gtin_dupes > 1 && <span className="px-2 py-1 bg-amber-100 rounded text-xs">×{r.gtin_dupes}</span>}</td>
+              <td>{r.gtin_dupes > 1 && <span className="px-2 py-1 bg-[var(--warn)]/10 rounded text-xs">×{r.gtin_dupes}</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -142,7 +142,7 @@ function SectionBC({ rows, sel, setSel, onSubmit, multi }: any) {
           <button
             disabled={!sel[r.md_id]}
             onClick={() => onSubmit([r])}
-            className="mt-2 px-3 py-1 bg-emerald-600 text-[var(--accent-ink)] rounded disabled:opacity-50 text-sm">
+            className="mt-2 px-3 py-1 bg-[var(--ok)] text-[var(--accent-ink)] rounded disabled:opacity-50 text-sm">
             Confirmar
           </button>
         </div>
@@ -150,7 +150,7 @@ function SectionBC({ rows, sel, setSel, onSubmit, multi }: any) {
       {multi && rows.length > 1 && (
         <button
           onClick={() => onSubmit(rows.filter((r: Row) => sel[r.md_id]))}
-          className="px-4 py-2 bg-emerald-700 text-[var(--accent-ink)] rounded">
+          className="px-4 py-2 bg-[var(--ok)] text-[var(--accent-ink)] rounded">
           Confirmar todas las seleccionadas
         </button>
       )}

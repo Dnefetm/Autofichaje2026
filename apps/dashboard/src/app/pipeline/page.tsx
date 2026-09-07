@@ -57,7 +57,7 @@ export default function PipelinePage() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold">Salud del Pipeline de Precios</h1>
-        <button onClick={cargar} className="flex items-center gap-2 px-3 py-2 rounded bg-blue-600 text-[var(--accent-ink)] text-sm">
+        <button onClick={cargar} className="flex items-center gap-2 px-3 py-2 rounded bg-[var(--info)] text-[var(--accent-ink)] text-sm">
           <RefreshCw className={loading ? "w-4 h-4 animate-spin" : "w-4 h-4"} /> Actualizar
         </button>
       </div>
@@ -69,13 +69,13 @@ export default function PipelinePage() {
           const cargando = n === undefined;
           const vacio = n === 0;
           const error = n === -1;
-          const color = error ? "border-yellow-400 bg-yellow-50" : vacio ? "border-red-400 bg-red-50" : "border-green-400 bg-green-50";
+          const color = error ? "border-[var(--warn)] bg-[var(--warn)]/10" : vacio ? "border-[var(--err)] bg-[var(--err)]/10" : "border-[var(--ok)] bg-[var(--ok)]/10";
           return (
             <div key={e.orden} className={"flex items-center justify-between border rounded-lg p-4 " + (cargando ? "border-[var(--border)] bg-[var(--bg)]" : color)}>
               <div className="flex items-center gap-3">
-                {cargando ? <RefreshCw className="w-5 h-5 text-[var(--text-faint)] animate-spin" /> : error ? <AlertTriangle className="w-5 h-5 text-yellow-500" /> : vacio ? <XCircle className="w-5 h-5 text-red-500" /> : <CheckCircle2 className="w-5 h-5 text-green-600" />}
+                {cargando ? <RefreshCw className="w-5 h-5 text-[var(--text-faint)] animate-spin" /> : error ? <AlertTriangle className="w-5 h-5 text-[var(--warn)]" /> : vacio ? <XCircle className="w-5 h-5 text-[var(--err)]" /> : <CheckCircle2 className="w-5 h-5 text-[var(--ok)]" />}
                 <div>
-                  <div className="font-semibold">{e.orden}. {e.nombre} {e.critica && <span className="text-xs text-red-600">(critica)</span>}</div>
+                  <div className="font-semibold">{e.orden}. {e.nombre} {e.critica && <span className="text-xs text-[var(--err)]">(critica)</span>}</div>
                   <div className="text-xs text-[var(--text-muted)]">{e.descripcion}</div>
                 </div>
               </div>

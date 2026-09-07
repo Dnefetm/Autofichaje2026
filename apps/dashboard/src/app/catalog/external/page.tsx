@@ -21,10 +21,10 @@ function esSkuBasuraUI(sku: string | null | undefined): boolean {
 }
 
 const statusColors: Record<string, string> = {
-    active: 'bg-green-100 text-green-700 border-green-200',
-    paused: 'bg-amber-100 text-[var(--warn)] border-[var(--warn)]/30',
-    closed: 'bg-red-100 text-red-700 border-red-200',
-    under_review: 'bg-blue-100 text-blue-700 border-blue-200',
+    active: 'bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30',
+    paused: 'bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30',
+    closed: 'bg-[var(--err)]/10 text-[var(--err)] border-[var(--err)]/30',
+    under_review: 'bg-[var(--info)]/10 text-[var(--info)] border-[var(--info)]/30',
 };
 
 const statusLabels: Record<string, string> = {
@@ -35,34 +35,34 @@ const statusLabels: Record<string, string> = {
 };
 
 const logisticConfig: Record<string, { label: string; color: string }> = {
-    fulfillment: { label: 'Full', color: 'bg-purple-100 text-purple-700' },
-    xd_drop_off: { label: 'XD', color: 'bg-blue-100 text-blue-700' },
+    fulfillment: { label: 'Full', color: 'bg-[var(--accent)]/10 text-[var(--accent)]' },
+    xd_drop_off: { label: 'XD', color: 'bg-[var(--info)]/10 text-[var(--info)]' },
     drop_off: { label: 'Drop-off', color: 'bg-[var(--surface-2)] text-[var(--text-muted)]' },
-    cross_docking: { label: 'Cross', color: 'bg-teal-100 text-teal-700' },
-    self_service: { label: 'Self', color: 'bg-orange-100 text-orange-700' },
+    cross_docking: { label: 'Cross', color: 'bg-[var(--ok)]/10 text-[var(--ok)]' },
+    self_service: { label: 'Self', color: 'bg-[var(--warn)]/10 text-[var(--warn)]' },
 };
 
 // Correcto según nomenclatura MeLi México
 const listingTypeConfig: Record<string, { label: string; color: string }> = {
     gold_special: { label: 'Clásica',  color: 'bg-[var(--surface-2)] text-[var(--text-muted)]' },
-    gold_pro:     { label: 'Premium',  color: 'bg-amber-100 text-[var(--warn)]' },
-    free:         { label: 'Gratuita', color: 'bg-green-100 text-green-700' },
+    gold_pro:     { label: 'Premium',  color: 'bg-[var(--warn)]/10 text-[var(--warn)]' },
+    free:         { label: 'Gratuita', color: 'bg-[var(--ok)]/10 text-[var(--ok)]' },
 };
 
 const tipoPubConfig: Record<string, { label: string; color: string }> = {
-    tradicional:        { label: 'Tradicional',  color: 'bg-blue-100 text-blue-700' },
-    catalogo:           { label: 'Catálogo',     color: 'bg-purple-100 text-purple-700' },
-    catalogo_derivada:  { label: 'Cat. Derivada',color: 'bg-purple-100 text-purple-600 border border-purple-300' },
-    up:                 { label: 'User Product', color: 'bg-emerald-100 text-[var(--ok)]' },
+    tradicional:        { label: 'Tradicional',  color: 'bg-[var(--info)]/10 text-[var(--info)]' },
+    catalogo:           { label: 'Catálogo',     color: 'bg-[var(--accent)]/10 text-[var(--accent)]' },
+    catalogo_derivada:  { label: 'Cat. Derivada',color: 'bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30' },
+    up:                 { label: 'User Product', color: 'bg-[var(--ok)]/10 text-[var(--ok)]' },
 };
 
 function HealthBar({ value }: { value: number | null }) {
-    if (value === null || value === undefined) return <div className="w-16 h-1.5 bg-gray-200 rounded-full" />;
+    if (value === null || value === undefined) return <div className="w-16 h-1.5 bg-[var(--surface-2)] rounded-full" />;
     const pct = Math.round(value * 100);
-    const color = pct > 70 ? 'bg-green-500' : pct > 40 ? 'bg-[var(--warn)]/100' : 'bg-red-500';
+    const color = pct > 70 ? 'bg-[var(--ok)]' : pct > 40 ? 'bg-[var(--warn)]' : 'bg-[var(--err)]';
     return (
         <div className="flex items-center gap-1.5">
-            <div className="w-14 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+            <div className="w-14 h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden">
                 <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
             </div>
             <span className="text-[10px] text-[var(--text-faint)] tabular-nums">{pct}%</span>
@@ -113,7 +113,7 @@ function TipoBadge({ tipo }: { tipo: string | null }) {
 function BundleBadge({ isBundle }: { isBundle: boolean }) {
     if (!isBundle) return null;
     return (
-        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-200">
+        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[var(--warn)]/10 text-[var(--warn)] border border-[var(--warn)]/30">
             <Package className="w-3 h-3" /> Kit
         </span>
     );
@@ -190,7 +190,7 @@ function ListingRow({
                         <img src={listing.url_imagen} alt="" className="w-10 h-10 rounded-lg object-cover border border-[var(--border)] shrink-0" />
                     ) : (
                         <div className="w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
-                            <Package className="w-4 h-4 text-slate-300" />
+                            <Package className="w-4 h-4 text-[var(--text-faint)]" />
                         </div>
                     )}
                     <div className="min-w-0">
@@ -232,7 +232,7 @@ function ListingRow({
                 {listing.model && (
                     <p className="text-[10px] text-[var(--text-faint)] mt-0.5 italic truncate max-w-[120px]" title={listing.model}>{listing.model}</p>
                 )}
-                {!listing.brand && esSkuBasuraUI(listing.seller_custom_field) && esSkuBasuraUI(listing.seller_sku) && <span className="text-[10px] text-slate-300">—</span>}
+                {!listing.brand && esSkuBasuraUI(listing.seller_custom_field) && esSkuBasuraUI(listing.seller_sku) && <span className="text-[10px] text-[var(--text-faint)]">—</span>}
             </td>
 
             {/* 4 — PRECIO / VENTAS */}
@@ -259,7 +259,7 @@ function ListingRow({
                     <LogisticBadge type={listing.logistic_type} />
                     {listing.free_shipping && (
                         <span title="Envío gratis">
-                            <Truck className="w-3 h-3 text-green-500" />
+                            <Truck className="w-3 h-3 text-[var(--ok)]" />
                         </span>
                     )}
                 </div>
@@ -270,7 +270,7 @@ function ListingRow({
                 <div className="flex items-center justify-end gap-1.5">
                     <Link
                         href={`/catalog/external/${listing.id}`}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 text-indigo-700 text-xs font-semibold rounded-lg transition-colors border border-[var(--accent)]/30"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 text-[var(--accent)] text-xs font-semibold rounded-lg transition-colors border border-[var(--accent)]/30"
                     >
                         Abrir Ficha
                     </Link>
@@ -405,7 +405,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                             <img src={parent.url_imagen} alt="" className="w-10 h-10 rounded-lg object-cover border border-[var(--border)] shrink-0" />
                         ) : (
                             <div className="w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
-                                <Package className="w-4 h-4 text-slate-300" />
+                                <Package className="w-4 h-4 text-[var(--text-faint)]" />
                             </div>
                         )}
                         <div className="min-w-0">
@@ -419,7 +419,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                 {variations.length > 0 && (
                                     <button
                                         onClick={() => setExpanded(o => !o)}
-                                        className="inline-flex items-center gap-0.5 text-[10px] text-[var(--accent)] hover:text-indigo-800 font-semibold transition-colors"
+                                        className="inline-flex items-center gap-0.5 text-[10px] text-[var(--accent)] hover:text-[var(--accent)] font-semibold transition-colors"
                                     >
                                         {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                                         +{variations.length} variantes
@@ -451,7 +451,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                                         <button
                                             onClick={toggleRelated}
                                             disabled={relatedLoading}
-                                            className="inline-flex items-center gap-0.5 text-[10px] text-[var(--accent)] hover:text-indigo-800 font-semibold transition-colors disabled:opacity-60"
+                                            className="inline-flex items-center gap-0.5 text-[10px] text-[var(--accent)] hover:text-[var(--accent)] font-semibold transition-colors disabled:opacity-60"
                                         >
                                             <Layers className="w-3 h-3" />
                                             {relatedExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
@@ -477,7 +477,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                     {parent.model && (
                         <p className="text-[10px] text-[var(--text-faint)] mt-0.5 italic truncate max-w-[120px]" title={parent.model}>{parent.model}</p>
                     )}
-                    {!parent.brand && esSkuBasuraUI(parent.seller_custom_field) && esSkuBasuraUI(parent.seller_sku) && <span className="text-[10px] text-slate-300">—</span>}
+                    {!parent.brand && esSkuBasuraUI(parent.seller_custom_field) && esSkuBasuraUI(parent.seller_sku) && <span className="text-[10px] text-[var(--text-faint)]">—</span>}
                 </td>
 
                 {/* 4 — PRECIO / VENTAS */}
@@ -501,7 +501,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                     <div className="text-sm font-semibold text-[var(--text)]">{totalStock ?? '—'}</div>
                     <div className="flex items-center gap-1 mt-1">
                         <LogisticBadge type={parent.logistic_type} />
-                        {parent.free_shipping && <Truck className="w-3 h-3 text-green-500" />}
+                        {parent.free_shipping && <Truck className="w-3 h-3 text-[var(--ok)]" />}
                     </div>
                 </td>
 
@@ -510,13 +510,13 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                     <div className="flex items-center justify-end gap-1.5">
                         <Link
                             href={`/catalog/external/${parent.id}`}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 text-indigo-700 text-xs font-semibold rounded-lg transition-colors border border-[var(--accent)]/30"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 text-[var(--accent)] text-xs font-semibold rounded-lg transition-colors border border-[var(--accent)]/30"
                         >
                             Abrir Ficha
                         </Link>
                         <button
                             onClick={() => onMapear(parent)}
-                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-indigo-700 hover:bg-[var(--accent)]/10 transition-colors"
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-colors"
                             title={parent.esta_mapeado ? 'Editar Mapeo' : 'Crear Enlace'}
                         >
                             <Link2 className="w-4 h-4" />
@@ -573,7 +573,7 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
             {relatedExpanded && (relatedChildren || []).map((rel: any) => {
                 const isCatalog = rel.tipo_publicacion === 'catalogo' || rel.tipo_publicacion === 'catalogo_derivada';
                 return (
-                    <tr key={rel.id} className={cn('border-t', isCatalog ? 'bg-purple-50/60 border-purple-100' : 'bg-teal-50/60 border-teal-100')}>
+                    <tr key={rel.id} className={cn('border-t', isCatalog ? 'bg-[var(--accent)]/10 border-[var(--accent)]/30' : 'bg-[var(--ok)]/10 border-[var(--ok)]/30')}>
                         <td className="px-4 py-2 pl-10 align-top">
                             <div className="flex flex-col gap-0.5">
                                 <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[rel.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
@@ -589,13 +589,13 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                         <td className="px-4 py-2 align-top" colSpan={2}>
                             <div className="flex items-center gap-2">
                                 {isCatalog
-                                    ? <Layers className="w-3 h-3 text-purple-400 shrink-0" />
-                                    : <Link2 className="w-3 h-3 text-teal-400 shrink-0" />
+                                    ? <Layers className="w-3 h-3 text-[var(--accent)] shrink-0" />
+                                    : <Link2 className="w-3 h-3 text-[var(--ok)] shrink-0" />
                                 }
                                 <div>
                                     <Link
                                         href={`/catalog/external/${rel.id}`}
-                                        className={cn('text-xs font-medium transition-colors line-clamp-1', isCatalog ? 'text-[var(--text-muted)] hover:text-purple-700' : 'text-[var(--text-muted)] hover:text-teal-700')}
+                                        className={cn('text-xs font-medium transition-colors line-clamp-1', isCatalog ? 'text-[var(--text-muted)] hover:text-[var(--accent)]' : 'text-[var(--text-muted)] hover:text-[var(--ok)]')}
                                     >
                                         {rel.titulo?.slice(0, 55)}{(rel.titulo?.length ?? 0) > 55 ? '…' : ''}
                                     </Link>
@@ -632,13 +632,13 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                             <div className="flex items-center justify-end gap-1.5">
                                 <Link
                                     href={`/catalog/external/${rel.id}`}
-                                    className={cn('inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-lg border transition-colors', isCatalog ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200' : 'bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-200')}
+                                    className={cn('inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-lg border transition-colors', isCatalog ? 'bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 text-[var(--accent)] border-[var(--accent)]/30' : 'bg-[var(--ok)]/10 hover:bg-[var(--ok)]/20 text-[var(--ok)] border-[var(--ok)]/30')}
                                 >
                                     Ver ficha →
                                 </Link>
                                 <button
                                     onClick={() => onMapear(rel)}
-                                    className={cn('p-1.5 rounded-lg text-[var(--text-faint)] transition-colors', isCatalog ? 'hover:text-purple-700 hover:bg-purple-50' : 'hover:text-teal-700 hover:bg-teal-50')}
+                                    className={cn('p-1.5 rounded-lg text-[var(--text-faint)] transition-colors', isCatalog ? 'hover:text-[var(--accent)] hover:bg-[var(--accent)]/10' : 'hover:text-[var(--ok)] hover:bg-[var(--ok)]/10')}
                                     title="Mapear"
                                 >
                                     <Link2 className="w-3.5 h-3.5" />
@@ -927,7 +927,7 @@ export default function VirtualCatalogPage() {
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setShowFilters(o => !o)}
-                            className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors", showFilters ? "bg-[var(--accent)] text-[var(--accent-ink)] border-indigo-600" : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:bg-[var(--bg)]")}
+                            className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors", showFilters ? "bg-[var(--accent)] text-[var(--accent-ink)] border-[var(--accent)]" : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:bg-[var(--bg)]")}
                         >
                             <SlidersHorizontal className="w-4 h-4" />
                             Filtros
@@ -983,7 +983,7 @@ export default function VirtualCatalogPage() {
                                         {loading ? (
                                             <tr>
                                                 <td colSpan={7} className="px-6 py-12 text-center text-[var(--text-faint)]">
-                                                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-400" />
+                                                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[var(--accent)]" />
                                                     Cargando publicaciones...
                                                 </td>
                                             </tr>
@@ -1015,11 +1015,11 @@ export default function VirtualCatalogPage() {
                                 </p>
                                 <div className="flex gap-2">
                                     <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-                                        className="px-4 py-2 text-sm font-medium bg-[var(--surface)] border border-slate-300 rounded-lg hover:bg-[var(--bg)] disabled:opacity-40">
+                                        className="px-4 py-2 text-sm font-medium bg-[var(--surface)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-40">
                                         Anterior
                                     </button>
                                     <button onClick={() => setPage(p => p + 1)} disabled={(page + 1) * PAGE_SIZE >= totalCount}
-                                        className="px-4 py-2 text-sm font-medium bg-[var(--surface)] border border-slate-300 rounded-lg hover:bg-[var(--bg)] disabled:opacity-40">
+                                        className="px-4 py-2 text-sm font-medium bg-[var(--surface)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-40">
                                         Siguiente
                                     </button>
                                 </div>
@@ -1031,14 +1031,14 @@ export default function VirtualCatalogPage() {
 
             {/* Consola de Sync */}
             {debugLogs.length > 0 && (
-                <div className="fixed bottom-0 left-64 right-0 bg-[var(--surface-2)] border-t border-slate-700 p-4 max-h-52 overflow-y-auto z-40">
+                <div className="fixed bottom-0 left-64 right-0 bg-[var(--surface-2)] border-t border-[var(--border)] p-4 max-h-52 overflow-y-auto z-40">
                     <div className="flex justify-between items-center mb-2">
                         <h4 className="text-xs font-bold text-[var(--text-faint)] uppercase tracking-wider">Consola de Sincronización</h4>
-                        <button onClick={() => setDebugLogs([])} className="text-xs text-[var(--text-muted)] hover:text-slate-300">Limpiar</button>
+                        <button onClick={() => setDebugLogs([])} className="text-xs text-[var(--text-muted)] hover:text-[var(--text-muted)]">Limpiar</button>
                     </div>
                     <div className="font-mono text-xs space-y-0.5">
                         {debugLogs.map((log, i) => (
-                            <div key={i} className={log.includes('❌') || log.includes('ERROR') ? 'text-red-400' : log.includes('✓') || log.includes('Éxito') ? 'text-green-400' : 'text-slate-300'}>
+                            <div key={i} className={log.includes('❌') || log.includes('ERROR') ? 'text-[var(--err)]' : log.includes('✓') || log.includes('Éxito') ? 'text-[var(--ok)]' : 'text-[var(--text-faint)]'}>
                                 {log}
                             </div>
                         ))}

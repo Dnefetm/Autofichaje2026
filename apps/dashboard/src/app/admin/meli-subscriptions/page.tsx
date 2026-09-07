@@ -82,7 +82,7 @@ export default function MeliSubscriptionsPage() {
                                         id={topic} 
                                         checked={isSubscribed}
                                         onChange={() => toggleTopic(topic)}
-                                        className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        className="h-5 w-5 rounded border-[var(--border)] text-[var(--info)] focus:ring-[var(--info)]"
                                     />
                                     <label htmlFor={topic} className="font-medium cursor-pointer">
                                         {topic}
@@ -101,7 +101,7 @@ export default function MeliSubscriptionsPage() {
                 <button 
                     onClick={handleSave} 
                     disabled={saving}
-                    className="px-4 py-2 bg-blue-600 text-[var(--accent-ink)] rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-[var(--info)] text-[var(--accent-ink)] rounded-md hover:brightness-110 disabled:opacity-50"
                 >
                     {saving ? 'Guardando...' : 'Guardar Suscripciones en ML'}
                 </button>

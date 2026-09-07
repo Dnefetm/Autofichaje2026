@@ -33,7 +33,7 @@ const logisticConfig: Record<string, { label: string; color: string }> = {
     xd_drop_off: { label: 'XD Drop-off', color: 'bg-[var(--info)]/10 border  text-[var(--info)]' },
     drop_off: { label: 'Drop-off', color: 'bg-[var(--surface-2)] text-[var(--text)]' },
     cross_docking: { label: 'Cross-Docking', color: 'bg-[var(--info)]/10 border  text-[var(--info)]' },
-    self_service: { label: 'Self Service', color: 'bg-orange-100 text-orange-800' },
+    self_service: { label: 'Self Service', color: 'bg-[var(--warn)]/10 text-[var(--warn)]' },
 };
 
 const listingTypeConfig: Record<string, { label: string; color: string }> = {
@@ -51,7 +51,7 @@ const tipoPubConfig: Record<string, { label: string; color: string }> = {
 function HealthBar({ value }: { value: number | null }) {
     if (value === null || value === undefined) return (
         <div className="flex items-center gap-2">
-            <div className="flex-1 h-2 bg-gray-200 rounded-full" />
+            <div className="flex-1 h-2 bg-[var(--surface-2)] rounded-full" />
             <span className="text-xs text-[var(--text-faint)]">Sin datos</span>
         </div>
     );
@@ -59,7 +59,7 @@ function HealthBar({ value }: { value: number | null }) {
     const color = pct > 70 ? 'bg-[var(--ok)]/10 border ' : pct > 40 ? 'bg-[var(--warn)]/10 border ' : 'bg-[var(--err)]/10 border ';
     return (
         <div className="flex items-center gap-3">
-            <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div className="flex-1 h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
                 <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
             </div>
             <span className="text-sm font-bold text-[var(--text)]">{pct}%</span>
@@ -183,11 +183,11 @@ function EditableField({
                     {saveState === 'saving' ? (
                         <Loader2 className="w-4 h-4 animate-spin text-[var(--accent)]" />
                     ) : saveState === 'ok' ? (
-                        <Check className="w-4 h-4 text-green-500" />
+                        <Check className="w-4 h-4 text-[var(--ok)]" />
                     ) : (
                         <>
                             <button onClick={save} className="p-1.5 bg-[var(--accent)] text-[var(--accent-ink)] rounded-[var(--radius)] hover:bg-[var(--accent)] transition-colors"><Check className="w-3.5 h-3.5" /></button>
-                            <button onClick={cancelEdit} className="p-1.5 bg-[var(--surface-2)] text-[var(--text-muted)] rounded-[var(--radius)] hover:bg-slate-200 transition-colors"><X className="w-3.5 h-3.5" /></button>
+                            <button onClick={cancelEdit} className="p-1.5 bg-[var(--surface-2)] text-[var(--text-muted)] rounded-[var(--radius)] hover:bg-[var(--bg)] transition-colors"><X className="w-3.5 h-3.5" /></button>
                         </>
                     )}
                 </div>
@@ -251,12 +251,12 @@ function StatusToggle({ id, current, disabled }: { id: string; current: string; 
                     <button
                         onClick={toggle}
                         disabled={saving}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text)] text-xs font-semibold rounded-[var(--radius)] transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text)] text-xs font-semibold rounded-[var(--radius)] transition-colors disabled:opacity-50"
                     >
                         {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
                             status === 'active'
-                                ? <ToggleLeft className="w-3.5 h-3.5 text-amber-500" />
-                                : <ToggleRight className="w-3.5 h-3.5 text-green-500" />
+                                ? <ToggleLeft className="w-3.5 h-3.5 text-[var(--text-faint)]" />
+                                : <ToggleRight className="w-3.5 h-3.5 text-[var(--ok)]" />
                         )}
                         {status === 'active' ? 'Pausar' : 'Activar'}
                     </button>
@@ -370,7 +370,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
 
     if (loading) return (
         <div className="flex-1 flex items-center justify-center min-h-screen">
-            <RefreshCw className="w-8 h-8 animate-spin text-indigo-400" />
+            <RefreshCw className="w-8 h-8 animate-spin text-[var(--accent)]" />
         </div>
     );
 
@@ -397,11 +397,11 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
 
                 {/* Banner de Kit/Bundle */}
                 {(pub.es_bundle || pub.tags?.includes('bundle')) && (
-                    <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-[var(--radius)]">
-                        <Package className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+                    <div className="flex items-start gap-3 p-4 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-[var(--radius)]">
+                        <Package className="w-5 h-5 text-[var(--warn)] shrink-0 mt-0.5" />
                         <div>
-                            <p className="text-sm font-bold text-orange-800">⚠️ Esta publicación es un Kit (Bundle)</p>
-                            <p className="text-xs text-orange-700 mt-0.5">
+                            <p className="text-sm font-bold text-[var(--warn)]">⚠️ Esta publicación es un Kit (Bundle)</p>
+                            <p className="text-xs text-[var(--warn)] mt-0.5">
                                 Su stock depende de las publicaciones originales que lo componen. Actualizar el stock directamente puede no reflejar correctamente la disponibilidad real del kit.
                             </p>
                         </div>
@@ -512,7 +512,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         <div className="flex flex-col gap-2 shrink-0">
                             {pub.permalink && (
                                 <a href={pub.permalink} target="_blank" rel="noreferrer"
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 text-sm font-bold rounded-[var(--radius)] transition-colors">
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-sm font-bold rounded-[var(--radius)] transition-colors">
                                     <ExternalLink className="w-4 h-4" />
                                     Ver en MeLi
                                 </a>
@@ -524,14 +524,14 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <Link2 className="w-4 h-4" />
                                 {pub.esta_mapeado ? 'Editar Mapeo' : 'Crear Mapeo'}
                             </button>
-                            <button onClick={() => loadAll(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text)] text-sm font-medium rounded-[var(--radius)] transition-colors">
+                            <button onClick={() => loadAll(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text)] text-sm font-medium rounded-[var(--radius)] transition-colors">
                                 <RefreshCw className="w-4 h-4" />
                                 Recargar
                             </button>
                             <button
                                 onClick={generarFicha}
                                 disabled={generandoFicha}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-[var(--radius)] transition-colors disabled:opacity-40"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--ok)] hover:brightness-110 text-[var(--accent-ink)] text-sm font-bold rounded-[var(--radius)] transition-colors disabled:opacity-40"
                             >
                                 <FileText className="w-4 h-4" />
                                 {generandoFicha ? 'Generando…' : 'Generar Ficha'}
@@ -563,7 +563,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                         {(enrichData?.health?.actions || []).slice(0, 4).map((action: any, i: number) => {
                                             const isCritical = action.severity === 'critical' || action.impact === 'high';
                                             return (
-                                                <div key={i} className={`text-[11px] px-2 py-1.5 rounded-[var(--radius-sm)] flex items-start gap-2 ${isCritical ? 'bg-[var(--err)]/10 border  text-[var(--err)] border border-rose-100' : 'bg-[var(--warn)]/10 border  text-[var(--warn)] border border-amber-100'}`}>
+                                                <div key={i} className={`text-[11px] px-2 py-1.5 rounded-[var(--radius-sm)] flex items-start gap-2 ${isCritical ? 'bg-[var(--err)]/10 border  text-[var(--err)] border border-[var(--err)]/30' : 'bg-[var(--warn)]/10 border  text-[var(--warn)] border border-[var(--warn)]/30'}`}>
                                                     <span className="shrink-0 mt-0.5">{isCritical ? '🔴' : '🟡'}</span>
                                                     <span>{action.reason || action.action_id || action.id}</span>
                                                 </div>
@@ -665,7 +665,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 label="SKU Ítem"
                                 value={pub.seller_sku
                                     ? <span className="font-mono text-xs">{pub.seller_sku}</span>
-                                    : <span className="inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-[var(--radius-sm)] font-semibold"><AlertCircle className="w-3 h-3" />Sin SKU de ítem</span>
+                                    : <span className="inline-flex items-center gap-1 text-xs bg-[var(--warn)]/10 text-[var(--warn)] px-2 py-0.5 rounded-[var(--radius-sm)] font-semibold"><AlertCircle className="w-3 h-3" />Sin SKU de ítem</span>
                                 }
                             />
                             {(isVariant || (variantes || []).length > 0) && (
@@ -675,7 +675,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                         isVariant
                                             ? ((pub.seller_custom_field || pub.seller_sku)
                                                 ? <span className="font-mono text-xs text-[var(--accent)] font-bold">{pub.seller_custom_field || pub.seller_sku}</span>
-                                                : <span className="inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-[var(--radius-sm)] font-semibold"><AlertCircle className="w-3 h-3" />Sin SKU de variante</span>)
+                                                : <span className="inline-flex items-center gap-1 text-xs bg-[var(--warn)]/10 text-[var(--warn)] px-2 py-0.5 rounded-[var(--radius-sm)] font-semibold"><AlertCircle className="w-3 h-3" />Sin SKU de variante</span>)
                                             : <span className="text-[var(--text-faint)] text-xs italic">Ver tabla de variantes ↓</span>
                                     }
                                 />
@@ -768,7 +768,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <InfoRow label="Tags envío" value={
                                     <div className="flex flex-wrap gap-1 justify-end">
                                         {(pub.shipping_tags || []).map((t: string) => (
-                                            <span key={t} className="text-[10px] bg-[var(--info)]/10 border  text-[var(--info)] border border-blue-100 px-1.5 py-0.5 rounded-[var(--radius-sm)] font-mono">{t}</span>
+                                            <span key={t} className="text-[10px] bg-[var(--info)]/10 border  text-[var(--info)] border border-[var(--info)]/30 px-1.5 py-0.5 rounded-[var(--radius-sm)] font-mono">{t}</span>
                                         ))}
                                     </div>
                                 } />

@@ -21,7 +21,7 @@ export default function DashboardPage() {
     { label: 'Ventas Hoy', value: '$12,450', change: '+12%', trend: 'up', icon: TrendingUp, color: 'text-[var(--ok)]', bg: 'bg-[var(--ok)]/10' },
     { label: 'Stock Crítico', value: alerts.filter(a => a.level === 'critical' || a.level === 'warning').length.toString(), change: 'Actualizado', trend: 'neutral', icon: AlertTriangle, color: 'text-[var(--err)]', bg: 'bg-[var(--err)]/10' },
     { label: 'Jobs en Cola', value: '18', change: 'En tiempo real', trend: 'neutral', icon: Clock, color: 'text-[var(--accent)]', bg: 'bg-[var(--accent)]/10' },
-    { label: 'Items Sincronizados', value: '142', change: '+5', trend: 'up', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Items Sincronizados', value: '142', change: '+5', trend: 'up', icon: Package, color: 'text-[var(--info)]', bg: 'bg-[var(--info)]/10' },
   ];
 
   useEffect(() => {
@@ -90,14 +90,14 @@ export default function DashboardPage() {
               <AlertTriangle className="w-4 h-4 text-[var(--err)]" />
               Alertas de Sistema e Inventario
             </h3>
-            <button className="text-xs font-bold text-[var(--accent)] hover:text-indigo-800">Historial</button>
+            <button className="text-xs font-bold text-[var(--accent)] hover:text-[var(--accent)]">Historial</button>
           </div>
           <div className="divide-y divide-[var(--border)] min-h-[200px]">
             {loading && alerts.length === 0 ? (
               <div className="p-8 text-center text-[var(--text-faint)]">Cargando alertas...</div>
             ) : alerts.length === 0 ? (
               <div className="p-12 text-center">
-                <Package className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                <Package className="w-12 h-12 text-[var(--text-faint)] mx-auto mb-3" />
                 <p className="text-[var(--text-faint)]">No hay alertas activas de momento.</p>
               </div>
             ) : alerts.map((alert) => (
@@ -106,7 +106,7 @@ export default function DashboardPage() {
                   <div className={cn(
                     "w-2.5 h-2.5 rounded-full shadow-sm",
                     alert.level === 'critical' ? "bg-[var(--err)]/100 animate-pulse" :
-                      alert.level === 'warning' ? "bg-[var(--warn)]/100" : "bg-blue-500"
+                      alert.level === 'warning' ? "bg-[var(--warn)]/100" : "bg-[var(--info)]/100"
                   )} />
                   <div>
                     <p className="font-semibold text-[var(--text)]">{alert.message}</p>
@@ -127,7 +127,7 @@ export default function DashboardPage() {
         <div className="space-y-6">
           <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm p-6">
             <h3 className="font-bold text-[var(--text)] mb-4 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-500" />
+              <TrendingUp className="w-4 h-4 text-[var(--ok)]" />
               Salud de Cuentas
             </h3>
             <div className="space-y-4">
@@ -145,32 +145,32 @@ export default function DashboardPage() {
           </div>
 
           {/* Lógica de Packs (Real Action) */}
-          <div className="bg-indigo-900 text-[var(--accent-ink)] rounded-xl shadow-lg p-6 overflow-hidden relative group">
+          <div className="bg-[var(--accent)]/20 text-[var(--accent-ink)] rounded-xl shadow-lg p-6 overflow-hidden relative group">
             <div className="absolute -right-4 -top-4 w-24 h-24 bg-[var(--surface)]/10 rounded-full blur-2xl group-hover:scale-150 transition-all duration-700" />
             <h4 className="font-bold mb-3 flex items-center gap-2">
-              <Package className="w-4 h-4 text-indigo-300" />
+              <Package className="w-4 h-4 text-[var(--text-faint)]" />
               Motor de Packs Activo
             </h4>
-            <p className="text-xs text-indigo-100 leading-relaxed mb-4">
+            <p className="text-xs text-[var(--text)] leading-relaxed mb-4">
               El sistema detecta automáticamente que tus publicaciones de "Packs" dependen de múltiples productos.
               Calculamos el stock basándonos en el **componente con menor existencia**.
             </p>
             <div className="bg-[var(--surface)]/10 rounded-lg p-3 text-[10px] space-y-2 font-mono">
               <div className="flex justify-between">
-                <span className="text-indigo-300 italic">Pack A (1 Martillo + 2 Taladros)</span>
+                <span className="text-[var(--text-faint)] italic">Pack A (1 Martillo + 2 Taladros)</span>
               </div>
               <div className="h-px bg-[var(--surface)]/5" />
               <div className="flex justify-between">
                 <span>Martillo Stock: 10</span>
-                <span className="text-emerald-400">OK</span>
+                <span className="text-[var(--ok)]">OK</span>
               </div>
               <div className="flex justify-between">
                 <span>Taladro Stock: 1</span>
-                <span className="text-rose-400">BAJO</span>
+                <span className="text-[var(--err)]">BAJO</span>
               </div>
-              <div className="flex justify-between font-bold border-t border-white/10 pt-1 mt-1">
+              <div className="flex justify-between font-bold border-t border-[var(--border)]/30 pt-1 mt-1">
                 <span className="text-[var(--accent-ink)]">STOCK EN MeLi:</span>
-                <span className="text-yellow-400 uppercase">0 Unidades</span>
+                <span className="text-[var(--warn)] uppercase">0 Unidades</span>
               </div>
             </div>
           </div>

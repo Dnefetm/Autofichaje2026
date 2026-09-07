@@ -68,20 +68,20 @@ export default function AliasesPage() {
                 <td className="p-2">{row.marca_excel || '-'} / {row.modelo_excel || '-'}</td>
                 <td className="p-2 font-mono text-xs">{row.articulo_id}</td>
                 <td className="p-2">
-                  <span className={`px-2 py-1 text-xs rounded ${row.locked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                  <span className={`px-2 py-1 text-xs rounded ${row.locked ? 'bg-[var(--err)]/10 text-[var(--err)]' : 'bg-[var(--ok)]/10 text-[var(--ok)]'}`}>
                     {row.locked ? 'Bloqueado (Manual)' : 'Automático'}
                   </span>
                 </td>
                 <td className="p-2 space-x-2">
                   <button 
                     onClick={() => toggleLock(row.id, !row.locked)}
-                    className="text-blue-600 hover:underline"
+                    className="text-[var(--info)] hover:underline"
                   >
                     {row.locked ? 'Desbloquear' : 'Bloquear'}
                   </button>
                   <button 
                     onClick={() => softDelete(row.id)}
-                    className="text-red-600 hover:underline"
+                    className="text-[var(--err)] hover:underline"
                   >
                     Eliminar
                   </button>

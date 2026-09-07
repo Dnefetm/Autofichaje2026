@@ -19,8 +19,8 @@ interface Ficha {
 function EstadoBadge({ estado }: { estado: string }) {
     const map: Record<string, string> = {
         borrador:  'bg-[var(--surface-2)] text-[var(--text-muted)]',
-        revision:  'bg-amber-100 text-[var(--warn)]',
-        publicado: 'bg-emerald-100 text-[var(--ok)]',
+        revision:  'bg-[var(--warn)]/10 text-[var(--warn)]',
+        publicado: 'bg-[var(--ok)]/10 text-[var(--ok)]',
     };
     return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${map[estado] || 'bg-[var(--surface-2)] text-[var(--text-muted)]'}`}>{estado}</span>;
 }
@@ -167,7 +167,7 @@ export default function FichasPage() {
                                                 {f.articulos && <p className="text-xs text-[var(--text-faint)] mt-0.5">{f.articulos.nombre} — {f.articulos.marca}</p>}
                                             </div>
                                         ) : (
-                                            <span className="text-xs text-rose-400 font-medium">Sin vincular</span>
+                                            <span className="text-xs text-[var(--err)] font-medium">Sin vincular</span>
                                         )}
                                     </td>
                                     <td className="px-5 py-4"><EstadoBadge estado={f.estado} /></td>
@@ -177,7 +177,7 @@ export default function FichasPage() {
                                     <td className="px-5 py-4 text-right">
                                         <div className="flex items-center justify-end gap-3">
                                             <Link href={`/fichas/${f.id}`}
-                                                className="inline-flex items-center gap-1 text-[var(--accent)] hover:text-indigo-700 text-xs font-semibold">
+                                                className="inline-flex items-center gap-1 text-[var(--accent)] hover:text-[var(--accent)] text-xs font-semibold">
                                                 Ver <ExternalLink className="w-3 h-3" />
                                             </Link>
                                             {f.estado !== 'publicado' && (
@@ -186,7 +186,7 @@ export default function FichasPage() {
                                                     aria-label="Eliminar ficha"
                                                     onClick={() => eliminarFichaLista(f)}
                                                     disabled={deletingId === f.id}
-                                                    className="p-1.5 text-slate-300 hover:text-[var(--err)] hover:bg-[var(--err)]/10 rounded-lg transition-colors disabled:opacity-50">
+                                                    className="p-1.5 text-[var(--text-faint)] hover:text-[var(--err)] hover:bg-[var(--err)]/10 rounded-lg transition-colors disabled:opacity-50">
                                                     {deletingId === f.id
                                                         ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                                         : <Trash2 className="w-3.5 h-3.5" />}

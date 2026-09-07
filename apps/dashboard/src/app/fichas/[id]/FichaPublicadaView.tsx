@@ -56,7 +56,7 @@ export function FichaPublicadaView({
               <CheckCircle2 className="w-3.5 h-3.5" /> Publicado
             </div>
             <button type="button" onClick={onGenerarPDF} disabled={generandoPdf}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] rounded-xl hover:border-[var(--accent)]/50 hover:text-indigo-700 transition-colors disabled:opacity-50 shadow-sm">
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] rounded-xl hover:border-[var(--accent)]/50 hover:text-[var(--accent)] transition-colors disabled:opacity-50 shadow-sm">
                 {generandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} PDF
             </button>
             <button type="button" onClick={onEdit}
@@ -100,7 +100,7 @@ export function FichaPublicadaView({
 
             {/* Chips */}
             <div className="flex flex-wrap gap-2 mt-6">
-              {ficha.categoria && <span className="px-3 py-1.5 bg-[var(--accent)]/10 text-indigo-700 rounded-xl text-sm font-medium border border-indigo-100">{ficha.categoria}</span>}
+              {ficha.categoria && <span className="px-3 py-1.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded-xl text-sm font-medium border border-[var(--accent)]/30">{ficha.categoria}</span>}
               {ficha.variante && <span className="px-3 py-1.5 bg-[var(--bg)] text-[var(--text-muted)] rounded-xl text-sm font-medium border border-[var(--border)]">Var: {ficha.variante}</span>}
               {ficha.fabricante && <span className="px-3 py-1.5 bg-[var(--bg)] text-[var(--text-muted)] rounded-xl text-sm font-medium border border-[var(--border)]">Fab: {ficha.fabricante}</span>}
             </div>
@@ -128,11 +128,11 @@ export function FichaPublicadaView({
           {tieneCumplimiento && (
             <div className="bg-[var(--warn)]/10 p-5 sm:p-8 rounded-2xl border border-[var(--warn)]/30 space-y-4">
               <h3 className="text-sm font-bold tracking-widest uppercase text-[var(--warn)]">Cumplimiento y Seguridad</h3>
-              <div className="space-y-3 text-amber-900/80 whitespace-pre-wrap">
-                {ficha.informacion_normativa && <p><strong className="text-amber-900">Normativa:</strong> {ficha.informacion_normativa}</p>}
-                {ficha.leyendas_precautorias && <p><strong className="text-amber-900">Leyendas Precautorias:</strong> {ficha.leyendas_precautorias}</p>}
-                {mostrarPrecauciones && <p><strong className="text-amber-900">Precauciones:</strong> {ficha.precauciones}</p>}
-                {ficha.indicaciones_almacenamiento && <p><strong className="text-amber-900">Almacenamiento:</strong> {ficha.indicaciones_almacenamiento}</p>}
+              <div className="space-y-3 text-[var(--warn)] whitespace-pre-wrap">
+                {ficha.informacion_normativa && <p><strong className="text-[var(--warn)]">Normativa:</strong> {ficha.informacion_normativa}</p>}
+                {ficha.leyendas_precautorias && <p><strong className="text-[var(--warn)]">Leyendas Precautorias:</strong> {ficha.leyendas_precautorias}</p>}
+                {mostrarPrecauciones && <p><strong className="text-[var(--warn)]">Precauciones:</strong> {ficha.precauciones}</p>}
+                {ficha.indicaciones_almacenamiento && <p><strong className="text-[var(--warn)]">Almacenamiento:</strong> {ficha.indicaciones_almacenamiento}</p>}
               </div>
             </div>
           )}

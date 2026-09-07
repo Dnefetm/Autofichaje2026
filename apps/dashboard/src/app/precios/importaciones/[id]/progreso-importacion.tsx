@@ -192,7 +192,7 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
 
       {/* Panel derecho: Logs en tiempo real */}
       <div className="w-full md:w-96 bg-[var(--surface-2)] flex flex-col max-h-[500px]">
-         <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between bg-black/20">
+         <div className="px-4 py-3 border-b border-[var(--border)]/30 flex items-center justify-between bg-[var(--surface-2)]/50">
             <div className="flex items-center gap-2">
                <Terminal className="w-4 h-4 text-[var(--ok)]" />
                <span className="text-xs font-mono font-bold text-[var(--text-muted)]">import_worker.log</span>

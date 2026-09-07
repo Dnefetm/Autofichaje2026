@@ -482,7 +482,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                         {/* Línea 1: identidad */}
                         <div className="flex items-center gap-2">
                             {pubThumb && (
-                                <img src={pubThumb} alt="" className="w-8 h-8 object-contain rounded-md bg-white border border-[var(--border)] shrink-0" />
+                                <img src={pubThumb} alt="" className="w-8 h-8 object-contain rounded-md bg-[var(--text)] border border-[var(--border)] shrink-0" />
                             )}
                             <div className="flex-1 min-w-0 flex items-center gap-2 text-xs flex-wrap">
                                 <span className="font-semibold text-[var(--text)] truncate" title={listing.titulo}>{listing.titulo}</span>
@@ -623,7 +623,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                             <div className="flex items-center gap-3 ml-3">
                                                 <span className="text-xs font-mono text-[var(--text-faint)]">{res.articulo_id}</span>
                                                 <div className="w-9 h-9 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center group-hover:bg-[var(--accent)] group-hover:border-[var(--accent)] transition-colors">
-                                                    <Plus size={12} className="text-[var(--text-muted)] group-hover:text-white" />
+                                                    <Plus size={12} className="text-[var(--text-muted)] group-hover:text-[var(--accent-ink)]" />
                                                 </div>
                                             </div>
                                         </button>
@@ -664,7 +664,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                                     <span className="text-xs bg-[var(--err)]/10 text-[var(--err)] border border-[var(--err)]/20 px-1.5 py-0.5 rounded">Sin Costo</span>
                                                 )}
                                                 <div className="w-9 h-9 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center group-hover:bg-[var(--accent)] group-hover:border-[var(--accent)] transition-colors">
-                                                    <Plus size={12} className="text-[var(--text-muted)] group-hover:text-white" />
+                                                    <Plus size={12} className="text-[var(--text-muted)] group-hover:text-[var(--accent-ink)]" />
                                                 </div>
                                             </div>
                                         </button>

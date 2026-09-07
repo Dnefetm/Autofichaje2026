@@ -60,7 +60,7 @@ export default function MonitorPage() {
                     <p className="text-[var(--text-muted)]">Jobs procesados en tiempo real por el Worker de Railway.</p>
                 </div>
                 <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-1 px-3 flex items-center gap-2 text-sm font-medium text-[var(--text-muted)] shadow-sm">
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <span className="w-2 h-2 bg-[var(--ok)]/100 rounded-full animate-pulse"></span>
                     Conectado via Supabase Realtime
                 </div>
             </div>
@@ -97,8 +97,8 @@ export default function MonitorPage() {
                                         {new Date(job.created_at).toLocaleTimeString()} •
                                         Status: <span className={cn(
                                             "font-semibold uppercase tracking-tighter",
-                                            job.status === 'completed' ? 'text-green-600' :
-                                                job.status === 'failed' ? 'text-red-600' :
+                                            job.status === 'completed' ? 'text-[var(--ok)]' :
+                                                job.status === 'failed' ? 'text-[var(--err)]' :
                                                     job.status === 'processing' ? 'text-[var(--accent)]' : 'text-[var(--text-faint)]'
                                         )}>{job.status}</span>
                                     </div>
@@ -106,11 +106,11 @@ export default function MonitorPage() {
                             </div>
                             <div className="text-right">
                                 {job.error_log && (
-                                    <div className="text-[10px] text-red-500 max-w-[200px] truncate mb-1" title={job.error_log}>
+                                    <div className="text-[10px] text-[var(--err)] max-w-[200px] truncate mb-1" title={job.error_log}>
                                         Error: {job.error_log}
                                     </div>
                                 )}
-                                <button className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] px-3 py-1 rounded font-bold hover:bg-slate-200 transition-colors">
+                                <button className="text-xs bg-[var(--surface-2)] text-[var(--text-muted)] px-3 py-1 rounded font-bold hover:bg-[var(--bg)] transition-colors">
                                     Detalles
                                 </button>
                             </div>
@@ -124,8 +124,8 @@ export default function MonitorPage() {
 
 function StatusIcon({ status }: { status: string }) {
     const base = "w-10 h-10 rounded-lg flex items-center justify-center";
-    if (status === 'completed') return <div className={cn(base, "bg-green-50 text-green-600")}><CheckCircle2 className="w-5 h-5" /></div>;
-    if (status === 'failed') return <div className={cn(base, "bg-red-50 text-red-600")}><XCircle className="w-5 h-5" /></div>;
+    if (status === 'completed') return <div className={cn(base, "bg-[var(--ok)]/10 text-[var(--ok)]")}><CheckCircle2 className="w-5 h-5" /></div>;
+    if (status === 'failed') return <div className={cn(base, "bg-[var(--err)]/10 text-[var(--err)]")}><XCircle className="w-5 h-5" /></div>;
     if (status === 'processing') return <div className={cn(base, "bg-[var(--accent)]/10 text-[var(--accent)] animate-pulse")}><Clock className="w-5 h-5" /></div>;
-    return <div className={cn(base, "bg-[var(--bg)] text-slate-300")}><Clock className="w-5 h-5" /></div>;
+    return <div className={cn(base, "bg-[var(--bg)] text-[var(--text-faint)]")}><Clock className="w-5 h-5" /></div>;
 }

@@ -237,10 +237,10 @@ export function SkuCard({
                 <div className="border-t border-[var(--border)] pt-2">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1">
-                            {isLowStock && <AlertCircle className="w-3 h-3 text-amber-500" />}
+                            {isLowStock && <AlertCircle className="w-3 h-3 text-[var(--warn)]" />}
                             <p className={cn(
                                 "text-[10px] uppercase font-bold",
-                                isLowStock ? "text-amber-500" : "text-[var(--text-faint)]"
+                                isLowStock ? "text-[var(--warn)]" : "text-[var(--text-faint)]"
                             )}>
                                 Stock Fisico
                             </p>
@@ -251,7 +251,7 @@ export function SkuCard({
                                     type="number"
                                     value={stockInput}
                                     onChange={(e) => setStockInput(e.target.value)}
-                                    className="w-16 px-2 py-1 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-[var(--accent)] outline-none text-center"
+                                    className="w-16 px-2 py-1 border border-[var(--border)] rounded text-sm focus:ring-2 focus:ring-[var(--accent)] outline-none text-center"
                                     autoFocus
                                     onKeyDown={(e) => e.key === 'Enter' && handleSave()}
                                 />
@@ -271,7 +271,7 @@ export function SkuCard({
                                 )}>
                                     {newStock}
                                 </span>
-                                <Edit2 className="w-3 h-3 text-slate-300 group-hover/edit:text-[var(--accent)] transition-colors" />
+                                <Edit2 className="w-3 h-3 text-[var(--text-faint)] group-hover/edit:text-[var(--accent)] transition-colors" />
                             </div>
                         )}
                     </div>

@@ -160,7 +160,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
                     <div className="relative">
                         <ClipboardList className={cn(
                             'w-4 h-4 shrink-0 transition-colors',
-                            isPendientesActive ? 'text-[var(--accent-ink)]' : 'text-amber-400 group-hover:text-amber-300'
+                            isPendientesActive ? 'text-[var(--accent-ink)]' : 'text-[var(--warn)] group-hover:text-[var(--warn)]'
                         )} />
                         {!showLabels && pendingCount !== null && pendingCount > 0 && (
                             <span className="absolute -top-1 -right-1.5 w-2.5 h-2.5 bg-[var(--warn)] rounded-full ring-2 ring-[var(--surface-2)]" />
@@ -170,7 +170,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
                         <div className="flex items-center justify-between flex-1 min-w-0">
                             <span className="truncate">Pendientes</span>
                             {pendingCount !== null && pendingCount > 0 && (
-                                <span className="px-2 py-0.5 rounded-full bg-[var(--warn)] text-slate-950 text-xs font-bold shadow-xs">
+                                <span className="px-2 py-0.5 rounded-full bg-[var(--warn)] text-[var(--bg)] text-xs font-bold shadow-xs">
                                     {pendingCount.toLocaleString()}
                                 </span>
                             )}

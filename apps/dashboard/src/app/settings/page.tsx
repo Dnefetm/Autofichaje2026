@@ -33,7 +33,7 @@ function AuthFeedback() {
     return (
         <div className={cn(
             "p-4 rounded-xl border mb-6 flex items-center gap-3 animate-in zoom-in-95 duration-300",
-            auth === 'success' ? "bg-[var(--ok)]/10 border-[var(--ok)]/30 text-emerald-800" : "bg-[var(--err)]/10 border-[var(--err)]/30 text-rose-800"
+            auth === 'success' ? "bg-[var(--ok)]/10 border-[var(--ok)]/30 text-[var(--ok)]" : "bg-[var(--err)]/10 border-[var(--err)]/30 text-[var(--err)]"
         )}>
             {auth === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
             <span className="text-sm font-bold">
@@ -110,7 +110,7 @@ function SettingsContent() {
                 </div>
                 <button
                     onClick={handleLinkNewStore}
-                    className="px-5 py-2.5 bg-yellow-400 text-[var(--text)] rounded-xl font-bold text-sm hover:bg-yellow-500 transition-colors shadow-sm flex items-center gap-2"
+                    className="px-5 py-2.5 bg-[var(--accent)] text-[var(--text)] rounded-xl font-bold text-sm hover:bg-[var(--warn)]/100 transition-colors shadow-sm flex items-center gap-2"
                 >
                     <LinkIcon className="w-4 h-4" />
                     + Vincular Nueva Tienda MeLi
@@ -123,7 +123,7 @@ function SettingsContent() {
                 <div className="md:col-span-2 space-y-4">
                     {configs.length === 0 ? (
                         <div className="p-8 text-center bg-[var(--bg)] border border-[var(--border)] border-dashed rounded-xl">
-                            <Database className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+                            <Database className="w-8 h-8 text-[var(--text-faint)] mx-auto mb-3" />
                             <h3 className="text-sm font-bold text-[var(--text-muted)]">No hay tiendas vinculadas</h3>
                             <p className="text-xs text-[var(--text-muted)] mt-1">Haz clic en el botón amarillo para autorizar la primera cuenta.</p>
                         </div>
@@ -148,7 +148,7 @@ function SettingsContent() {
                         <StatusItem label="Catálogo Maestro" status="online" />
                         
                         <div className="pt-2 border-t border-[var(--border)]">
-                            <a href="/settings/pricing" className="text-[var(--accent)] hover:text-indigo-800 font-bold flex items-center justify-between group">
+                            <a href="/settings/pricing" className="text-[var(--accent)] hover:text-[var(--accent)] font-bold flex items-center justify-between group">
                                 Estrategia de Precios 
                                 <ChevronRight className="w-4 h-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
                             </a>
@@ -171,15 +171,15 @@ function StoreCard({ config }: { config: any }) {
     };
 
     return (
-        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden flex items-center justify-between p-5 hover:border-slate-300 transition-colors">
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden flex items-center justify-between p-5 hover:border-[var(--border-strong)] transition-colors">
             <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-yellow-400 rounded-xl flex items-center justify-center font-bold text-yellow-900 text-lg shadow-inner">
+                <div className="w-12 h-12 bg-[var(--accent)] rounded-xl flex items-center justify-center font-bold text-[var(--accent-ink)] text-lg shadow-inner">
                     {config.account_name.substring(0, 2).toUpperCase()}
                 </div>
                 <div>
                     <h3 className="font-bold text-[var(--text)] text-lg">{config.account_name}</h3>
                     <div className="text-xs text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
-                        <span className="text-yellow-600 font-semibold">Mercado Libre</span>
+                        <span className="text-[var(--warn)] font-semibold">Mercado Libre</span>
                         <span>•</span>
                         <span>ID: {config.settings?.seller_id || config.id.split('-')[0]}</span>
                     </div>
@@ -188,17 +188,17 @@ function StoreCard({ config }: { config: any }) {
 
             <div className="flex flex-col items-end gap-2">
                 {hasToken ? (
-                    <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 rounded-full flex items-center gap-1.5 shadow-sm">
+                    <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-[var(--ok)]/10 text-[var(--ok)] rounded-full flex items-center gap-1.5 shadow-sm">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Vinculada
                     </span>
                 ) : (
-                    <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-800 rounded-full flex items-center gap-1.5 shadow-sm">
+                    <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-[var(--warn)]/10 text-[var(--warn)] rounded-full flex items-center gap-1.5 shadow-sm">
                         <AlertCircle className="w-3.5 h-3.5" /> Faltan Permisos
                     </span>
                 )}
                 <button
                     onClick={handleReauth}
-                    className="px-3 py-1 text-sm bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg border border-amber-300 transition-colors"
+                    className="px-3 py-1 text-sm bg-[var(--warn)]/10 hover:bg-[var(--warn)]/20 text-[var(--warn)] rounded-lg border border-[var(--warn)]/30 transition-colors"
                 >
                     {hasToken ? 'Re-autorizar' : 'Vincular Cuenta'}
                 </button>
@@ -212,9 +212,9 @@ function StatusItem({ label, status }: { label: string, status: 'online' | 'offl
         <div className="flex justify-between items-center text-xs">
             <span className="text-[var(--text-muted)] font-medium">{label}</span>
             <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px]">
-                {status === 'online' && <><span className="w-1.5 h-1.5 bg-[var(--ok)]/100 rounded-full shadow-[0_0_5px_rgba(16,185,129,0.5)]" /> <span className="text-[var(--ok)]">En línea</span></>}
-                {status === 'offline' && <><span className="w-1.5 h-1.5 bg-[var(--err)]/100 rounded-full shadow-[0_0_5px_rgba(244,63,94,0.5)]" /> <span className="text-[var(--err)]">Offline</span></>}
-                {status === 'checking' && <><span className="w-1.5 h-1.5 bg-slate-400 animate-pulse rounded-full" /> <span className="text-[var(--text-muted)]">Validando</span></>}
+                {status === 'online' && <><span className="w-1.5 h-1.5 bg-[var(--ok)]/100 rounded-full shadow-[0_0_5px_var(--ok)]" /> <span className="text-[var(--ok)]">En línea</span></>}
+                {status === 'offline' && <><span className="w-1.5 h-1.5 bg-[var(--err)]/100 rounded-full shadow-[0_0_5px_var(--err)]" /> <span className="text-[var(--err)]">Offline</span></>}
+                {status === 'checking' && <><span className="w-1.5 h-1.5 bg-[var(--text-faint)] animate-pulse rounded-full" /> <span className="text-[var(--text-muted)]">Validando</span></>}
             </div>
         </div>
     );
@@ -381,8 +381,8 @@ function WebhookControlPanel() {
                                                         className="shrink-0"
                                                     >
                                                         {enabled
-                                                            ? <ToggleRight className="w-6 h-6 text-emerald-500" />
-                                                            : <ToggleLeft className="w-6 h-6 text-slate-300" />}
+                                                            ? <ToggleRight className="w-6 h-6 text-[var(--ok)]" />
+                                                            : <ToggleLeft className="w-6 h-6 text-[var(--text-faint)]" />}
                                                     </button>
                                                     <div>
                                                         <p className="font-semibold text-sm text-[var(--text)]">{def.label}</p>
@@ -477,7 +477,7 @@ function WebhookControlPanel() {
                             <div className="px-6 py-4 bg-[var(--bg)] border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-4 text-xs text-[var(--text-muted)]">
                                 <div className="flex flex-wrap gap-x-6 gap-y-2">
                                     <span className="flex items-center gap-1.5">
-                                        <Zap className="w-3.5 h-3.5 text-emerald-500" />
+                                        <Zap className="w-3.5 h-3.5 text-[var(--ok)]" />
                                         <strong>Inmediato:</strong> el worker se activa al instante — ideal para órdenes y pagos.
                                     </span>
                                     <span className="flex items-center gap-1.5">

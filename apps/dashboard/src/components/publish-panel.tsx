@@ -625,14 +625,14 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     className="w-full flex items-center justify-between px-6 py-4 hover:bg-[var(--bg)] transition-colors"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-yellow-100 rounded-lg">
-                            <Send className="w-4 h-4 text-yellow-600" />
+                        <div className="p-2 bg-[var(--warn)]/10 rounded-lg">
+                            <Send className="w-4 h-4 text-[var(--warn)]" />
                         </div>
                         <div className="text-left">
                             <h2 className="text-base font-bold text-[var(--text)]">Publicar en MeLi</h2>
                             <p className="text-xs text-[var(--text-faint)] mt-0.5">
                                 Modelo User Products · Aprobación manual requerida
-                                {ficha_id && <span className="ml-2 px-1.5 py-0.5 bg-[var(--accent)]/20 text-indigo-700 rounded text-[9px] font-bold">Datos desde ficha técnica</span>}
+                                {ficha_id && <span className="ml-2 px-1.5 py-0.5 bg-[var(--accent)]/20 text-[var(--accent)] rounded text-[9px] font-bold">Datos desde ficha técnica</span>}
                             </p>
                         </div>
                     </div>
@@ -648,8 +648,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     {/* Badge de ficha en modal mode */}
                     {modalMode && ficha_id && (
                         <div className="flex items-center gap-2 p-2.5 bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-xl">
-                            <span className="text-xs font-bold text-indigo-700">📄 Publicando con datos de la ficha técnica</span>
-                            <span className="text-[10px] text-indigo-400 font-mono">{ficha_id.slice(0, 8)}…</span>
+                            <span className="text-xs font-bold text-[var(--accent)]">📄 Publicando con datos de la ficha técnica</span>
+                            <span className="text-[10px] text-[var(--accent)] font-mono">{ficha_id.slice(0, 8)}…</span>
                         </div>
                     )}
 
@@ -659,7 +659,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             {/* Cuentas (multi-selección) */}
                             <div>
                                 <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">
-                                    <Store className="w-3 h-3 inline mr-1" />Cuentas de destino <span className="text-rose-400">*</span>
+                                    <Store className="w-3 h-3 inline mr-1" />Cuentas de destino <span className="text-[var(--err)]">*</span>
                                     <span className="ml-1 font-normal normal-case text-[var(--text-faint)]">puedes publicar en varias a la vez</span>
                                 </label>
                                 <div className="space-y-1.5">
@@ -686,7 +686,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                     id="publish-listing-type"
                                     value={listingType}
                                     onChange={e => setListingType(e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)]"
+                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface)]"
                                 >
                                     <option value="gold_special">Gold Special (recomendado)</option>
                                     <option value="gold_pro">Gold Pro</option>
@@ -727,11 +727,11 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 <div className="p-4 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl">
                                     <div className="flex items-center gap-2 mb-2">
                                         <XCircle className="w-5 h-5 text-[var(--err)]" />
-                                        <h3 className="font-bold text-rose-800 text-sm">Artículo no encontrado en BD</h3>
+                                        <h3 className="font-bold text-[var(--err)] text-sm">Artículo no encontrado en BD</h3>
                                     </div>
                                     <p className="text-xs text-[var(--err)] mb-2">{previewResult.data.error}</p>
                                     {previewResult.data.trace?.input && (
-                                        <p className="text-xs font-mono bg-rose-100 px-2 py-1 rounded text-[var(--err)]">
+                                        <p className="text-xs font-mono bg-[var(--err)]/10 px-2 py-1 rounded text-[var(--err)]">
                                             articulo_id enviado: <strong>{previewResult.data.trace.input.articulo_id}</strong>
                                         </p>
                                     )}
@@ -741,18 +741,18 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
                             {/* 409 — duplicado */}
                             {previewResult.status === 409 && (
-                                <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                                <div className="p-4 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <AlertCircle className="w-5 h-5 text-orange-500" />
-                                        <h3 className="font-bold text-orange-800 text-sm">Ya existe una publicación activa para esta cuenta</h3>
+                                        <AlertCircle className="w-5 h-5 text-[var(--warn)]" />
+                                        <h3 className="font-bold text-[var(--warn)] text-sm">Ya existe una publicación activa para esta cuenta</h3>
                                     </div>
-                                    <p className="text-xs text-orange-700 mb-3">{previewResult.data.error}</p>
+                                    <p className="text-xs text-[var(--warn)] mb-3">{previewResult.data.error}</p>
                                     {previewResult.data.publicacion_existente && (
                                         <a
                                             href={`https://www.mercadolibre.com.mx/p/${previewResult.data.publicacion_existente}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 hover:underline"
+                                            className="inline-flex items-center gap-1 text-xs font-bold text-[var(--warn)] hover:underline"
                                         >
                                             <ExternalLink className="w-3 h-3" />
                                             Ver {previewResult.data.publicacion_existente} en MeLi
@@ -766,17 +766,17 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 <div className="p-4 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl">
                                     <div className="flex items-center gap-2 mb-2">
                                         <XCircle className="w-5 h-5 text-[var(--err)]" />
-                                        <h3 className="font-bold text-rose-800 text-sm">Error de validación</h3>
+                                        <h3 className="font-bold text-[var(--err)] text-sm">Error de validación</h3>
                                     </div>
                                     <p className="text-xs text-[var(--err)] mb-2">{previewResult.data.error}</p>
                                     {previewResult.data.errores?.map((e: string, i: number) => (
-                                        <p key={i} className="text-xs text-[var(--err)] font-mono bg-rose-100 px-2 py-1 rounded mt-1">• {e}</p>
+                                        <p key={i} className="text-xs text-[var(--err)] font-mono bg-[var(--err)]/10 px-2 py-1 rounded mt-1">• {e}</p>
                                     ))}
                                     {previewResult.data.meli_error && (
-                                        <div className="mt-3 p-3 bg-rose-100 rounded-lg border border-rose-300">
+                                        <div className="mt-3 p-3 bg-[var(--err)]/10 rounded-lg border border-[var(--err)]/30">
                                             <p className="text-[10px] font-bold uppercase text-[var(--err)] mb-1.5">Detalle de MeLi</p>
                                             {previewResult.data.meli_error.message && (
-                                                <p className="text-xs font-bold text-rose-800 mb-1">{previewResult.data.meli_error.message}</p>
+                                                <p className="text-xs font-bold text-[var(--err)] mb-1">{previewResult.data.meli_error.message}</p>
                                             )}
                                             {previewResult.data.meli_error.cause?.map((c: any, i: number) => (
                                                 <p key={i} className="text-xs text-[var(--err)] font-mono bg-[var(--surface)] px-2 py-1 rounded mt-1">[{c.code}] {c.message}</p>
@@ -811,7 +811,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         <div className="flex items-center gap-2 p-3 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-xl">
                                             <CheckCircle2 className="w-5 h-5 text-[var(--ok)] shrink-0" />
                                             <div>
-                                                <p className="font-bold text-emerald-800 text-sm">Preview listo — revisa y confirma</p>
+                                                <p className="font-bold text-[var(--ok)] text-sm">Preview listo — revisa y confirma</p>
                                                 <p className="text-xs text-[var(--ok)]">Cuenta: <strong>{accountName}</strong>{t?.paso_3_precio?.sale_price ? <span> · Precio: <strong>{new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(t.paso_3_precio.sale_price)}</strong></span> : null}</p>
                                             </div>
                                         </div>
@@ -838,11 +838,11 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 </div>
                                             )}
                                             <div className="flex gap-2">
-                                                <input type="url" value={newImageUrl} onChange={e => { setNewImageUrl(e.target.value); setImgInputError(null); }} onKeyDown={e => e.key === 'Enter' && addImage()} placeholder="https://... URL de imagen" className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+                                                <input type="url" value={newImageUrl} onChange={e => { setNewImageUrl(e.target.value); setImgInputError(null); }} onKeyDown={e => e.key === 'Enter' && addImage()} placeholder="https://... URL de imagen" className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                                                 <button onClick={addImage} className="px-3 py-2 bg-[var(--surface)] text-[var(--accent-ink)] rounded-lg text-sm font-bold flex items-center gap-1"><Plus className="w-4 h-4" /> Agregar</button>
                                             </div>
                                             <div className="flex gap-2">
-                                                <input type="url" value={extractUrl} onChange={e => { setExtractUrl(e.target.value); setImgInputError(null); }} onKeyDown={e => e.key === 'Enter' && extractImagesFromUrl()} placeholder="https://... página (extrae sus fotos)" className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+                                                <input type="url" value={extractUrl} onChange={e => { setExtractUrl(e.target.value); setImgInputError(null); }} onKeyDown={e => e.key === 'Enter' && extractImagesFromUrl()} placeholder="https://... página (extrae sus fotos)" className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                                                 <button onClick={extractImagesFromUrl} disabled={extracting} className="px-3 py-2 bg-[var(--surface)] text-[var(--accent-ink)] rounded-lg text-sm font-bold flex items-center gap-1 disabled:opacity-50">{extracting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />} Extraer</button>
                                             </div>
                                             {imgInputError && <p className="text-xs text-[var(--err)]">{imgInputError}</p>}
@@ -975,7 +975,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 <select
                                                     value={curCatId}
                                                     onChange={e => { setCategoryOverride(e.target.value); setCatSelectedPath(''); }}
-                                                    className="mt-1 w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)] font-mono"
+                                                    className="mt-1 w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface)] font-mono"
                                                 >
                                                     {allCatOptions.map((opt: any) => opt?.category_id && (
                                                         <option key={opt.category_id} value={opt.category_id}>
@@ -987,7 +987,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
                                             {/* Buscador live */}
                                             <div className="relative mt-2">
-                                                <div className="flex items-center gap-1 px-3 py-2 border border-slate-300 rounded-lg bg-[var(--surface)] focus-within:ring-2 focus-within:ring-yellow-400">
+                                                <div className="flex items-center gap-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--surface)] focus-within:ring-2 focus-within:ring-[var(--accent)]">
                                                     <Search className="w-3.5 h-3.5 text-[var(--text-faint)] shrink-0" />
                                                     <input
                                                         id="cat-search-input"
@@ -1009,7 +1009,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                             }, 400);
                                                         }}
                                                         placeholder="Buscar categoría en MeLi (ej. dado métrico)"
-                                                        className="flex-1 text-sm bg-transparent outline-none placeholder-slate-400"
+                                                        className="flex-1 text-sm bg-transparent outline-none placeholder:text-[var(--text-faint)]"
                                                     />
                                                     {catSearchLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--text-faint)] shrink-0" />}
                                                 </div>
@@ -1025,7 +1025,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                                     setCatSearch('');
                                                                     setCatSearchResults([]);
                                                                 }}
-                                                                className="w-full text-left px-3 py-2 text-xs hover:bg-yellow-50 border-b border-[var(--border)] last:border-0"
+                                                                className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--warn)]/10 border-b border-[var(--border)] last:border-0"
                                                             >
                                                                 <span className="font-mono font-bold text-[var(--text-muted)] text-[10px]">{c.category_id}</span>
                                                                 <span className="text-[var(--text-muted)] ml-2">{c.path || c.category_name || ''}</span>
@@ -1040,7 +1040,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                     id="re-preview-btn"
                                                     onClick={() => handleRePreview(categoryOverride)}
                                                     disabled={loading}
-                                                    className="mt-2 w-full py-2 text-xs font-bold bg-blue-50 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                                                    className="mt-2 w-full py-2 text-xs font-bold bg-[var(--info)]/10 border border-[var(--info)]/30 text-[var(--info)] rounded-lg hover:bg-[var(--info)]/20 disabled:opacity-50 transition-colors"
                                                 >
                                                     {loading ? <Loader2 className="w-3 h-3 animate-spin inline mr-1" /> : '🔄'} Re-ejecutar preview con <span className="font-mono">{categoryOverride}</span>
                                                 </button>
@@ -1071,7 +1071,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                         onChange={e => setFamilyNameOverride(e.target.value)}
                                                         maxLength={60}
                                                         className={cn("w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 font-mono",
-                                                            over ? "border-[var(--err)] focus:ring-[var(--err)] text-[var(--err)]" : "border-[var(--border)] focus:ring-yellow-400")}
+                                                            over ? "border-[var(--err)] focus:ring-[var(--err)] text-[var(--err)]" : "border-[var(--border)] focus:ring-[var(--accent)]")}
                                                     />
                                                     {over && <p className="text-[10px] text-[var(--err)] mt-1">El título supera 60 caracteres. Recórtalo.</p>}
                                                 </div>
@@ -1087,7 +1087,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 value={priceOverride !== '' ? priceOverride : (t?.paso_9_titulo?.price_final ?? t?.paso_3_precio?.sale_price ?? '')}
                                                 onChange={e => setPriceOverride(e.target.value)}
                                                 placeholder="Sin precio — escribe uno manual"
-                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono"
+                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
                                             />
                                             {(t?.paso_9_titulo?.price_final ?? t?.paso_3_precio?.sale_price ?? 0) <= 0 && (
                                                 <p className="text-[10px] text-[var(--warn)] mt-1">Sin precio configurado: escribe el precio manual para poder publicar.</p>
@@ -1102,7 +1102,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 value={stockOverride !== '' ? stockOverride : (t?.paso_4_stock?.available_quantity ?? '')}
                                                 onChange={e => setStockOverride(e.target.value)}
                                                 placeholder="Stock (vacío = toma el del catálogo maestro)"
-                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono"
+                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
                                             />
                                             <p className="text-[10px] text-[var(--text-faint)] mt-1">Vacío = usa el stock del catálogo maestro ({t?.paso_4_stock?.available_quantity ?? '—'}).</p>
                                         </div>
@@ -1114,7 +1114,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 onChange={e => setDescriptionOverride(e.target.value)}
                                                 rows={6}
                                                 placeholder="Descripción del producto (vacío = se usa la del artículo/ficha técnica)"
-                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[var(--surface)]"
+                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface)]"
                                             />
                                         </div>
                                         {/* Envío */}
@@ -1125,7 +1125,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                     <input type="checkbox" checked={freeShipping} onChange={e => setFreeShipping(e.target.checked)} className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)]" />
                                                     Incluir envío gratis
                                                 </label>
-                                                <select value={shippingMode} onChange={e => setShippingMode(e.target.value)} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                                                <select value={shippingMode} onChange={e => setShippingMode(e.target.value)} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
                                                     <option value="me2">Mercado Envíos (ME2)</option>
                                                     <option value="custom">Envíos Personalizados (custom)</option>
                                                 </select>
@@ -1147,7 +1147,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 value={manufacturingDays}
                                                 onChange={e => setManufacturingDays(e.target.value)}
                                                 placeholder="0 = inmediato (no se envía el dato)"
-                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono"
+                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
                                             />
                                             <p className="text-[10px] text-[var(--text-faint)] mt-1">0 o vacío = envío inmediato (MeLi omite el tiempo). 1–60 = días de preparación.</p>
                                         </div>
@@ -1167,7 +1167,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                     return (
                                                         <div key={id} className="relative">
                                                             <label className="text-[9px] uppercase text-[var(--text-faint)] font-bold">{label}</label>
-                                                            <div className="flex items-center border border-[var(--border)] rounded-lg bg-[var(--surface)] overflow-hidden focus-within:ring-2 focus-within:ring-yellow-400">
+                                                            <div className="flex items-center border border-[var(--border)] rounded-lg bg-[var(--surface)] overflow-hidden focus-within:ring-2 focus-within:ring-[var(--accent)]">
                                                                 <input
                                                                     type="text"
                                                                     value={currentVal}
@@ -1177,7 +1177,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                                 />
                                                                 <span className="text-[9px] text-[var(--text-faint)] px-2 border-l border-[var(--border)]">{unit}</span>
                                                             </div>
-                                                            {isEdited && <span className="text-[8px] text-blue-500 absolute right-0 top-0">editado</span>}
+                                                            {isEdited && <span className="text-[8px] text-[var(--info)] absolute right-0 top-0">editado</span>}
                                                         </div>
                                                     );
                                                 })}
@@ -1186,7 +1186,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         </div>
                                         {/* Atributos requeridos */}
                                         {loadingAttrs ? (
-                                            <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-yellow-700">
+                                            <div className="flex items-center gap-2 p-3 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-lg text-xs text-[var(--warn)]">
                                                 <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                                                 Cargando atributos de la nueva categoría...
                                             </div>
@@ -1207,15 +1207,15 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                             <div key={attr.id} className={cn('p-2.5 rounded-lg border', isMissing ? 'border-[var(--err)]/30 bg-[var(--err)]/10' : 'border-[var(--border)] bg-[var(--bg)]')}>
                                                                 <div className="flex items-center justify-between mb-1.5">
                                                                     <span className="text-xs font-bold text-[var(--text-muted)]">{attr.name}</span>
-                                                                    <span className={cn('text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase', ov ? 'bg-blue-100 text-blue-700' : isMissing ? 'bg-rose-100 text-[var(--err)]' : 'bg-emerald-100 text-[var(--ok)]')}>{ov ? 'Editado' : isMissing ? 'Faltante' : 'Auto'}</span>
+                                                                    <span className={cn('text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase', ov ? 'bg-[var(--info)]/10 text-[var(--info)]' : isMissing ? 'bg-[var(--err)]/10 text-[var(--err)]' : 'bg-[var(--ok)]/10 text-[var(--ok)]')}>{ov ? 'Editado' : isMissing ? 'Faltante' : 'Auto'}</span>
                                                                 </div>
                                                                 {attr.values?.length > 0 ? (
-                                                                    <select value={valId} onChange={e => { const opt = attr.values.find((v: any) => v.id === e.target.value); setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_id: e.target.value, value_name: opt?.name } })); }} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-yellow-400">
+                                                                    <select value={valId} onChange={e => { const opt = attr.values.find((v: any) => v.id === e.target.value); setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_id: e.target.value, value_name: opt?.name } })); }} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]">
                                                                         <option value="">— Seleccionar —</option>
                                                                         {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
                                                                     </select>
                                                                 ) : (
-                                                                    <input type="text" value={valName} onChange={e => setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_name: e.target.value } }))} placeholder={`Ingresa ${attr.name}`} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-yellow-400 font-mono" />
+                                                                    <input type="text" value={valName} onChange={e => setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_name: e.target.value } }))} placeholder={`Ingresa ${attr.name}`} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] font-mono" />
                                                                 )}
                                                             </div>
                                                         );
@@ -1243,12 +1243,12 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                                         <span className="text-[9px] font-mono text-[var(--text-faint)]">{attr.id}</span>
                                                                     </div>
                                                                     {attr.values?.length > 0 ? (
-                                                                        <select value={valId} onChange={e => { const opt = attr.values.find((v: any) => v.id === e.target.value); setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_id: e.target.value, value_name: opt?.name } })); }} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-yellow-400">
+                                                                        <select value={valId} onChange={e => { const opt = attr.values.find((v: any) => v.id === e.target.value); setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_id: e.target.value, value_name: opt?.name } })); }} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]">
                                                                             <option value="">— (sin especificar) —</option>
                                                                             {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
                                                                         </select>
                                                                     ) : (
-                                                                        <input type="text" value={valName} onChange={e => setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_name: e.target.value } }))} placeholder={`Ingresa ${attr.name}`} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-yellow-400 font-mono" />
+                                                                        <input type="text" value={valName} onChange={e => setAttrOverrides(prev => ({ ...prev, [attr.id]: { value_name: e.target.value } }))} placeholder={`Ingresa ${attr.name}`} className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] font-mono" />
                                                                     )}
                                                                 </div>
                                                             );
@@ -1271,7 +1271,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         {/* CTAs */}
                                         <div className="flex gap-3">
                                             <button id="publish-back-btn" onClick={resetPanel} className="flex-1 py-2.5 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-xl text-sm transition-colors">Volver</button>
-                                            <button id="publish-confirm-btn" onClick={handlePublish} disabled={loading} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-50">
+                                            <button id="publish-confirm-btn" onClick={handlePublish} disabled={loading} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] font-bold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-50">
                                                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                                 {loading ? 'Publicando...' : 'Publicar con estos datos'}
                                             </button>
@@ -1348,8 +1348,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             {/* Éxito */}
                             {publishResult.status === 200 && publishResult.data.ok && (
                                 <div className="p-5 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-xl text-center">
-                                    <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                                    <h3 className="font-bold text-emerald-800 text-base mb-1">¡Publicación exitosa!</h3>
+                                    <CheckCircle2 className="w-10 h-10 text-[var(--ok)] mx-auto mb-2" />
+                                    <h3 className="font-bold text-[var(--ok)] text-base mb-1">¡Publicación exitosa!</h3>
                                     <p className="text-sm font-mono font-bold text-[var(--ok)] mb-3">
                                         {publishResult.data.item_id}
                                     </p>
@@ -1361,7 +1361,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             href={publishResult.data.permalink}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-lg text-sm transition-colors"
+                                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] font-bold rounded-lg text-sm transition-colors"
                                         >
                                             <ExternalLink className="w-4 h-4" />
                                             Ver en MeLi
@@ -1372,18 +1372,18 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
                             {/* 409 en publicación real (raro si pasó el preview, pero posible) */}
                             {publishResult.status === 409 && (
-                                <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                                <div className="p-4 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <AlertCircle className="w-4 h-4 text-orange-500" />
-                                        <h3 className="font-bold text-orange-800 text-sm">Publicación duplicada — ya existe una activa</h3>
+                                        <AlertCircle className="w-4 h-4 text-[var(--warn)]" />
+                                        <h3 className="font-bold text-[var(--warn)] text-sm">Publicación duplicada — ya existe una activa</h3>
                                     </div>
-                                    <p className="text-xs text-orange-700">{publishResult.data.error}</p>
+                                    <p className="text-xs text-[var(--warn)]">{publishResult.data.error}</p>
                                     {publishResult.data.publicacion_existente && (
                                         <a
                                             href={`https://www.mercadolibre.com.mx/p/${publishResult.data.publicacion_existente}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 hover:underline mt-2"
+                                            className="inline-flex items-center gap-1 text-xs font-bold text-[var(--warn)] hover:underline mt-2"
                                         >
                                             <ExternalLink className="w-3 h-3" />
                                             Ver {publishResult.data.publicacion_existente}
@@ -1397,17 +1397,17 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 <div className="p-4 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl">
                                     <div className="flex items-center gap-2 mb-1">
                                         <XCircle className="w-4 h-4 text-[var(--err)]" />
-                                        <h3 className="font-bold text-rose-800 text-sm">Error al publicar</h3>
+                                        <h3 className="font-bold text-[var(--err)] text-sm">Error al publicar</h3>
                                     </div>
                                     <p className="text-xs text-[var(--err)]">{publishResult.data.error}</p>
                                     {publishResult.data.errores?.map((e: string, i: number) => (
-                                        <p key={i} className="text-xs text-[var(--err)] font-mono bg-rose-100 px-2 py-1 rounded mt-1">• {e}</p>
+                                        <p key={i} className="text-xs text-[var(--err)] font-mono bg-[var(--err)]/10 px-2 py-1 rounded mt-1">• {e}</p>
                                     ))}
                                     {publishResult.data.meli_error && (
-                                        <div className="mt-3 p-3 bg-rose-100 rounded-lg border border-rose-300">
+                                        <div className="mt-3 p-3 bg-[var(--err)]/10 rounded-lg border border-[var(--err)]/30">
                                             <p className="text-[10px] font-bold uppercase text-[var(--err)] mb-1.5">Detalle de rechazo MeLi</p>
                                             {publishResult.data.meli_error.message && (
-                                                <p className="text-xs font-bold text-rose-800 mb-1">{publishResult.data.meli_error.message}</p>
+                                                <p className="text-xs font-bold text-[var(--err)] mb-1">{publishResult.data.meli_error.message}</p>
                                             )}
                                             {publishResult.data.meli_error.cause?.map((c: any, i: number) => (
                                                 <p key={i} className="text-xs text-[var(--err)] font-mono bg-[var(--surface)] px-2 py-1 rounded mt-1">[{c.code}] {c.message}</p>
@@ -1427,7 +1427,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 <div className="flex gap-3">
                                     <button
                                         onClick={() => setStage('preview')}
-                                        className="flex-1 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition-colors shadow-sm"
+                                        className="flex-1 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] font-bold rounded-xl text-sm transition-colors shadow-sm"
                                     >
                                         <RefreshCw className="w-4 h-4 inline mr-1" />
                                         Volver a editar (sin perder datos)

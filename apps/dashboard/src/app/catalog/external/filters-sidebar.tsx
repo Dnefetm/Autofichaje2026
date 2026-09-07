@@ -82,7 +82,7 @@ function CheckItem({ label, checked, count, onChange }: { label: string; checked
                     type="checkbox"
                     checked={checked}
                     onChange={onChange}
-                    className="w-3.5 h-3.5 rounded text-[var(--accent)] border-slate-300 focus:ring-[var(--accent)]"
+                    className="w-3.5 h-3.5 rounded text-[var(--accent)] border-[var(--border)] focus:ring-[var(--accent)]"
                 />
                 <span className={cn("text-xs", checked ? "text-[var(--text)] font-semibold" : "text-[var(--text-muted)] group-hover:text-[var(--text)]")}>{label}</span>
             </div>
@@ -96,7 +96,7 @@ function CheckItem({ label, checked, count, onChange }: { label: string; checked
 function RadioItem({ label, selected, onChange }: { label: string; selected: boolean; onChange: () => void }) {
     return (
         <label className="flex items-center gap-2 group cursor-pointer">
-            <input type="radio" checked={selected} onChange={onChange} className="w-3.5 h-3.5 text-[var(--accent)] border-slate-300 focus:ring-[var(--accent)]" />
+            <input type="radio" checked={selected} onChange={onChange} className="w-3.5 h-3.5 text-[var(--accent)] border-[var(--border)] focus:ring-[var(--accent)]" />
             <span className={cn("text-xs", selected ? "text-[var(--text)] font-semibold" : "text-[var(--text-muted)] group-hover:text-[var(--text)]")}>{label}</span>
         </label>
     );
@@ -182,7 +182,7 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                                         type="radio"
                                         checked={filters.marketplace_id === m.id}
                                         onChange={() => set({ marketplace_id: m.id })}
-                                        className="w-3.5 h-3.5 text-[var(--accent)] border-slate-300 focus:ring-[var(--accent)]"
+                                        className="w-3.5 h-3.5 text-[var(--accent)] border-[var(--border)] focus:ring-[var(--accent)]"
                                     />
                                     <span className={cn('text-xs', filters.marketplace_id === m.id ? 'text-[var(--text)] font-semibold' : 'text-[var(--text-muted)] group-hover:text-[var(--text)]')}>
                                         {m.account_name}
@@ -215,7 +215,7 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                             <button
                                 key={d}
                                 onClick={() => set({ sortDir: d })}
-                                className={cn("flex-1 text-xs py-1 rounded border transition-colors", filters.sortDir === d ? "bg-[var(--accent)] text-[var(--accent-ink)] border-indigo-600" : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:border-slate-300")}
+                                className={cn("flex-1 text-xs py-1 rounded border transition-colors", filters.sortDir === d ? "bg-[var(--accent)] text-[var(--accent-ink)] border-[var(--accent)]" : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--border-strong)]")}
                             >
                                 {d === 'desc' ? '↓ Mayor' : '↑ Menor'}
                             </button>

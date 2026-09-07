@@ -323,7 +323,7 @@ export default function VincularVitrinaModal({
         <div className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
           <div className="px-4 py-1.5 flex items-center gap-2">
             {articulo.thumbnail && (
-              <img src={articulo.thumbnail} alt="Thumbnail" className="w-7 h-7 object-contain rounded-md bg-white border border-[var(--border)] shrink-0" />
+              <img src={articulo.thumbnail} alt="Thumbnail" className="w-7 h-7 object-contain rounded-md bg-[var(--text)] border border-[var(--border)] shrink-0" />
             )}
             <div className="flex-1 min-w-0 flex items-center gap-2 text-xs flex-wrap">
               <span className="font-semibold text-[var(--text)] truncate" title={articulo.nombre}>{articulo.nombre}</span>

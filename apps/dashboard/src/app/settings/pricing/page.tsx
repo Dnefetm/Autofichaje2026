@@ -167,7 +167,7 @@ export default function PricingSettingsPage() {
                     </div>
                 )}
                 <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">
-                    <button onClick={onCancel} className="px-4 py-1.5 rounded text-sm font-semibold text-[var(--text-muted)] hover:bg-slate-200">Cancelar</button>
+                    <button onClick={onCancel} className="px-4 py-1.5 rounded text-sm font-semibold text-[var(--text-muted)] hover:bg-[var(--bg)]">Cancelar</button>
                     <button onClick={() => saveRule(formData)} disabled={saving || !formData.name} className="px-4 py-1.5 rounded text-sm font-semibold text-[var(--accent-ink)] bg-[var(--accent)] hover:brightness-110 disabled:opacity-50 flex items-center gap-1">
                         {saving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} Guardar Regla
                     </button>
@@ -229,7 +229,7 @@ export default function PricingSettingsPage() {
                                                 #{rule.priority}
                                             </span>
                                             <h4 className="font-bold text-[var(--text)]">{rule.name}</h4>
-                                            {!rule.is_active && <span className="px-2 py-0.5 bg-rose-100 text-[var(--err)] text-[10px] font-bold rounded">INACTIVA</span>}
+                                            {!rule.is_active && <span className="px-2 py-0.5 bg-[var(--err)]/10 text-[var(--err)] text-[10px] font-bold rounded">INACTIVA</span>}
                                         </div>
                                         <div className="flex flex-wrap gap-2 text-[11px] text-[var(--text-muted)] mt-2">
                                             {rule.marca && <span className="bg-[var(--accent)]/10 text-[var(--accent)] px-1.5 rounded font-medium">Marca: {rule.marca}</span>}
@@ -267,9 +267,9 @@ export default function PricingSettingsPage() {
                 </div>
             </div>
             
-            <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex gap-3">
-                <AlertCircle className="w-5 h-5 text-sky-600 shrink-0" />
-                <div className="text-sm text-sky-800 space-y-1">
+            <div className="bg-[var(--info)]/10 border border-[var(--info)]/30 rounded-xl p-4 flex gap-3">
+                <AlertCircle className="w-5 h-5 text-[var(--info)] shrink-0" />
+                <div className="text-sm text-[var(--info)] space-y-1">
                     <p><strong>Arquitectura de V3:</strong></p>
                     <ul className="list-disc pl-4 text-[12px]">
                         <li>Las reglas se evalúan de menor a mayor prioridad (La prioridad 1 se evalúa primero).</li>

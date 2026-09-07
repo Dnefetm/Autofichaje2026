@@ -33,24 +33,24 @@ interface Orden {
 
 /* ----- Config maps ----- */
 const STATUS_CFG: Record<string, { label: string; color: string; Icon: any }> = {
-    paid:               { label: "Pagada",          color: "bg-emerald-100 text-[var(--ok)]", Icon: CheckCircle2 },
-    cancelled:          { label: "Cancelada",       color: "bg-rose-100 text-[var(--err)]",       Icon: XCircle },
-    confirmed:          { label: "Confirmada",      color: "bg-blue-100 text-blue-700",       Icon: Clock },
-    payment_in_process: { label: "Procesando pago", color: "bg-amber-100 text-[var(--warn)]",     Icon: Clock },
+    paid:               { label: "Pagada",          color: "bg-[var(--ok)]/10 text-[var(--ok)]", Icon: CheckCircle2 },
+    cancelled:          { label: "Cancelada",       color: "bg-[var(--err)]/10 text-[var(--err)]",       Icon: XCircle },
+    confirmed:          { label: "Confirmada",      color: "bg-[var(--info)]/10 text-[var(--info)]",       Icon: Clock },
+    payment_in_process: { label: "Procesando pago", color: "bg-[var(--warn)]/10 text-[var(--warn)]",     Icon: Clock },
 };
 
 const SHIP_CFG: Record<string, { label: string; color: string; Icon: any }> = {
-    pending:       { label: "Etiqueta por imprimir", color: "bg-yellow-100 text-yellow-800", Icon: Printer },
-    ready_to_ship: { label: "Etiqueta impresa",     color: "bg-orange-100 text-orange-700", Icon: Printer },
-    not_delivered: { label: "En camino",             color: "bg-blue-100 text-blue-700",     Icon: Truck },
-    shipped:       { label: "Enviado",               color: "bg-[var(--accent)]/20 text-indigo-700", Icon: Package },
-    delivered:     { label: "Entregado",             color: "bg-emerald-100 text-[var(--ok)]", Icon: CheckCircle2 },
+    pending:       { label: "Etiqueta por imprimir", color: "bg-[var(--warn)]/10 text-[var(--warn)]", Icon: Printer },
+    ready_to_ship: { label: "Etiqueta impresa",     color: "bg-[var(--warn)]/10 text-[var(--warn)]", Icon: Printer },
+    not_delivered: { label: "En camino",             color: "bg-[var(--info)]/10 text-[var(--info)]",     Icon: Truck },
+    shipped:       { label: "Enviado",               color: "bg-[var(--accent)]/20 text-[var(--accent)]", Icon: Package },
+    delivered:     { label: "Entregado",             color: "bg-[var(--ok)]/10 text-[var(--ok)]", Icon: CheckCircle2 },
 };
 
 const LOGISTIC_CFG: Record<string, { label: string; color: string; Icon: any }> = {
-    fulfillment:  { label: "Full",       color: "bg-purple-100 text-purple-700", Icon: Warehouse },
-    xd_drop_off:  { label: "Agencia",    color: "bg-sky-100 text-sky-700",       Icon: Package },
-    self_service: { label: "Flex",       color: "bg-teal-100 text-teal-700",     Icon: Truck },
+    fulfillment:  { label: "Full",       color: "bg-[var(--accent)]/10 text-[var(--accent)]", Icon: Warehouse },
+    xd_drop_off:  { label: "Agencia",    color: "bg-[var(--info)]/10 text-[var(--info)]",       Icon: Package },
+    self_service: { label: "Flex",       color: "bg-[var(--ok)]/10 text-[var(--ok)]",     Icon: Truck },
     drop_off:     { label: "Drop off",   color: "bg-[var(--surface-2)] text-[var(--text-muted)]",   Icon: Box },
     custom:       { label: "Personalizado", color: "bg-[var(--surface-2)] text-[var(--text-muted)]", Icon: Box },
 };
@@ -132,11 +132,11 @@ function DetailPanel({ orden }: { orden: Orden }) {
                                 {it.reservaciones_stock.length > 0
                                     ? it.reservaciones_stock.map(r => (
                                         <span key={r.id} className={cn("inline-block mr-1 px-1.5 py-0.5 rounded text-[10px] font-semibold",
-                                            r.estado === "activa" ? "bg-amber-100 text-[var(--warn)]" :
-                                            r.estado === "consumida" ? "bg-[var(--surface-2)] text-[var(--text-muted)]" : "bg-rose-100 text-[var(--err)]"
+                                            r.estado === "activa" ? "bg-[var(--warn)]/10 text-[var(--warn)]" :
+                                            r.estado === "consumida" ? "bg-[var(--surface-2)] text-[var(--text-muted)]" : "bg-[var(--err)]/10 text-[var(--err)]"
                                         )}>{r.estado} ({r.cantidad})</span>
                                     ))
-                                    : <span className="text-slate-300">—</span>}
+                                    : <span className="text-[var(--text-faint)]">—</span>}
                             </td>
                         </tr>
                     ))}
@@ -205,7 +205,7 @@ export default function VentasPage() {
             </div>
 
             {/* States */}
-            {loading && <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-300" size={32} /></div>}
+            {loading && <div className="flex justify-center py-20"><Loader2 className="animate-spin text-[var(--text-faint)]" size={32} /></div>}
             {error && <div className="text-center py-10 text-[var(--err)] font-bold">{error}</div>}
             {!loading && !error && rows.length === 0 && (
                 <div className="text-center py-20 text-[var(--text-faint)]">
@@ -258,7 +258,7 @@ export default function VentasPage() {
                                                     </p>
                                                     <p className="text-[11px] text-[var(--text-faint)]">{fmtDate(o.date_created)}</p>
                                                     <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full mt-1",
-                                                        o.store_name === "Histofarma" ? "bg-teal-100 text-teal-700" : "bg-violet-100 text-violet-700"
+                                                        o.store_name === "Histofarma" ? "bg-[var(--ok)]/10 text-[var(--ok)]" : "bg-[var(--accent)]/10 text-[var(--accent)]"
                                                     )}>
                                                         <Store size={10} />{o.store_name}
                                                     </span>

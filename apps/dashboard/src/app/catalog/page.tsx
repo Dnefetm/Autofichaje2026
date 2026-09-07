@@ -386,8 +386,8 @@ export default function CatalogPage() {
 
 function StatCard({ label, value, icon, color }: any) {
     const colors: any = {
-        blue: 'bg-blue-50 text-blue-600',
-        green: 'bg-green-50 text-green-600',
+        blue: 'bg-[var(--info)]/10 text-[var(--info)]',
+        green: 'bg-[var(--ok)]/10 text-[var(--ok)]',
         amber: 'bg-[var(--warn)]/10 text-[var(--warn)]',
     };
     return (

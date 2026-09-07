@@ -111,7 +111,7 @@ function PricingRuleModal({
                 ) : (
                     <div className="p-6 space-y-4">
                         {error && (
-                            <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm font-semibold flex items-center gap-2">
+                            <div className="p-3 bg-[var(--err)]/10 text-[var(--err)] rounded-lg text-sm font-semibold flex items-center gap-2">
                                 <AlertCircle className="w-4 h-4" />
                                 {error}
                             </div>
@@ -139,7 +139,7 @@ function PricingRuleModal({
                 )}
                 
                 <div className="px-6 py-4 bg-[var(--bg)] border-t border-[var(--border)] flex justify-end gap-3">
-                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-[var(--text-muted)] hover:bg-slate-200 rounded-lg">Cancelar</button>
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-[var(--text-muted)] hover:bg-[var(--bg)] rounded-lg">Cancelar</button>
                     <button 
                         onClick={handleSave} 
                         disabled={saving || loading}
@@ -209,11 +209,11 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
     return (
         <div className={cn(
             "rounded-xl border p-4 transition-all",
-            isNew ? "bg-[var(--bg)] border-dashed border-slate-300" : "bg-[var(--surface)] border-[var(--border)]"
+            isNew ? "bg-[var(--bg)] border-dashed border-[var(--border)]" : "bg-[var(--surface)] border-[var(--border)]"
         )}>
             {/* Cuenta */}
             <div className="flex items-center gap-2 mb-3">
-                <Store className="w-4 h-4 text-yellow-500 shrink-0" />
+                <Store className="w-4 h-4 text-[var(--warn)] shrink-0" />
                 <span className="text-sm font-bold text-[var(--text)]">{accountName}</span>
                 {!isNew && (
                     <span className="ml-auto text-xs text-[var(--text-faint)]">
@@ -221,7 +221,7 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
                     </span>
                 )}
                 {isNew && (
-                    <span className="ml-auto text-xs bg-slate-200 text-[var(--text-muted)] font-semibold px-2 py-0.5 rounded-full">
+                    <span className="ml-auto text-xs bg-[var(--surface-2)] text-[var(--text-muted)] font-semibold px-2 py-0.5 rounded-full">
                         Sin configurar
                     </span>
                 )}
@@ -285,7 +285,7 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={() => setModalOpen(true)}
-                        className="text-xs font-semibold text-[var(--accent)] flex items-center gap-1 hover:text-indigo-800 transition-colors"
+                        className="text-xs font-semibold text-[var(--accent)] flex items-center gap-1 hover:text-[var(--accent)] transition-colors"
                     >
                         <Settings className="w-3.5 h-3.5" />
                         Configurar Fórmula
@@ -300,7 +300,7 @@ function PriceRow({ articulo_id, price, modeloDefault, onSaved }: PriceRowProps)
                     className={cn(
                         "flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all",
                         saved
-                            ? "bg-emerald-100 text-[var(--ok)] border border-[var(--ok)]/30"
+                            ? "bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30"
                             : "bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] shadow-sm"
                     )}
                 >

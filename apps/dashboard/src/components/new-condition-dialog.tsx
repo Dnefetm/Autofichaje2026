@@ -152,7 +152,7 @@ export function NewConditionDialog({
                         >
                             <span
                                 className={cn(
-                                    "absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                                    "absolute top-0.5 w-5 h-5 rounded-full bg-[var(--text)] shadow transition-transform",
                                     freeShipping ? "translate-x-[22px]" : "translate-x-0.5",
                                 )}
                             />
@@ -220,7 +220,7 @@ export function NewConditionDialog({
                             type="button"
                             onClick={() => submit(false)}
                             disabled={loading}
-                            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[var(--accent)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 transition-colors"
+                            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 transition-colors"
                         >
                             {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Layers className="w-3.5 h-3.5" />}
                             Crear condición

@@ -112,7 +112,7 @@ export default function NuevaFichaPage() {
                         </label>
                         
                         {articuloId ? (
-                            <div className="flex items-center justify-between p-3 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-xl text-emerald-800 text-sm">
+                            <div className="flex items-center justify-between p-3 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-xl text-[var(--ok)] text-sm">
                                 <div className="flex items-center gap-2">
                                     <CheckCircle2 className="w-4 h-4 text-[var(--ok)]" />
                                     <span className="font-medium">{articuloNombre}</span>
@@ -134,7 +134,7 @@ export default function NuevaFichaPage() {
                                         onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), buscarArticulos())}
                                         className="w-full pl-9 pr-4 py-2.5 border border-[var(--border)] rounded-xl text-sm focus:ring-1 focus:ring-[var(--accent)] outline-none" 
                                     />
-                                    <button type="button" onClick={buscarArticulos} disabled={searchLoading || q.length < 2} className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-[var(--surface-2)] hover:bg-slate-200 text-[var(--text-muted)] rounded-lg text-xs font-semibold transition-colors disabled:opacity-50">
+                                    <button type="button" onClick={buscarArticulos} disabled={searchLoading || q.length < 2} className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)] rounded-lg text-xs font-semibold transition-colors disabled:opacity-50">
                                         {searchLoading ? 'Buscando...' : 'Buscar'}
                                     </button>
                                 </div>
@@ -146,7 +146,7 @@ export default function NuevaFichaPage() {
                                                     <p className="text-sm font-semibold text-[var(--text-muted)]">{art.nombre}</p>
                                                     <p className="text-xs text-[var(--text-faint)] font-mono">{art.articulo_id} • {art.marca}</p>
                                                 </div>
-                                                <button type="button" onClick={() => seleccionarArticulo(art)} className="px-3 py-1.5 bg-[var(--accent)]/10 text-indigo-700 hover:bg-[var(--accent)]/20 rounded-lg text-xs font-bold transition-colors">
+                                                <button type="button" onClick={() => seleccionarArticulo(art)} className="px-3 py-1.5 bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20 rounded-lg text-xs font-bold transition-colors">
                                                     Seleccionar
                                                 </button>
                                             </div>

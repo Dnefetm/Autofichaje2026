@@ -73,7 +73,7 @@ export function AutocompleteArticulo({
                     if (e.target.value === '') onChange('');
                 }}
                 onFocus={() => { if (results.length > 0) setIsOpen(true); }}
-                className="border-slate-300 rounded-md text-sm shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)] w-full px-2 py-1 border"
+                className="border-[var(--border)] rounded-md text-sm shadow-sm focus:ring-[var(--accent)] focus:border-[var(--accent)] w-full px-2 py-1 border"
             />
             {loading && <div className="absolute right-2 top-1.5 text-xs text-[var(--text-faint)]">...</div>}
             
