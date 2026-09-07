@@ -145,7 +145,26 @@ results.errors.push(`sync_account_catalog hook failed: ${catalogErr.message}`);
 results.errors.push(`Fatal: ${err.message}`);
 }
 
-return NextResponse.json(results);
+    // Auto-drenado (drain-until-empty):
+    // Si quedan jobs pendientes, nos auto-despachamos saltando el lock de 10s de dispatchWorker
+    // para evitar romper la cadena en lotes rápidos (< 10s).
+    try {
+      const { count: remaining } = await supabaseAdmin
+        .from('jobs')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .lte('scheduled_at', new Date().toISOString());
+
+      if ((remaining || 0) > 0) {
+        const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+        fetch(`${baseUrl}/api/worker/process`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${process.env.CRON_SECRET}` }
+        }).catch(() => {});
+      }
+    } catch (_) {}
+
+    return NextResponse.json(results);
 }
 
 async function processOneJob(job: any, meli: MeliAdapter) {
