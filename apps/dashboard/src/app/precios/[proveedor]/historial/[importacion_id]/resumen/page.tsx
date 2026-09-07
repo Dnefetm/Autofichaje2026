@@ -1,9 +1,13 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
-import { ArrowLeft, TrendingUp, TrendingDown, Plus, Minus } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Plus, Minus } from 'lucide-react';
 import { ActivarListaButton } from '@/components/precios/ActivarListaButton';
 
 export const dynamic = 'force-dynamic';
+
+const fmtMx = (n: number) => n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+
+type TierValor = { valor: number; valor_anterior: number | null; delta_pct: number | null };
 
 export default async function ResumenLotePage(props: {
     params: Promise<{ proveedor: string; importacion_id: string }>;
@@ -12,131 +16,83 @@ export default async function ResumenLotePage(props: {
     const proveedorDecoded = decodeURIComponent(params.proveedor);
     const importacionId = params.importacion_id;
 
-    // Datos de esta importación
     const { data: imp } = await supabaseAdmin
         .from('importaciones_excel')
-        .select('id, nombre_archivo, creado_el, total_filas, estado, mapeo_columnas')
+        .select('id, nombre_archivo, creado_el, total_filas, estado, resumen_diff')
         .eq('id', importacionId)
         .single();
 
-    // Identificador de producto según el mapeo (columna_modelo = CÓDIGO).
-    const colModelo = imp?.mapeo_columnas?.columna_modelo || 'CLAVE';
+    // Mundo 1: la clasificación ya está materializada en precios_proveedor
+    // (calculada con las columnas mapeadas, no con nombres fijos de Urrea).
+    const { data: filas } = await supabaseAdmin
+        .from('precios_proveedor')
+        .select('sku_proveedor, marca, descripcion, tipo_costo, valor, valor_anterior, delta_pct, estado')
+        .eq('importacion_id', importacionId)
+        .eq('vigente', true);
 
-    // Filas de ESTA lista (nueva)
-    let allRaw: any[] = [];
-    let from = 0;
-    while (true) {
-        const { data: chunk } = await supabaseAdmin
-            .from('listas_precios_raw')
-            .select('fila_num, payload')
-            .eq('importacion_id', importacionId)
-            .range(from, from + 999);
-        if (!chunk || chunk.length === 0) break;
-        allRaw = allRaw.concat(chunk);
-        if (chunk.length < 1000) break;
-        from += 1000;
-    }
-
-    // Importación anterior del mismo proveedor (para comparar)
+    // Descontinuados: filas de la lista anterior marcadas descontinuado
     const { data: anterior } = await supabaseAdmin
         .from('importaciones_excel')
-        .select('id, nombre_archivo, creado_el')
+        .select('id')
         .eq('proveedor', proveedorDecoded)
         .eq('estado', 'completado')
         .neq('id', importacionId)
         .order('creado_el', { ascending: false })
         .limit(1);
+    const prevId = anterior?.[0]?.id;
 
-    let allRawAnterior: any[] = [];
-    const anteriorId = anterior?.[0]?.id;
+    const { data: descontinuadosRows } = prevId
+        ? await supabaseAdmin
+            .from('precios_proveedor')
+            .select('sku_proveedor, marca, descripcion, tipo_costo, valor')
+            .eq('importacion_id', prevId)
+            .eq('estado', 'descontinuado')
+        : { data: [] as any[] };
 
-    if (anteriorId) {
-        let fromA = 0;
-        while (true) {
-            const { data: chunk } = await supabaseAdmin
-                .from('listas_precios_raw')
-                .select('fila_num, payload')
-                .eq('importacion_id', anteriorId)
-                .range(fromA, fromA + 999);
-            if (!chunk || chunk.length === 0) break;
-            allRawAnterior = allRawAnterior.concat(chunk);
-            if (chunk.length < 1000) break;
-            fromA += 1000;
+    // Agrupar por sku
+    const skuMap = new Map<string, { sku: string; marca: string; descripcion: string; estado: string; tiers: Record<string, TierValor> }>();
+    for (const r of filas || []) {
+        const sku = r.sku_proveedor;
+        if (!sku) continue;
+        if (!skuMap.has(sku)) {
+            skuMap.set(sku, { sku, marca: r.marca || '', descripcion: r.descripcion || '', estado: 'sin_cambio', tiers: {} });
         }
+        const g = skuMap.get(sku)!;
+        g.tiers[(r.tipo_costo || '').toLowerCase()] = {
+            valor: Number(r.valor),
+            valor_anterior: r.valor_anterior != null ? Number(r.valor_anterior) : null,
+            delta_pct: r.delta_pct != null ? Number(r.delta_pct) : null,
+        };
+        if (r.estado === 'nuevo') g.estado = 'nuevo';
+        else if (r.estado === 'actualizado') g.estado = 'actualizado';
     }
 
-    // Construir mapa de precios por SKU de la lista anterior
-    const preciosAnteriores = new Map<string, any>();
-    allRawAnterior.forEach(r => {
-        const p = r.payload || {};
-        const sku = p[colModelo] || '';
-        if (sku) {
-            preciosAnteriores.set(sku, {
-                distribuidor: parseFloat(p['P.DIST (CON IVA)'] || p['P.DIST'] || '0') || 0,
-                subdistribuidor: parseFloat(p['PRECIO SUBDISTRIBUIDOR (CON IVA)'] || '0') || 0,
-                mayoreo: parseFloat(p['PRECIO MAYORE (CON IVA)'] || '0') || 0,
-                menudeo: parseFloat(p['PRECIO MENUDEO (CON IVA)'] || '0') || 0,
-                descripcion: p['DESCRIPCIÓN LARGA'] || p['DESCRIPCION'] || '',
-            });
-        }
-    });
-
-    // Clasificar cada SKU de la lista nueva
-    const actualizados: any[] = [];
     const nuevos: any[] = [];
+    const actualizados: any[] = [];
     const sinCambio: any[] = [];
-    const descontinuadosSkus = new Set(preciosAnteriores.keys());
+    for (const g of skuMap.values()) {
+        if (g.estado === 'nuevo') nuevos.push(g);
+        else if (g.estado === 'actualizado') actualizados.push(g);
+        else sinCambio.push(g);
+    }
 
-    const fmtMx = (n: number) => n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+    // Descontinuados agrupados por sku
+    const descMap = new Map<string, any>();
+    for (const r of descontinuadosRows || []) {
+        const sku = r.sku_proveedor;
+        if (!sku) continue;
+        if (!descMap.has(sku)) descMap.set(sku, { sku, marca: r.marca || '', descripcion: r.descripcion || '', distribuidor: 0, menudeo: 0 });
+        const g = descMap.get(sku);
+        const t = (r.tipo_costo || '').toLowerCase();
+        if (t === 'distribuidor') g.distribuidor = Number(r.valor);
+        if (t === 'menudeo') g.menudeo = Number(r.valor);
+    }
+    const descontinuados = Array.from(descMap.values());
 
-    allRaw.forEach(r => {
-        const p = r.payload || {};
-        const sku = p[colModelo] || '';
-        if (!sku) return;
-
-        descontinuadosSkus.delete(sku); // Si aparece en la nueva, NO está descontinuado
-
-        const dist = parseFloat(p['P.DIST (CON IVA)'] || p['P.DIST'] || '0') || 0;
-        const subdist = parseFloat(p['PRECIO SUBDISTRIBUIDOR (CON IVA)'] || '0') || 0;
-        const mayoreo = parseFloat(p['PRECIO MAYORE (CON IVA)'] || '0') || 0;
-        const menudeo = parseFloat(p['PRECIO MENUDEO (CON IVA)'] || '0') || 0;
-        const descripcion = p['DESCRIPCIÓN LARGA'] || p['DESCRIPCION'] || '';
-        const marca = p['MARCA'] || p['Marca'] || '';
-
-        const anterior2 = preciosAnteriores.get(sku);
-
-        if (!anterior2) {
-            // SKU nunca visto antes = Nuevo
-            nuevos.push({ sku, descripcion, marca, dist, subdist, mayoreo, menudeo });
-        } else {
-            const cambioDist = Math.abs(dist - anterior2.distribuidor) > 0.01;
-            const cambioSubdist = Math.abs(subdist - anterior2.subdistribuidor) > 0.01;
-            const cambioMayoreo = Math.abs(mayoreo - anterior2.mayoreo) > 0.01;
-            const cambioMenudeo = Math.abs(menudeo - anterior2.menudeo) > 0.01;
-
-            if (cambioDist || cambioSubdist || cambioMayoreo || cambioMenudeo) {
-                actualizados.push({
-                    sku, descripcion, marca,
-                    anterior: anterior2,
-                    nuevo: { dist, subdist, mayoreo, menudeo }
-                });
-            } else {
-                sinCambio.push({ sku, descripcion, marca, dist, subdist, mayoreo, menudeo });
-            }
-        }
-    });
-
-    // Descontinuados: SKUs de lista anterior que no aparecen en la nueva
-    const descontinuados = Array.from(descontinuadosSkus).map(sku => ({
-        sku,
-        ...preciosAnteriores.get(sku)
-    }));
-
-    const hasPrevious = anteriorId != null;
+    const hasPrevious = prevId != null;
 
     return (
         <div className="min-h-screen bg-[var(--bg)]">
-            {/* Header */}
             <header className="bg-[var(--surface)] border-b border-[var(--border)] px-4 py-2">
                 <Link
                     href={`/precios/${encodeURIComponent(proveedorDecoded)}/historial`}
@@ -146,9 +102,7 @@ export default async function ResumenLotePage(props: {
                 </Link>
                 <div className="flex items-start justify-between gap-3 flex-col lg:flex-row lg:items-center">
                     <div className="min-w-0">
-                        <h1 className="text-base font-bold text-[var(--text)] leading-tight">
-                            Resumen del Lote
-                        </h1>
+                        <h1 className="text-base font-bold text-[var(--text)] leading-tight">Resumen del Lote</h1>
                         <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">
                             {imp?.nombre_archivo} · {imp?.total_filas?.toLocaleString()} productos ·{' '}
                             {imp?.creado_el ? new Date(imp.creado_el).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
@@ -164,7 +118,6 @@ export default async function ResumenLotePage(props: {
                             </div>
                         )}
                     </div>
-                    {/* Acciones del lote: activar + acceso directo a vinculación */}
                     <div className="flex items-center gap-2 flex-wrap">
                         {imp?.estado !== 'completado' && (
                             <ActivarListaButton importacionId={importacionId} proveedor={proveedorDecoded} />
@@ -181,19 +134,10 @@ export default async function ResumenLotePage(props: {
                         >
                             Ver Vinculación con Catálogo →
                         </Link>
-                        <Link
-                            href={`/precios/${encodeURIComponent(proveedorDecoded)}`}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)] rounded-xl font-bold text-sm transition-colors"
-                        >
-                            Ver Catálogo Completo
-                        </Link>
                     </div>
                 </div>
             </header>
 
-
-
-            {/* Tarjetas de Resumen */}
             <div className="px-8 py-6 grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-2xl p-5">
                     <div className="text-3xl font-black text-[var(--warn)]">{actualizados.length.toLocaleString()}</div>
@@ -223,7 +167,6 @@ export default async function ResumenLotePage(props: {
                 </div>
             </div>
 
-            {/* Tabla de Actualizados */}
             {actualizados.length > 0 && (
                 <section className="px-8 pb-8">
                     <h2 className="text-base font-bold text-[var(--text)] mb-3 flex items-center gap-2">
@@ -247,22 +190,28 @@ export default async function ResumenLotePage(props: {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[var(--border)]">
-                                    {actualizados.slice(0, 500).map((item, i) => (
-                                        <tr key={i} className="hover:bg-[var(--warn)]/10">
-                                            <td className="py-2.5 px-4">
-                                                <span className="font-mono font-bold text-[var(--text)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{item.sku}</span>
-                                                <p className="text-[var(--text-muted)] mt-0.5 line-clamp-1">{item.descripcion}</p>
-                                            </td>
-                                            <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{item.anterior.distribuidor > 0 ? fmtMx(item.anterior.distribuidor) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{item.nuevo.dist > 0 ? fmtMx(item.nuevo.dist) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{item.anterior.subdistribuidor > 0 ? fmtMx(item.anterior.subdistribuidor) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{item.nuevo.subdist > 0 ? fmtMx(item.nuevo.subdist) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{item.anterior.mayoreo > 0 ? fmtMx(item.anterior.mayoreo) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{item.nuevo.mayoreo > 0 ? fmtMx(item.nuevo.mayoreo) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{item.anterior.menudeo > 0 ? fmtMx(item.anterior.menudeo) : '—'}</td>
-                                            <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{item.nuevo.menudeo > 0 ? fmtMx(item.nuevo.menudeo) : '—'}</td>
-                                        </tr>
-                                    ))}
+                                    {actualizados.slice(0, 500).map((g, i) => {
+                                        const d = g.tiers.distribuidor;
+                                        const s = g.tiers.subdistribuidor;
+                                        const m = g.tiers.mayoreo;
+                                        const mn = g.tiers.menudeo;
+                                        return (
+                                            <tr key={i} className="hover:bg-[var(--warn)]/10">
+                                                <td className="py-2.5 px-4">
+                                                    <span className="font-mono font-bold text-[var(--text)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">{g.sku}</span>
+                                                    <p className="text-[var(--text-muted)] mt-0.5 line-clamp-1">{g.descripcion}</p>
+                                                </td>
+                                                <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{d?.valor_anterior != null && d.valor_anterior > 0 ? fmtMx(d.valor_anterior) : '—'}</td>
+                                                <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{d ? fmtMx(d.valor) : '—'}</td>
+                                                <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{s?.valor_anterior != null && s.valor_anterior > 0 ? fmtMx(s.valor_anterior) : '—'}</td>
+                                                <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{s ? fmtMx(s.valor) : '—'}</td>
+                                                <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{m?.valor_anterior != null && m.valor_anterior > 0 ? fmtMx(m.valor_anterior) : '—'}</td>
+                                                <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{m ? fmtMx(m.valor) : '—'}</td>
+                                                <td className="py-2.5 px-4 text-right text-[var(--text-faint)] line-through">{mn?.valor_anterior != null && mn.valor_anterior > 0 ? fmtMx(mn.valor_anterior) : '—'}</td>
+                                                <td className="py-2.5 px-4 text-right font-bold text-[var(--text)]">{mn ? fmtMx(mn.valor) : '—'}</td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -270,7 +219,6 @@ export default async function ResumenLotePage(props: {
                 </section>
             )}
 
-            {/* Tabla de Descontinuados */}
             {descontinuados.length > 0 && (
                 <section className="px-8 pb-8">
                     <h2 className="text-base font-bold text-[var(--text)] mb-3 flex items-center gap-2">

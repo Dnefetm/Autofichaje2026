@@ -22,19 +22,14 @@ export async function POST(
         return NextResponse.json({ ok: false, error: 'Importación no encontrada' }, { status: 404 });
     }
 
-    // GUARD: Si el matching nunca corrió (costos vacíos), correrlo ahora antes de activar.
-    // Esto ocurre cuando el usuario navega directo al resumen sin pasar por el paso de matching.
-    const { count: costosCount } = await supabaseAdmin
-        .from('costos_articulo')
+    // GUARD: Si el procesamiento de precios no corrió (precios_proveedor vacío),
+    // correrlo ahora antes de activar. El matching/vinculación es flujo separado.
+    const { count: preciosCount } = await supabaseAdmin
+        .from('precios_proveedor')
         .select('*', { count: 'exact', head: true })
         .eq('importacion_id', id);
 
-    const { count: pendientesCount } = await supabaseAdmin
-        .from('costos_pendientes')
-        .select('*', { count: 'exact', head: true })
-        .eq('importacion_id', id);
-
-    if ((costosCount ?? 0) === 0 && (pendientesCount ?? 0) === 0) {
+    if ((preciosCount ?? 0) === 0) {
         // Verificar que haya datos en listas_precios_raw para procesar
         const { count: rawCount } = await supabaseAdmin
             .from('listas_precios_raw')
@@ -42,13 +37,11 @@ export async function POST(
             .eq('importacion_id', id);
 
         if ((rawCount ?? 0) > 0) {
-            // Correr matching completo. p_finalizar: false porque nosotros ponemos el estado.
-            const { error: matchErr } = await supabaseAdmin.rpc('fn_match_precios_v2', {
-                p_importacion_id: id,
-                p_finalizar: false
+            const { error: procErr } = await supabaseAdmin.rpc('fn_procesar_precios_proveedor', {
+                p_importacion_id: id
             });
-            if (matchErr) {
-                return NextResponse.json({ ok: false, error: friendlyError(matchErr) }, { status: 500 });
+            if (procErr) {
+                return NextResponse.json({ ok: false, error: friendlyError(procErr) }, { status: 500 });
             }
         }
     }

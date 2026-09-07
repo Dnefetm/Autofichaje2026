@@ -119,11 +119,11 @@ export function ProgresoImportacion({ id, initial }: { id: string, initial: any 
                      <span className="text-xs uppercase font-bold text-[var(--text-muted)]">Nuevos</span>
                    </div>
                    <div className="text-center">
-                     <span className="block text-2xl font-black text-[var(--accent)]">{s.resumen_diff.modificados ?? 0}</span>
-                     <span className="text-xs uppercase font-bold text-[var(--text-muted)]">Modificados</span>
+                     <span className="block text-2xl font-black text-[var(--accent)]">{s.resumen_diff.actualizados ?? 0}</span>
+                     <span className="text-xs uppercase font-bold text-[var(--text-muted)]">Actualizados</span>
                    </div>
                    <div className="text-center">
-                     <span className="block text-2xl font-black text-[var(--err)]">{s.resumen_diff.eliminados ?? 0}</span>
+                     <span className="block text-2xl font-black text-[var(--err)]">{s.resumen_diff.descontinuados ?? 0}</span>
                      <span className="text-xs uppercase font-bold text-[var(--text-muted)]">Descontinuados</span>
                    </div>
                 </div>

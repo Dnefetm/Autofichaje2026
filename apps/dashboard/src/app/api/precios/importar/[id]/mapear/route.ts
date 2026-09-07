@@ -101,15 +101,22 @@ async function procesarMapear(req: NextRequest, props: { params: Promise<{ id: s
         try {
             const { data: impData } = await supabaseAdmin.from('importaciones_excel').select('proveedor, total_filas').eq('id', id).single();
             if (impData) {
-                // Ejecutar matching directamente sobre listas_precios_raw
-                const { error: matchErr } = await supabaseAdmin.rpc('fn_match_precios_v2', {
+                // Mundo 1: procesar precios del proveedor de forma AUTÓNOMA
+                // (sin matching ni catálogo). El matching/vinculación queda como
+                // flujo separado y opcional (iniciar-matching).
+                const { data: resumen, error: procErr } = await supabaseAdmin.rpc('fn_procesar_precios_proveedor', {
                     p_importacion_id: id,
-                    p_finalizar: false
                 });
-                if (matchErr) throw new Error("Fallo fn_match_precios_v2: " + matchErr.message);
-                
+                if (procErr) throw new Error("Fallo fn_procesar_precios_proveedor: " + procErr.message);
+
                 await supabaseAdmin.from('importaciones_excel').update({
-                    resumen_diff: { totales: impData.total_filas || 0, nuevos: impData.total_filas || 0, modificados: 0, eliminados: 0 },
+                    resumen_diff: {
+                        totales: impData.total_filas || 0,
+                        nuevos: resumen?.nuevos ?? 0,
+                        actualizados: resumen?.actualizados ?? 0,
+                        sin_cambio: resumen?.sin_cambio ?? 0,
+                        descontinuados: resumen?.descontinuados ?? 0,
+                    },
                     estado: 'en_revision',
                     ultima_actividad: new Date().toISOString()
                 }).eq('id', id);

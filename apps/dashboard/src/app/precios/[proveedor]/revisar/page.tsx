@@ -1,146 +1,144 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { ProductDiffPanel } from './ProductDiffPanel';
 
-export default async function RevisarPaso2(props: { params: Promise<{ proveedor: string }> }) {
-  const params = await props.params;
-  const proveedorDecoded = decodeURIComponent(params.proveedor);
+const TIER_KEYS = ['distribuidor', 'subdistribuidor', 'mayoreo', 'menudeo'] as const;
 
-  const { data: ultimas } = await supabaseAdmin
-    .from('v_importaciones_historial')
-    .select('*')
-    .eq('proveedor', proveedorDecoded)
-    .order('creado_el', { ascending: false })
-    .limit(1);
-
-  const latestBatch = ultimas?.[0];
-  if (!latestBatch) {
-    return (
-      <div className="p-8 text-center text-[var(--text-muted)]">
-        No hay importaciones recientes para revisar. Sube un archivo primero.
-      </div>
-    );
-  }
-
-  const { count: c } = await supabaseAdmin
-    .from('v_importaciones_historial')
-    .select('*', { count: 'exact', head: true })
-    .eq('proveedor', proveedorDecoded)
-    .lte('creado_el', latestBatch.creado_el);
-  const loteNum = c || 1;
-
-  // Los costos a revisar son los de este lote que NO fueron rechazados.
-  // (El pipeline produce 'match_exacto'/'match_similitud'/'sugerido', no 'completado'.)
-  const { data: costosNuevos, error } = await supabaseAdmin
-    .from('costos_articulo')
-    .select('*, articulo:articulo_id(nombre)')
-    .eq('importacion_id', latestBatch.id)
-    .neq('estado_match', 'rechazado')
-    .order('actualizado_el', { ascending: false });
-
-  // FIX v88: costos_articulo NO tiene columna 'proveedor'.
-  // Filtrar costos vigentes previos via importaciones_excel del mismo proveedor.
-  const { data: importsDelProveedor } = await supabaseAdmin
-    .from('importaciones_excel')
-    .select('id')
-    .eq('proveedor', proveedorDecoded);
-  const importIdsPrev = (importsDelProveedor || [])
-    .map((i: any) => i.id)
-    .filter((id: string) => id !== latestBatch.id);
-
-  const { data: costosVigentes } = importIdsPrev.length
-    ? await supabaseAdmin
-        .from('costos_articulo')
-        .select('*')
-        .eq('vigente', true)
-        .in('importacion_id', importIdsPrev)
-    : { data: [] as any[] };
-
-  const groupedMap = new Map<string, any>();
-  const getOrCreateGroup = (articulo_id: string, refItem: any) => {
-    if (!groupedMap.has(articulo_id)) {
-      groupedMap.set(articulo_id, {
-        articulo_id,
-        codigo_universal: refItem.codigo_universal_excel || refItem.codigo_excel || '-',
-        marca: refItem.marca_excel || '',
-        modelo: refItem.modelo_excel || '',
-        nombre: refItem.articulo?.nombre || refItem.nombre || '',
-        row_class: 'sin_cambio',
-        tiers: {
-          distribuidor:    { vigente: null, nuevo: null, id_nuevo: null },
-          subdistribuidor: { vigente: null, nuevo: null, id_nuevo: null },
-          mayoreo:         { vigente: null, nuevo: null, id_nuevo: null },
-          menudeo:         { vigente: null, nuevo: null, id_nuevo: null }
-        }
-      });
-    }
-    return groupedMap.get(articulo_id);
-  };
-
-  const tierKeyOf = (tipo: string): string | null => {
+function tierKeyOf(tipo: string): (typeof TIER_KEYS)[number] | null {
     const t = (tipo || '').toLowerCase();
     if (t.includes('subdistribuidor')) return 'subdistribuidor';
     if (t.includes('distribuidor')) return 'distribuidor';
     if (t.includes('mayoreo')) return 'mayoreo';
     if (t.includes('menudeo')) return 'menudeo';
     return null;
-  };
+}
 
-  (costosVigentes || []).forEach((v: any) => {
-    if (!v.articulo_id) return;
-    const group = getOrCreateGroup(v.articulo_id, v);
-    const k = tierKeyOf(v.tipo_costo);
-    if (k) group.tiers[k].vigente = v.valor;
-  });
+function emptyTiers() {
+    return {
+        distribuidor:    { vigente: null as number | null, nuevo: null as number | null, delta_pct: null as number | null, delta_val: null as number | null },
+        subdistribuidor: { vigente: null as number | null, nuevo: null as number | null, delta_pct: null as number | null, delta_val: null as number | null },
+        mayoreo:         { vigente: null as number | null, nuevo: null as number | null, delta_pct: null as number | null, delta_val: null as number | null },
+        menudeo:         { vigente: null as number | null, nuevo: null as number | null, delta_pct: null as number | null, delta_val: null as number | null },
+    };
+}
 
-  (costosNuevos || []).forEach((n: any) => {
-    if (!n.articulo_id) return;
-    const group = getOrCreateGroup(n.articulo_id, n);
-    if (!group.codigo_universal || group.codigo_universal === '-')
-      group.codigo_universal = n.codigo_universal_excel || n.codigo_excel || '-';
-    if (!group.marca) group.marca = n.marca_excel;
-    if (!group.modelo) group.modelo = n.modelo_excel;
-    const k = tierKeyOf(n.tipo_costo);
-    if (k) {
-      group.tiers[k].nuevo = n.valor;
-      group.tiers[k].id_nuevo = n.id;
-      group.isConfirmado = n.confirmado_por !== null;
+export default async function RevisarPaso2(props: { params: Promise<{ proveedor: string }> }) {
+    const params = await props.params;
+    const proveedorDecoded = decodeURIComponent(params.proveedor);
+
+    // Última importación del proveedor
+    const { data: ultimas } = await supabaseAdmin
+        .from('v_importaciones_historial')
+        .select('*')
+        .eq('proveedor', proveedorDecoded)
+        .order('creado_el', { ascending: false })
+        .limit(1);
+
+    const latestBatch = ultimas?.[0];
+    if (!latestBatch) {
+        return (
+            <div className="p-8 text-center text-[var(--text-muted)]">
+                No hay importaciones recientes para revisar. Sube un archivo primero.
+            </div>
+        );
     }
-  });
 
-  const diffData = Array.from(groupedMap.values()).map((g: any) => {
-    let isNuevo = true;
-    let isAusente = true;
-    let hasCambios = false;
-    Object.keys(g.tiers).forEach((kk) => {
-      const t = g.tiers[kk];
-      if (t.vigente !== null) isNuevo = false;
-      if (t.nuevo !== null) isAusente = false;
-      if (t.vigente !== null && t.nuevo !== null) {
-        t.delta_val = t.nuevo - t.vigente;
-        t.delta_pct = (t.delta_val / t.vigente) * 100;
-        if (Math.abs(t.delta_pct) > 0.01) hasCambios = true;
-      }
-    });
-    if (isNuevo) g.row_class = 'nuevo';
-    else if (isAusente) g.row_class = 'ausente';
-    else if (hasCambios) g.row_class = 'cambio';
-    else g.row_class = 'sin_cambio';
-    g.decision = g.isConfirmado ? 'aprobado' : 'pendiente';
-    return g;
-  });
+    const { count: c } = await supabaseAdmin
+        .from('v_importaciones_historial')
+        .select('*', { count: 'exact', head: true })
+        .eq('proveedor', proveedorDecoded)
+        .lte('creado_el', latestBatch.creado_el);
+    const loteNum = c || 1;
 
-  return (
-    <div className="flex flex-col h-full bg-[var(--bg)]">
-      {error ? (
-        <div className="p-8 text-[var(--err)]">Error: {error.message}</div>
-      ) : (
-        <ProductDiffPanel
-          importacion={latestBatch}
-          loteNum={loteNum}
-          proveedor={proveedorDecoded}
-          diffData={diffData}
-        />
-      )}
-    </div>
-  );
+    // Mundo 1: los precios del proveedor viven en precios_proveedor (autónomos del catálogo).
+    // Filas vigentes de ESTA importación → nuevo / cambio / sin_cambio.
+    const { data: filasActuales } = await supabaseAdmin
+        .from('precios_proveedor')
+        .select('*')
+        .eq('importacion_id', latestBatch.id)
+        .eq('vigente', true);
+
+    // Importación anterior completada (para los descontinuados)
+    const { data: anterior } = await supabaseAdmin
+        .from('importaciones_excel')
+        .select('id')
+        .eq('proveedor', proveedorDecoded)
+        .eq('estado', 'completado')
+        .neq('id', latestBatch.id)
+        .order('creado_el', { ascending: false })
+        .limit(1);
+    const prevId = anterior?.[0]?.id;
+
+    const { data: filasDescontinuadas } = prevId
+        ? await supabaseAdmin
+            .from('precios_proveedor')
+            .select('*')
+            .eq('importacion_id', prevId)
+            .eq('estado', 'descontinuado')
+        : { data: [] as any[] };
+
+    const grouped = new Map<string, any>();
+
+    const getOrCreate = (sku: string, ref: any) => {
+        if (!grouped.has(sku)) {
+            grouped.set(sku, {
+                articulo_id: sku,
+                codigo_universal: sku,
+                marca: ref.marca || '',
+                modelo: sku,
+                nombre: ref.descripcion || '',
+                row_class: 'sin_cambio',
+                tiers: emptyTiers(),
+                isConfirmado: false,
+                decision: 'pendiente',
+            });
+        }
+        return grouped.get(sku);
+    };
+
+    // Filas del lote actual: valor = nuevo, valor_anterior = vigente
+    for (const r of filasActuales || []) {
+        const sku = r.sku_proveedor;
+        if (!sku) continue;
+        const g = getOrCreate(sku, r);
+        const k = tierKeyOf(r.tipo_costo);
+        if (!k) continue;
+        g.tiers[k].nuevo = Number(r.valor);
+        g.tiers[k].vigente = r.valor_anterior != null ? Number(r.valor_anterior) : null;
+        g.tiers[k].delta_pct = r.delta_pct != null ? Number(r.delta_pct) : null;
+        g.tiers[k].delta_val = r.valor_anterior != null ? Number(r.valor) - Number(r.valor_anterior) : null;
+
+        if (r.estado === 'nuevo') g.row_class = 'nuevo';
+        else if (r.estado === 'actualizado') g.row_class = 'cambio';
+        else if (r.estado === 'sin_cambio') g.row_class = g.row_class === 'cambio' ? 'cambio' : 'sin_cambio';
+
+        if (r.confirmado_por === 'aprobado') { g.isConfirmado = true; g.decision = 'aprobado'; }
+        else if (r.confirmado_por === 'rechazado') { g.decision = 'rechazado'; }
+    }
+
+    // Descontinuados: filas de la lista anterior ausentes en la nueva
+    for (const r of filasDescontinuadas || []) {
+        const sku = r.sku_proveedor;
+        if (!sku) continue;
+        const g = getOrCreate(sku, r);
+        g.row_class = 'ausente';
+        const k = tierKeyOf(r.tipo_costo);
+        if (!k) continue;
+        g.tiers[k].vigente = Number(r.valor);
+        g.tiers[k].nuevo = null;
+        g.tiers[k].delta_pct = null;
+        g.tiers[k].delta_val = null;
+    }
+
+    const diffData = Array.from(grouped.values());
+
+    return (
+        <div className="flex flex-col h-full bg-[var(--bg)]">
+            <ProductDiffPanel
+                importacion={latestBatch}
+                loteNum={loteNum}
+                proveedor={proveedorDecoded}
+                diffData={diffData}
+            />
+        </div>
+    );
 }
