@@ -20,7 +20,16 @@ export async function POST(req: NextRequest) {
     await supabaseAdmin.storage.createBucket(BUCKET, { public: false });
   }
 
-  const path = `${proveedor.replace(/\s+/g, '_')}/${Date.now()}_${fileName}`;
+  // Supabase Storage rechaza claves con espacios o caracteres no-ASCII (acentos, ñ).
+  // Sanitizar proveedor y nombre de archivo: quitar acentos y dejar solo [a-z0-9._-].
+  const sanitizeKey = (s: string) => s
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .replace(/_{2,}/g, '_');
+
+  const path = `${sanitizeKey(proveedor)}/${Date.now()}_${sanitizeKey(fileName)}`;
   const { data, error } = await supabaseAdmin.storage
     .from(BUCKET)
     .createSignedUploadUrl(path);
