@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Plus, Loader2, AlertCircle, ReceiptText, PackageCheck, Truck } from 'lucide-react';
+import { Plus, Loader2, AlertCircle, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Pedido = {
@@ -12,15 +12,14 @@ type Pedido = {
   total: number;
   cliente: { nombre: string } | null;
   vendedor: { nombre: string } | null;
-  ticket: { id: string }[] | null;
 };
 
-const ESTADOS: Record<string, { label: string; clase: string }> = {
-  borrador: { label: 'Borrador', clase: 'text-[var(--text-muted)]' },
-  confirmado: { label: 'Confirmado', clase: 'text-[var(--info)]' },
-  surtido: { label: 'Surtido', clase: 'text-[var(--warn)]' },
-  entregado: { label: 'Entregado', clase: 'text-[var(--ok)]' },
-  cancelado: { label: 'Cancelado', clase: 'text-[var(--err)]' },
+const ESTADOS: Record<string, { label: string; badge: string }> = {
+  borrador:   { label: 'Borrador',   badge: 'bg-[var(--surface-2)] text-[var(--text-muted)]' },
+  confirmado: { label: 'Confirmado', badge: 'bg-[var(--info)]/10 text-[var(--info)]' },
+  surtido:    { label: 'Surtido',    badge: 'bg-[var(--warn)]/10 text-[var(--warn)]' },
+  entregado:  { label: 'Entregado',  badge: 'bg-[var(--ok)]/10 text-[var(--ok)]' },
+  cancelado:  { label: 'Cancelado',  badge: 'bg-[var(--err)]/10 text-[var(--err)]' },
 };
 
 export default function PedidosPage() {
@@ -44,21 +43,15 @@ export default function PedidosPage() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  async function accion(id: string, tipo: 'surtir' | 'entregar') {
-    setError(null);
-    const r = await fetch(`/api/ventas/pedidos/${id}/${tipo}`, { method: 'POST' });
-    const d = await r.json();
-    if (!r.ok) { setError(d.error || 'Error'); return; }
-    cargar();
-  }
-
-  const ticketId = (p: Pedido) => (Array.isArray(p.ticket) && p.ticket.length ? p.ticket[0].id : null);
   const fmt = (n: number) => '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-[var(--text)]">Pedidos</h1>
+        <div>
+          <h1 className="text-lg font-bold text-[var(--text)]">Pedidos</h1>
+          <p className="text-xs text-[var(--text-faint)]">Flujo: Confirmado → Surtido → Entregado</p>
+        </div>
         <Link href="/ventas/pedidos/nuevo" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-[var(--radius-sm)] hover:brightness-110">
           <Plus className="w-4 h-4" /> Nuevo pedido
         </Link>
@@ -70,7 +63,7 @@ export default function PedidosPage() {
         {loading ? (
           <div className="p-5 text-sm text-[var(--text-muted)]">Cargando…</div>
         ) : pedidos.length === 0 ? (
-          <div className="p-5 text-sm text-[var(--text-faint)] italic">Sin pedidos todavía.</div>
+          <div className="p-5 text-sm text-[var(--text-faint)] italic">Sin pedidos todavía. Crea el primero con &quot;Nuevo pedido&quot;.</div>
         ) : (
           <table className="w-full text-sm">
             <thead><tr className="text-left text-[11px] uppercase text-[var(--text-faint)] border-b border-[var(--border)]">
@@ -78,31 +71,18 @@ export default function PedidosPage() {
             </tr></thead>
             <tbody>
               {pedidos.map((p) => {
-                const tid = ticketId(p);
-                const st = ESTADOS[p.estado] || { label: p.estado, clase: 'text-[var(--text-muted)]' };
+                const st = ESTADOS[p.estado] || { label: p.estado, badge: 'bg-[var(--surface-2)] text-[var(--text-muted)]' };
                 return (
-                  <tr key={p.id} className="border-b border-[var(--border)] last:border-0">
+                  <tr key={p.id} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)]/50">
                     <td className="px-4 py-2 text-[var(--text-muted)]">{new Date(p.fecha).toLocaleDateString('es-MX')}</td>
                     <td className="px-4 py-2 text-[var(--text)]">{p.cliente?.nombre || '—'}</td>
                     <td className="px-4 py-2 text-[var(--text-muted)]">{p.vendedor?.nombre || '—'}</td>
                     <td className="px-4 py-2 text-right font-semibold text-[var(--text)]">{fmt(p.total)}</td>
-                    <td className={cn('px-4 py-2 font-semibold', st.clase)}>{st.label}</td>
-                    <td className="px-4 py-2 text-right whitespace-nowrap">
-                      {tid && (
-                        <Link href={`/ventas/tickets/${tid}`} className="text-[var(--accent)] hover:text-[var(--text)] mr-3" title="Ver / reimprimir ticket">
-                          <ReceiptText className="w-4 h-4 inline" />
-                        </Link>
-                      )}
-                      {p.estado === 'confirmado' && (
-                        <button onClick={() => accion(p.id, 'surtir')} className="text-[var(--warn)] hover:text-[var(--text)] mr-3" title="Surtir (egreso)">
-                          <PackageCheck className="w-4 h-4 inline" />
-                        </button>
-                      )}
-                      {p.estado === 'surtido' && (
-                        <button onClick={() => accion(p.id, 'entregar')} className="text-[var(--ok)] hover:text-[var(--text)]" title="Marcar entregado">
-                          <Truck className="w-4 h-4 inline" />
-                        </button>
-                      )}
+                    <td className="px-4 py-2"><span className={cn('px-2 py-0.5 rounded-full text-[11px] font-bold', st.badge)}>{st.label}</span></td>
+                    <td className="px-4 py-2 text-right">
+                      <Link href={`/ventas/pedidos/${p.id}`} className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-[var(--accent)] border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/10">
+                        <Eye className="w-3.5 h-3.5" /> Ver
+                      </Link>
                     </td>
                   </tr>
                 );
