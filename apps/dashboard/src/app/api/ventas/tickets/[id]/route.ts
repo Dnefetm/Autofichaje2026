@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // Líneas con nombre del artículo
   const { data: items, error: errItems } = await supabaseAdmin
     .from('pedido_items')
-    .select('id, articulo_id, proveedor_corto, marca, modelo, descripcion, cantidad, cantidad_surtida, fuente_pendiente, precio_menudeo, descuento, subtotal, articulo:articulos(nombre)')
+    .select('id, articulo_id, proveedor_corto, marca, modelo, descripcion, cantidad, cantidad_surtida, fuente_pendiente, precio_menudeo, descuento, subtotal')
     .eq('pedido_id', (ticket as any).pedido_id);
 
   if (errItems) return NextResponse.json({ error: errItems.message }, { status: 500 });

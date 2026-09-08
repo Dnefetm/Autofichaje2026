@@ -28,28 +28,28 @@ type Item = {
   fuente_pendiente: string | null;
   precio_menudeo: number;
   subtotal: number;
-  articulo: { nombre: string } | null;
 };
 
-const ESTADO: Record<string, { label: string; clase: string; badge: string; hint: string }> = {
-  borrador:   { label: 'Borrador',   clase: 'text-[var(--text-muted)]', badge: 'bg-[var(--surface-2)] text-[var(--text-muted)]', hint: 'Pendiente de confirmar.' },
-  confirmado: { label: 'Confirmado', clase: 'text-[var(--info)]',       badge: 'bg-[var(--info)]/10 text-[var(--info)]',             hint: 'Stock reservado. Siguiente paso: surtir en bodega.' },
-  surtido:    { label: 'Surtido',    clase: 'text-[var(--warn)]',       badge: 'bg-[var(--warn)]/10 text-[var(--warn)]',             hint: 'Ya salió de bodega. Siguiente paso: entregar al cliente.' },
-  entregado:  { label: 'Entregado',  clase: 'text-[var(--ok)]',         badge: 'bg-[var(--ok)]/10 text-[var(--ok)]',                 hint: 'Pedido completo.' },
-  cancelado:  { label: 'Cancelado',  clase: 'text-[var(--err)]',        badge: 'bg-[var(--err)]/10 text-[var(--err)]',               hint: 'Pedido cancelado.' },
+const ESTADO: Record<string, { label: string; badge: string; hint: string }> = {
+  borrador:   { label: 'Borrador',   badge: 'bg-[var(--surface-2)] text-[var(--text-muted)]', hint: 'Pendiente de confirmar.' },
+  confirmado: { label: 'Confirmado', badge: 'bg-[var(--info)]/10 text-[var(--info)]',             hint: 'Stock reservado. Siguiente paso: surtir en bodega.' },
+  surtido:    { label: 'Surtido',    badge: 'bg-[var(--warn)]/10 text-[var(--warn)]',             hint: 'Ya salió de bodega. Siguiente paso: entregar al cliente.' },
+  entregado:  { label: 'Entregado',  badge: 'bg-[var(--ok)]/10 text-[var(--ok)]',                 hint: 'Pedido completo.' },
+  cancelado:  { label: 'Cancelado',  badge: 'bg-[var(--err)]/10 text-[var(--err)]',               hint: 'Pedido cancelado.' },
 };
 
 function nombreItem(it: Item): string {
   if (it.proveedor_corto || it.marca || it.modelo) {
     return [it.proveedor_corto, it.marca, it.modelo, it.descripcion].filter(Boolean).join(' | ');
   }
-  return it.articulo?.nombre || it.descripcion || it.articulo_id || '—';
+  return it.descripcion || it.articulo_id || '—';
 }
 
 export default function PedidoDetallePage() {
   const { id } = useParams();
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [items, setItems] = useState<Item[]>([]);
+  const [reservado, setReservado] = useState(0);
   const [loading, setLoading] = useState(true);
   const [accion, setAccion] = useState<'surtir' | 'entregar' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export default function PedidoDetallePage() {
   useEffect(() => {
     fetch('/api/ventas/pedidos/' + id)
       .then((r) => r.json())
-      .then((d) => { setPedido(d.pedido); setItems(d.items || []); })
+      .then((d) => { setPedido(d.pedido); setItems(d.items || []); setReservado(d.reservado || 0); })
       .finally(() => setLoading(false));
   }, [id, refresh]);
 
@@ -107,6 +107,7 @@ export default function PedidoDetallePage() {
         <div><span className="text-[var(--text-faint)] text-xs">Vendedor</span><p className="font-semibold text-[var(--text)]">{pedido.vendedor?.nombre || '—'}</p></div>
         <div><span className="text-[var(--text-faint)] text-xs">Descuento</span><p className="font-semibold text-[var(--text)]">{pedido.descuento_aplicado}%</p></div>
         <div><span className="text-[var(--text-faint)] text-xs">Total</span><p className="font-semibold text-[var(--text)]">{fmt(pedido.total)}</p></div>
+        <div className="sm:col-span-2"><span className="text-[var(--text-faint)] text-xs">Stock reservado</span><p className="font-semibold text-[var(--info)]">{reservado} pieza(s)</p></div>
       </div>
 
       {/* Líneas */}

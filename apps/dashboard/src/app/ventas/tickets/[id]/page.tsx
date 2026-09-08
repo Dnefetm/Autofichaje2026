@@ -27,15 +27,14 @@ type Item = {
   precio_menudeo: number;
   descuento: number;
   subtotal: number;
-  articulo: { nombre: string } | null;
 };
 
-// Nombre a imprimir: catálogo → nombre del artículo; proveedor → UH | Urrea | 9713 | Descripción
+// Nombre a imprimir: catálogo → descripción (snapshot); proveedor → UH | Urrea | 9713 | Descripción
 function nombreItem(it: Item): string {
   if (it.proveedor_corto || it.marca || it.modelo) {
     return [it.proveedor_corto, it.marca, it.modelo, it.descripcion].filter(Boolean).join(' | ');
   }
-  return it.articulo?.nombre || it.descripcion || it.articulo_id || '—';
+  return it.descripcion || it.articulo_id || '—';
 }
 
 export default function TicketPage() {
