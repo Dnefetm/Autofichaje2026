@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const { data: pedido, error } = await supabaseAdmin
     .from('pedidos')
-    .select('*, cliente:clientes(*), vendedor:vendedores(nombre), ticket:tickets_venta(id)')
+    .select('*, cliente:clientes(nombre, telefono), vendedor:vendedores(nombre), ticket:tickets_venta(id)')
     .eq('id', params.id)
     .single();
 

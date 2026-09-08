@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   // 1. Leer pedido
   const { data: pedido, error: errPed } = await supabaseAdmin
     .from('pedidos')
-    .select('*, cliente:clientes(*), vendedor:vendedores(nombre)')
+    .select('*')
     .eq('id', pedido_id)
     .single();
 

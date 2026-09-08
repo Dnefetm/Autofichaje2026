@@ -7,7 +7,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const { data: ticket, error } = await supabaseAdmin
     .from('tickets_venta')
-    .select('*, pedido:pedidos(descuento_aplicado, estado, fecha), cliente:clientes(*), vendedor:vendedores(nombre)')
+    .select('*, pedido:pedidos(descuento_aplicado, estado, fecha), cliente:clientes(nombre, razon_social, rfc, direccion, telefono), vendedor:vendedores(nombre)')
     .eq('id', id)
     .single();
 
