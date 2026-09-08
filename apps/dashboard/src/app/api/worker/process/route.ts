@@ -3,7 +3,7 @@
 // El worker standalone de Render/Docker (apps/worker) fue RETIRADO y NO se
 // reactivara. Ver apps/worker/DEPRECATED.md. Toda la logica de jobs vive aqui.
 // =============================================================================
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import { MeliTokenManager } from '@gestor/adapters/meli-tokens';
@@ -157,10 +157,14 @@ results.errors.push(`Fatal: ${err.message}`);
 
       if ((remaining || 0) > 0) {
         const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
-        fetch(`${baseUrl}/api/worker/process`, {
+        // `after()` garantiza que el fetch sobreviva al return de la respuesta (Vercel
+        // congela la función al responder; sin esto el re-dispatch puede morir a medias).
+        after(() => {
+          fetch(`${baseUrl}/api/worker/process`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${process.env.CRON_SECRET}` }
-        }).catch(() => {});
+          }).catch(() => {});
+        });
       }
     } catch (_) {}
 
