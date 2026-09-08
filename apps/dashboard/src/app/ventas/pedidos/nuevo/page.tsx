@@ -146,11 +146,7 @@ export default function NuevoPedidoPage() {
       if (tRes.ok && tData.ticket_id) {
         router.push('/ventas/tickets/' + tData.ticket_id);
       } else {
-        setSuccess(true);
-        setLineas([]);
-        setClienteId('');
-        setVendedorId('');
-        setTimeout(() => setSuccess(false), 3000);
+        throw new Error(tData.error || 'No se pudo generar el ticket');
       }
     } catch (e: any) {
       setError(e.message || 'Error al guardar');
