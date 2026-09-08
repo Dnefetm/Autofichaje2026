@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const { data: costos, error: errCostos } = await supabaseAdmin
     .from('costos_articulo')
     .select('articulo_id, valor')
-    .eq('tipo_costo', 'menudeo')
+    .ilike('tipo_costo', 'menudeo')
     .eq('vigente', true);
   if (errCostos) return NextResponse.json({ error: errCostos.message }, { status: 500 });
 

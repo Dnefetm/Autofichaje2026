@@ -35,7 +35,7 @@ BEGIN
     FROM jsonb_array_elements(
         COALESCE((SELECT mapeo_columnas->'precios' FROM importaciones_excel WHERE id = p_importacion_id), '[]'::jsonb)
     ) AS precio
-    WHERE precio->>'tipo_costo' = 'menudeo'
+    WHERE lower(trim(precio->>'tipo_costo')) = 'menudeo'
     LIMIT 1;
 
     DELETE FROM vinculacion_clasificada WHERE importacion_id = p_importacion_id;
