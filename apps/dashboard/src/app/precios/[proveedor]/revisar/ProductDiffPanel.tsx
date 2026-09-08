@@ -95,15 +95,15 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
         setDecisions(prev => ({ ...prev, [articulo_id]: decision }));
     };
 
-    // Regla de negocio: aprobar en lote SOLO los aumentos < 10%.
+    // Regla de negocio: aprobar en lote los NUEVOS y los aumentos < 10%.
     // Las disminuciones y los aumentos atípicos (>=10%) se revisan uno a uno.
-    const handleAprobarAumentosNormales = () => {
-        const normales = diffData.filter(d => subClassOf(d) === 'aumento_normal');
-        if (normales.length === 0) { toast.info('No hay aumentos <10% para aprobar en lote.'); return; }
+    const handleAprobarLote = () => {
+        const aprobables = diffData.filter(d => d.row_class === 'nuevo' || subClassOf(d) === 'aumento_normal');
+        if (aprobables.length === 0) { toast.info('No hay elementos para aprobar en lote.'); return; }
         const next = { ...decisions };
-        normales.forEach(d => { next[d.articulo_id] = 'aprobado'; });
+        aprobables.forEach(d => { next[d.articulo_id] = 'aprobado'; });
         setDecisions(next);
-        toast.success(`${normales.length} aumentos <10% aprobados en lote.`);
+        toast.success(`${aprobables.length} aprobados en lote (nuevos + aumentos <10%).`);
     };
 
     const applyChanges = async (currentDecisions: Record<string, string>) => {
@@ -187,8 +187,8 @@ export function ProductDiffPanel({ importacion, loteNum, proveedor, diffData }: 
                                 />
                             </div>
                         </div>
-                        <button onClick={handleAprobarAumentosNormales} className="flex items-center px-4 py-2 text-[var(--ok)] bg-[var(--ok)]/10 hover:bg-[var(--ok)]/20 rounded-lg text-sm font-semibold transition-colors">
-                            <Check className="w-4 h-4 mr-1" /> Aprobar aumentos &lt;10% ({subStats.normal})
+                        <button onClick={handleAprobarLote} className="flex items-center px-4 py-2 text-[var(--ok)] bg-[var(--ok)]/10 hover:bg-[var(--ok)]/20 rounded-lg text-sm font-semibold transition-colors">
+                            <Check className="w-4 h-4 mr-1" /> Aprobar en lote ({stats.nuevos + subStats.normal})
                         </button>
                     </div>
                 </div>

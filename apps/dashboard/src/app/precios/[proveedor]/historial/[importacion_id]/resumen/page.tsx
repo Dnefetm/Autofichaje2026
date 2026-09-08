@@ -9,6 +9,26 @@ const fmtMx = (n: number) => n.toLocaleString('es-MX', { style: 'currency', curr
 
 type TierValor = { valor: number; valor_anterior: number | null; delta_pct: number | null };
 
+// Supabase limita a 1000 filas por query; paginar para traer todo el lote.
+async function fetchAll(importacionId: string, opts: { vigente?: boolean; estado?: string }): Promise<any[]> {
+    const rows: any[] = [];
+    let from = 0;
+    while (true) {
+        let q = supabaseAdmin
+            .from('precios_proveedor')
+            .select('sku_proveedor, marca, descripcion, tipo_costo, valor, valor_anterior, delta_pct, estado')
+            .eq('importacion_id', importacionId);
+        if (opts.vigente !== undefined) q = q.eq('vigente', opts.vigente);
+        if (opts.estado) q = q.eq('estado', opts.estado);
+        const { data } = await q.range(from, from + 999);
+        if (!data || data.length === 0) break;
+        rows.push(...data);
+        if (data.length < 1000) break;
+        from += 1000;
+    }
+    return rows;
+}
+
 export default async function ResumenLotePage(props: {
     params: Promise<{ proveedor: string; importacion_id: string }>;
 }) {
@@ -23,12 +43,7 @@ export default async function ResumenLotePage(props: {
         .single();
 
     // Mundo 1: la clasificación ya está materializada en precios_proveedor
-    // (calculada con las columnas mapeadas, no con nombres fijos de Urrea).
-    const { data: filas } = await supabaseAdmin
-        .from('precios_proveedor')
-        .select('sku_proveedor, marca, descripcion, tipo_costo, valor, valor_anterior, delta_pct, estado')
-        .eq('importacion_id', importacionId)
-        .eq('vigente', true);
+    const filas = await fetchAll(importacionId, { vigente: true });
 
     // Descontinuados: filas de la lista anterior marcadas descontinuado
     const { data: anterior } = await supabaseAdmin
@@ -41,13 +56,7 @@ export default async function ResumenLotePage(props: {
         .limit(1);
     const prevId = anterior?.[0]?.id;
 
-    const { data: descontinuadosRows } = prevId
-        ? await supabaseAdmin
-            .from('precios_proveedor')
-            .select('sku_proveedor, marca, descripcion, tipo_costo, valor')
-            .eq('importacion_id', prevId)
-            .eq('estado', 'descontinuado')
-        : { data: [] as any[] };
+    const descontinuadosRows = prevId ? await fetchAll(prevId, { estado: 'descontinuado' }) : [];
 
     // Agrupar por sku
     const skuMap = new Map<string, { sku: string; marca: string; descripcion: string; estado: string; tiers: Record<string, TierValor> }>();

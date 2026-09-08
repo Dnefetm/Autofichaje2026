@@ -1,6 +1,23 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { ProductDiffPanel } from './ProductDiffPanel';
 
+// Supabase limita a 1000 filas por query; paginar para traer todo el lote.
+async function fetchAllPrecios(importacionId: string, opts: { vigente?: boolean; estado?: string }): Promise<any[]> {
+    const rows: any[] = [];
+    let from = 0;
+    while (true) {
+        let q = supabaseAdmin.from('precios_proveedor').select('*').eq('importacion_id', importacionId);
+        if (opts.vigente !== undefined) q = q.eq('vigente', opts.vigente);
+        if (opts.estado) q = q.eq('estado', opts.estado);
+        const { data } = await q.range(from, from + 999);
+        if (!data || data.length === 0) break;
+        rows.push(...data);
+        if (data.length < 1000) break;
+        from += 1000;
+    }
+    return rows;
+}
+
 // Los tipos de precio son LIBRES por proveedor (Urrea: 4 niveles; Victorinox: menudeo sin/con IVA).
 // No se fuerzan a un set fijo: cada tipo_costo del mapeo se convierte en una columna dinámica.
 type TierValor = { vigente: number | null; nuevo: number | null; delta_pct: number | null; delta_val: number | null };
@@ -36,11 +53,7 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
         .lte('creado_el', latestBatch.creado_el);
     const loteNum = c || 1;
 
-    const { data: filasActuales } = await supabaseAdmin
-        .from('precios_proveedor')
-        .select('*')
-        .eq('importacion_id', latestBatch.id)
-        .eq('vigente', true);
+    const filasActuales = await fetchAllPrecios(latestBatch.id, { vigente: true });
 
     const { data: anterior } = await supabaseAdmin
         .from('importaciones_excel')
@@ -52,13 +65,7 @@ export default async function RevisarPaso2(props: { params: Promise<{ proveedor:
         .limit(1);
     const prevId = anterior?.[0]?.id;
 
-    const { data: filasDescontinuadas } = prevId
-        ? await supabaseAdmin
-            .from('precios_proveedor')
-            .select('*')
-            .eq('importacion_id', prevId)
-            .eq('estado', 'descontinuado')
-        : { data: [] as any[] };
+    const filasDescontinuadas = prevId ? await fetchAllPrecios(prevId, { estado: 'descontinuado' }) : [];
 
     const grouped = new Map<string, any>();
 
