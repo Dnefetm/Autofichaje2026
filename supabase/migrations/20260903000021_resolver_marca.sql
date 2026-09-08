@@ -1,14 +1,13 @@
 -- =============================================================================
--- MIGRACIÓN: Resolución de marca (Fase 1) — listas monomarca y columnas multipropósito
--- Agrega fn_resolver_marca (sustitución -> crudo -> default) y la usa en
--- fn_procesar_precios_proveedor para estandarizar la marca al ingestar.
--- APPEND-ONLY: crea una función nueva y reemplaza fn_procesar_precios_proveedor.
+-- MIGRACIÓN: Resolución de marca por aprobación de valores distintos
+-- Modelo: tras mapear, el sistema extrae los valores distintos de la columna de
+-- marca y el operador aprueba cuáles son marcas reales (marcas_validas).
+-- Al procesar: si el valor está en marcas_validas -> se conserva; si no -> se
+-- omite y se usa marca_default.
+-- APPEND-ONLY: reemplaza fn_resolver_marca y fn_procesar_precios_proveedor.
 -- =============================================================================
 BEGIN;
 
--- 1. Resolver la marca de una fila según el mapeo del proveedor.
---    Lógica: si el valor crudo está en sustituciones_marca -> se reemplaza;
---    si hay valor crudo -> se usa; si no -> marca_default.
 CREATE OR REPLACE FUNCTION public.fn_resolver_marca(p_mapeo jsonb, p_payload jsonb)
 RETURNS text
 LANGUAGE plpgsql
@@ -17,12 +16,12 @@ AS $$
 DECLARE
   v_col_marca      text;
   v_marca_default  text;
-  v_sustituciones  jsonb;
+  v_marcas_validas jsonb;
   v_marca_raw      text;
 BEGIN
-  v_col_marca     := p_mapeo->>'columna_marca';
-  v_marca_default := NULLIF(trim(p_mapeo->>'marca_default'), '');
-  v_sustituciones := p_mapeo->'sustituciones_marca';
+  v_col_marca      := p_mapeo->>'columna_marca';
+  v_marca_default  := NULLIF(trim(p_mapeo->>'marca_default'), '');
+  v_marcas_validas := p_mapeo->'marcas_validas';
 
   IF v_col_marca IS NOT NULL AND v_col_marca <> '' THEN
     v_marca_raw := NULLIF(trim(p_payload->>v_col_marca), '');
@@ -30,17 +29,26 @@ BEGIN
     v_marca_raw := NULL;
   END IF;
 
-  IF v_sustituciones IS NOT NULL AND v_marca_raw IS NOT NULL AND v_sustituciones ? v_marca_raw THEN
-    RETURN v_sustituciones->>v_marca_raw;
-  ELSIF v_marca_raw IS NOT NULL THEN
-    RETURN v_marca_raw;
-  ELSE
+  -- Sin valor crudo -> marca por defecto
+  IF v_marca_raw IS NULL THEN
     RETURN v_marca_default;
   END IF;
+
+  -- Si el valor fue aprobado como marca real -> se conserva
+  IF v_marcas_validas IS NOT NULL AND jsonb_typeof(v_marcas_validas) = 'array'
+     AND v_marca_raw IN (SELECT jsonb_array_elements_text(v_marcas_validas)) THEN
+    RETURN v_marca_raw;
+  END IF;
+
+  -- No aprobado -> se omite y se usa la marca por defecto
+  IF v_marca_default IS NOT NULL THEN
+    RETURN v_marca_default;
+  END IF;
+  RETURN v_marca_raw;
 END;
 $$;
 
--- 2. Reemplazar fn_procesar_precios_proveedor para usar fn_resolver_marca.
+-- Reemplazar fn_procesar_precios_proveedor para usar fn_resolver_marca.
 CREATE OR REPLACE FUNCTION public.fn_procesar_precios_proveedor(p_importacion_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -75,7 +83,6 @@ BEGIN
     RAISE EXCEPTION 'columna_modelo no definida en el mapeo (id=%)', p_importacion_id;
   END IF;
 
-  -- Importación anterior COMPLETADA del mismo proveedor (base de comparación)
   SELECT id INTO v_prev_id
   FROM importaciones_excel
   WHERE proveedor = v_proveedor
@@ -84,14 +91,11 @@ BEGIN
   ORDER BY creado_el DESC
   LIMIT 1;
 
-  -- Idempotencia: limpiar filas previas de esta importación
   DELETE FROM public.precios_proveedor WHERE importacion_id = p_importacion_id;
 
-  -- Apagar vigencia de las filas actuales del proveedor
   UPDATE public.precios_proveedor SET vigente = false
   WHERE proveedor = v_proveedor AND vigente = true;
 
-  -- Insertar filas de la lista nueva, clasificando contra la anterior
   WITH nueva AS (
     SELECT DISTINCT ON (sku, tipo_costo)
       sku, marca, descripcion, tipo_costo, valor, incluye_iva
@@ -153,7 +157,6 @@ BEGIN
     true
   FROM comparado;
 
-  -- Descontinuados: skus de la lista anterior ausentes en la nueva
   IF v_prev_id IS NOT NULL THEN
     UPDATE public.precios_proveedor
     SET estado = 'descontinuado'
@@ -168,7 +171,6 @@ BEGIN
     WHERE proveedor = v_proveedor AND importacion_id = v_prev_id AND estado = 'descontinuado';
   END IF;
 
-  -- Conteos por SKU del lote nuevo (para UI y validación)
   SELECT
     count(*) FILTER (WHERE sku_estado = 'nuevo'),
     count(*) FILTER (WHERE sku_estado = 'actualizado'),
@@ -201,12 +203,10 @@ GRANT EXECUTE ON FUNCTION public.fn_procesar_precios_proveedor(uuid) TO authenti
 
 COMMIT;
 
--- =============================================================================
 -- ROLLBACK
--- =============================================================================
 /*
 BEGIN;
 DROP FUNCTION IF EXISTS public.fn_resolver_marca(jsonb, jsonb);
--- fn_procesar_precios_proveedor se restaura re-ejecutando la migración 0020.
+-- fn_procesar_precios_proveedor se restaura re-ejecutando 0020.
 COMMIT;
 */

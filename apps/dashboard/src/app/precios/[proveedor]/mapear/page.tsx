@@ -26,7 +26,9 @@ export default function MapearColumnasPage() {
     const [moneda, setMoneda] = useState('MXN');
     const [precios, setPrecios] = useState<{ columna: string, tipo_costo: string, incluye_iva: boolean }[]>([]);
     const [marcaDefault, setMarcaDefault] = useState('');
-    const [sustitucionesMarca, setSustitucionesMarca] = useState('');
+    const [marcasDistintas, setMarcasDistintas] = useState<{ marca: string, count: number }[]>([]);
+    const [marcasValidas, setMarcasValidas] = useState<Set<string>>(new Set());
+    const [showMarcas, setShowMarcas] = useState(false);
     
     // Lista de tipos de costos predefinidos para agilizar (solo sugerencias, el campo es libre)
     const tiposCosto = ['distribuidor', 'subdistribuidor', 'mayoreo', 'menudeo'];
@@ -51,9 +53,6 @@ export default function MapearColumnasPage() {
                 setColMarca(m.columna_marca || '');
                 setColDescripcion(m.columna_descripcion || '');
                 setMoneda(m.moneda_default || 'MXN');
-                setMarcaDefault(m.marca_default || '');
-                const sust = m.sustituciones_marca || {};
-                setSustitucionesMarca(Object.entries(sust).map(([k, v]) => `${k}=${v}`).join('\n'));
                 
                 if (Array.isArray(m.precios) && m.precios.length > 0) {
                     setPrecios(m.precios);
@@ -83,40 +82,39 @@ export default function MapearColumnasPage() {
         setPrecios(precios.filter((_, i) => i !== index));
     };
 
+    const procesarYRedirigir = async () => {
+        const rProc = await fetch(`/api/precios/importar/${importacionId}/procesar`, { method: 'POST' });
+        if (!rProc.ok) {
+            const jProc = await rProc.json().catch(() => ({}));
+            throw new Error(jProc.error || 'Error al procesar precios.');
+        }
+        router.push(`/precios/${encodeURIComponent(proveedor)}/historial/${importacionId}/resumen`);
+    };
+
+    const guardarMapeo = async (extra: Record<string, any> = {}) => {
+        const rMap = await fetch(`/api/precios/importar/${importacionId}/mapeo`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                columna_codigo: colCodigo,
+                columna_modelo: colModelo,
+                columna_marca: colMarca || null,
+                columna_descripcion: colDescripcion,
+                moneda_default: moneda,
+                precios: precios.filter(p => p.columna),
+                columnas_a_guardar: headers,
+                ...extra,
+            })
+        });
+        const jMap = await rMap.json();
+        if (!rMap.ok) throw new Error(jMap.error);
+    };
+
     const handleGuardar = async () => {
         setSaving(true);
         setError(null);
         try {
-            // Parsear sustituciones "clave=valor" por línea
-            const sustituciones: Record<string, string> = {};
-            sustitucionesMarca.split('\n').forEach(line => {
-                const idx = line.indexOf('=');
-                if (idx > 0) {
-                    const k = line.slice(0, idx).trim();
-                    const v = line.slice(idx + 1).trim();
-                    if (k && v) sustituciones[k] = v;
-                }
-            });
-
-            // Guardar mapeo
-            const rMap = await fetch(`/api/precios/importar/${importacionId}/mapeo`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    columna_codigo: colCodigo,
-                    columna_modelo: colModelo,
-                    columna_marca: colMarca || null,
-                    columna_descripcion: colDescripcion,
-                    moneda_default: moneda,
-                    precios: precios.filter(p => p.columna), // Guardar solo los que tengan columna asignada
-                    columnas_a_guardar: headers, // Por defecto guardamos todas las leidas para facilitar la vista
-                    marca_default: marcaDefault || null,
-                    sustituciones_marca: Object.keys(sustituciones).length ? sustituciones : null,
-                })
-            });
-
-            const jMap = await rMap.json();
-            if (!rMap.ok) throw new Error(jMap.error);
+            await guardarMapeo();
 
             // Iniciar parser
             const rParse = await fetch(`/api/precios/importar/${importacionId}/iniciar-parser`, { method: 'POST' });
@@ -125,16 +123,35 @@ export default function MapearColumnasPage() {
                 throw new Error(jParse.error || 'Error al iniciar procesamiento.');
             }
 
-            // Procesar precios (Mundo 1: autónomo, sin matching)
-            const rProc = await fetch(`/api/precios/importar/${importacionId}/procesar`, { method: 'POST' });
-            if (!rProc.ok) {
-                const jProc = await rProc.json().catch(() => ({}));
-                throw new Error(jProc.error || 'Error al procesar precios.');
+            // Extraer los valores distintos de la columna de marca para aprobar cuáles son reales
+            if (colMarca) {
+                const rMarcas = await fetch(`/api/precios/importar/${importacionId}/marcas-distintas`);
+                const jMarcas = await rMarcas.json();
+                if (jMarcas.ok && Array.isArray(jMarcas.marcas) && jMarcas.marcas.length > 0) {
+                    setMarcasDistintas(jMarcas.marcas);
+                    setMarcasValidas(new Set());
+                    setShowMarcas(true);
+                    setSaving(false);
+                    return;
+                }
             }
 
-            // Redirigir al resumen del lote (ahí están la auditoría y la activación)
-            router.push(`/precios/${encodeURIComponent(proveedor)}/historial/${importacionId}/resumen`);
+            await procesarYRedirigir();
+        } catch (e: any) {
+            setError(e.message);
+            setSaving(false);
+        }
+    };
 
+    const handleConfirmarMarcas = async () => {
+        setSaving(true);
+        setError(null);
+        try {
+            await guardarMapeo({
+                marca_default: marcaDefault || null,
+                marcas_validas: Array.from(marcasValidas),
+            });
+            await procesarYRedirigir();
         } catch (e: any) {
             setError(e.message);
             setSaving(false);
@@ -177,16 +194,7 @@ export default function MapearColumnasPage() {
                                 <option value="">-- Seleccionar --</option>
                                 {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
                             </select>
-                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Si la lista no trae columna de marca (monomarca), déjala vacía y define la marca por defecto abajo.</p>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Marca por defecto</label>
-                            <input type="text" className="w-full border p-2 rounded-md bg-[var(--surface)]" value={marcaDefault} onChange={e => setMarcaDefault(e.target.value)} placeholder="ej. Victorinox" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Sustituciones de marca</label>
-                            <textarea className="w-full border p-2 rounded-md bg-[var(--surface)] font-mono text-xs" rows={3} value={sustitucionesMarca} onChange={e => setSustitucionesMarca(e.target.value)} placeholder={'SAK=Victorinox\nKitchen=Victorinox'} />
-                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Una por línea: valor_del_excel=marca_real. Si el valor coincide, se reemplaza.</p>
+                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Si la lista no trae columna de marca, déjala vacía.</p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna DESCRIPCIÓN</label>
@@ -278,6 +286,41 @@ export default function MapearColumnasPage() {
                     Guardar y Procesar Archivo
                 </button>
             </div>
+
+            {showMarcas && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowMarcas(false)}>
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
+                        <h3 className="font-bold text-lg text-[var(--text)] mb-1">Aprobar marcas</h3>
+                        <p className="text-xs text-[var(--text-muted)] mb-4">
+                            Valores encontrados en la columna <strong className="text-[var(--text)]">{colMarca}</strong>. Marca cuáles son marcas reales; los no marcados se reemplazarán por la marca por defecto.
+                        </p>
+
+                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Marca por defecto</label>
+                        <input type="text" value={marcaDefault} onChange={e => setMarcaDefault(e.target.value)} placeholder="ej. Victorinox" className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--bg)] text-sm mb-4 text-[var(--text)]" />
+
+                        <div className="max-h-64 overflow-y-auto border border-[var(--border)] rounded-lg divide-y divide-[var(--border)] mb-4">
+                            {marcasDistintas.map(m => (
+                                <label key={m.marca} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-[var(--bg)]">
+                                    <input type="checkbox" checked={marcasValidas.has(m.marca)} onChange={e => {
+                                        const next = new Set(marcasValidas);
+                                        if (e.target.checked) next.add(m.marca); else next.delete(m.marca);
+                                        setMarcasValidas(next);
+                                    }} className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]" />
+                                    <span className="flex-1 text-sm text-[var(--text)]">{m.marca}</span>
+                                    <span className="text-xs text-[var(--text-faint)]">{m.count} filas</span>
+                                </label>
+                            ))}
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setShowMarcas(false)} className="px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg)] rounded-lg">Cancelar</button>
+                            <button onClick={handleConfirmarMarcas} disabled={saving} className="px-5 py-2 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg text-sm font-bold hover:brightness-110 disabled:opacity-50 flex items-center gap-2">
+                                {saving && <Loader2 className="w-4 h-4 animate-spin" />} Confirmar y procesar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
