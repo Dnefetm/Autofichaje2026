@@ -9,10 +9,6 @@ on:
       - 'scripts/generate_flow_blueprint.ts'
       - 'docs/flow_hints.yaml'
       - '.github/workflows/blueprint.yml'
-  pull_request:
-    paths:
-      - 'supabase/migrations/**'
-      - 'docs/db_flow_blueprint.json'
 
 jobs:
 
