@@ -1,7 +1,6 @@
 import { friendlyError } from '@/lib/friendlyError';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import * as XLSX from 'xlsx';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -35,6 +34,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
         }
 
         const buf = new Uint8Array(await file.arrayBuffer());
+        const XLSX = await import('xlsx');
         const wb = XLSX.read(buf, { type: 'buffer', dense: true, sheetRows: 6 });
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
