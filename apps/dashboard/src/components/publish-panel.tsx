@@ -255,6 +255,15 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             setCatalogProductId(sourcePublicacion.id_producto_catalogo);
             setCatalogListing(true);
         }
+        // Cargar las fotos completas de la vidriera origen para que sean visibles y editables.
+        fetch(`/api/meli/item-pictures?accountId=${encodeURIComponent(sourcePublicacion.marketplace_id)}&itemId=${encodeURIComponent(sourcePublicacion.external_item_id)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data?.ok && Array.isArray(data.pictures) && data.pictures.length > 0) {
+                    setImages(data.pictures);
+                }
+            })
+            .catch(() => { /* silencioso: si falla, el backend igual hereda las fotos al publicar */ });
     }, [sourcePublicacion]);
 
     // Pre-cargar sugerencias de imágenes del artículo (convierte rutas relativas a públicas).
