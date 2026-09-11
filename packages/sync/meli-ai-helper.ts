@@ -35,12 +35,14 @@ export interface MeliAIHelperInput {
     unresolved_attributes: MeliUnresolvedAttribute[];
     max_family_name_chars?: number; // default 50 — para no superar 60 al agregar marca+modelo
     legacy?: boolean;               // true: genera title completo (marca+modelo); false: family_name sin marca/modelo
+    rephrase_description?: boolean; // true: genera además una descripción ligeramente reformulada (copia adaptada)
 }
 
 export interface MeliAIHelperOutput {
     family_name: string;
     title: string;                  // título completo para modelo legacy
     attributes: Array<{ id: string; value_id?: string; value_name?: string }>;
+    description?: string;           // solo si rephrase_description: true y el AI respondió
     ai_used: boolean;      // false si se usó el fallback sin AI
     tokens_used?: number;
 }
@@ -64,6 +66,16 @@ function buildPrompt(input: MeliAIHelperInput): { system: string; user: string }
    nombre del producto + características principales (tipo, medida, material).
    SIN marca ni modelo — MercadoLibre (User Products) los agrega automáticamente al título visible.`;
 
+    const descTask = input.rephrase_description
+        ? `
+3. Reescribe la "description" del producto de forma ligeramente distinta a la original (máximo 2000 caracteres),
+   conservando TODA la información útil y las características, pero con redacción y estructura diferentes.`
+        : '';
+
+    const descJsonField = input.rephrase_description
+        ? `,\n  "description": "descripción reformulada (máx 2000 caracteres)"`
+        : '';
+
     const system = `${ANTI_HALLUCINATION_BLOCK}
 
 Eres un experto en redacción de títulos y clasificación de atributos para MercadoLibre México.
@@ -75,14 +87,14 @@ ${tituloRule}
    - Elige el valor cuyo significado coincide MÁS PRECISAMENTE con el producto real, no con la categoría general.
    - Ejemplo correcto: "Llave ajustable" → tipo "Francesa/Ajustable", NO "Combinada" ni "Tubular".
    - Si el atributo es de tipo "string" o "number" y no tiene lista, genera un valor apropiado.
-   - NUNCA inventes un value_id; usa exactamente el id de la opción que elijas de la lista.
+   - NUNCA inventes un value_id; usa exactamente el id de la opción que elijas de la lista.${descTask}
 
 Responde SOLO con JSON sin markdown:
 {
   ${tituloField},
   "attributes": [
     { "id": "ATRIBUTO_ID", "value_id": "id_seleccionado", "value_name": "nombre_seleccionado" }
-  ]
+  ]${descJsonField}
 }`;
 
     const attrsBlock = input.unresolved_attributes.map(attr => {
@@ -171,10 +183,16 @@ export async function resolvePublicationAI(input: MeliAIHelperInput): Promise<Me
                 ? raw.attributes.filter((a: any) => a?.id)
                 : [];
 
+        // Descripción reformulada (solo si se pidió en copia adaptada)
+        const description = input.rephrase_description && typeof raw.description === 'string'
+            ? raw.description.trim().slice(0, 5000)
+            : undefined;
+
         return {
             family_name,
             title,
             attributes,
+            description,
             ai_used: true,
             tokens_used: tokensUsed,
         };

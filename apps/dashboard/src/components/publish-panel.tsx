@@ -38,6 +38,19 @@ interface Account { id: string; account_name: string; }
 
 type Stage = 'config' | 'preview' | 'result';
 
+/** Datos de una vidriera origen para pre-rellenar la copia entre cuentas. */
+export interface SourcePublicacion {
+    marketplace_id: string;
+    external_item_id: string;
+    precio_venta?: number | null;
+    stock_publicado?: number | null;
+    listing_type_id?: string | null;
+    category_id?: string | null;
+    free_shipping?: boolean;
+    id_producto_catalogo?: string | null;
+    tipo_publicacion?: string | null;
+}
+
 interface PublishPanelProps {
     articulo_id: string;
     nombreArticulo: string;
@@ -49,6 +62,8 @@ interface PublishPanelProps {
     modalMode?: boolean;
     /** Código universal (EAN/UPC/GTIN) para búsqueda en catálogo MeLi */
     codigoUniversal?: string;
+    /** Vidriera origen a copiar/adaptar hacia otra cuenta */
+    sourcePublicacion?: SourcePublicacion;
 }
 
 // -- Helpers ------------------------------------------------------------------
@@ -149,7 +164,7 @@ function PublishStepper({ trace }: { trace: Record<string, any> }) {
 }
 
 // -- Componente principal ------------------------------------------------------
-export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBase = [], modalMode = false, codigoUniversal = '' }: PublishPanelProps) {
+export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBase = [], modalMode = false, codigoUniversal = '', sourcePublicacion }: PublishPanelProps) {
     // Cuentas
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
@@ -222,6 +237,25 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                 if (data && data.length > 0) setSelectedAccounts([data[0].id]);
             });
     }, []);
+
+    // Pre-rellenar con datos de la vidriera origen (copia entre cuentas).
+    // Precio, stock, tipo de publicación, categoría y envío quedan copiados y editables.
+    useEffect(() => {
+        if (!sourcePublicacion) return;
+        if (sourcePublicacion.listing_type_id) setListingType(sourcePublicacion.listing_type_id);
+        if (sourcePublicacion.category_id) setCategoryId(sourcePublicacion.category_id);
+        setFreeShipping(!!sourcePublicacion.free_shipping);
+        if (sourcePublicacion.precio_venta != null && Number(sourcePublicacion.precio_venta) > 0) {
+            setPriceOverride(String(sourcePublicacion.precio_venta));
+        }
+        if (sourcePublicacion.stock_publicado != null && Number(sourcePublicacion.stock_publicado) >= 0) {
+            setStockOverride(String(sourcePublicacion.stock_publicado));
+        }
+        if (sourcePublicacion.tipo_publicacion === 'catalogo' && sourcePublicacion.id_producto_catalogo) {
+            setCatalogProductId(sourcePublicacion.id_producto_catalogo);
+            setCatalogListing(true);
+        }
+    }, [sourcePublicacion]);
 
     // Pre-cargar sugerencias de imágenes del artículo (convierte rutas relativas a públicas).
     // NO auto-agregar: si el artículo no tiene fotos, el campo queda vacío para subir manualmente.
@@ -479,6 +513,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     category_id: categoryId || undefined,
                     listing_type_id: listingType,
                     dry_run: true,
+                    ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
                     ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
                 }),
             });
@@ -510,6 +545,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     category_id: forcedCategoryId,
                     listing_type_id: listingType,
                     dry_run: true,
+                    ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
                 }),
             });
             const data = await res.json();
@@ -551,6 +587,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             category_id: categoryOverride || categoryId || undefined,
                             listing_type_id: listingType,
                             dry_run: false,
+                            ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
                             ...(allOverrides.length > 0 ? { attribute_overrides: allOverrides } : {}),
                             ...(familyNameOverride ? { family_name_override: familyNameOverride } : {}),
                             ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),

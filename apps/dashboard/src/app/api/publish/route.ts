@@ -65,28 +65,28 @@ function truncarTitulo(titulo: string, maxLen: number = 60): string {
     return (lastSpace > maxLen * 0.6 ? sub.slice(0, lastSpace) : sub).trim();
 }
 
-// -- Helper: resolver datos con prioridad ficha → artículo --------------------
-function resolvePublicationData(articulo: any, ficha: any | null) {
+// -- Helper: resolver datos con prioridad ficha → vidriera origen → artículo ---
+function resolvePublicationData(articulo: any, ficha: any | null, source: any | null) {
     return {
-        nombre:              limpiarTitulo(ficha?.nombre_producto || articulo?.nombre),
-        descripcion:         ficha?.descripcion_larga || ficha?.descripcion || articulo?.descripcion || '',
-        marca:               ficha?.marca             || articulo?.marca,
-        modelo:              ficha?.modelo            || articulo?.modelo,
-        variante:            ficha?.variante          || articulo?.variante,
+        nombre:              limpiarTitulo(ficha?.nombre_producto || source?.nombre || articulo?.nombre),
+        descripcion:         ficha?.descripcion_larga || ficha?.descripcion || source?.descripcion || articulo?.descripcion || '',
+        marca:               ficha?.marca             || source?.marca             || articulo?.marca,
+        modelo:              ficha?.modelo            || source?.modelo            || articulo?.modelo,
+        variante:            ficha?.variante          || source?.variante          || articulo?.variante,
         pais_origen:         ficha?.pais_origen       || articulo?.pais_origen,
-        categoria:           ficha?.categoria         || articulo?.categoria,
-        codigo_universal:    ficha?.codigo_universal  || articulo?.codigo_universal,
+        categoria:           ficha?.categoria         || source?.categoria         || articulo?.categoria,
+        codigo_universal:    ficha?.codigo_universal  || source?.codigo_universal  || articulo?.codigo_universal,
         atributos_especificos: articulo?.atributos_especificos, // solo en articulos
         // Solo en ficha:
         bullet_points:       (ficha?.bullet_points as string[] | null | undefined) || [],
         palabras_clave:      ficha?.palabras_clave   || [],
         materiales:          ficha?.materiales        || null,
         atributos_categoria: ficha?.atributos_categoria || null, // pares {MLBATTR: 'valor'} de ficha
-        // Dimensiones: ficha tiene prioridad, artículo como fallback
-        peso_kg:  ficha?.peso_kg  ?? articulo?.peso_kg,
-        largo_cm: ficha?.largo_cm ?? articulo?.largo_cm,
-        ancho_cm: ficha?.ancho_cm ?? articulo?.ancho_cm,
-        alto_cm:  ficha?.alto_cm  ?? articulo?.alto_cm,
+        // Dimensiones: ficha > vidriera origen > artículo
+        peso_kg:  ficha?.peso_kg  ?? source?.peso_kg  ?? articulo?.peso_kg,
+        largo_cm: ficha?.largo_cm ?? source?.largo_cm ?? articulo?.largo_cm,
+        ancho_cm: ficha?.ancho_cm ?? source?.ancho_cm ?? articulo?.ancho_cm,
+        alto_cm:  ficha?.alto_cm  ?? source?.alto_cm  ?? articulo?.alto_cm,
     };
 }
 
@@ -97,10 +97,12 @@ export async function POST(req: NextRequest) {
     try {
         // -- 0. Validar body ---------------------------------------------------
         const body = await req.json().catch(() => null);
-        if (!body || !body.articulo_id || !body.marketplace_id) {
+        const _tieneArticulo = !!(body && body.articulo_id);
+        const _tieneFuente = !!(body && body.source_marketplace_id && body.source_item_id);
+        if (!body || !body.marketplace_id || (!_tieneArticulo && !_tieneFuente)) {
             return NextResponse.json({
                 ok: false,
-                error: 'Se requieren articulo_id y marketplace_id en el body',
+                error: 'Se requieren marketplace_id y (articulo_id o source_marketplace_id+source_item_id) en el body',
             }, { status: 400 });
         }
 
@@ -123,9 +125,138 @@ export async function POST(req: NextRequest) {
             catalog_product_id = null as string | null,
             catalog_listing = false as boolean,
             stock_override = null as number | null,
+            source_marketplace_id = null as string | null,
+            source_item_id = null as string | null,
         } = body;
 
-        trace.input = { articulo_id, marketplace_id, ficha_id, pictures_count: pictures.length, listing_type_id, dry_run };
+        trace.input = { articulo_id, marketplace_id, ficha_id, pictures_count: pictures.length, listing_type_id, dry_run, source_marketplace_id: source_marketplace_id ?? null, source_item_id: source_item_id ?? null };
+
+        // -- 0.5 Fuente vidriera (copia adaptada entre cuentas) ----------------
+        // Si se provee una vidriera origen, se lee su ítem completo desde MeLi y se
+        // usa como fuente de datos, con prioridad: ficha técnica > vidriera origen > artículo.
+        const meli = new MeliAdapter();
+        let resolvedArticuloId: string = articulo_id || '';
+        let sourceItem: any = null;
+        let sourceData: any = null;
+
+        if (source_marketplace_id && source_item_id) {
+            try {
+                sourceItem = await (meli as any).getItem(source_marketplace_id, source_item_id);
+            } catch (e: any) {
+                trace.paso_0_5_source = { error: `No se pudo leer la vidriera origen: ${e.message}` };
+            }
+
+            if (sourceItem) {
+                let sourceDescription: string | null = null;
+                try {
+                    const sd = await (meli as any).getDescription(source_marketplace_id, source_item_id);
+                    if (sd) sourceDescription = sd;
+                } catch { /* best-effort */ }
+
+                const attrVal = (id: string) =>
+                    sourceItem.attributes?.find((a: any) => a.id === id)?.value_name ?? null;
+                const dims = sourceItem.shipping?.dimensions || null;
+
+                sourceData = {
+                    nombre:             sourceItem.family_name || sourceItem.title || '',
+                    descripcion:        sourceDescription,
+                    marca:              attrVal('BRAND'),
+                    modelo:             attrVal('MODEL'),
+                    variante:           attrVal('COLOR'),
+                    codigo_universal:   attrVal('GTIN') || attrVal('EAN') || attrVal('UPC'),
+                    categoria:          sourceItem.category_id ?? null,
+                    peso_kg:            dims?.weight != null ? Number(dims.weight) / 1000 : null,
+                    largo_cm:           dims?.length ?? null,
+                    ancho_cm:           dims?.width ?? null,
+                    alto_cm:            dims?.height ?? null,
+                    pictures:           (sourceItem.pictures || []).map((p: any) => p.secure_url || p.url).filter(Boolean),
+                    price:              sourceItem.price ?? null,
+                    currency:           sourceItem.currency_id ?? null,
+                    stock:              sourceItem.available_quantity ?? null,
+                    listing_type_id:    sourceItem.listing_type_id ?? null,
+                    seller_custom_field: sourceItem.seller_custom_field ?? null,
+                    shipping:           sourceItem.shipping ?? null,
+                    sale_terms:         sourceItem.sale_terms ?? null,
+                    attributes:         sourceItem.attributes ?? [],
+                    catalog_product_id: sourceItem.catalog_product_id ?? null,
+                    catalog_listing:    sourceItem.catalog_listing === true,
+                    condition:          sourceItem.condition ?? null,
+                };
+
+                trace.paso_0_5_source = {
+                    item_id: sourceItem.id,
+                    title: sourceItem.title ?? null,
+                    family_name: sourceItem.family_name ?? null,
+                    catalog_product_id: sourceItem.catalog_product_id ?? null,
+                    category_id: sourceItem.category_id ?? null,
+                    listing_type_id: sourceItem.listing_type_id ?? null,
+                    price: sourceItem.price ?? null,
+                    available_quantity: sourceItem.available_quantity ?? null,
+                    pictures: sourceData.pictures.length,
+                };
+            }
+
+            // Resolver articulo_id desde el mapeo de la vidriera origen (si no se proveyó)
+            if (!resolvedArticuloId) {
+                const { data: srcPub } = await supabaseAdmin
+                    .from('publicaciones_externas')
+                    .select('id')
+                    .eq('marketplace_id', source_marketplace_id)
+                    .eq('external_item_id', source_item_id)
+                    .eq('external_variation_id', '0')
+                    .limit(1)
+                    .maybeSingle();
+
+                if (srcPub?.id) {
+                    const { data: srcMap } = await supabaseAdmin
+                        .from('mapeo_publicacion_articulo')
+                        .select('articulo_id')
+                        .eq('publicacion_id', srcPub.id)
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (srcMap?.articulo_id) {
+                        resolvedArticuloId = srcMap.articulo_id;
+                        trace.paso_0_5_articulo_resuelto = { desde: 'mapeo_origen', articulo_id: resolvedArticuloId };
+                    }
+                }
+            }
+
+            // Si sigue sin artículo, auto-crear uno de referencia (no gestiona stock:
+            // el mapeo de la copia se creará con sincronizar_stock=false)
+            if (!resolvedArticuloId) {
+                if (!sourceData) {
+                    return NextResponse.json({
+                        ok: false,
+                        error: 'No se pudo leer la vidriera origen y no se proveyó articulo_id',
+                        trace,
+                    }, { status: 422 });
+                }
+                const { data: newArt, error: newArtErr } = await supabaseAdmin
+                    .from('articulos')
+                    .insert({
+                        articulo_id: crypto.randomUUID(),
+                        nombre: (sourceData?.nombre || 'Producto MeLi').slice(0, 200),
+                        marca: sourceData?.marca ?? null,
+                        modelo: sourceData?.modelo ?? null,
+                        codigo_universal: sourceData?.codigo_universal ?? null,
+                        categoria: sourceData?.categoria ?? null,
+                        activo: true,
+                    })
+                    .select('articulo_id')
+                    .single();
+
+                if (newArtErr || !newArt?.articulo_id) {
+                    return NextResponse.json({
+                        ok: false,
+                        error: `No se pudo crear el artículo de referencia desde la vidriera: ${newArtErr?.message}`,
+                        trace,
+                    }, { status: 422 });
+                }
+                resolvedArticuloId = newArt.articulo_id;
+                trace.paso_0_5_articulo_creado = { articulo_id: resolvedArticuloId, motivo: 'vidriera origen sin mapeo' };
+            }
+        }
 
         // -- 1. Leer artículo de BD --------------------------------------------
         const { data: articulo, error: artErr } = await supabaseAdmin
@@ -137,7 +268,7 @@ export async function POST(req: NextRequest) {
                 peso_kg, largo_cm, ancho_cm, alto_cm,
                 activo, es_obsoleto, publicacion_ml
             `)
-            .eq('articulo_id', articulo_id)
+            .eq('articulo_id', resolvedArticuloId)
             .single();
 
         if (artErr || !articulo) {
@@ -178,7 +309,7 @@ export async function POST(req: NextRequest) {
 
             if (fichaErr || !ficha) {
                 trace.paso_1b_ficha = { advertencia: `ficha_id ${ficha_id} no encontrada — usando solo datos del artículo` };
-            } else if (ficha.articulo_id && ficha.articulo_id !== articulo_id) {
+            } else if (ficha.articulo_id && ficha.articulo_id !== resolvedArticuloId) {
                 return NextResponse.json({
                     ok: false,
                     error: `La ficha ${ficha_id} pertenece al artículo ${ficha.articulo_id}, no a ${articulo_id}`,
@@ -200,8 +331,8 @@ export async function POST(req: NextRequest) {
             trace.paso_1b_ficha = { omitido: 'No se proveyó ficha_id — usando datos del artículo' };
         }
 
-        // Resolver datos con prioridad ficha → artículo
-        const resolved = resolvePublicationData(articulo, fichaData);
+        // Resolver datos con prioridad ficha → vidriera origen → artículo
+        const resolved = resolvePublicationData(articulo, fichaData, sourceData);
         trace.paso_1b_resolved = {
             nombre_limpio:   resolved.nombre,
             descripcion_src: fichaData?.descripcion_larga ? 'ficha.descripcion_larga' : fichaData?.descripcion ? 'ficha.descripcion' : 'articulo.descripcion',
@@ -222,12 +353,11 @@ export async function POST(req: NextRequest) {
         // -- 1.4 Reconciliar estado real de publicaciones enlazadas -------------
         // MeLi es la fuente de verdad: si el usuario eliminó un item, lo marcamos
         // "closed" localmente para que no bloquee una nueva publicación.
-        const meli = new MeliAdapter();
         try {
             const { data: linkedPubs } = await supabaseAdmin
                 .from('mapeo_publicacion_articulo')
                 .select('publicacion_id, publicaciones_externas!inner(external_item_id, status_externo)')
-                .eq('articulo_id', articulo_id)
+                .eq('articulo_id', resolvedArticuloId)
                 .eq('publicaciones_externas.marketplace_id', marketplace_id);
 
             const staleIds = (linkedPubs || [])
@@ -290,7 +420,7 @@ export async function POST(req: NextRequest) {
                                     .from('mapeo_publicacion_articulo')
                                     .delete()
                                     .eq('publicacion_id', pubId)
-                                    .eq('articulo_id', articulo_id);
+                                    .eq('articulo_id', resolvedArticuloId);
                                 trace.paso_1_4_fallback = {
                                     itemId,
                                     update_error: updErr.message,
@@ -320,7 +450,7 @@ export async function POST(req: NextRequest) {
                 mapeo_publicacion_articulo!inner (articulo_id)
             `)
             .eq('marketplace_id', marketplace_id)
-            .eq('mapeo_publicacion_articulo.articulo_id', articulo_id)
+            .eq('mapeo_publicacion_articulo.articulo_id', resolvedArticuloId)
             .in('status_externo', ['active', 'paused', 'under_review'])
             .limit(1)
             .maybeSingle();
@@ -350,7 +480,7 @@ export async function POST(req: NextRequest) {
         const { data: precio } = await supabaseAdmin
             .from('marketplace_prices')
             .select('sale_price, base_price, currency, sku_tienda')
-            .eq('articulo_id', articulo_id)
+            .eq('articulo_id', resolvedArticuloId)
             .eq('marketplace_id', marketplace_id)
             .maybeSingle();
         precio_data = precio;
@@ -360,7 +490,7 @@ export async function POST(req: NextRequest) {
             const { data: precioGeneral } = await supabaseAdmin
                 .from('marketplace_prices')
                 .select('sale_price, base_price, currency, sku_tienda, updated_at')
-                .eq('articulo_id', articulo_id)
+                .eq('articulo_id', resolvedArticuloId)
                 .order('updated_at', { ascending: false })
                 .limit(1)
                 .maybeSingle();
@@ -377,14 +507,20 @@ export async function POST(req: NextRequest) {
         let price = precio_data?.sale_price || 0;
         let priceSource: string = precio_data ? 'marketplace_prices' : 'none';
 
+        // Copia desde vidriera: si no hay precio en BD, heredar el precio de la vidriera origen.
+        if (price === 0 && sourceData?.price != null && Number(sourceData.price) > 0) {
+            price = Number(sourceData.price);
+            priceSource = 'source_vidriera';
+        }
+
         // -- 3.1 Resolver SKU efectivo: marketplace_prices.sku_tienda > articulos.modelo --
         // articulos.sku fue eliminada permanentemente de la BD (DROP COLUMN CASCADE).
         // Guard anti-basura: descartar si es exactamente 8 chars hex (prefijo UUID legacy).
         const _SKU_BASURA = /^[0-9a-f]{8}$/i;
-        const _raw_sku = precio_data?.sku_tienda || articulo.modelo || null;
+        const _raw_sku = precio_data?.sku_tienda || sourceData?.seller_custom_field || articulo.modelo || null;
         const sku_efectivo = (_raw_sku && _SKU_BASURA.test(_raw_sku)) ? null : _raw_sku;
         trace.paso_3_1_sku_efectivo = {
-            origen: precio_data?.sku_tienda ? 'marketplace_prices.sku_tienda' : articulo.modelo ? 'articulos.modelo' : 'null',
+            origen: precio_data?.sku_tienda ? 'marketplace_prices.sku_tienda' : sourceData?.seller_custom_field ? 'vidriera_origen.seller_custom_field' : articulo.modelo ? 'articulos.modelo' : 'null',
             valor: sku_efectivo,
         };
 
@@ -394,7 +530,7 @@ export async function POST(req: NextRequest) {
         let stockFailed = false;
         try {
             const { SKU_Service } = await import('@gestor/shared/sku-service');
-            stock = await SKU_Service.calculateAvailableStock(articulo_id);
+            stock = await SKU_Service.calculateAvailableStock(resolvedArticuloId);
         } catch (stockErr: any) {
             stockFailed = true;
             // En dry_run permitimos continuar con stock=1 para inspection del trace
@@ -405,8 +541,11 @@ export async function POST(req: NextRequest) {
         trace.paso_4_stock = { ...trace.paso_4_stock, available_quantity: stock, stock_failed: stockFailed };
 
         // -- 5. Predecir o usar categoría --------------------------------------
-        let category_id = category_id_override;
-        let category_info: any = null;
+        // Copia desde vidriera: heredar la categoría de la vidriera origen si no se indicó otra.
+        let category_id = category_id_override || sourceData?.categoria || undefined;
+        let category_info: any = sourceData?.categoria
+            ? { category_id, category_name: '', candidates: [], from_source: true }
+            : null;
 
         if (!category_id) {
             // Si la ficha tiene atributos_categoria con un mapping MeLi, intentar extraer category_id de ahí
@@ -450,7 +589,7 @@ export async function POST(req: NextRequest) {
         // Si la RPC no está aplicada o no devuelve precio, cae a marketplace_prices.
         try {
             const { data: rpcPrice, error: rpcErr } = await supabaseAdmin.rpc('fn_calcular_precio_prepublicacion', {
-                p_articulo_id:     articulo_id,
+                p_articulo_id:     resolvedArticuloId,
                 p_marketplace_id:  marketplace_id,
                 p_category_id:     category_id,
                 p_listing_type_id: listing_type_id,
@@ -473,12 +612,15 @@ export async function POST(req: NextRequest) {
             price = Number(price_override);
             priceSource = 'manual_override';
             trace.paso_5_2_precio_manual = { price, nota: 'Precio fijado manualmente por el operador' };
+        }
 
-        // -- 5.3 Stock manual: el operador puede fijar el stock a publicar ------
+        // -- 5.3 Stock: override manual > copiado de la vidriera origen > inventario --
         if (stock_override != null && Number(stock_override) >= 0) {
             stock = Number(stock_override);
             trace.paso_5_3_stock_manual = { stock, nota: 'Stock fijado manualmente por el operador' };
-        }
+        } else if (stock_override == null && sourceData?.stock != null && Number(sourceData.stock) >= 0) {
+            stock = Number(sourceData.stock);
+            trace.paso_5_3_stock_source = { stock, nota: 'Stock copiado de la vidriera origen' };
         }
 
         // -- 6. Obtener atributos requeridos de la categoría -------------------
@@ -543,6 +685,22 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // Atributos de la vidriera origen (copia): portar como hints, preservando
+        // value_id/value_name. Se filtran atributos de sistema/obsoletos y los ya mapeados.
+        if (sourceData?.attributes && Array.isArray(sourceData.attributes)) {
+            const mappedIdsPreSource = new Set(attributes.map(a => a.id));
+            const SKIP_SOURCE_ATTRS = new Set(['EXCLUSIVE_CHANNEL', 'SELLER_CUSTOM_FIELD', 'SIZE_GRID_ID']);
+            for (const sa of sourceData.attributes) {
+                if (!sa?.id || SKIP_SOURCE_ATTRS.has(sa.id)) continue;
+                if (mappedIdsPreSource.has(sa.id)) continue;
+                const out: any = { id: sa.id };
+                if (sa.value_id != null) out.value_id = String(sa.value_id);
+                if (sa.value_name != null) out.value_name = sa.value_name;
+                attributes.push(out);
+                mappedIdsPreSource.add(sa.id);
+            }
+        }
+
         // Dimensiones del paquete — prioridad ficha, fallback artículo
         const categoryAttrIds = new Set((attrInfo.raw || []).map((a: any) => a.id));
         const sellerPackageOmitidos: string[] = [];
@@ -596,6 +754,7 @@ export async function POST(req: NextRequest) {
             unresolved_attributes:  unresolvedAttrs,
             max_family_name_chars:  isLegacy ? 60 : 50, // legacy: título completo; UP: family_name sin marca/modelo
             legacy:                 isLegacy,
+            rephrase_description:   !!sourceData, // copia adaptada: descripción ligeramente distinta
         });
         // Limpiar family_name generado por AI también
         if (aiResult.family_name) {
@@ -661,6 +820,16 @@ export async function POST(req: NextRequest) {
         trace.paso_8_atributos_aun_faltantes = stillMissing;
 
         // -- 9. Construir el body del POST /items (UP o legacy) -----------------
+        // Imágenes efectivas: si no se enviaron, se heredan de la vidriera origen.
+        const effectivePictures: string[] = pictures.length > 0
+            ? pictures
+            : (sourceData?.pictures?.length ? sourceData.pictures : []);
+
+        // Enlace a catálogo efectivo: si no se indicó, se hereda de una vidriera de catálogo.
+        const effectiveCatalogProductId: string | null = catalog_product_id
+            || (sourceData?.catalog_listing ? sourceData.catalog_product_id : null);
+        const effectiveCatalogListing: boolean = catalog_listing || !!(sourceData?.catalog_listing && sourceData?.catalog_product_id);
+
         // Construir descripción enriquecida con bullets (máx 2000 chars)
         const bulletsText = resolved.bullet_points.length > 0
             ? '\n\n' + resolved.bullet_points.map((b: string) => `• ${b}`).join('\n')
@@ -668,7 +837,7 @@ export async function POST(req: NextRequest) {
         const descripcionCompleta = (
             description_override && description_override.trim()
                 ? description_override
-                : ((resolved.descripcion || '') + bulletsText)
+                : (aiResult.description || ((resolved.descripcion || '') + bulletsText))
         ).slice(0, 50000);
 
         // Título limpio final: override manual > AI > nombre resuelto (truncado ≤60 chars)
@@ -683,13 +852,17 @@ export async function POST(req: NextRequest) {
             [resolved.marca, resolved.modelo, resolved.nombre].filter(Boolean).join(' ')
         ), 60);
 
+        // Garantía: heredar de la vidriera origen si existe, si no el default.
+        const srcWarrantyType = sourceData?.sale_terms?.find((s: any) => s.id === 'WARRANTY_TYPE')?.value_name;
+        const srcWarrantyTime = sourceData?.sale_terms?.find((s: any) => s.id === 'WARRANTY_TIME')?.value_name;
+
         // -- 9. Construir los bodies -------------------------------------------
         // La publicación TRADICIONAL (base) se crea SIEMPRE: título, fotos, atributos, envío, garantía.
         // Si se eligió "usar catálogo", se añade la referencia catalog_product_id (enlace) SIN catalog_listing.
         const tradicionalBody: any = {
             category_id,
             price,
-            currency_id: precio_data?.currency || 'MXN',
+            currency_id: precio_data?.currency || sourceData?.currency || 'MXN',
             available_quantity: Math.max(stock, 1),
             buying_mode: 'buy_it_now',
             listing_type_id,
@@ -700,8 +873,8 @@ export async function POST(req: NextRequest) {
             // legacy exige condition; UP lo deriva del catálogo
             ...(isLegacy ? { condition: 'new' } : {}),
             sale_terms: [
-                { id: 'WARRANTY_TYPE', value_name: 'Garantía del vendedor' },
-                { id: 'WARRANTY_TIME', value_name: '1 mes' },
+                { id: 'WARRANTY_TYPE', value_name: srcWarrantyType || 'Garantía del vendedor' },
+                { id: 'WARRANTY_TIME', value_name: srcWarrantyTime || '1 mes' },
                 // MANUFACTURING_TIME solo si hay días de elaboración (1-60). 0 = omitir.
                 ...(manufacturing_time_days != null
                     && Number(manufacturing_time_days) >= 1
@@ -709,25 +882,25 @@ export async function POST(req: NextRequest) {
                     ? [{ id: 'MANUFACTURING_TIME', value_name: `${Number(manufacturing_time_days)} días` }]
                     : []),
             ],
-            pictures: pictures.map((url: string) => ({ source: url })),
+            pictures: effectivePictures.map((url: string) => ({ source: url })),
             attributes: allAttributes,
             // legacy: MeLi exige title; UP: family_name.
             ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
             // Enlace al producto de catálogo (referencia) si se eligió catálogo
-            ...(catalog_listing && catalog_product_id ? { catalog_product_id } : {}),
+            ...(effectiveCatalogListing && effectiveCatalogProductId ? { catalog_product_id: effectiveCatalogProductId } : {}),
         };
 
         // Publicación de CATÁLOGO (enlazada, solo si se eligió): body mínimo — MeLi aporta la ficha.
-        const catalogBody: any = (catalog_listing && catalog_product_id)
+        const catalogBody: any = (effectiveCatalogListing && effectiveCatalogProductId)
             ? {
                 category_id,
                 price,
-                currency_id: precio_data?.currency || 'MXN',
+                currency_id: precio_data?.currency || sourceData?.currency || 'MXN',
                 available_quantity: Math.max(stock, 1),
                 buying_mode: 'buy_it_now',
                 listing_type_id,
                 condition: 'new',
-                catalog_product_id,
+                catalog_product_id: effectiveCatalogProductId,
                 catalog_listing: true,
               }
             : null;
@@ -747,7 +920,7 @@ export async function POST(req: NextRequest) {
 
         // -- 10. Validaciones DURAS — errores 422 bloqueantes -----------------
         const erroresDuros: string[] = [];
-        if (pictures.length === 0 && !dry_run) erroresDuros.push('Sin imágenes: MeLi rechaza publicaciones sin pictures[]');
+        if (effectivePictures.length === 0 && !dry_run) erroresDuros.push('Sin imágenes: MeLi rechaza publicaciones sin pictures[]');
         // Precio: en dry_run se permite 0 (el operador lo fijará manual); en publish real bloquea.
         if (price === 0 && !dry_run) erroresDuros.push('Precio = 0: fija un precio manual antes de publicar (el artículo no tiene costo ni regla de precio)');
         if (stillMissing.length > 0) {
@@ -844,7 +1017,7 @@ export async function POST(req: NextRequest) {
                 tipo: created.user_product_id ? 'up' : 'tradicional',
                 es_fuente_stock: true,
                 id_padre: null,
-                id_catalogo: (catalog_listing && catalog_product_id) ? catalog_product_id : null,
+                id_catalogo: effectiveCatalogListing ? effectiveCatalogProductId : null,
             },
         ];
         if (createdCatalog) {
@@ -853,7 +1026,7 @@ export async function POST(req: NextRequest) {
                 tipo: 'catalogo',
                 es_fuente_stock: false,
                 id_padre: created.item_id,
-                id_catalogo: catalog_product_id,
+                id_catalogo: effectiveCatalogProductId,
             });
         }
 
@@ -892,8 +1065,11 @@ export async function POST(req: NextRequest) {
                     .from('mapeo_publicacion_articulo')
                     .upsert({
                         publicacion_id:     pubInserted.id,
-                        articulo_id:        articulo_id,
+                        articulo_id:        resolvedArticuloId,
                         cantidad_requerida: 1,
+                        // V71: la copia desde vidriera nace con sincronización de stock apagada
+                        // (su stock es el copiado/editable, no el del inventario interno).
+                        sincronizar_stock:  sourceData ? false : true,
                     }, { onConflict: 'publicacion_id,articulo_id' });
                 if (mapErr) persistErrors.push(`mapeo ${p.item.item_id}: ${mapErr.message}`);
             } else if (pubErr) {
@@ -912,7 +1088,7 @@ export async function POST(req: NextRequest) {
         const { error: artUpdateErr } = await supabaseAdmin
             .from('articulos')
             .update({ publicacion_ml: created.item_id })
-            .eq('articulo_id', articulo_id);
+            .eq('articulo_id', resolvedArticuloId);
         trace.paso_16_articulo_update = artUpdateErr
             ? { error: artUpdateErr.message }
             : { publicacion_ml: created.item_id };

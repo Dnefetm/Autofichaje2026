@@ -61,6 +61,8 @@ export async function POST(req: NextRequest) {
   const publicacion_id = body.publicacion_id as string | undefined;
   const articulo_id = body.articulo_id as string | undefined;
   const cantidad = Number(body.cantidad_requerida || 1);
+  // V71: interruptor general de sincronización de stock por mapeo (default true).
+  const sincronizar_stock = body.sincronizar_stock !== false;
 
   if (!publicacion_id || !articulo_id) {
     return NextResponse.json(
@@ -81,7 +83,7 @@ export async function POST(req: NextRequest) {
   const { error: mapErr } = await supabaseAdmin
     .from('mapeo_publicacion_articulo')
     .upsert(
-      { publicacion_id, articulo_id, cantidad_requerida: cantidad },
+      { publicacion_id, articulo_id, cantidad_requerida: cantidad, sincronizar_stock },
       { onConflict: 'publicacion_id,articulo_id' },
     );
   if (mapErr) {
@@ -99,12 +101,15 @@ export async function POST(req: NextRequest) {
     .eq('id', publicacion_id)
     .eq('sync_disabled_reason', 'pricing_needs_manual_mapping');
 
-  // 4. Encolar recálculo de precio y sync de stock
+  // 4. Encolar recálculo de precio y (si aplica) sync de stock
   const now = new Date().toISOString();
-  await supabaseAdmin.from('jobs').insert([
+  const jobsToInsert: any[] = [
     { type: 'recalc_pricing_bundle', payload: { publicacion_id }, status: 'pending', scheduled_at: now },
-    { type: 'sync_stock_mapped', payload: { publicacion_id }, status: 'pending', scheduled_at: now },
-  ]);
+  ];
+  if (sincronizar_stock) {
+    jobsToInsert.push({ type: 'sync_stock_mapped', payload: { publicacion_id }, status: 'pending', scheduled_at: now });
+  }
+  await supabaseAdmin.from('jobs').insert(jobsToInsert);
 
   // 5. Aprendizaje de alias (best-effort, no bloquea el vínculo)
   await aprenderAlias(publicacion_id, articulo_id);

@@ -38,6 +38,7 @@ export const AutomationManager = {
             .select(`
                 articulo_id,
                 publicacion_id,
+                sincronizar_stock,
                 publicaciones_externas!inner (
                     id, marketplace_id, external_item_id, es_fuente_stock
                 )
@@ -46,8 +47,11 @@ export const AutomationManager = {
 
         if (!mappings || mappings.length === 0) return;
 
-        // Solo encolar sync para publicaciones fuente de stock
-        const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas?.es_fuente_stock === true);
+        // Solo encolar sync para publicaciones fuente de stock y con el mapeo activo (V71)
+        const fuentesStock = mappings.filter((m: any) =>
+            m.sincronizar_stock !== false &&
+            m.publicaciones_externas?.es_fuente_stock === true
+        );
 
         // Deduplicación: no crear jobs para publicaciones que ya tienen uno pending
         const { data: existingJobs } = await supabase
@@ -108,6 +112,7 @@ export const AutomationManager = {
         const { data: mappings } = await supabase
             .from('mapeo_publicacion_articulo')
             .select(`
+                sincronizar_stock,
                 publicaciones_externas!inner (
                     id, marketplace_id, external_item_id, es_fuente_stock, status_externo
                 )
@@ -119,6 +124,8 @@ export const AutomationManager = {
         for (const mapping of mappings) {
             const pub = (mapping as any).publicaciones_externas;
             if (!pub?.es_fuente_stock) continue;
+            // V71: el mapeo con sincronizar_stock=false no dispara acciones de stock.
+            if ((mapping as any).sincronizar_stock === false) continue;
 
             // Evitar encolar si ya está en el estado deseado
             if (action === 'pause' && pub.status_externo === 'paused') continue;

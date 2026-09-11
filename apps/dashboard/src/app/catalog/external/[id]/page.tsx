@@ -6,13 +6,14 @@ import { supabase } from '@/lib/supabase';
 import {
     ArrowLeft, ExternalLink, Link2, Package, Truck, RefreshCw, FileText,
     CheckCircle2, AlertCircle, Tag, BarChart2, ShieldCheck, Zap,
-    Clock, Globe, DollarSign, Pencil, X, Check, Loader2, ToggleLeft, ToggleRight, Layers
+    Clock, Globe, DollarSign, Pencil, X, Check, Loader2, ToggleLeft, ToggleRight, Layers, Copy
 } from 'lucide-react';
 import Link from 'next/link';
 import { use } from 'react';
 import { cn } from '@/lib/utils';
 import MappingModal from '@/components/mapping-modal';
 import PricingAuditCard from './pricing-audit-card';
+import { PublishPanel } from '@/components/publish-panel';
 
 // --- Helpers -----------------------------------------------------------------
 const statusColors: Record<string, string> = {
@@ -278,6 +279,8 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [loading, setLoading] = useState(true);
     const [showMappingModal, setShowMappingModal] = useState(false);
     const [generandoFicha, setGenerandoFicha] = useState(false);
+    // Copiar y publicar en otra cuenta (reutiliza PublishPanel)
+    const [showCopyModal, setShowCopyModal] = useState(false);
     // Fase 3: datos enriquecidos lazy (health actions, costs, visits)
     const [enrichData, setEnrichData] = useState<{ health: any; costs: any; visits: any } | null>(null);
     const [enrichLoading, setEnrichLoading] = useState(false);
@@ -360,6 +363,20 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             toast.error(err.message || 'Error al generar la ficha');
             setGenerandoFicha(false);
         }
+    }
+
+    // V71: alterna la sincronización de stock de un mapeo concreto (vidriera↔catálogo).
+    async function toggleSyncStock(m: any) {
+        const next = m.sincronizar_stock === false;
+        const { error } = await supabase
+            .from('mapeo_publicacion_articulo')
+            .update({ sincronizar_stock: next })
+            .eq('id', m.id);
+        if (error) {
+            toast.error(error.message || 'Error al actualizar sincronización de stock');
+            return;
+        }
+        loadAll(true);
     }
 
     const fmt = (n: number | null) =>
@@ -535,6 +552,13 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             >
                                 <FileText className="w-4 h-4" />
                                 {generandoFicha ? 'Generando…' : 'Generar Ficha'}
+                            </button>
+                            <button
+                                onClick={() => setShowCopyModal(true)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--info)] hover:brightness-110 text-white text-sm font-bold rounded-[var(--radius)] transition-colors"
+                            >
+                                <Copy className="w-4 h-4" />
+                                Copiar a otra cuenta
                             </button>
                         </div>
                     </div>
@@ -953,9 +977,19 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                     <p className="text-[10px] font-mono text-[var(--text-faint)] mt-0.5">{m.articulo?.articulo_id}</p>
                                                     {m.articulo?.marca && <p className="text-[10px] text-[var(--text-faint)]">{m.articulo.marca}</p>}
                                                 </div>
-                                                <span className="shrink-0 text-xs font-bold bg-[var(--accent)]/10 text-[var(--accent)] px-2 py-0.5 rounded-[var(--radius-sm)]">
-                                                    ×{m.cantidad_requerida}
-                                                </span>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <span className="text-xs font-bold bg-[var(--accent)]/10 text-[var(--accent)] px-2 py-0.5 rounded-[var(--radius-sm)]">
+                                                        ×{m.cantidad_requerida}
+                                                    </span>
+                                                    {/* V71: toggle de sincronización de stock por mapeo */}
+                                                    <button
+                                                        onClick={() => toggleSyncStock(m)}
+                                                        title={m.sincronizar_stock === false ? 'Stock no sincronizado (activar)' : 'Stock sincronizado (desactivar)'}
+                                                        className={`relative w-9 h-5 rounded-full transition-colors ${m.sincronizar_stock === false ? 'bg-[var(--border)]' : 'bg-[var(--ok)]'}`}
+                                                    >
+                                                        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-[var(--text)] shadow transition-transform ${m.sincronizar_stock === false ? 'translate-x-0.5' : 'translate-x-[18px]'}`} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -1023,6 +1057,41 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                     onClose={() => setShowMappingModal(false)}
                     onSuccess={() => { setShowMappingModal(false); loadAll(); }}
                 />
+            )}
+
+            {/* Modal: Copiar y publicar en otra cuenta (reutiliza el mecanismo de publicación) */}
+            {showCopyModal && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/60 overflow-y-auto" onClick={() => setShowCopyModal(false)}>
+                    <div className="w-full max-w-3xl my-8" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-5 py-3 bg-[var(--surface)] rounded-t-xl border border-[var(--border)]">
+                            <div className="flex items-center gap-2">
+                                <Copy className="w-4 h-4 text-[var(--info)]" />
+                                <h3 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Copiar y publicar en otra cuenta</h3>
+                            </div>
+                            <button onClick={() => setShowCopyModal(false)} className="p-1 text-[var(--text-faint)] hover:text-[var(--text)] transition-colors" title="Cerrar">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <PublishPanel
+                            articulo_id={mapeos?.[0]?.articulo?.articulo_id || ''}
+                            nombreArticulo={pub?.titulo || ''}
+                            modalMode
+                            imagenesBase={pub?.url_imagen ? [pub.url_imagen] : []}
+                            codigoUniversal={pub?.gtin || pub?.ean || ''}
+                            sourcePublicacion={{
+                                marketplace_id: pub.marketplace_id,
+                                external_item_id: pub.external_item_id,
+                                precio_venta: pub.precio_venta,
+                                stock_publicado: pub.stock_publicado,
+                                listing_type_id: pub.listing_type_id,
+                                category_id: pub.category_id,
+                                free_shipping: !!pub.free_shipping,
+                                id_producto_catalogo: pub.id_producto_catalogo,
+                                tipo_publicacion: pub.tipo_publicacion,
+                            }}
+                        />
+                    </div>
+                </div>
             )}
         </div>
     );

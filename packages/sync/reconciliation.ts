@@ -1,4 +1,4 @@
-﻿import { supabase } from '@gestor/shared/lib/supabase';
+import { supabase } from '@gestor/shared/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import logger from '@gestor/shared/lib/logger';
 
@@ -66,13 +66,18 @@ export async function runReconciliation() {
 
                         const { data: componentes } = await supabase
                             .from('mapeo_publicacion_articulo')
-                            .select('articulo_id, cantidad_requerida')
+                            .select('articulo_id, cantidad_requerida, sincronizar_stock')
                             .eq('publicacion_id', pub.id);
 
                         if (!componentes || componentes.length === 0) continue;
 
+                        // V71: solo los componentes con sincronizar_stock activo alimentan
+                        // el stock local de la publicación. Si todos están apagados, se omite.
+                        const syncOnComponents = componentes.filter((c: any) => c.sincronizar_stock !== false);
+                        if (syncOnComponents.length === 0) continue;
+
                         let localStock = 999999;
-                        for (const comp of componentes) {
+                        for (const comp of syncOnComponents) {
                             const { data: inv } = await supabase
                                 .from('inventory_snapshot')
                                 .select('physical_stock')
