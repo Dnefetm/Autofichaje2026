@@ -87,6 +87,8 @@ const [siblings, setSiblings] = useState<any[]>([]);
 const [siblingsLoading, setSiblingsLoading] = useState(false);
 const [costMap, setCostMap] = useState<Map<string, boolean>>(new Map());
 const [topSugerencia, setTopSugerencia] = useState<any>(null);
+// V71: interruptor general de sincronización de stock para este ensamble (vidriera↔catálogo).
+const [sincronizarStock, setSincronizarStock] = useState(true);
 const pubSku = listing?.seller_custom_field || listing?.seller_sku || '';
 const pubSellerCustomField = listing?.seller_custom_field || '';
 const pubSellerSku = listing?.seller_sku || '';
@@ -133,12 +135,14 @@ const { data, error } = await supabase
 .select(`
 id,
 cantidad_requerida,
+sincronizar_stock,
 articulo_id,
 articulos (nombre, articulo_id, marca, modelo, variante, codigo_universal, caja_madre)
 `)
 .eq('publicacion_id', listing.id);
 if (error) throw error;
 if (data) {
+if (data.some((d: any) => d.sincronizar_stock === false)) setSincronizarStock(false);
 const mapped = data.map((d: any) => ({
 mapping_id: d.id,
 sku: d.articulo_id,
@@ -412,7 +416,7 @@ return;
 }
 const snapshotUpserts = selectedSkus.map(s => ({ sku: s.sku, physical_stock: 0, updated_at: new Date().toISOString() }));
 await supabase.from('inventory_snapshot').upsert(snapshotUpserts, { onConflict: 'sku', ignoreDuplicates: true });
-const inserts = selectedSkus.map(s => ({ publicacion_id: listing.id, articulo_id: s.sku, cantidad_requerida: s.quantity }));
+const inserts = selectedSkus.map(s => ({ publicacion_id: listing.id, articulo_id: s.sku, cantidad_requerida: s.quantity, sincronizar_stock: sincronizarStock }));
 const { error: insError } = await supabase.from('mapeo_publicacion_articulo').insert(inserts);
 if (insError) throw insError;
 await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', listing.id);
@@ -427,11 +431,13 @@ payload: { publicacion_id: listing.id },
 status: 'pending',
 scheduled_at: new Date().toISOString(),
 });
+if (sincronizarStock) {
 await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: listing.id }, status: 'pending', scheduled_at: new Date().toISOString() });
+}
 const propagableSimlings = siblings.filter(s => s.id !== listing.id);
 for (const sib of propagableSimlings) {
 await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', sib.id);
-const sibInserts = selectedSkus.map(s => ({ publicacion_id: sib.id, articulo_id: s.sku, cantidad_requerida: s.quantity }));
+const sibInserts = selectedSkus.map(s => ({ publicacion_id: sib.id, articulo_id: s.sku, cantidad_requerida: s.quantity, sincronizar_stock: sincronizarStock }));
 await supabase.from('mapeo_publicacion_articulo').insert(sibInserts);
 await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', sib.id);
 await supabase
@@ -445,7 +451,9 @@ payload: { publicacion_id: sib.id },
 status: 'pending',
 scheduled_at: new Date().toISOString(),
 });
+if (sincronizarStock) {
 await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: sib.id }, status: 'pending', scheduled_at: new Date().toISOString() });
+}
 }
 // El worker se dispara sin bloquear el cierre del modal.
 dispatchWorker();
@@ -738,6 +746,18 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
 
                 {/* Footer del Modal */}
                 <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-20">
+                    <label className="flex items-center gap-2.5 mr-auto cursor-pointer select-none" title="Si está apagado, este mapeo no alimenta ni recibe stock desde el inventario">
+                        <span className="text-xs font-semibold text-[var(--text-muted)]">Sincronizar stock</span>
+                        <button
+                            type="button"
+                            role="switch"
+                            aria-checked={sincronizarStock}
+                            onClick={() => setSincronizarStock(v => !v)}
+                            className={`relative w-11 h-6 rounded-full transition-colors ${sincronizarStock ? 'bg-[var(--ok)]' : 'bg-[var(--border)]'}`}
+                        >
+                            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-[var(--text)] shadow transition-transform ${sincronizarStock ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                        </button>
+                    </label>
                     <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-[var(--text-muted)] bg-[var(--surface-2)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)]/80 hover:text-[var(--text)] transition-colors">
                         Cancelar
                     </button>

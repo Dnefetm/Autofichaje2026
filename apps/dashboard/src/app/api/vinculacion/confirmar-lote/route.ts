@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
     publicacion_id: string;
     articulo_id: string;
     cantidad_requerida?: number;
+    sincronizar_stock?: boolean;
   }[];
 
   if (!Array.isArray(vinculos) || vinculos.length === 0) {
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString();
   const ids = vinculos.map((v) => v.publicacion_id);
 
-  // 1. Upsert de mapeos (cantidad por vínculo, 1 por defecto)
+  // 1. Upsert de mapeos (cantidad por vínculo, 1 por defecto; sincronizar_stock default true)
   const { error: mapErr } = await supabaseAdmin
     .from('mapeo_publicacion_articulo')
     .upsert(
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
         publicacion_id: v.publicacion_id,
         articulo_id: v.articulo_id,
         cantidad_requerida: Number.isFinite(v.cantidad_requerida) && v.cantidad_requerida! >= 1 ? v.cantidad_requerida : 1,
+        sincronizar_stock: v.sincronizar_stock !== false,
       })),
       { onConflict: 'publicacion_id,articulo_id' }
     );
@@ -48,19 +50,22 @@ export async function POST(req: NextRequest) {
     .update({ esta_mapeado: true, actualizado_el: now })
     .in('id', ids);
 
-  // 3. Encolar recálculo de precio + sync de stock
+  // 3. Encolar recálculo de precio + sync de stock (solo si sincronizar_stock activo)
   await supabaseAdmin.from('jobs').insert(
     vinculos.flatMap((v) => [
       { type: 'recalc_pricing_bundle', payload: { publicacion_id: v.publicacion_id }, status: 'pending', scheduled_at: now },
-      { type: 'sync_stock_mapped', payload: { publicacion_id: v.publicacion_id }, status: 'pending', scheduled_at: now },
+      ...(v.sincronizar_stock !== false
+        ? [{ type: 'sync_stock_mapped', payload: { publicacion_id: v.publicacion_id }, status: 'pending', scheduled_at: now }]
+        : []),
     ])
   );
 
   // 4. Propagación automática a publicaciones relacionadas
   const artPorPub = new Map(vinculos.map((v) => [v.publicacion_id, v.articulo_id]));
   const cantPorPub = new Map(vinculos.map((v) => [v.publicacion_id, Number.isFinite(v.cantidad_requerida) && v.cantidad_requerida! >= 1 ? v.cantidad_requerida : 1]));
+  const sincPorPub = new Map(vinculos.map((v) => [v.publicacion_id, v.sincronizar_stock !== false]));
   const yaVinculadas = new Set(ids);
-  const propagaciones: { publicacion_id: string; articulo_id: string; cantidad_requerida: number }[] = [];
+  const propagaciones: { publicacion_id: string; articulo_id: string; cantidad_requerida: number; sincronizar_stock: boolean }[] = [];
 
   const { data: pubs } = await supabaseAdmin
     .from('publicaciones_externas')
@@ -73,6 +78,7 @@ export async function POST(req: NextRequest) {
     const art = artPorPub.get(p.id);
     if (!art) continue;
     const cantidad = cantPorPub.get(p.id) ?? 1;
+    const sincronizar = sincPorPub.get(p.id) ?? true;
 
     const { data: hermanas } = await supabaseAdmin
       .from('publicaciones_externas')
@@ -85,7 +91,7 @@ export async function POST(req: NextRequest) {
     for (const h of hermanas || []) {
       if (yaVinculadas.has(h.id)) continue;
       yaVinculadas.add(h.id);
-      propagaciones.push({ publicacion_id: h.id, articulo_id: art, cantidad_requerida: cantidad });
+      propagaciones.push({ publicacion_id: h.id, articulo_id: art, cantidad_requerida: cantidad, sincronizar_stock: sincronizar });
     }
   }
 
@@ -101,7 +107,9 @@ export async function POST(req: NextRequest) {
     await supabaseAdmin.from('jobs').insert(
       propagaciones.flatMap((x) => [
         { type: 'recalc_pricing_bundle', payload: { publicacion_id: x.publicacion_id }, status: 'pending', scheduled_at: now },
-        { type: 'sync_stock_mapped', payload: { publicacion_id: x.publicacion_id }, status: 'pending', scheduled_at: now },
+        ...(x.sincronizar_stock !== false
+          ? [{ type: 'sync_stock_mapped', payload: { publicacion_id: x.publicacion_id }, status: 'pending', scheduled_at: now }]
+          : []),
       ])
     );
     propagados = propagaciones.length;

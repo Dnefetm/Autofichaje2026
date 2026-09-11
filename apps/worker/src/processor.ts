@@ -160,6 +160,7 @@ async function handleSyncStock(job: any) {
         .select(`
             publicacion_id,
             cantidad_requerida,
+            sincronizar_stock,
             publicaciones_externas!inner (
                 id,
                 marketplace_id,
@@ -175,10 +176,12 @@ async function handleSyncStock(job: any) {
         return;
     }
 
-    // Filtrar solo publicaciones que son fuente de stock y pertenecen al marketplace solicitado
+    // Filtrar solo publicaciones que pertenecen al marketplace solicitado y cuyo
+    // mapeo tiene la sincronización de stock ACTIVA (V71: sincronizar_stock).
     const fuentesStock = mappings.filter((m: any) => {
         const pub = m.publicaciones_externas;
-        return pub && // V30: sin filtro es_fuente_stock
+        return pub &&
+            m.sincronizar_stock !== false &&
             (!marketplace_id || pub?.marketplace_id === marketplace_id);
     });
 
@@ -204,21 +207,24 @@ async function handleSyncStock(job: any) {
                 continue;
             }
 
-        // Traer TODOS los componentes de esta publicación para calcular stock de kit
+        // Traer TODOS los componentes de esta publicación para calcular stock de kit.
+        // V71: solo los componentes con sincronizar_stock activo alimentan el cálculo.
         const { data: allComponents } = await supabase
             .from('mapeo_publicacion_articulo')
-            .select('articulo_id, cantidad_requerida')
+            .select('articulo_id, cantidad_requerida, sincronizar_stock')
             .eq('publicacion_id', pubId);
 
+        const syncOnComponents = (allComponents || []).filter((c: any) => c.sincronizar_stock !== false);
+        if (syncOnComponents.length === 0) {
+            logger.info({ sku, pubId }, 'Publicación sin componentes con sincronizar_stock activo. Omitiendo sync de stock.');
+            continue;
+        }
+
         let maxKits = 999999;
-        if (allComponents && allComponents.length > 0) {
-            for (const comp of allComponents) {
-                const compStock = await SKU_Service.calculateAvailableStock(comp.articulo_id);
-                const reachableKits = Math.floor(compStock / comp.cantidad_requerida);
-                if (reachableKits < maxKits) maxKits = reachableKits;
-            }
-        } else {
-            maxKits = availableStock;
+        for (const comp of syncOnComponents) {
+            const compStock = await SKU_Service.calculateAvailableStock(comp.articulo_id);
+            const reachableKits = Math.floor(compStock / comp.cantidad_requerida);
+            if (reachableKits < maxKits) maxKits = reachableKits;
         }
 
         const results = await meliAdapter.updateStock(pub?.marketplace_id, [
@@ -421,36 +427,38 @@ async function handleSyncStockMapped(job: any) {
     }
 
 
-    if (false && !pub?.es_fuente_stock) { // V30: desactivado — si está mapeada, se sincroniza
-        logger.info({ publicacion_id, tipo: pub?.tipo_publicacion }, 'Publicación no es fuente de stock (espejo/derivada). Omitiendo sync.');
-        return;
-    }
+    // V71: el control de stock por mapeo ahora vive en mapeo_publicacion_articulo.sincronizar_stock
+    // (ver filtro de componentes más abajo). No se usa es_fuente_stock para omitir aquí.
 
-    // 2. Traer ensamble y snapshot físico
+    // 2. Traer ensamble y snapshot físico (solo componentes con sincronizar_stock activo)
     const { data: mappings, error: mapErr } = await supabase
         .from('mapeo_publicacion_articulo')
-        .select('cantidad_requerida, articulo_id')
+        .select('cantidad_requerida, articulo_id, sincronizar_stock')
         .eq('publicacion_id', publicacion_id);
 
     if (mapErr) throw new Error(`Error obteniendo ensamble: ${mapErr.message}`);
 
+    const syncOnMappings = (mappings || []).filter((m: any) => m.sincronizar_stock !== false);
+    if (syncOnMappings.length === 0) {
+        logger.info({ publicacion_id }, 'Todos los mapeos tienen sincronizar_stock=false. Omitiendo sync de stock.');
+        return;
+    }
+
     let maxKits = 0;
 
-    if (mappings && mappings.length > 0) {
-        maxKits = 999999;
-        for (const map of mappings) {
-            const sku = map.articulo_id;
-            const qtyNeeded = map.cantidad_requerida;
+    maxKits = 999999;
+    for (const map of syncOnMappings) {
+        const sku = map.articulo_id;
+        const qtyNeeded = map.cantidad_requerida;
 
-            if (!sku) continue;
+        if (!sku) continue;
 
-            // Usamos calculateAvailableStock (physical + dropship - reserved)
-            const availableStock = await SKU_Service.calculateAvailableStock(sku);
-            const reachableKits = Math.floor(availableStock / qtyNeeded);
+        // Usamos calculateAvailableStock (physical + dropship - reserved)
+        const availableStock = await SKU_Service.calculateAvailableStock(sku);
+        const reachableKits = Math.floor(availableStock / qtyNeeded);
 
-            if (reachableKits < maxKits) {
-                maxKits = reachableKits;
-            }
+        if (reachableKits < maxKits) {
+            maxKits = reachableKits;
         }
     }
 

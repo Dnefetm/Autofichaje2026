@@ -333,12 +333,13 @@ const { data: mappings } = await supabaseAdmin
 .select(`
 publicacion_id,
 cantidad_requerida,
+sincronizar_stock,
 publicaciones_externas!inner (id, marketplace_id, external_item_id, es_fuente_stock, status_externo, sync_disabled, logistic_type)
 `)
 .eq('articulo_id', sku);
 if (!mappings || mappings.length === 0) return;
 
-const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas);
+const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas && m.sincronizar_stock !== false);
 if (fuentesStock.length === 0) return;
 
 const failedVitrinas: string[] = [];
@@ -352,13 +353,16 @@ if (pub.logistic_type === 'fulfillment') { successCount++; continue; }
 
 const { data: allComponents } = await supabaseAdmin
 .from('mapeo_publicacion_articulo')
-.select('articulo_id, cantidad_requerida')
+.select('articulo_id, cantidad_requerida, sincronizar_stock')
 .eq('publicacion_id', pub.id);
 
+const syncOnComponents = (allComponents || []).filter((c: any) => c.sincronizar_stock !== false);
+if (syncOnComponents.length === 0) { successCount++; continue; }
+
 let maxKits = availableStock;
-if (allComponents && allComponents.length > 0) {
+if (syncOnComponents.length > 0) {
 maxKits = 999999;
-for (const comp of allComponents) {
+for (const comp of syncOnComponents) {
 const compStock = await SKU_Service.calculateAvailableStock(comp.articulo_id);
 maxKits = Math.min(maxKits, Math.floor(compStock / comp.cantidad_requerida));
 }
@@ -435,12 +439,18 @@ return; // no se pudo verificar; conservador: no pisar stock Full
 
 const { data: components } = await supabaseAdmin
 .from('mapeo_publicacion_articulo')
-.select('articulo_id, cantidad_requerida')
+.select('articulo_id, cantidad_requerida, sincronizar_stock')
 .eq('publicacion_id', publicacion_id);
 if (!components || components.length === 0) return;
 
+const syncOnComponents = components.filter((c: any) => c.sincronizar_stock !== false);
+if (syncOnComponents.length === 0) {
+logger.info({ publicacion_id }, 'Todos los mapeos tienen sincronizar_stock=false. Omitiendo sync de stock.');
+return;
+}
+
 let maxKits = 999999;
-for (const comp of components) {
+for (const comp of syncOnComponents) {
 const compStock = await SKU_Service.calculateAvailableStock(comp.articulo_id);
 maxKits = Math.min(maxKits, Math.floor(compStock / comp.cantidad_requerida));
 }
