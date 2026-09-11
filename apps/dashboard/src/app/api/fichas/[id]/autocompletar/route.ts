@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -24,8 +23,6 @@ export const maxDuration = 30;
  * - indicaciones_almacenamiento
  * - palabras_clave (array)
  */
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 function getSupabaseAdmin() {
     return createClient(
@@ -129,6 +126,8 @@ Responde SOLO con un objeto JSON con los campos encontrados. Ejemplo:
 
     let sugerencias: Record<string, any> = {};
     try {
+        const { default: OpenAI } = await import('openai');
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
         const completion = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
             messages: [{ role: 'user', content: prompt }],

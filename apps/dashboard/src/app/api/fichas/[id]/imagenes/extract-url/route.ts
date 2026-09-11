@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as cheerio from 'cheerio';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -49,6 +48,7 @@ html = await resp.text();
 return NextResponse.json({ ok: false, error: `No se pudo acceder a la URL: ${err.message}` }, { status: 400 });
 }
 
+const cheerio = await import('cheerio');
 const $ = cheerio.load(html);
 const BASE = new URL(url);
 const resolveUrl = (src: string) => {
