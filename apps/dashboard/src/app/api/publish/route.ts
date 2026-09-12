@@ -1025,7 +1025,6 @@ export async function POST(req: NextRequest) {
             es_fuente_stock: boolean;
             id_padre: string | null;
             id_catalogo: string | null;
-            par_item_id: string | null;
         }> = [
             {
                 item: created,
@@ -1033,8 +1032,6 @@ export async function POST(req: NextRequest) {
                 es_fuente_stock: true,
                 id_padre: null,
                 id_catalogo: effectiveCatalogListing ? effectiveCatalogProductId : null,
-                // Enlaza la tradicional con su catálogo asociado (ambos sentidos).
-                par_item_id: createdCatalog ? createdCatalog.item_id : null,
             },
         ];
         if (createdCatalog) {
@@ -1044,7 +1041,6 @@ export async function POST(req: NextRequest) {
                 es_fuente_stock: false,
                 id_padre: created.item_id,
                 id_catalogo: effectiveCatalogProductId,
-                par_item_id: created.item_id,
             });
         }
 
@@ -1067,7 +1063,6 @@ export async function POST(req: NextRequest) {
                     tipo_publicacion:      p.tipo,
                     id_publicacion_padre:  p.id_padre,
                     id_producto_catalogo:  p.id_catalogo,
-                    par_item_id:           p.par_item_id,
                     es_fuente_stock:       p.es_fuente_stock,
                     free_shipping:         !!free_shipping,
                     shipping_mode:         shipping_mode,
@@ -1102,6 +1097,32 @@ export async function POST(req: NextRequest) {
             persistidas: persistedIds.length,
             errores:     persistErrors,
         };
+
+        // -- 14b. Vincular tradicional ↔ catálogo de inmediato -----------------
+        // El RPC recalcular_par_item_id solo empareja tipo 'tradicional' (NO 'up'),
+        // y el sync reclasifica 'up'→'tradicional' recién en el próximo sync. Por eso
+        // fijamos par_item_id directamente (funciona para 'up' y 'tradicional') y
+        // luego corremos los RPC de conteo (indiferentes al tipo).
+        try {
+            const newItemIds = [created.item_id, ...(createdCatalog ? [createdCatalog.item_id] : [])];
+            if (createdCatalog) {
+                await supabaseAdmin.from('publicaciones_externas')
+                    .update({ par_item_id: createdCatalog.item_id })
+                    .eq('marketplace_id', marketplace_id)
+                    .eq('external_item_id', created.item_id)
+                    .eq('external_variation_id', '0');
+                await supabaseAdmin.from('publicaciones_externas')
+                    .update({ par_item_id: created.item_id })
+                    .eq('marketplace_id', marketplace_id)
+                    .eq('external_item_id', createdCatalog.item_id)
+                    .eq('external_variation_id', '0');
+            }
+            await supabaseAdmin.rpc('recalcular_catalog_count', { p_account_id: marketplace_id, p_item_ids: newItemIds });
+            await supabaseAdmin.rpc('recalcular_associated_count', { p_account_id: marketplace_id, p_item_ids: newItemIds });
+            trace.paso_14_link = { ok: true, item_ids: newItemIds };
+        } catch (e: any) {
+            trace.paso_14_link = { error: e.message };
+        }
 
         // -- 16. Actualizar articulos.publicacion_ml con la TRADICIONAL ---------
         const { error: artUpdateErr } = await supabaseAdmin

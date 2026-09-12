@@ -1251,6 +1251,29 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
+     * updateItem — Actualiza un item existente en MeLi.
+     * PUT /items/{item_id} con el body de campos a modificar (title/family_name,
+     * attributes, dimensions de envío, pictures, etc.).
+     * Usado por "mejorar publicación existente".
+     */
+    async updateItem(accountId: string, itemId: string, body: any): Promise<any> {
+        const accessToken = await this.getAccessToken(accountId);
+        try {
+            const resp = await axios.put(
+                `https://api.mercadolibre.com/items/${itemId}`,
+                body,
+                { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+            );
+            logger.info({ accountId, itemId, status: resp.data?.status }, 'updateItem completado');
+            return resp.data;
+        } catch (err: any) {
+            const meliError = err.response?.data;
+            logger.error({ accountId, itemId, meliError, statusCode: err.response?.status }, 'updateItem: MeLi rechazó el PUT /items');
+            throw new Error(`MeLi PUT /items/${itemId} falló [${err.response?.status}]: ${JSON.stringify(meliError)}`);
+        }
+    }
+
+    /**
      * getDescription — Devuelve la descripción en texto plano de un item.
      * GET /items/{item_id}/description
      */

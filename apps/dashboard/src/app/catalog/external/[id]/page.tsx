@@ -77,6 +77,19 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
     );
 }
 
+function DiffRow({ label, antes, despues, truncate = false }: { label: string; antes: string; despues: string; truncate?: boolean }) {
+    const changed = (antes || '') !== (despues || '');
+    const show = (s: string) => (truncate && s.length > 120 ? s.slice(0, 120) + '…' : s);
+    return (
+        <div className="p-3 bg-[var(--surface-2)] rounded border border-[var(--border)]">
+            <p className="text-[10px] font-bold uppercase text-[var(--text-faint)] mb-1">{label}</p>
+            <p className="text-xs text-[var(--err)] line-through whitespace-pre-wrap">{show(antes || '—')}</p>
+            <p className="text-xs text-[var(--ok)] font-semibold whitespace-pre-wrap">{show(despues || '—')}</p>
+            {!changed && <p className="text-[10px] text-[var(--text-faint)] mt-0.5">Sin cambios</p>}
+        </div>
+    );
+}
+
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
     return (
         <div className="bg-[var(--surface)] rounded-[var(--radius)] border-b border-[var(--border)]  overflow-hidden">
@@ -281,6 +294,10 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [generandoFicha, setGenerandoFicha] = useState(false);
     // Copiar y publicar en otra cuenta (reutiliza PublishPanel)
     const [showCopyModal, setShowCopyModal] = useState(false);
+    // Mejorar publicación existente
+    const [showImproveModal, setShowImproveModal] = useState(false);
+    const [improveLoading, setImproveLoading] = useState(false);
+    const [improveData, setImproveData] = useState<any>(null);
     // Fase 3: datos enriquecidos lazy (health actions, costs, visits)
     const [enrichData, setEnrichData] = useState<{ health: any; costs: any; visits: any } | null>(null);
     const [enrichLoading, setEnrichLoading] = useState(false);
@@ -377,6 +394,27 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             return;
         }
         loadAll(true);
+    }
+
+    // Mejorar publicación existente (dry_run muestra diff; dry_run=false aplica)
+    async function mejorarPublicacion(dryRun: boolean) {
+        setImproveLoading(true);
+        setImproveData(null);
+        try {
+            const res = await fetch(`/api/catalog/external/${id}/improve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dry_run: dryRun }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Error al mejorar');
+            setImproveData(data);
+            if (!dryRun) { loadAll(true); toast.success('Mejoras aplicadas'); }
+        } catch (err: any) {
+            toast.error(err.message || 'Error al mejorar la publicación');
+        } finally {
+            setImproveLoading(false);
+        }
     }
 
     const fmt = (n: number | null) =>
@@ -559,6 +597,14 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             >
                                 <Copy className="w-4 h-4" />
                                 Copiar a otra cuenta
+                            </button>
+                            <button
+                                onClick={() => { setImproveData(null); setShowImproveModal(true); mejorarPublicacion(true); }}
+                                disabled={improveLoading}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text)] text-sm font-bold rounded-[var(--radius)] transition-colors disabled:opacity-50"
+                            >
+                                <Zap className="w-4 h-4 text-[var(--warn)]" />
+                                Mejorar publicación
                             </button>
                         </div>
                     </div>
@@ -1094,6 +1140,71 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 gtin: pub.gtin || pub.ean,
                             }}
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Mejorar publicación existente */}
+            {showImproveModal && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/60 overflow-y-auto" onClick={() => setShowImproveModal(false)}>
+                    <div className="w-full max-w-2xl my-8" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-5 py-3 bg-[var(--surface)] rounded-t-xl border border-[var(--border)]">
+                            <div className="flex items-center gap-2">
+                                <Zap className="w-4 h-4 text-[var(--warn)]" />
+                                <h3 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Mejorar publicación</h3>
+                            </div>
+                            <button onClick={() => setShowImproveModal(false)} className="p-1 text-[var(--text-faint)] hover:text-[var(--text)] transition-colors" title="Cerrar">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4 bg-[var(--surface)] rounded-b-xl border border-t-0 border-[var(--border)]">
+                            {improveLoading ? (
+                                <div className="flex items-center justify-center py-10">
+                                    <RefreshCw className="w-6 h-6 animate-spin text-[var(--accent)]" />
+                                </div>
+                            ) : improveData?.dry_run ? (
+                                <>
+                                    <p className="text-xs text-[var(--text-muted)]">
+                                        {improveData.tiene_ficha ? 'Comparando el ítem actual contra la ficha técnica y regenerando con IA.' : 'Sin ficha técnica: solo se regeneran título y descripción con IA.'}
+                                    </p>
+                                    <div className="space-y-2">
+                                        <DiffRow label="Título" antes={improveData.diff?.titulo?.antes} despues={improveData.diff?.titulo?.despues} />
+                                        <DiffRow label="Descripción" antes={improveData.diff?.descripcion?.antes} despues={improveData.diff?.descripcion?.despues} truncate />
+                                    </div>
+                                    {(improveData.diff?.atributos?.length > 0) && (
+                                        <div className="p-3 bg-[var(--surface-2)] rounded border border-[var(--border)] space-y-1.5">
+                                            <p className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Atributos a mejorar</p>
+                                            {improveData.diff.atributos.map((a: any) => (
+                                                <div key={a.id} className="flex items-center gap-2 text-xs">
+                                                    <span className="font-mono text-[var(--text-muted)]">{a.id}:</span>
+                                                    <span className="text-[var(--err)] line-through">{a.antes || '—'}</span>
+                                                    <span>→</span>
+                                                    <span className="text-[var(--ok)] font-semibold">{a.despues}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <div className="flex items-center justify-end gap-2 pt-1">
+                                        <button onClick={() => setShowImproveModal(false)} className="px-3 py-2 text-xs font-bold text-[var(--text-muted)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)]">Cancelar</button>
+                                        <button onClick={() => mejorarPublicacion(false)} disabled={improveLoading} className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:opacity-90 disabled:opacity-50">
+                                            <Zap className="w-3.5 h-3.5" /> Aplicar mejoras
+                                        </button>
+                                    </div>
+                                </>
+                            ) : improveData ? (
+                                <div className="flex items-start gap-2 p-3 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded">
+                                    <CheckCircle2 className="w-4 h-4 text-[var(--ok)] mt-0.5" />
+                                    <div className="text-sm text-[var(--ok)]">
+                                        <p className="font-bold">Mejoras aplicadas.</p>
+                                        {improveData.permalink && (
+                                            <a href={improveData.permalink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline mt-1">
+                                                Ver en Mercado Libre <ExternalLink className="w-3 h-3" />
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : null}
+                        </div>
                     </div>
                 </div>
             )}
