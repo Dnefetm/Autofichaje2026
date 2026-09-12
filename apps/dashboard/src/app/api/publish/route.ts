@@ -156,6 +156,16 @@ export async function POST(req: NextRequest) {
                 const attrVal = (id: string) =>
                     sourceItem.attributes?.find((a: any) => a.id === id)?.value_name ?? null;
                 const dims = sourceItem.shipping?.dimensions || null;
+                // Las dimensiones de paquete en MeLi suelen vivir en los atributos
+                // SELLER_PACKAGE_* ("10 cm", "500 g"), no siempre en shipping.dimensions.
+                const parseNum = (s: any) => {
+                    const m = s == null ? null : String(s).match(/-?\d+(\.\d+)?/);
+                    return m ? Number(m[0]) : null;
+                };
+                const pkgWeightG  = parseNum(attrVal('SELLER_PACKAGE_WEIGHT'));
+                const pkgLengthCm = parseNum(attrVal('SELLER_PACKAGE_LENGTH'));
+                const pkgWidthCm  = parseNum(attrVal('SELLER_PACKAGE_WIDTH'));
+                const pkgHeightCm = parseNum(attrVal('SELLER_PACKAGE_HEIGHT'));
 
                 sourceData = {
                     nombre:             sourceItem.family_name || sourceItem.title || '',
@@ -165,10 +175,10 @@ export async function POST(req: NextRequest) {
                     variante:           attrVal('COLOR'),
                     codigo_universal:   attrVal('GTIN') || attrVal('EAN') || attrVal('UPC'),
                     categoria:          sourceItem.category_id ?? null,
-                    peso_kg:            dims?.weight != null ? Number(dims.weight) / 1000 : null,
-                    largo_cm:           dims?.length ?? null,
-                    ancho_cm:           dims?.width ?? null,
-                    alto_cm:            dims?.height ?? null,
+                    peso_kg:            dims?.weight != null ? Number(dims.weight) / 1000 : (pkgWeightG != null ? pkgWeightG / 1000 : null),
+                    largo_cm:           dims?.length ?? pkgLengthCm,
+                    ancho_cm:           dims?.width ?? pkgWidthCm,
+                    alto_cm:            dims?.height ?? pkgHeightCm,
                     pictures:           (sourceItem.pictures || []).map((p: any) => p.secure_url || p.url).filter(Boolean),
                     price:              sourceItem.price ?? null,
                     currency:           sourceItem.currency_id ?? null,
@@ -689,7 +699,10 @@ export async function POST(req: NextRequest) {
         // value_id/value_name. Se filtran atributos de sistema/obsoletos y los ya mapeados.
         if (sourceData?.attributes && Array.isArray(sourceData.attributes)) {
             const mappedIdsPreSource = new Set(attributes.map(a => a.id));
-            const SKIP_SOURCE_ATTRS = new Set(['EXCLUSIVE_CHANNEL', 'SELLER_CUSTOM_FIELD', 'SIZE_GRID_ID']);
+            // SELLER_PACKAGE_* se omiten aquí: se re-construyen desde las dimensiones
+            // resueltas (maybePushPackage) para evitar duplicados y unidades incorrectas.
+            const SKIP_SOURCE_ATTRS = new Set(['EXCLUSIVE_CHANNEL', 'SELLER_CUSTOM_FIELD', 'SIZE_GRID_ID',
+                'SELLER_PACKAGE_HEIGHT', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WEIGHT']);
             for (const sa of sourceData.attributes) {
                 if (!sa?.id || SKIP_SOURCE_ATTRS.has(sa.id)) continue;
                 if (mappedIdsPreSource.has(sa.id)) continue;
@@ -755,7 +768,7 @@ export async function POST(req: NextRequest) {
             max_family_name_chars:  isLegacy ? 60 : 50, // legacy: título completo; UP: family_name sin marca/modelo
             legacy:                 isLegacy,
             rephrase_description:   !!sourceData, // copia adaptada: descripción ligeramente distinta
-        });
+        }, { marketplace_id, categoria: category_id });
         // Limpiar family_name generado por AI también
         if (aiResult.family_name) {
             aiResult.family_name = truncarTitulo(limpiarTitulo(aiResult.family_name), 50);
@@ -787,6 +800,7 @@ export async function POST(req: NextRequest) {
             family_name:      aiResult.family_name,
             family_name_origen: aiResult.ai_used ? 'gpt-4o-mini' : 'fallback_nombre_truncado',
             tokens_used:      aiResult.tokens_used,
+            profiles:         aiResult.profiles ?? null,
             attrs_resueltos:  validatedAIAttrs,
             attrs_descartados_invalidos: invalidAIAttrs,
             ...((!aiResult.ai_used) ? { advertencia_family_name: 'AI no disponible — family_name puede contener marca/modelo. Verificar antes de publicar.' } : {}),
@@ -1011,6 +1025,7 @@ export async function POST(req: NextRequest) {
             es_fuente_stock: boolean;
             id_padre: string | null;
             id_catalogo: string | null;
+            par_item_id: string | null;
         }> = [
             {
                 item: created,
@@ -1018,6 +1033,8 @@ export async function POST(req: NextRequest) {
                 es_fuente_stock: true,
                 id_padre: null,
                 id_catalogo: effectiveCatalogListing ? effectiveCatalogProductId : null,
+                // Enlaza la tradicional con su catálogo asociado (ambos sentidos).
+                par_item_id: createdCatalog ? createdCatalog.item_id : null,
             },
         ];
         if (createdCatalog) {
@@ -1027,6 +1044,7 @@ export async function POST(req: NextRequest) {
                 es_fuente_stock: false,
                 id_padre: created.item_id,
                 id_catalogo: effectiveCatalogProductId,
+                par_item_id: created.item_id,
             });
         }
 
@@ -1049,6 +1067,7 @@ export async function POST(req: NextRequest) {
                     tipo_publicacion:      p.tipo,
                     id_publicacion_padre:  p.id_padre,
                     id_producto_catalogo:  p.id_catalogo,
+                    par_item_id:           p.par_item_id,
                     es_fuente_stock:       p.es_fuente_stock,
                     free_shipping:         !!free_shipping,
                     shipping_mode:         shipping_mode,

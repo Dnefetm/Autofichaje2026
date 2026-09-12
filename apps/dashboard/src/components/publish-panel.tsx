@@ -49,6 +49,10 @@ export interface SourcePublicacion {
     free_shipping?: boolean;
     id_producto_catalogo?: string | null;
     tipo_publicacion?: string | null;
+    marca?: string | null;
+    modelo?: string | null;
+    sku?: string | null;
+    gtin?: string | null;
 }
 
 interface PublishPanelProps {
@@ -195,6 +199,13 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const [priceOverride, setPriceOverride] = useState<string>('');
     const [stockOverride, setStockOverride] = useState<string>('');
     const [descriptionOverride, setDescriptionOverride] = useState<string>('');
+    // Identificación editable (marca/modelo/SKU/GTIN). Vacío = usar el valor resuelto por el backend.
+    const [marcaOverride, setMarcaOverride] = useState<string>('');
+    const [modeloOverride, setModeloOverride] = useState<string>('');
+    const [skuOverride, setSkuOverride] = useState<string>('');
+    const [gtinOverride, setGtinOverride] = useState<string>('');
+    // Perfil(es) activo(s) de "voz de marca" para mostrar transparencia.
+    const [activeProfiles, setActiveProfiles] = useState<{ title?: string; description?: string }>({});
     const [freeShipping, setFreeShipping] = useState(false);
     const [shippingMode, setShippingMode] = useState('me2');
     const [manufacturingDays, setManufacturingDays] = useState<string>('');
@@ -238,6 +249,18 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             });
     }, []);
 
+    // Perfiles de "voz de marca" activos (transparencia).
+    useEffect(() => {
+        fetch('/api/prompt-profiles')
+            .then(r => r.json())
+            .then(data => {
+                if (!data?.ok) return;
+                const def = (scope: string) => (data.profiles || []).find((p: any) => p.scope === scope && p.is_default)?.name;
+                setActiveProfiles({ title: def('title'), description: def('description') });
+            })
+            .catch(() => { /* silencioso */ });
+    }, []);
+
     // Pre-rellenar con datos de la vidriera origen (copia entre cuentas).
     // Precio, stock, tipo de publicación, categoría y envío quedan copiados y editables.
     useEffect(() => {
@@ -255,6 +278,11 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             setCatalogProductId(sourcePublicacion.id_producto_catalogo);
             setCatalogListing(true);
         }
+        // Identificación editable (pre-rellenada con lo extraído de la vidriera origen).
+        if (sourcePublicacion.marca) setMarcaOverride(sourcePublicacion.marca);
+        if (sourcePublicacion.modelo) setModeloOverride(sourcePublicacion.modelo);
+        if (sourcePublicacion.sku) setSkuOverride(sourcePublicacion.sku);
+        if (sourcePublicacion.gtin) setGtinOverride(sourcePublicacion.gtin);
         // Cargar las fotos completas de la vidriera origen para que sean visibles y editables.
         fetch(`/api/meli/item-pictures?accountId=${encodeURIComponent(sourcePublicacion.marketplace_id)}&itemId=${encodeURIComponent(sourcePublicacion.external_item_id)}`)
             .then(r => r.json())
@@ -504,12 +532,25 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setCatalogResults([]);
     }
 
+    // Overrides de identificación (BRAND/MODEL/SELLER_SKU/GTIN) como attribute_overrides.
+    function buildIdentOverrides(): Array<{ id: string; value_name: string }> {
+        // En catálogo, marca/modelo/GTIN los aporta el catálogo (no se sobrescriben).
+        const locked = !!catalogProductId;
+        return [
+            ...(!locked && marcaOverride.trim() ? [{ id: 'BRAND', value_name: marcaOverride.trim() }] : []),
+            ...(!locked && modeloOverride.trim() ? [{ id: 'MODEL', value_name: modeloOverride.trim() }] : []),
+            ...(skuOverride.trim() ? [{ id: 'SELLER_SKU', value_name: skuOverride.trim() }] : []),
+            ...(!locked && gtinOverride.trim() ? [{ id: 'GTIN', value_name: gtinOverride.trim() }] : []),
+        ];
+    }
+
     // -- Preview (dry_run) ----------------------------------------------------
     async function handlePreview() {
         if (!primaryAccount) { setErrorMsg('Selecciona una cuenta MeLi'); return; }
         setErrorMsg(null);
         setLoading(true);
         setPreviewResult(null);
+        const identOverrides = buildIdentOverrides();
         try {
             const res = await fetch('/api/publish', {
                 method: 'POST',
@@ -522,6 +563,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     category_id: categoryId || undefined,
                     listing_type_id: listingType,
                     dry_run: true,
+                    ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
+                    ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
                     ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
                 }),
@@ -579,7 +622,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             const dimOvList = Object.entries(dimOverrides)
                 .filter(([, v]) => v.trim() !== '')
                 .map(([id, v]) => ({ id, value_name: v.trim() }));
-            const allOverrides = [...attrOvList, ...dimOvList];
+            const identOvList = buildIdentOverrides();
+            const allOverrides = [...attrOvList, ...dimOvList, ...identOvList];
 
             const results: any[] = [];
             for (const accountId of selectedAccounts) {
@@ -702,6 +746,86 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     {/* -- ETAPA 1: CONFIGURACIÓN ------------------------ */}
                     {stage === 'config' && (
                         <>
+                            {/* Identificación del producto — editable (en catálogo se bloquean marca/modelo/GTIN) */}
+                            <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider">Identificación del producto</p>
+                                    {catalogProductId && (
+                                        <span className="text-[10px] text-[var(--warn)]">Catálogo: {catalogProductId}</span>
+                                    )}
+                                </div>
+                                {catalogProductId && (
+                                    <p className="text-[10px] text-[var(--warn)] bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded px-2 py-1">
+                                        Marca, modelo y GTIN los aporta el catálogo (bloqueados). El resto es editable.
+                                    </p>
+                                )}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <label className="block sm:col-span-2">
+                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">Título (family name)</span>
+                                        <input
+                                            type="text"
+                                            value={familyNameOverride}
+                                            onChange={e => setFamilyNameOverride(e.target.value)}
+                                            placeholder={nombreArticulo || 'Lo genera la IA'}
+                                            className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                                        />
+                                    </label>
+                                    <label className="block">
+                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">SKU</span>
+                                        <input
+                                            type="text"
+                                            value={skuOverride}
+                                            onChange={e => setSkuOverride(e.target.value)}
+                                            placeholder={sourcePublicacion?.sku || articleData?.modelo || ''}
+                                            className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
+                                        />
+                                    </label>
+                                    <label className="block">
+                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">Marca</span>
+                                        <input
+                                            type="text"
+                                            value={marcaOverride}
+                                            onChange={e => setMarcaOverride(e.target.value)}
+                                            disabled={!!catalogProductId}
+                                            placeholder={sourcePublicacion?.marca || articleData?.marca || ''}
+                                            className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed"
+                                        />
+                                    </label>
+                                    <label className="block">
+                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">Modelo</span>
+                                        <input
+                                            type="text"
+                                            value={modeloOverride}
+                                            onChange={e => setModeloOverride(e.target.value)}
+                                            disabled={!!catalogProductId}
+                                            placeholder={sourcePublicacion?.modelo || articleData?.modelo || ''}
+                                            className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed font-mono"
+                                        />
+                                    </label>
+                                    <label className="block sm:col-span-2">
+                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">GTIN</span>
+                                        <input
+                                            type="text"
+                                            value={gtinOverride}
+                                            onChange={e => setGtinOverride(e.target.value)}
+                                            disabled={!!catalogProductId}
+                                            placeholder={codigoUniversal || sourcePublicacion?.gtin || ''}
+                                            className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed font-mono"
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Voz de marca activa (transparencia) */}
+                            <div className="flex items-center justify-between gap-2 text-[11px] px-1">
+                                <span className="text-[var(--text-faint)]">
+                                    Redacción IA: <span className="font-semibold text-[var(--text)]">Título {activeProfiles.title ? `"${activeProfiles.title}"` : 'default'}</span>
+                                    {' · '}
+                                    <span className="font-semibold text-[var(--text)]">Descripción {activeProfiles.description ? `"${activeProfiles.description}"` : 'default'}</span>
+                                </span>
+                                <a href="/prompt-profiles" target="_blank" rel="noreferrer" className="text-[var(--accent)] hover:underline shrink-0 font-semibold">Ajustar</a>
+                            </div>
+
                             {/* Cuentas (multi-selección) */}
                             <div>
                                 <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">

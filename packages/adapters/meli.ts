@@ -431,6 +431,8 @@ export class MeliAdapter implements MarketplaceAdapter {
                         const variationRows = item.variations.map((variation: any) => ({
                             ...base,
                             external_variation_id: variation.id.toString(),
+                            // V71: inventory_id es por VARIANTE en Full (no heredar el del ítem padre)
+                            inventory_id: variation.inventory_id ?? null,
                             stock_publicado: variation.available_quantity ?? item.available_quantity,
                             precio_venta: variation.price ?? item.price,
                             // Atributos de diferenciación de la variante (COLOR, TALLA, etc.)
@@ -589,6 +591,45 @@ export class MeliAdapter implements MarketplaceAdapter {
                         { accountId, transitions: transitionedPubIds.length, skus: uniqueSkus },
                         'Batch: transiciones fulfillment→otro detectadas, sync_stock encolados'
                     );
+                }
+            }
+
+            // -- V71: Enriquecer stock Full (fulfillment) ----------------------
+            // Para publicaciones Full, el stock real está en el depósito Full
+            // (GET /inventories/{inventory_id}/stock/fulfillment), no en
+            // item.available_quantity. Guardamos stock_full para que el filtro
+            // "Full + sin stock" sea correcto.
+            const fullRows = itemsPayload.filter((r: any) => r.logistic_type === 'fulfillment' && r.inventory_id);
+            if (fullRows.length > 0) {
+                const CONCURRENCIA_FULL = 5;
+                const uniqFull = [...new Map(fullRows.map((r: any) => [`${r.external_item_id}|${r.external_variation_id}|${r.inventory_id}`, r])).values()];
+                for (let i = 0; i < uniqFull.length; i += CONCURRENCIA_FULL) {
+                    const chunk = uniqFull.slice(i, i + CONCURRENCIA_FULL);
+                    await Promise.all(chunk.map(async (row: any) => {
+                        try {
+                            const canProceed = await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
+                            if (!canProceed) return;
+                            const invResp = await axios.get(
+                                `https://api.mercadolibre.com/inventories/${row.inventory_id}/stock/fulfillment`,
+                                { headers: { Authorization: `Bearer ${accessToken}` } }
+                            );
+                            const stockFull = invResp.data?.available_quantity ?? null;
+                            await supabase
+                                .from('publicaciones_externas')
+                                .update({
+                                    stock_full: stockFull,
+                                    stock_full_updated_at: new Date().toISOString(),
+                                })
+                                .eq('marketplace_id', accountId)
+                                .eq('external_item_id', row.external_item_id)
+                                .eq('external_variation_id', row.external_variation_id);
+                        } catch (err: any) {
+                            logger.warn(
+                                { accountId, inventoryId: row.inventory_id, error: err.response?.data || err.message },
+                                'V71: Fallo al obtener stock Full desde /inventories'
+                            );
+                        }
+                    }));
                 }
             }
 

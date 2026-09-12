@@ -1088,6 +1088,10 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 free_shipping: !!pub.free_shipping,
                                 id_producto_catalogo: pub.id_producto_catalogo,
                                 tipo_publicacion: pub.tipo_publicacion,
+                                marca: pub.brand,
+                                modelo: pub.model,
+                                sku: pub.seller_custom_field || pub.seller_sku,
+                                gtin: pub.gtin || pub.ean,
                             }}
                         />
                     </div>

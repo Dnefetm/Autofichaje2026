@@ -364,9 +364,19 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
     }
 
     // Compute aggregate values for parent when there are real variations
-    const totalStock = variations.length > 0
-        ? variations.reduce((s, v) => s + (v.stock_publicado || 0), 0)
-        : parent.stock_publicado;
+    // V71: para publicaciones Full mostrar stock_full (depósito Full) cuando existe.
+    const isFull = parent.logistic_type === 'fulfillment';
+    const totalStock = (() => {
+        if (isFull) {
+            if (variations.length > 0 && variations.some(v => v.stock_full != null)) {
+                return variations.reduce((s, v) => s + (v.stock_full != null ? v.stock_full : (v.stock_publicado || 0)), 0);
+            }
+            if (parent.stock_full != null) return parent.stock_full;
+        }
+        return variations.length > 0
+            ? variations.reduce((s, v) => s + (v.stock_publicado || 0), 0)
+            : parent.stock_publicado;
+    })();
     const prices = variations.length > 0 ? variations.map(v => v.precio_venta).filter(Boolean) : [];
     const priceDisplay = prices.length > 1
         ? `$${Math.min(...prices).toLocaleString('es-MX')} – $${Math.max(...prices).toLocaleString('es-MX')}`
@@ -817,10 +827,14 @@ export default function VirtualCatalogPage() {
             else if (filters.salesRange === '11-50') query = query.gte('sold_quantity', 11).lte('sold_quantity', 50);
             else if (filters.salesRange === '50+') query = query.gte('sold_quantity', 51);
             // Stock
-            if (filters.stockRange === '0') query = query.eq('stock_publicado', 0);
-            else if (filters.stockRange === '1-5') query = query.gte('stock_publicado', 1).lte('stock_publicado', 5);
-            else if (filters.stockRange === '6-20') query = query.gte('stock_publicado', 6).lte('stock_publicado', 20);
-            else if (filters.stockRange === '20+') query = query.gte('stock_publicado', 21);
+            // V71: al filtrar SOLO "Full", el stock es el del depósito Full
+            // (stock_full); en cualquier otro caso es el stock publicado normal.
+            const soloFull = filters.logisticTypes.length === 1 && filters.logisticTypes[0] === 'fulfillment';
+            const stockCol = soloFull ? 'stock_full' : 'stock_publicado';
+            if (filters.stockRange === '0') query = query.eq(stockCol, 0);
+            else if (filters.stockRange === '1-5') query = query.gte(stockCol, 1).lte(stockCol, 5);
+            else if (filters.stockRange === '6-20') query = query.gte(stockCol, 6).lte(stockCol, 20);
+            else if (filters.stockRange === '20+') query = query.gte(stockCol, 21);
 
             const { data, error, count } = await query;
             if (error) throw error;
