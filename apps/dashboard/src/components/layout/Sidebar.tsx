@@ -10,6 +10,7 @@ import {
     Package, PlusCircle, RefreshCcw, Store,
     ChevronLeft, ChevronRight, ShoppingCart, FileText,
     Upload, ClipboardList, Users, ReceiptText, ShoppingBag, UserPlus,
+    MessageSquare,
 } from 'lucide-react';
 
 export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
@@ -74,6 +75,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
         { name: 'Vendedores',       icon: UserPlus,        href: '/ventas/vendedores' },
         { name: 'Crear con IA',     icon: PlusCircle,      href: '/autoficha' },
         { name: 'Fichas Técnicas',  icon: FileText,        href: '/fichas' },
+        { name: 'Voz de Marca',     icon: MessageSquare,   href: '/prompt-profiles' },
         { name: 'Precios',          icon: Upload,          href: '/precios' },
         { name: 'Monitor Sync',     icon: Activity,        href: '/monitor' },
         { name: 'Operaciones',      icon: Database,        href: '/operations' },
