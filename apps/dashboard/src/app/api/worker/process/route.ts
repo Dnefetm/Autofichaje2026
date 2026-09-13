@@ -24,6 +24,7 @@ const expectedSecret = process.env.CRON_SECRET;
 if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
 return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }
+const startTimeMs = Date.now();
 
 const results: any = {
 timestamp: new Date().toISOString(),
@@ -77,32 +78,43 @@ if (count === 0 && !isReconciliationHour && !isCatalogHour) {
 return NextResponse.json({ ...results, skipped: true, reason: 'no_jobs_maintenance_done' });
 }
 
-const { data: jobs, error: claimError } = await supabaseAdmin.rpc('claim_jobs', { batch_size_limit: BATCH_SIZE });
-if (claimError) {
-results.errors.push(`claim_jobs RPC error: ${claimError.message}`);
-return NextResponse.json(results);
-}
-if (!jobs || jobs.length === 0) {
-return NextResponse.json(results);
-}
-
 const meliAdapter = new MeliAdapter();
-const startTimeMs = Date.now();
+let totalProcessed = 0;
 
-for (const job of jobs) {
-if (Date.now() - startTimeMs > 25000) {
-results.errors.push('Cron timeout approaching, aborting batch early to prevent zombie jobs');
+// Drenar la cola en lotes dentro de UNA invocación, hasta vaciarla o acercarnos
+// a maxDuration=60 (margen para devolver y responder). Reemplaza el esquema
+// "1 lote + re-dispatch" que no daba abasto.
+while (Date.now() - startTimeMs < 45000) {
+const { data: batch, error: claimErr } = await supabaseAdmin.rpc('claim_jobs', { batch_size_limit: BATCH_SIZE });
+if (claimErr) {
+results.errors.push(`claim_jobs RPC error: ${claimErr.message}`);
 break;
 }
+if (!batch || batch.length === 0) break;
+
+const doneIds = new Set<string>();
+for (const job of batch) {
+if (Date.now() - startTimeMs > 45000) break;
 try {
 await processOneJob(job, meliAdapter);
 results.jobResults.push({ id: job.id, type: job.type, status: 'ok' });
 } catch (err: any) {
 results.jobResults.push({ id: job.id, type: job.type, status: 'error', error: err.message });
 }
+doneIds.add(job.id);
+totalProcessed++;
 await new Promise(r => setTimeout(r, 1000));
 }
-results.jobsProcessed = jobs.length;
+
+// Devolver a 'pending' los jobs de este lote que no alcanzamos a procesar,
+// sin cobrar intento (claim_jobs/release_zombie_jobs ya no cobran tras v127).
+const unprocessed = batch.filter((j: any) => !doneIds.has(j.id)).map((j: any) => j.id);
+if (unprocessed.length > 0) {
+await supabaseAdmin.from('jobs').update({ status: 'pending' }).in('id', unprocessed);
+}
+}
+
+results.jobsProcessed = totalProcessed;
 
 if (isReconciliationHour) {
 try {
