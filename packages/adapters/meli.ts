@@ -1274,6 +1274,25 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
+     * getCatalogProduct — Obtiene la ficha de un producto del catálogo de MeLi.
+     * GET /products/{catalog_product_id}. Devuelve name, attributes[] y pictures[].
+     * Usado por "mejorar publicación" como fuente de última instancia.
+     */
+    async getCatalogProduct(accountId: string, catalogProductId: string): Promise<any | null> {
+        const accessToken = await this.getAccessToken(accountId);
+        try {
+            const resp = await axios.get(
+                `https://api.mercadolibre.com/products/${catalogProductId}`,
+                { headers: { Authorization: `Bearer ${accessToken}` } },
+            );
+            return resp.data;
+        } catch (err: any) {
+            logger.warn({ accountId, catalogProductId, error: err.response?.data || err.message }, 'getCatalogProduct falló');
+            return null;
+        }
+    }
+
+    /**
      * getDescription — Devuelve la descripción en texto plano de un item.
      * GET /items/{item_id}/description
      */

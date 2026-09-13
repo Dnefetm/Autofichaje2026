@@ -90,6 +90,13 @@ function DiffRow({ label, antes, despues, truncate = false }: { label: string; a
     );
 }
 
+// Color del badge de procedencia de un valor propuesto.
+function fuenteBadgeColor(fuente: string): string {
+    if (fuente === 'catalogo') return 'bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30';
+    if (fuente === 'ficha') return 'bg-[var(--info)]/10 text-[var(--info)] border border-[var(--info)]/30';
+    return 'bg-[var(--warn)]/10 text-[var(--warn)] border border-[var(--warn)]/30'; // catalogo_meli
+}
+
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
     return (
         <div className="bg-[var(--surface)] rounded-[var(--radius)] border-b border-[var(--border)]  overflow-hidden">
@@ -297,7 +304,14 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     // Mejorar publicación existente
     const [showImproveModal, setShowImproveModal] = useState(false);
     const [improveLoading, setImproveLoading] = useState(false);
-    const [improveData, setImproveData] = useState<any>(null);
+    const [propuestas, setPropuestas] = useState<any[]>([]);
+    const [seleccion, setSeleccion] = useState<Record<string, string>>({});
+    const [combinados, setCombinados] = useState<Record<string, string>>({});
+    const [imagenes, setImagenes] = useState<string[]>([]);
+    const [imgSugeridas, setImgSugeridas] = useState<any[]>([]);
+    const [nuevaImgUrl, setNuevaImgUrl] = useState('');
+    const [tituloRestringido, setTituloRestringido] = useState(false);
+    const [combinandoCampo, setCombinandoCampo] = useState<string | null>(null);
     // Fase 3: datos enriquecidos lazy (health actions, costs, visits)
     const [enrichData, setEnrichData] = useState<{ health: any; costs: any; visits: any } | null>(null);
     const [enrichLoading, setEnrichLoading] = useState(false);
@@ -396,22 +410,83 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         loadAll(true);
     }
 
-    // Mejorar publicación existente (dry_run muestra diff; dry_run=false aplica)
-    async function mejorarPublicacion(dryRun: boolean) {
+    // Mejorar publicación: calcula propuestas (dry_run) y las preselecciona.
+    async function cargarPropuestas() {
         setImproveLoading(true);
-        setImproveData(null);
+        setCombinados({});
+        setNuevaImgUrl('');
         try {
             const res = await fetch(`/api/catalog/external/${id}/improve`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ dry_run: dryRun }),
+                body: JSON.stringify({ dry_run: true }),
             });
             const data = await res.json();
-            if (!res.ok || !data.ok) throw new Error(data.error || 'Error al mejorar');
-            setImproveData(data);
-            if (!dryRun) { loadAll(true); toast.success('Mejoras aplicadas'); }
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Error al analizar la publicación');
+            setPropuestas(data.propuestas || []);
+            setImgSugeridas(data.imagenes_sugeridas || []);
+            setImagenes(data.imagenes_actuales || []);
+            setTituloRestringido(!!data.titulo_restringido);
+            const sel: Record<string, string> = {};
+            for (const p of (data.propuestas || [])) {
+                if (p.restringido) { sel[p.campo] = 'actual'; continue; }
+                // Preselección: agregar → nuevo; conflicto → nuevo si la fuente tiene confianza alta (catálogo/ficha), si no mantener.
+                sel[p.campo] = p.accion === 'agregar' ? 'nuevo' : (p.confianza >= 2 ? 'nuevo' : 'actual');
+            }
+            setSeleccion(sel);
         } catch (err: any) {
-            toast.error(err.message || 'Error al mejorar la publicación');
+            toast.error(err.message || 'Error al analizar la publicación');
+        } finally {
+            setImproveLoading(false);
+        }
+    }
+
+    // Mejorar descripción con IA (prompt de voz de marca) — botón por campo.
+    async function combinarDescripcion(p: any) {
+        setCombinandoCampo(p.campo);
+        try {
+            const res = await fetch(`/api/catalog/external/${id}/improve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ combinar_descripcion: true }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Error al mejorar la descripción');
+            setCombinados(c => ({ ...c, [p.campo]: data.descripcion_mejorada || '' }));
+            setSeleccion(s => ({ ...s, [p.campo]: 'combinar' }));
+        } catch (err: any) {
+            toast.error(err.message || 'Error al mejorar la descripción');
+        } finally {
+            setCombinandoCampo(null);
+        }
+    }
+
+    // Aplicar solo lo que el usuario aprobó.
+    async function aplicarMejoras() {
+        const camposAceptados: Record<string, string> = {};
+        for (const p of propuestas) {
+            const sel = seleccion[p.campo];
+            if (sel === 'nuevo') camposAceptados[p.campo] = p.valor_nuevo;
+            else if (sel === 'combinar') camposAceptados[p.campo] = combinados[p.campo] ?? p.valor_nuevo;
+        }
+        if (Object.keys(camposAceptados).length === 0 && imagenes.length === 0) {
+            toast.error('No has aprobado ningún cambio');
+            return;
+        }
+        setImproveLoading(true);
+        try {
+            const res = await fetch(`/api/catalog/external/${id}/improve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dry_run: false, campos_aceptados: camposAceptados, imagenes }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Error al aplicar');
+            setShowImproveModal(false);
+            loadAll(true);
+            toast.success(`Mejora aplicada (${data.aplicados ?? 'ok'})`);
+        } catch (err: any) {
+            toast.error(err.message || 'Error al aplicar la mejora');
         } finally {
             setImproveLoading(false);
         }
@@ -599,7 +674,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 Copiar a otra cuenta
                             </button>
                             <button
-                                onClick={() => { setImproveData(null); setShowImproveModal(true); mejorarPublicacion(true); }}
+                                onClick={() => { setPropuestas([]); setSeleccion({}); setShowImproveModal(true); cargarPropuestas(); }}
                                 disabled={improveLoading}
                                 className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text)] text-sm font-bold rounded-[var(--radius)] transition-colors disabled:opacity-50"
                             >
@@ -1157,53 +1232,104 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-5 space-y-4 bg-[var(--surface)] rounded-b-xl border border-t-0 border-[var(--border)]">
+                        <div className="p-5 space-y-4 bg-[var(--surface)] rounded-b-xl border border-t-0 border-[var(--border)] max-h-[70vh] overflow-y-auto">
                             {improveLoading ? (
                                 <div className="flex items-center justify-center py-10">
                                     <RefreshCw className="w-6 h-6 animate-spin text-[var(--accent)]" />
                                 </div>
-                            ) : improveData?.dry_run ? (
+                            ) : propuestas.length === 0 ? (
+                                <p className="text-sm text-[var(--text-muted)]">La publicación ya está completa: no hay datos que mejorar desde las fuentes.</p>
+                            ) : (
                                 <>
                                     <p className="text-xs text-[var(--text-muted)]">
-                                        {improveData.tiene_ficha ? 'Comparando el ítem actual contra la ficha técnica y regenerando con IA.' : 'Sin ficha técnica: solo se regeneran título y descripción con IA.'}
+                                        {propuestas.length} propuesta(s) para revisar. Nada se aplica hasta que apruebes cada campo.
                                     </p>
-                                    <div className="space-y-2">
-                                        <DiffRow label="Título" antes={improveData.diff?.titulo?.antes} despues={improveData.diff?.titulo?.despues} />
-                                        <DiffRow label="Descripción" antes={improveData.diff?.descripcion?.antes} despues={improveData.diff?.descripcion?.despues} truncate />
-                                    </div>
-                                    {(improveData.diff?.atributos?.length > 0) && (
-                                        <div className="p-3 bg-[var(--surface-2)] rounded border border-[var(--border)] space-y-1.5">
-                                            <p className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Atributos a mejorar</p>
-                                            {improveData.diff.atributos.map((a: any) => (
-                                                <div key={a.id} className="flex items-center gap-2 text-xs">
-                                                    <span className="font-mono text-[var(--text-muted)]">{a.id}:</span>
-                                                    <span className="text-[var(--err)] line-through">{a.antes || '—'}</span>
-                                                    <span>→</span>
-                                                    <span className="text-[var(--ok)] font-semibold">{a.despues}</span>
+
+                                    {propuestas.map(p => (
+                                        <div key={p.campo} className="border border-[var(--border)] rounded-lg p-3 space-y-2">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="text-xs font-bold text-[var(--text)]">{p.label}</p>
+                                                {p.restringido && (
+                                                    <span className="text-[10px] text-[var(--warn)] bg-[var(--warn)]/10 border border-[var(--warn)]/30 px-1.5 py-0.5 rounded">Restringido: tiene ventas</span>
+                                                )}
+                                            </div>
+                                            {p.restringido ? (
+                                                <p className="text-xs text-[var(--text-muted)]">No se puede modificar (MeLi restringe el título con ventas). Actual: {p.valor_actual || '(vacío)'}</p>
+                                            ) : (
+                                                <div className="space-y-1.5">
+                                                    <button type="button" onClick={() => setSeleccion(s => ({ ...s, [p.campo]: 'actual' }))}
+                                                        className={`w-full p-2.5 rounded-lg text-left border transition-colors ${seleccion[p.campo] === 'actual' ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]' : 'border-[var(--border)] hover:bg-[var(--bg)]'}`}>
+                                                        <p className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Mantener actual</p>
+                                                        <p className="text-xs text-[var(--text-muted)] break-words">{p.valor_actual || '(vacío)'}</p>
+                                                    </button>
+                                                    <button type="button" onClick={() => setSeleccion(s => ({ ...s, [p.campo]: 'nuevo' }))}
+                                                        className={`w-full p-2.5 rounded-lg text-left border transition-colors ${seleccion[p.campo] === 'nuevo' ? 'border-[var(--ok)]/60 bg-[var(--ok)]/10 ring-1 ring-[var(--ok)]' : 'border-[var(--border)] hover:bg-[var(--bg)]'}`}>
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <p className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Usar nuevo</p>
+                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${fuenteBadgeColor(p.fuente)}`}>{p.fuente_label}</span>
+                                                        </div>
+                                                        <p className="text-xs text-[var(--text-muted)] break-words font-mono">{p.valor_nuevo}</p>
+                                                    </button>
+                                                    {p.sintetizable && (
+                                                        <div className={`rounded-lg border p-2.5 ${seleccion[p.campo] === 'combinar' ? 'border-[var(--accent)]/60 bg-[var(--accent)]/10' : 'border-[var(--border)]'}`}>
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <p className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Mejorar con IA (prompt)</p>
+                                                                <button type="button" onClick={() => combinarDescripcion(p)} disabled={combinandoCampo === p.campo} className="text-[10px] font-bold text-[var(--accent)] hover:underline disabled:opacity-50">
+                                                                    {combinandoCampo === p.campo ? 'Generando…' : 'Generar'}
+                                                                </button>
+                                                            </div>
+                                                            {combinados[p.campo] && (
+                                                                <button type="button" onClick={() => setSeleccion(s => ({ ...s, [p.campo]: 'combinar' }))} className="mt-1.5 text-left">
+                                                                    <p className="text-[10px] text-[var(--accent)] font-semibold">Resultado (clic para elegir):</p>
+                                                                    <p className="text-xs text-[var(--text-muted)] break-words">{combinados[p.campo]}</p>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
-                                    )}
+                                    ))}
+
+                                    {/* Imágenes */}
+                                    <div className="border border-[var(--border)] rounded-lg p-3 space-y-2">
+                                        <p className="text-xs font-bold text-[var(--text)]">Imágenes</p>
+                                        {imagenes.length > 0 && (
+                                            <div className="flex flex-wrap gap-2">
+                                                {imagenes.map((u, i) => (
+                                                    <div key={i} className="relative w-14 h-14 rounded border border-[var(--border)] overflow-hidden group">
+                                                        <img src={u} alt="" className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} />
+                                                        <button type="button" onClick={() => setImagenes(imagenes.filter((_, j) => j !== i))} className="absolute top-0 right-0 bg-[var(--err)]/80 text-white p-0.5"><X className="w-3 h-3" /></button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {imgSugeridas.length > 0 && (
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase text-[var(--text-faint)] mb-1">Sugeridas (clic para agregar)</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {imgSugeridas.map((s, i) => (
+                                                        <button key={i} type="button" onClick={() => { if (!imagenes.includes(s.url)) setImagenes([...imagenes, s.url]); }} className="relative w-14 h-14 rounded border border-dashed border-[var(--border)] overflow-hidden" title={s.fuente}>
+                                                            <img src={s.url} alt="" className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div className="flex gap-2">
+                                            <input value={nuevaImgUrl} onChange={e => setNuevaImgUrl(e.target.value)} placeholder="https://… URL de imagen" className="flex-1 px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)]" />
+                                            <button type="button" onClick={() => { const u = nuevaImgUrl.trim(); if (u && !imagenes.includes(u)) { setImagenes([...imagenes, u]); setNuevaImgUrl(''); } }} className="px-3 py-1.5 text-xs font-bold bg-[var(--surface-2)] border border-[var(--border)] rounded-lg">Agregar</button>
+                                        </div>
+                                    </div>
+
                                     <div className="flex items-center justify-end gap-2 pt-1">
                                         <button onClick={() => setShowImproveModal(false)} className="px-3 py-2 text-xs font-bold text-[var(--text-muted)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)]">Cancelar</button>
-                                        <button onClick={() => mejorarPublicacion(false)} disabled={improveLoading} className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:opacity-90 disabled:opacity-50">
-                                            <Zap className="w-3.5 h-3.5" /> Aplicar mejoras
+                                        <button onClick={aplicarMejoras} disabled={improveLoading} className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:opacity-90 disabled:opacity-50">
+                                            <Zap className="w-3.5 h-3.5" /> Aplicar aprobados
                                         </button>
                                     </div>
                                 </>
-                            ) : improveData ? (
-                                <div className="flex items-start gap-2 p-3 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded">
-                                    <CheckCircle2 className="w-4 h-4 text-[var(--ok)] mt-0.5" />
-                                    <div className="text-sm text-[var(--ok)]">
-                                        <p className="font-bold">Mejoras aplicadas.</p>
-                                        {improveData.permalink && (
-                                            <a href={improveData.permalink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline mt-1">
-                                                Ver en Mercado Libre <ExternalLink className="w-3 h-3" />
-                                            </a>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : null}
+                            )}
                         </div>
                     </div>
                 </div>

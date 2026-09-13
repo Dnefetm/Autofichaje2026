@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { dispatchWorker } from '@/lib/dispatch-worker';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,6 +114,9 @@ export async function POST(req: NextRequest) {
 
   // 5. Aprendizaje de alias (best-effort, no bloquea el vínculo)
   await aprenderAlias(publicacion_id, articulo_id);
+
+  // 6. Disparar el worker al instante: el sync de stock/precio no debe esperar al cron (15 min).
+  await dispatchWorker();
 
   return NextResponse.json({ ok: true, publicacion_id, articulo_id, cantidad_requerida: cantidad });
 }

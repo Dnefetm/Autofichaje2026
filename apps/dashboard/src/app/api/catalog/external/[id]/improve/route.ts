@@ -8,13 +8,14 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/catalog/external/[id]/improve
  *
- * "Mejorar publicación existente": toma una vidriera ya publicada y le aplica
- * mejoras SIN crear una nueva:
- *   - regenera título + descripción con la IA (voz de marca configurada),
- *   - rellena GTIN y dimensiones de paquete desde la ficha técnica si hay datos
- *     más nuevos/completos que los del ítem actual.
+ * "Mejorar publicación existente": compara el ítem de MeLi contra 3 fuentes
+ * (mi catálogo > ficha técnica > publicación de catálogo MeLi) y propone, campo
+ * por campo, rellenar o sustituir. El usuario aprueba cada campo (como en el
+ * modal "Enriquecer desde catálogo" de fichas). Nada se aplica automáticamente.
  *
- * Body: { dry_run?: boolean }  (dry_run por defecto true: muestra el diff y no aplica)
+ * Body:
+ *   dry_run: true  → calcula y devuelve propuestas (default)
+ *   dry_run: false → { campos_aceptados: { campo: valor }, imagenes?: string[] }
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -25,29 +26,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // 1. Publicación local
         const { data: pub, error: pubErr } = await supabaseAdmin
             .from('publicaciones_externas')
-            .select('id, marketplace_id, external_item_id, category_id, listing_type_id, tipo_publicacion, condition, shipping_mode, free_shipping, id_producto_catalogo, esta_mapeado')
+            .select('id, marketplace_id, external_item_id, category_id, id_producto_catalogo, tipo_publicacion')
             .eq('id', id)
             .single();
         if (pubErr || !pub) return NextResponse.json({ ok: false, error: 'Publicación no encontrada' }, { status: 404 });
 
         const meli = new MeliAdapter();
 
-        // 2. Ítem actual desde MeLi (fuente de verdad)
+        // 2. Ítem actual desde MeLi
         const item = await (meli as any).getItem(pub.marketplace_id, pub.external_item_id);
-        const attrVal = (aid: string) => item.attributes?.find((a: any) => a.id === aid)?.value_name ?? null;
+        const itemAttr = (aid: string) => item.attributes?.find((a: any) => a.id === aid)?.value_name ?? null;
+        const itemDesc = await (meli as any).getDescription(pub.marketplace_id, pub.external_item_id);
+        const itemPictures: string[] = (item.pictures || []).map((p: any) => p.secure_url || p.url).filter(Boolean);
+        const tieneVentas = (item.sold_quantity ?? 0) > 0;
 
-        // 3. Artículo mapeado → ficha técnica (datos más nuevos/completos)
+        // 3. Fuentes (prioridad: catálogo > ficha > catálogo MeLi)
+        let articulo: any = null;
         let ficha: any = null;
+        let catalogoMeli: any = null;
+
         const { data: mapRow } = await supabaseAdmin
             .from('mapeo_publicacion_articulo')
             .select('articulo_id')
             .eq('publicacion_id', id)
             .limit(1)
             .maybeSingle();
+
         if (mapRow?.articulo_id) {
+            const { data: a } = await supabaseAdmin
+                .from('articulos')
+                .select('nombre, marca, modelo, codigo_universal, materiales, peso_kg, largo_cm, ancho_cm, alto_cm, descripcion, imagenes')
+                .eq('articulo_id', mapRow.articulo_id)
+                .single();
+            articulo = a;
             const { data: f } = await supabaseAdmin
                 .from('fichas_tecnicas')
-                .select('id, nombre_producto, descripcion, descripcion_larga, marca, modelo, codigo_universal, peso_kg, largo_cm, ancho_cm, alto_cm, materiales')
+                .select('nombre_producto, descripcion, descripcion_larga, marca, modelo, codigo_universal, materiales, peso_kg, largo_cm, ancho_cm, alto_cm')
                 .eq('articulo_id', mapRow.articulo_id)
                 .order('updated_at', { ascending: false })
                 .limit(1)
@@ -55,101 +69,162 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             ficha = f;
         }
 
-        // 4. Modelo de seller (UP vs legacy)
-        const seller = await (meli as any).detectSellerModel(pub.marketplace_id);
-        const isLegacy = seller.model !== 'up';
-
-        const currentTitle = item.family_name || item.title || '';
-        const currentDesc = await (meli as any).getDescription(pub.marketplace_id, pub.external_item_id);
-
-        // 5. Regenerar título + descripción con la IA (voz de marca)
-        const ai = await resolvePublicationAI({
-            nombre: currentTitle,
-            marca: attrVal('BRAND') || ficha?.marca || '',
-            modelo: attrVal('MODEL') || ficha?.modelo || '',
-            descripcion: ficha?.descripcion_larga || ficha?.descripcion || currentDesc || '',
-            unresolved_attributes: [],
-            max_family_name_chars: isLegacy ? 60 : 50,
-            legacy: isLegacy,
-            rephrase_description: true,
-        }, { marketplace_id: pub.marketplace_id, categoria: pub.category_id });
-
-        // 6. Mejoras de identificación/dimensiones desde la ficha (solo si hay datos)
-        const changes: Array<{ id: string; antes: string | null; despues: string | null }> = [];
-        const improvedAttrs: Array<{ id: string; value_name?: string; value_id?: string }> = [];
-
-        // GTIN: ficha > item (si difieren)
-        const currentGtin = attrVal('GTIN') || attrVal('EAN') || attrVal('UPC');
-        if (ficha?.codigo_universal && ficha.codigo_universal !== currentGtin) {
-            changes.push({ id: 'GTIN', antes: currentGtin, despues: ficha.codigo_universal });
-            improvedAttrs.push({ id: 'GTIN', value_name: ficha.codigo_universal });
+        if (pub.id_producto_catalogo) {
+            catalogoMeli = await (meli as any).getCatalogProduct(pub.marketplace_id, pub.id_producto_catalogo);
         }
 
-        // Dimensiones de paquete: ficha (si hay) vs atributos actuales
-        const pkgNum = (aid: string) => {
-            const raw = attrVal(aid);
-            const m = raw ? String(raw).match(/-?\d+(\.\d+)?/) : null;
-            return m ? Number(m[0]) : null;
-        };
-        const dimsMejora = (() => {
-            const out: Array<{ id: string; value_name: string }> = [];
-            if (ficha?.largo_cm != null) out.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: `${Math.round(ficha.largo_cm)} cm` });
-            if (ficha?.ancho_cm != null) out.push({ id: 'SELLER_PACKAGE_WIDTH', value_name: `${Math.round(ficha.ancho_cm)} cm` });
-            if (ficha?.alto_cm != null) out.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: `${Math.round(ficha.alto_cm)} cm` });
-            if (ficha?.peso_kg != null) out.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: `${Math.round(ficha.peso_kg * 1000)} g` });
-            return out;
-        })();
-        for (const d of dimsMejora) {
-            const antes = attrVal(d.id);
-            if (antes && String(antes).replace(/\s+/g, '') === d.value_name.replace(/\s+/g, '')) continue; // sin cambio
-            changes.push({ id: d.id, antes: antes, despues: d.value_name });
-            improvedAttrs.push(d);
+        const catAttr = (aid: string) => catalogoMeli?.attributes?.find((a: any) => a.id === aid)?.value_name ?? null;
+
+        // Resolver valor de una fuente para un campo (retorna { valor, fuente })
+        function mejorValor(campo: string): { valor: any; fuente: 'catalogo' | 'ficha' | 'catalogo_meli' } | null {
+            const pick = (val: any, fuente: any) => (val === null || val === undefined || val === '' ? null : { valor: val, fuente });
+            switch (campo) {
+                case 'GTIN': return pick(articulo?.codigo_universal, 'catalogo') ?? pick(ficha?.codigo_universal, 'ficha') ?? pick(catAttr('GTIN') || catAttr('EAN') || catAttr('UPC'), 'catalogo_meli');
+                case 'BRAND': return pick(articulo?.marca, 'catalogo') ?? pick(ficha?.marca, 'ficha') ?? pick(catAttr('BRAND'), 'catalogo_meli');
+                case 'MODEL': return pick(articulo?.modelo, 'catalogo') ?? pick(ficha?.modelo, 'ficha') ?? pick(catAttr('MODEL'), 'catalogo_meli');
+                case 'MATERIAL': return pick(articulo?.materiales, 'catalogo') ?? pick(ficha?.materiales, 'ficha') ?? pick(catAttr('MATERIAL'), 'catalogo_meli');
+                case 'SELLER_PACKAGE_WEIGHT': {
+                    const a = articulo?.peso_kg != null ? `${Math.round(articulo.peso_kg * 1000)} g` : null;
+                    const f = ficha?.peso_kg != null ? `${Math.round(ficha.peso_kg * 1000)} g` : null;
+                    return pick(a, 'catalogo') ?? pick(f, 'ficha') ?? pick(catAttr('SELLER_PACKAGE_WEIGHT'), 'catalogo_meli');
+                }
+                case 'SELLER_PACKAGE_LENGTH': {
+                    const a = articulo?.largo_cm != null ? `${Math.round(articulo.largo_cm)} cm` : null;
+                    const f = ficha?.largo_cm != null ? `${Math.round(ficha.largo_cm)} cm` : null;
+                    return pick(a, 'catalogo') ?? pick(f, 'ficha') ?? pick(catAttr('SELLER_PACKAGE_LENGTH'), 'catalogo_meli');
+                }
+                case 'SELLER_PACKAGE_WIDTH': {
+                    const a = articulo?.ancho_cm != null ? `${Math.round(articulo.ancho_cm)} cm` : null;
+                    const f = ficha?.ancho_cm != null ? `${Math.round(ficha.ancho_cm)} cm` : null;
+                    return pick(a, 'catalogo') ?? pick(f, 'ficha') ?? pick(catAttr('SELLER_PACKAGE_WIDTH'), 'catalogo_meli');
+                }
+                case 'SELLER_PACKAGE_HEIGHT': {
+                    const a = articulo?.alto_cm != null ? `${Math.round(articulo.alto_cm)} cm` : null;
+                    const f = ficha?.alto_cm != null ? `${Math.round(ficha.alto_cm)} cm` : null;
+                    return pick(a, 'catalogo') ?? pick(f, 'ficha') ?? pick(catAttr('SELLER_PACKAGE_HEIGHT'), 'catalogo_meli');
+                }
+                case 'descripcion': {
+                    const a = articulo?.descripcion || null;
+                    const f = ficha?.descripcion_larga || ficha?.descripcion || null;
+                    return pick(f, 'ficha') ?? pick(a, 'catalogo');
+                }
+                case 'titulo': {
+                    const a = articulo?.nombre || null;
+                    const f = ficha?.nombre_producto || null;
+                    return pick(f, 'ficha') ?? pick(a, 'catalogo');
+                }
+                default: return null;
+            }
         }
 
-        const diff = {
-            titulo: { antes: currentTitle, despues: isLegacy ? ai.title : ai.family_name },
-            descripcion: { antes: currentDesc || '', despues: ai.description || '' },
-            atributos: changes,
-        };
+        const FUENTE_LABEL = { catalogo: 'Mi catálogo', ficha: 'Ficha técnica', catalogo_meli: 'Catálogo MeLi' } as const;
+        const FUENTE_CONF = { catalogo: 3, ficha: 2, catalogo_meli: 1 } as const;
 
-        // 7. DRY RUN: retornar diff sin aplicar
+        const DEFS: Array<{ campo: string; label: string; actual: string | null; sintetizable: boolean; restringido: boolean }> = [
+            { campo: 'GTIN', label: 'Código universal (GTIN)', actual: itemAttr('GTIN') || itemAttr('EAN') || itemAttr('UPC'), sintetizable: false, restringido: false },
+            { campo: 'BRAND', label: 'Marca', actual: itemAttr('BRAND'), sintetizable: false, restringido: false },
+            { campo: 'MODEL', label: 'Modelo', actual: itemAttr('MODEL'), sintetizable: false, restringido: false },
+            { campo: 'MATERIAL', label: 'Material', actual: itemAttr('MATERIAL'), sintetizable: false, restringido: false },
+            { campo: 'SELLER_PACKAGE_WEIGHT', label: 'Peso', actual: itemAttr('SELLER_PACKAGE_WEIGHT'), sintetizable: false, restringido: false },
+            { campo: 'SELLER_PACKAGE_LENGTH', label: 'Largo', actual: itemAttr('SELLER_PACKAGE_LENGTH'), sintetizable: false, restringido: false },
+            { campo: 'SELLER_PACKAGE_WIDTH', label: 'Ancho', actual: itemAttr('SELLER_PACKAGE_WIDTH'), sintetizable: false, restringido: false },
+            { campo: 'SELLER_PACKAGE_HEIGHT', label: 'Alto', actual: itemAttr('SELLER_PACKAGE_HEIGHT'), sintetizable: false, restringido: false },
+            { campo: 'descripcion', label: 'Descripción', actual: itemDesc || null, sintetizable: true, restringido: false },
+            { campo: 'titulo', label: 'Título', actual: item.family_name || item.title || null, sintetizable: false, restringido: tieneVentas },
+        ];
+
+        const propuestas: any[] = [];
+        for (const d of DEFS) {
+            const mejor = mejorValor(d.campo);
+            if (!mejor) continue; // ninguna fuente tiene dato
+            const actualNorm = d.actual ? String(d.actual).trim() : '';
+            const nuevoNorm = String(mejor.valor).trim();
+            if (!nuevoNorm) continue;
+            const accion = actualNorm === '' ? 'agregar' : (actualNorm !== nuevoNorm ? 'conflicto' : 'sin_cambio');
+            if (accion === 'sin_cambio') continue;
+            propuestas.push({
+                campo: d.campo,
+                label: d.label,
+                accion,
+                valor_actual: d.actual,
+                valor_nuevo: mejor.valor,
+                fuente: mejor.fuente,
+                fuente_label: FUENTE_LABEL[mejor.fuente],
+                confianza: FUENTE_CONF[mejor.fuente],
+                sintetizable: d.sintetizable,
+                restringido: d.restringido,
+            });
+        }
+
+        // Imágenes sugeridas (por fuente)
+        const imagenesSugeridas: Array<{ url: string; fuente: string }> = [];
+        const seen = new Set(itemPictures);
+        const artImgs: string[] = (articulo?.imagenes || []).map((p: any) => String(p)).filter((u: string) => u.startsWith('http') && !seen.has(u));
+        for (const u of artImgs) { imagenesSugeridas.push({ url: u, fuente: 'Mi catálogo' }); seen.add(u); }
+        for (const p of (catalogoMeli?.pictures || [])) {
+            const u = p.secure_url || p.url;
+            if (u && !seen.has(u)) { imagenesSugeridas.push({ url: u, fuente: 'Catálogo MeLi' }); seen.add(u); }
+        }
+
+        // (botón por campo) Mejorar descripción con IA aplicando el prompt de voz de marca.
+        if (body.combinar_descripcion) {
+            const baseDesc = ficha?.descripcion_larga || ficha?.descripcion || articulo?.descripcion || itemDesc || '';
+            const ai = await resolvePublicationAI({
+                nombre: item.family_name || item.title || '',
+                marca: itemAttr('BRAND') || ficha?.marca || '',
+                modelo: itemAttr('MODEL') || ficha?.modelo || '',
+                descripcion: baseDesc,
+                unresolved_attributes: [],
+                max_family_name_chars: 50,
+                legacy: false,
+                rephrase_description: true,
+            }, { marketplace_id: pub.marketplace_id, categoria: pub.category_id });
+            return NextResponse.json({ ok: true, descripcion_mejorada: ai.description || baseDesc, perfiles: ai.profiles ?? null });
+        }
+
+        // 4. DRY RUN: devolver propuestas
         if (dry_run) {
             return NextResponse.json({
                 ok: true,
                 dry_run: true,
-                mensaje: 'Vista previa de mejoras. Para aplicar envía dry_run: false.',
-                diff,
-                profiles: ai.profiles ?? null,
-                tiene_ficha: !!ficha,
+                propuestas,
+                titulo_restringido: tieneVentas,
+                imagenes_actuales: itemPictures,
+                imagenes_sugeridas: imagenesSugeridas,
             });
         }
 
-        // 8. Aplicar: PUT título + atributos mejorados, y PUT descripción
-        const updateBody: any = {
-            ...(isLegacy ? { title: ai.title } : { family_name: ai.family_name }),
-            ...(improvedAttrs.length ? { attributes: improvedAttrs } : {}),
-        };
-        const updated = await (meli as any).updateItem(pub.marketplace_id, pub.external_item_id, updateBody);
+        // 5. APLICAR: solo lo aceptado
+        const camposAceptados: Record<string, string> = body.campos_aceptados || {};
+        const imagenes: string[] | undefined = Array.isArray(body.imagenes) ? body.imagenes : undefined;
 
-        let descUpdated = false;
-        if (ai.description) {
-            await (meli as any).addDescription(pub.marketplace_id, pub.external_item_id, ai.description);
-            descUpdated = true;
+        const ATTR_CAMPOS = new Set(['GTIN', 'BRAND', 'MODEL', 'MATERIAL', 'SELLER_PACKAGE_WEIGHT', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_HEIGHT']);
+        const attributes = Object.entries(camposAceptados)
+            .filter(([campo, valor]) => ATTR_CAMPOS.has(campo) && valor)
+            .map(([campo, valor]) => ({ id: campo, value_name: String(valor) }));
+
+        const seller = await (meli as any).detectSellerModel(pub.marketplace_id);
+        const isLegacy = seller.model !== 'up';
+
+        const updateBody: any = {};
+        if (attributes.length) updateBody.attributes = attributes;
+        if (camposAceptados.titulo) {
+            if (isLegacy) updateBody.title = camposAceptados.titulo;
+            else updateBody.family_name = camposAceptados.titulo;
+        }
+        if (imagenes && imagenes.length) updateBody.pictures = imagenes.map((u: string) => ({ source: u }));
+
+        let aplicados = 0;
+        if (Object.keys(updateBody).length > 0) {
+            await (meli as any).updateItem(pub.marketplace_id, pub.external_item_id, updateBody);
+            aplicados++;
+        }
+        if (camposAceptados.descripcion) {
+            await (meli as any).addDescription(pub.marketplace_id, pub.external_item_id, camposAceptados.descripcion);
+            aplicados++;
         }
 
-        // Persistir título/descripción localmente
-        await supabaseAdmin
-            .from('publicaciones_externas')
-            .update({ titulo: updated.title || updated.title_generated || ai.title, actualizado_el: new Date().toISOString() })
-            .eq('id', id);
-
-        return NextResponse.json({
-            ok: true,
-            item_id: pub.external_item_id,
-            permalink: updated.permalink || item.permalink || null,
-            descripcion_actualizada: descUpdated,
-            diff,
-        });
+        return NextResponse.json({ ok: true, item_id: pub.external_item_id, aplicados, campos: Object.keys(camposAceptados) });
     } catch (err: any) {
         const errMsg: string = err.message || '';
         let meliError: any = null;
@@ -159,7 +234,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 const jsonStart = errMsg.indexOf('{');
                 if (jsonStart !== -1) meliError = JSON.parse(errMsg.slice(jsonStart));
                 isMeliValidation = true;
-            } catch { /* cae al 500 genérico */ }
+            } catch { /* cae al 500 */ }
         }
         if (isMeliValidation) {
             return NextResponse.json({ ok: false, error: 'MeLi rechazó la mejora (validation_error)', meli_error: meliError }, { status: 422 });

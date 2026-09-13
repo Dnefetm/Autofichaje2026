@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { dispatchWorker } from '@/lib/dispatch-worker';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,6 +115,9 @@ export async function POST(req: NextRequest) {
     );
     propagados = propagaciones.length;
   }
+
+  // Disparar el worker al instante: el sync de stock/precio no debe esperar al cron (15 min).
+  await dispatchWorker();
 
   return NextResponse.json({ ok: true, vinculados: vinculos.length, propagados });
 }
