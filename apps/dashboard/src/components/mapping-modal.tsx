@@ -74,7 +74,7 @@ modelo: sugerenciaInicial.modelo || '',
 variante: sugerenciaInicial.variante || '',
 codigo_universal: sugerenciaInicial.codigo_universal || '',
 caja_madre: sugerenciaInicial.caja_madre || '',
-quantity: 1
+quantity: sugerenciaInicial.cantidad_sugerida || 1
 }];
 }
 return [];

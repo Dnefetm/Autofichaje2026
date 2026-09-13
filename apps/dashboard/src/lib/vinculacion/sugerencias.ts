@@ -27,6 +27,7 @@ export interface Sugerencia {
   score: number; // 0..100
   metodo: string; // 'hermana_mapeada' | 'alias' | 'sku_exacto' | 'codigo_exacto' | 'marca_modelo' | 'fuzzy'
   motivo: string; // texto legible para el operador
+  cantidad_sugerida: number; // multiplicador detectado en la vitrina (ej. "3x sku" → 3)
 }
 
 export interface PublicacionSugerible {
@@ -93,6 +94,54 @@ export function scoreLabel(score: number): 'alta' | 'media' | 'baja' {
   return 'baja';
 }
 
+/**
+ * Detecta un multiplicador de cantidad en un texto de la vitrina:
+ *   "3x sku", "3 x sku", "3×sku", "pack de 3", "3 piezas", "3 pzas", "3 unidades", "3u".
+ * Devuelve el número (≥2) o null si no hay multiplicador claro. Un "1x" no es un kit.
+ */
+export function detectarMultiplicador(texto: string | null | undefined): number | null {
+  if (!texto) return null;
+  const t = texto.toLowerCase().trim();
+  if (!t) return null;
+
+  // "3x sku", "3 x sku", "3×sku"
+  const mX = t.match(/(\d{1,3})\s*[x×]\s*/);
+  if (mX && mX[1]) {
+    const n = parseInt(mX[1], 10);
+    if (n >= 2 && n <= 500) return n;
+  }
+
+  // "pack de 3", "paquete de 3", "kit de 3", "set de 3", "lote de 3"
+  const mPack = t.match(/(?:pack|paquete|kit|set|lote)\s*(?:de|con|x|\d)?\s*(\d{1,3})/);
+  if (mPack && mPack[1]) {
+    const n = parseInt(mPack[1], 10);
+    if (n >= 2 && n <= 500) return n;
+  }
+
+  // "3 piezas", "3 pzas", "3 pz", "3 unidades", "3 unid", "3u", "3 pcs"
+  const mU = t.match(/(\d{1,3})\s*(?:piezas|pzas|pz|pieza|unidades|unidad|unids|unid|u|pcs|pc)\b/);
+  if (mU && mU[1]) {
+    const n = parseInt(mU[1], 10);
+    if (n >= 2 && n <= 500) return n;
+  }
+
+  return null;
+}
+
+/** Multiplicador detectado para una publicación (título → SKU tienda → seller_sku). */
+export function multiplicadorDePublicacion(pub: {
+  titulo?: string | null;
+  seller_sku?: string | null;
+  seller_custom_field?: string | null;
+}): number {
+  return (
+    detectarMultiplicador(pub.titulo) ??
+    detectarMultiplicador(pub.seller_custom_field) ??
+    detectarMultiplicador(pub.seller_sku) ??
+    1
+  );
+}
+
 function toSugerencia(
   a: any,
   score: number,
@@ -110,6 +159,7 @@ function toSugerencia(
     score: Math.max(0, Math.min(100, Math.round(score))),
     metodo,
     motivo,
+    cantidad_sugerida: 1,
   };
 }
 
@@ -297,6 +347,7 @@ async function sugerirFuzzy(pub: PublicacionSugerible): Promise<Sugerencia[]> {
  * las señales fuertes sobre las difusas.
  */
 export async function sugerirArticulos(pub: PublicacionSugerible): Promise<Sugerencia[]> {
+  const cantidad = multiplicadorDePublicacion(pub);
   const [porHermana, porAlias, exacto, fuzzy] = await Promise.all([
     sugerirPorHermana(pub).catch(() => [] as Sugerencia[]),
     sugerirPorAlias(pub).catch(() => [] as Sugerencia[]),
@@ -312,6 +363,7 @@ export async function sugerirArticulos(pub: PublicacionSugerible): Promise<Suger
 
   return Array.from(map.values())
     .filter((s) => !esDevolucion(s.caja_madre))
+    .map((s) => ({ ...s, cantidad_sugerida: cantidad }))
     .sort((a, b) => b.score - a.score);
 }
 
@@ -638,6 +690,8 @@ export async function sugerirExactoEnLote(
     }
 
     if (best && esDevolucion(best.caja_madre)) best = null;
+
+    if (best) best = { ...best, cantidad_sugerida: multiplicadorDePublicacion(p) };
 
     result.set(p.id, best);
   }

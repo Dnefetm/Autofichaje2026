@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
          es_bundle, tags,
          sync_disabled, sync_disabled_reason, pricing_status, sale_price_calculated,
          actualizado_el`,
-        { count: 'exact' }
+        { count: 'estimated' }
       )
       .or('and(or(esta_mapeado.is.null,esta_mapeado.eq.false),not.and(tipo_publicacion.eq.catalogo,par_item_id.not.is.null))')
       .not('es_bundle', 'is', true)
