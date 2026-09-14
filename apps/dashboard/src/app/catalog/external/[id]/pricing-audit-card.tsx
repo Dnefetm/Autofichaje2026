@@ -334,7 +334,7 @@ export default function PricingAuditCard({
                 {/* TABLA TRANSPARENTE: DESGLOSE DE FÓRMULA Y MODIFICADORES */}
                 {draftDetails && (
                     <div className="bg-[var(--surface-2)]/50 border border-[var(--border)] rounded-[var(--radius)] p-4 space-y-3">
-                        <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[var(--border)] pb-2">
                             <div className="flex items-center gap-2">
                                 <Sliders className="w-4 h-4 text-[var(--accent)]" />
                                 <h3 className="text-xs uppercase font-bold text-[var(--text)] tracking-wider">Fórmula Transparente y Modificadores</h3>
@@ -565,7 +565,7 @@ export default function PricingAuditCard({
                             placeholder={String(draftPrice || currentPrice || salePriceCalculated || '')}
                             value={editablePrice}
                             onChange={(e) => setEditablePrice(e.target.value)}
-                            className="bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] rounded-[var(--radius-sm)] px-3 py-2 w-36 text-sm outline-none focus:border-[var(--accent)] font-mono"
+                            className="bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] rounded-[var(--radius-sm)] px-3 py-2 w-full sm:w-36 text-sm outline-none focus:border-[var(--accent)] font-mono"
                         />
                         <button
                             disabled={applying || (draftPrice ? (draftStatus !== 'valid' && draftStatus !== 'estimated_params' && draftStatus !== 'override_active') : (pricingStatus !== 'valid' && pricingStatus !== 'estimated_params' && pricingStatus !== 'override_active'))}

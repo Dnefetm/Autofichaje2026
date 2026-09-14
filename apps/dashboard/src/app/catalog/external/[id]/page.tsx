@@ -1093,7 +1093,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     {(mapeos || []).map(m => (
                                         <div key={m.id} className="py-3">
                                             <div className="flex items-start justify-between gap-2">
-                                                <div>
+                                                <div className="min-w-0">
                                                     <p className="text-xs font-bold text-[var(--text)]">{m.articulo?.nombre}</p>
                                                     <p className="text-[10px] font-mono text-[var(--text-faint)] mt-0.5">{m.articulo?.articulo_id}</p>
                                                     {m.articulo?.marca && <p className="text-[10px] text-[var(--text-faint)]">{m.articulo.marca}</p>}
