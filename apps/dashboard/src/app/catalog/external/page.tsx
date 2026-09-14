@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Btn } from '@/components/ui/Btn';
 import { Card } from '@/components/ui/Card';
+import { Page } from '@/components/ui/Page';
 
 // --- Helpers de presentación -----------------------------------------------
 // FIX: detectar SKU basura (prefijo UUID de 8 hex chars dejado por migración)
@@ -931,7 +932,7 @@ export default function VirtualCatalogPage() {
 
     return (
         <div className="flex-1 overflow-auto bg-[var(--bg)] min-h-screen">
-            <div className="p-6 pb-32 max-w-[1600px] mx-auto space-y-5">
+            <Page>
 
                 {/* Cabecera */}
                 <PageHeader
@@ -1057,25 +1058,25 @@ export default function VirtualCatalogPage() {
                                                     </div>
                                                 </div>
                                                 <div className="grid grid-cols-3 gap-2 text-xs">
-                                                    <div>
+                                                    <div className="min-w-0">
                                                         <div className="text-[var(--text-faint)] uppercase text-[10px]">Precio</div>
-                                                        <div className="font-bold text-[var(--text)]">{p.precio_venta ? `$${Number(p.precio_venta).toLocaleString('es-MX')}` : '—'}</div>
+                                                        <div className="font-bold text-[var(--text)] truncate">{p.precio_venta ? `$${Number(p.precio_venta).toLocaleString('es-MX')}` : '—'}</div>
                                                     </div>
-                                                    <div>
+                                                    <div className="min-w-0">
                                                         <div className="text-[var(--text-faint)] uppercase text-[10px]">Stock</div>
-                                                        <div className="font-semibold text-[var(--text)]">{stock ?? '—'}</div>
+                                                        <div className="font-semibold text-[var(--text)] truncate">{stock ?? '—'}</div>
                                                     </div>
-                                                    <div>
+                                                    <div className="min-w-0">
                                                         <div className="text-[var(--text-faint)] uppercase text-[10px]">Vendidos</div>
-                                                        <div className="text-[var(--text)]">{p.sold_quantity > 0 ? p.sold_quantity : '—'}</div>
+                                                        <div className="text-[var(--text)] truncate">{p.sold_quantity > 0 ? p.sold_quantity : '—'}</div>
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-2">
-                                                    <Link href={`/catalog/external/${p.id}`} className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-semibold rounded-lg border border-[var(--accent)]/30">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <Link href={`/catalog/external/${p.id}`} className="min-w-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-semibold rounded-lg border border-[var(--accent)]/30">
                                                         Abrir Ficha
                                                     </Link>
-                                                    <Btn size="sm" variant="ghost" onClick={() => setSelectedListing(p)} icon={<Link2 className="w-4 h-4" />}>
-                                                        {p.esta_mapeado ? 'Editar Mapeo' : 'Crear Enlace'}
+                                                    <Btn size="sm" variant="ghost" onClick={() => setSelectedListing(p)} icon={<Link2 className="w-4 h-4" />} className="min-w-0">
+                                                        <span className="truncate">{p.esta_mapeado ? 'Editar Mapeo' : 'Crear Enlace'}</span>
                                                     </Btn>
                                                 </div>
                                             </div>
@@ -1105,7 +1106,7 @@ export default function VirtualCatalogPage() {
                         )}
                     </div>
                 </div>
-            </div>
+            </Page>
 
             {/* Consola de Sync */}
             {debugLogs.length > 0 && (

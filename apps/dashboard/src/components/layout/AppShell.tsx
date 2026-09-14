@@ -41,7 +41,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      <main className="flex-1 overflow-y-auto bg-[var(--bg)] relative px-4 sm:px-8 pb-8 pt-16 md:pt-8">
+      <main className="flex-1 overflow-y-auto bg-[var(--bg)] relative px-3 sm:px-6 lg:px-8 pb-8 pt-16 md:pt-8">
         {/* Botón hamburguesa solo móvil */}
         <button
           onClick={() => setMobileOpen(true)}
