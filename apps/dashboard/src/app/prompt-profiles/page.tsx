@@ -268,7 +268,7 @@ export default function PromptProfilesPage() {
                                         </label>
                                     ))}
                                 </div>
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                     <div>
                                         <label className="text-[10px] font-bold text-[var(--text-faint)] uppercase block mb-1">Idioma</label>
                                         <input value={formLanguage} onChange={e => setFormLanguage(e.target.value)} className="w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)]" />

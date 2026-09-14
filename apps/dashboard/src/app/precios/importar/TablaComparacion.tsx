@@ -38,7 +38,7 @@ export function TablaComparacion({ grupos, selecciones, onSelectCandidato, onRem
         const tieneHistorico = g.precios_anteriores && Object.keys(g.precios_anteriores).length > 0;
 
         return (
-          <div key={g.clave} className="flex bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm text-sm ring-1 ring-[var(--border)] hover:ring-[var(--accent)]/10 transition-shadow">
+          <div key={g.clave} className="flex overflow-x-auto bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm text-sm ring-1 ring-[var(--border)] hover:ring-[var(--accent)]/10 transition-shadow">
             
             {/* -- Left Content Block (Lines 1-4) -- */}
             <div className="flex-1 flex flex-col min-w-0">

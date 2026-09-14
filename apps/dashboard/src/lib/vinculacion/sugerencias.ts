@@ -104,25 +104,30 @@ export function detectarMultiplicador(texto: string | null | undefined): number 
   const t = texto.toLowerCase().trim();
   if (!t) return null;
 
-  // "3x sku", "3 x sku", "3×sku"
-  const mX = t.match(/(\d{1,3})\s*[x×]\s*/);
-  if (mX && mX[1]) {
-    const n = parseInt(mX[1], 10);
-    if (n >= 2 && n <= 500) return n;
+  const toNum = (s: string): number | null => {
+    const n = parseInt(s, 10);
+    return n >= 2 && n <= 1000 ? n : null;
+  };
+
+  // "3x", "3 x", "3×", "10x", "50x" — cualquier N (no solo 3), seguido del SKU/modelo.
+  const mX = t.match(/(\d{1,4})\s*[x×]\s*/);
+  if (mX) {
+    const n = toNum(mX[1]);
+    if (n) return n;
   }
 
   // "pack de 3", "paquete de 3", "kit de 3", "set de 3", "lote de 3"
-  const mPack = t.match(/(?:pack|paquete|kit|set|lote)\s*(?:de|con|x|\d)?\s*(\d{1,3})/);
-  if (mPack && mPack[1]) {
-    const n = parseInt(mPack[1], 10);
-    if (n >= 2 && n <= 500) return n;
+  const mPack = t.match(/(?:pack|paquete|kit|set|lote)\s*(?:de|con|x)?\s*(\d{1,4})/);
+  if (mPack) {
+    const n = toNum(mPack[1]);
+    if (n) return n;
   }
 
   // "3 piezas", "3 pzas", "3 pz", "3 unidades", "3 unid", "3u", "3 pcs"
-  const mU = t.match(/(\d{1,3})\s*(?:piezas|pzas|pz|pieza|unidades|unidad|unids|unid|u|pcs|pc)\b/);
-  if (mU && mU[1]) {
-    const n = parseInt(mU[1], 10);
-    if (n >= 2 && n <= 500) return n;
+  const mU = t.match(/(\d{1,4})\s*(?:piezas|pzas|pz|pieza|unidades|unidad|unids|unid|u|pcs|pc)\b/);
+  if (mU) {
+    const n = toNum(mU[1]);
+    if (n) return n;
   }
 
   return null;

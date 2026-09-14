@@ -47,3 +47,13 @@ body {
   font-family: var(--font-ui), Arial, Helvetica, sans-serif;
 }
 
+/* Accesibilidad táctil: targets >= 44px en dispositivos táctiles (Apple HIG / Nielsen H5) */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  input:not([type="checkbox"]):not([type="radio"]),
+  select {
+    min-height: 44px;
+  }
+}
+
