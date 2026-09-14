@@ -151,7 +151,7 @@ export default function PricingSettingsPage() {
                 </div>
 
                 {formData.redondeo === 'magic' && (
-                    <div className="grid grid-cols-3 gap-4 bg-[var(--surface-2)] p-3 rounded border border-[var(--border)]">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-[var(--surface-2)] p-3 rounded border border-[var(--border)]">
                         <div>
                             <label className="block text-xs font-bold text-[var(--accent)] mb-1">Objetivo Reducción (%)</label>
                             <input type="number" step="0.1" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.redondeo_target_pct} onChange={e=>setFormData({...formData, redondeo_target_pct: parseFloat(e.target.value)})} />

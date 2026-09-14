@@ -929,7 +929,7 @@ export function PasoRevisar({ importacionId, onFinish, onBack }: {
   return (
     <div className="space-y-6 max-w-full overflow-hidden">
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Con Match', value: stats.sugerido, color: 'text-[var(--accent)]', bg: 'bg-[var(--accent)]/10' },
           { label: 'Sin Match', value: stats.sin_match, color: 'text-[var(--text-muted)]', bg: 'bg-[var(--bg)]' },

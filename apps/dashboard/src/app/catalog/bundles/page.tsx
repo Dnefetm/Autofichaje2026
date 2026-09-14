@@ -165,7 +165,7 @@ export default function BundlesPage() {
                             ) : (
                                 <div className="space-y-3">
                                     {components.map(comp => (
-                                        <div key={comp.sku} className="flex grid-cols-12 gap-3 items-center p-3 border rounded-lg bg-[var(--bg)] relative group">
+                                        <div key={comp.sku} className="flex gap-3 items-center p-3 border rounded-lg bg-[var(--bg)] relative group">
                                             {comp.image ? (
                                                 <img src={comp.image} alt={comp.name} className="w-12 h-12 rounded object-cover border" />
                                             ) : (

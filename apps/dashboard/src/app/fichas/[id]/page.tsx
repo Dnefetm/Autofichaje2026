@@ -1524,7 +1524,7 @@ export default function FichaDetallePage() {
                                     e.target.value = ''; 
                                 }} />
                             
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <button type="button" onClick={() => document.getElementById('img-upload-camera')?.click()} disabled={imgUrlLoading}
                                     className="py-2.5 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] text-sm text-[var(--text-muted)] hover:border-[var(--accent)]/70 hover:text-[var(--accent)] transition-colors flex items-center justify-center gap-2 font-semibold">
                                     <Upload className="w-4 h-4" /> Tomar Foto

@@ -11,6 +11,9 @@ import Link from 'next/link';
 import MappingModal from '@/components/mapping-modal';
 import { FiltersSidebar, FilterState, defaultFilters } from './filters-sidebar';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Btn } from '@/components/ui/Btn';
+import { Card } from '@/components/ui/Card';
 
 // --- Helpers de presentación -----------------------------------------------
 // FIX: detectar SKU basura (prefijo UUID de 8 hex chars dejado por migración)
@@ -931,35 +934,23 @@ export default function VirtualCatalogPage() {
             <div className="p-6 pb-32 max-w-[1600px] mx-auto space-y-5">
 
                 {/* Cabecera */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-[var(--text)]">Vitrinas de Mercado Libre</h1>
-                        <p className="text-[var(--text-muted)] text-sm mt-0.5">
-                            {totalCount.toLocaleString()} publicaciones · {grouped.length} ítems en esta página
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setShowFilters(o => !o)}
-                            className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors", showFilters ? "bg-[var(--accent)] text-[var(--accent-ink)] border-[var(--accent)]" : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:bg-[var(--bg)]")}
-                        >
-                            <SlidersHorizontal className="w-4 h-4" />
-                            Filtros
-                        </button>
-                        <button
-                            onClick={handleForceSync}
-                            disabled={syncing}
-                            className="flex items-center gap-2 px-4 py-2 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg hover:brightness-110 disabled:opacity-50 text-sm font-medium shadow-sm"
-                        >
-                            <RefreshCw className={cn("w-4 h-4", syncing && "animate-spin")} />
-                            {syncing ? 'Sincronizando...' : 'Forzar Sync MeLi'}
-                        </button>
-                        <button onClick={loadListings} className="flex items-center gap-2 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)] rounded-lg hover:bg-[var(--bg)] text-sm shadow-sm">
-                            <RefreshCw className="w-4 h-4" />
-                            Refrescar
-                        </button>
-                    </div>
-                </div>
+                <PageHeader
+                    title="Vitrinas de Mercado Libre"
+                    description={`${totalCount.toLocaleString()} publicaciones · ${grouped.length} ítems en esta página`}
+                    actions={
+                        <>
+                            <Btn variant={showFilters ? 'primary' : 'ghost'} onClick={() => setShowFilters(o => !o)} icon={<SlidersHorizontal className="w-4 h-4" />}>
+                                Filtros
+                            </Btn>
+                            <Btn onClick={handleForceSync} disabled={syncing} loading={syncing} icon={<RefreshCw className="w-4 h-4" />}>
+                                {syncing ? 'Sincronizando...' : 'Forzar Sync MeLi'}
+                            </Btn>
+                            <Btn variant="ghost" onClick={loadListings} icon={<RefreshCw className="w-4 h-4" />}>
+                                Refrescar
+                            </Btn>
+                        </>
+                    }
+                />
 
                 {/* Buscador */}
                 <div className="relative">
@@ -974,15 +965,15 @@ export default function VirtualCatalogPage() {
                 </div>
 
                 {/* Layout: Sidebar + Tabla */}
-                <div className="flex gap-5 items-start">
+                <div className="flex flex-col lg:flex-row gap-5 items-start">
                     {showFilters && (
                         <FiltersSidebar filters={filters} onChange={setFilters} facets={facets} marketplaces={marketplaces} />
                     )}
 
                     <div className="flex-1 min-w-0">
-                        <div className="bg-[var(--surface)] rounded-xl shadow-sm border border-[var(--border)] overflow-hidden">
+                        <Card className="overflow-hidden">
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm">
+                                <table className="w-full text-left text-sm hidden md:table">
                                     <thead className="bg-[var(--bg)] text-[var(--text-muted)] border-b border-[var(--border)]">
                                         <tr>
                                             <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Estado</th>
@@ -1019,7 +1010,80 @@ export default function VirtualCatalogPage() {
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
+
+                            {/* Móvil: cards apiladas */}
+                            <div className="md:hidden divide-y divide-[var(--border)]">
+                                {loading ? (
+                                    <div className="px-6 py-12 text-center text-[var(--text-faint)]">
+                                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[var(--accent)]" />
+                                        Cargando publicaciones...
+                                    </div>
+                                ) : grouped.length === 0 ? (
+                                    <div className="px-6 py-12 text-center text-[var(--text-faint)]">
+                                        No se encontraron publicaciones con estos filtros.
+                                    </div>
+                                ) : (
+                                    grouped.map(group => {
+                                        const p = group.parent;
+                                        const isFull = p.logistic_type === 'fulfillment';
+                                        const stock = isFull && p.stock_full != null ? p.stock_full : p.stock_publicado;
+                                        const sku = !esSkuBasuraUI(p.seller_custom_field) ? p.seller_custom_field
+                                            : !esSkuBasuraUI(p.seller_sku) ? p.seller_sku : null;
+                                        return (
+                                            <div key={p.id} className="px-4 py-3 space-y-2">
+                                                <div className="flex items-start gap-3">
+                                                    {p.url_imagen ? (
+                                                        <img src={p.url_imagen} alt="" className="w-12 h-12 rounded-lg object-cover border border-[var(--border)] shrink-0" />
+                                                    ) : (
+                                                        <div className="w-12 h-12 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
+                                                            <Package className="w-5 h-5 text-[var(--text-faint)]" />
+                                                        </div>
+                                                    )}
+                                                    <div className="min-w-0 flex-1">
+                                                        <Link href={`/catalog/external/${p.id}`} className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] line-clamp-2 leading-tight block">
+                                                            {p.titulo}
+                                                        </Link>
+                                                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                                            <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[p.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
+                                                                {statusLabels[p.status_externo] || p.status_externo}
+                                                            </span>
+                                                            {p.esta_mapeado ? (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] text-[var(--ok)] font-medium"><CheckCircle2 className="w-3 h-3" /> Mapeado</span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] text-[var(--err)] font-medium"><AlertCircle className="w-3 h-3" /> Sin mapear</span>
+                                                            )}
+                                                            {sku && <span className="text-[10px] font-mono text-[var(--text-faint)]">{sku}</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2 text-xs">
+                                                    <div>
+                                                        <div className="text-[var(--text-faint)] uppercase text-[10px]">Precio</div>
+                                                        <div className="font-bold text-[var(--text)]">{p.precio_venta ? `$${Number(p.precio_venta).toLocaleString('es-MX')}` : '—'}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-[var(--text-faint)] uppercase text-[10px]">Stock</div>
+                                                        <div className="font-semibold text-[var(--text)]">{stock ?? '—'}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-[var(--text-faint)] uppercase text-[10px]">Vendidos</div>
+                                                        <div className="text-[var(--text)]">{p.sold_quantity > 0 ? p.sold_quantity : '—'}</div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Link href={`/catalog/external/${p.id}`} className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-semibold rounded-lg border border-[var(--accent)]/30">
+                                                        Abrir Ficha
+                                                    </Link>
+                                                    <Btn size="sm" variant="ghost" onClick={() => setSelectedListing(p)} icon={<Link2 className="w-4 h-4" />}>
+                                                        {p.esta_mapeado ? 'Editar Mapeo' : 'Crear Enlace'}
+                                                    </Btn>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </Card>
 
                         {/* Paginación */}
                         {!loading && totalCount > PAGE_SIZE && (
@@ -1045,7 +1109,7 @@ export default function VirtualCatalogPage() {
 
             {/* Consola de Sync */}
             {debugLogs.length > 0 && (
-                <div className="fixed bottom-0 left-64 right-0 bg-[var(--surface-2)] border-t border-[var(--border)] p-4 max-h-52 overflow-y-auto z-40">
+                <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-[var(--surface-2)] border-t border-[var(--border)] p-4 max-h-52 overflow-y-auto z-40">
                     <div className="flex justify-between items-center mb-2">
                         <h4 className="text-xs font-bold text-[var(--text-faint)] uppercase tracking-wider">Consola de Sincronización</h4>
                         <button onClick={() => setDebugLogs([])} className="text-xs text-[var(--text-muted)] hover:text-[var(--text-muted)]">Limpiar</button>

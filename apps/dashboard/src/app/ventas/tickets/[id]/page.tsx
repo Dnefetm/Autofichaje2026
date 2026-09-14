@@ -107,7 +107,7 @@ export default function TicketPage() {
           </tr></thead>
           <tbody>
             {items.map((it) => (
-              <tr key={it.id} className="border-t border-gray-300">
+              <tr key={it.id} className="border-t border-[var(--border)]">
                 <td className="py-1">
                   <div>{nombreItem(it)}</div>
                   <div className="text-[10px] uppercase tracking-wide">{it.fuente_pendiente ? 'Por surtir' : 'En stock'}</div>
