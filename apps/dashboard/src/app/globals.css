@@ -47,12 +47,14 @@ body {
   font-family: var(--font-ui), Arial, Helvetica, sans-serif;
 }
 
-/* Accesibilidad táctil: targets >= 44px en dispositivos táctiles (Apple HIG / Nielsen H5) */
+/* Accesibilidad táctil (>=44px) SOLO en controles marcados o estándar.
+   NO se aplica a todo <button>: rompe controles con estilo propio (toggles, botones de icono).
+   Los botones lo piden explicitamente con la clase .touch-target. */
 @media (pointer: coarse) {
-  button,
-  [role="button"],
+  .touch-target,
   input:not([type="checkbox"]):not([type="radio"]),
-  select {
+  select,
+  textarea {
     min-height: 44px;
   }
 }
