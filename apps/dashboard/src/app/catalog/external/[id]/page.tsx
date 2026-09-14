@@ -540,7 +540,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
 
                 {/* Header */}
                 <div className="bg-[var(--surface)] rounded-[var(--radius)] border-b border-[var(--border)]  p-6">
-                    <div className="flex items-start gap-5">
+                    <div className="flex flex-col md:flex-row items-start gap-5">
                         {pub.url_imagen ? (
                             <img src={pub.url_imagen} alt={pub.titulo} className="w-28 h-28 rounded-[var(--radius)] object-contain border-b border-[var(--border)] bg-[var(--surface)] shrink-0" />
                         ) : (
@@ -599,7 +599,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 </div>
                             )}
 
-                            <div className="flex items-end gap-8 mt-4">
+                            <div className="flex flex-wrap items-end gap-x-6 gap-y-3 mt-4">
                                 {/* Precio — editable */}
                                 <div>
                                     <p className="text-xs text-[var(--text-faint)] uppercase font-semibold mb-0.5">Precio</p>
@@ -639,7 +639,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-2 shrink-0">
+                        <div className="grid grid-cols-2 gap-2 md:flex md:flex-col md:w-56 md:shrink-0">
                             {pub.permalink && (
                                 <a href={pub.permalink} target="_blank" rel="noreferrer"
                                     className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-sm font-bold rounded-[var(--radius)] transition-colors">
