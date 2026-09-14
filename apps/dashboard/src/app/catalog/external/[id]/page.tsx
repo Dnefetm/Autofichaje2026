@@ -70,7 +70,7 @@ function HealthBar({ value }: { value: number | null }) {
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
     return (
-        <div className="flex items-start justify-between py-2.5 border-b border-[var(--border)] last:border-0">
+        <div className="flex items-start justify-between py-1.5 border-b border-[var(--border)] last:border-0">
             <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider shrink-0 w-36">{label}</span>
             <div className="text-sm text-[var(--text)] text-right flex-1 break-words">{value || <span className="text-[var(--text-faint)]">—</span>}</div>
         </div>
@@ -99,12 +99,12 @@ function fuenteBadgeColor(fuente: string): string {
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
     return (
-        <div className="bg-[var(--surface)] rounded-[var(--radius)] border-b border-[var(--border)]  overflow-hidden">
-            <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2.5 bg-[var(--surface-2)]">
+        <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] overflow-hidden">
+            <div className="px-5 py-2.5 border-b border-[var(--border)] flex items-center gap-2.5 bg-[var(--surface-2)]">
                 <div className="text-[var(--text-faint)]">{icon}</div>
                 <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">{title}</h2>
             </div>
-            <div className="px-5 py-2">{children}</div>
+            <div className="px-5">{children}</div>
         </div>
     );
 }
@@ -114,12 +114,12 @@ function DescriptionSection({ text }: { text: string }) {
     const preview = text.slice(0, 300);
     const hasMore = text.length > 300;
     return (
-        <div className="bg-[var(--surface)] rounded-[var(--radius)] border-b border-[var(--border)]  overflow-hidden">
-            <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2.5 bg-[var(--surface-2)]">
+        <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] overflow-hidden">
+            <div className="px-5 py-2.5 border-b border-[var(--border)] flex items-center gap-2.5 bg-[var(--surface-2)]">
                 <div className="text-[var(--text-faint)]"><Tag className="w-4 h-4" /></div>
                 <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Descripción</h2>
             </div>
-            <div className="px-5 py-4">
+            <div className="px-5 py-3">
                 <p className="text-sm text-[var(--text-muted)] leading-relaxed whitespace-pre-line">
                     {expanded ? text : preview}{!expanded && hasMore && '…'}
                 </p>
@@ -517,7 +517,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
 
     return (
         <div className="flex-1 overflow-auto bg-[var(--surface-2)] min-h-screen">
-            <div className="p-6 max-w-6xl mx-auto space-y-5">
+            <div className="py-6 max-w-6xl mx-auto space-y-4">
 
                 {/* Breadcrumb */}
                 <Link href="/catalog/external" className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors">
@@ -539,10 +539,10 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 )}
 
                 {/* Header */}
-                <div className="bg-[var(--surface)] rounded-[var(--radius)] border-b border-[var(--border)]  p-6">
+                <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] p-5">
                     <div className="flex flex-col md:flex-row items-start gap-5">
                         {pub.url_imagen ? (
-                            <img src={pub.url_imagen} alt={pub.titulo} className="w-28 h-28 rounded-[var(--radius)] object-contain border-b border-[var(--border)] bg-[var(--surface)] shrink-0" />
+                            <img src={pub.url_imagen} alt={pub.titulo} className="w-28 h-28 rounded-[var(--radius)] object-contain border border-[var(--border)] bg-[var(--surface)] shrink-0" />
                         ) : (
                             <div className="w-28 h-28 rounded-[var(--radius)] bg-[var(--surface-2)] flex items-center justify-center shrink-0">
                                 <Package className="w-10 h-10 text-[var(--text-faint)]" />
@@ -685,10 +685,10 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
                     {/* Col izquierda — 2/3 */}
-                    <div className="lg:col-span-2 space-y-5">
+                    <div className="lg:col-span-2 space-y-4">
 
                         {/* SECCIÓN: Estado y Visibilidad */}
                         <Section title="Estado y Visibilidad" icon={<BarChart2 className="w-4 h-4" />}>
@@ -1073,7 +1073,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                     </div>
 
                     {/* Col derecha */}
-                    <div className="space-y-5">
+                    <div className="space-y-4">
 
                         {/* Mapeo a bodega */}
                         <Section title="Mapeo a Bodega" icon={<Link2 className="w-4 h-4" />}>
@@ -1144,7 +1144,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 </div>
 
                 {/* Nueva Fila Completa para Auditoría de Precios V2 */}
-                <div className="lg:col-span-3 mt-4">
+                <div>
                     <PricingAuditCard 
                         publicacionId={id}
                         salePriceCalculated={pub.sale_price_calculated}
