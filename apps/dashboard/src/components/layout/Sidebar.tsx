@@ -10,7 +10,7 @@ import {
     Package, PlusCircle, RefreshCcw, Store,
     ChevronLeft, ChevronRight, ShoppingCart, FileText,
     Upload, ClipboardList, Users, ReceiptText, ShoppingBag, UserPlus,
-    MessageSquare,
+    MessageSquare, Truck,
 } from 'lucide-react';
 
 export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
@@ -72,6 +72,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
         { name: 'Clientes',         icon: Users,           href: '/ventas/clientes' },
         { name: 'Pedidos',          icon: ReceiptText,     href: '/ventas/pedidos' },
         { name: 'Compras',          icon: ShoppingBag,     href: '/ventas/compras' },
+        { name: 'Logística Full',   icon: Truck,           href: '/logistica-full' },
         { name: 'Vendedores',       icon: UserPlus,        href: '/ventas/vendedores' },
         { name: 'Crear con IA',     icon: PlusCircle,      href: '/autoficha' },
         { name: 'Fichas Técnicas',  icon: FileText,        href: '/fichas' },
