@@ -133,6 +133,9 @@ export default function LogisticaFullPage() {
         URL.revokeObjectURL(a.href);
     };
 
+    const [detalle, setDetalle] = useState<{ guia: string; egresos: any[] } | null>(null);
+    const [detalleLoading, setDetalleLoading] = useState(false);
+
     const avanzar = async (guia: string, accion: 'reunir' | 'preparar') => {
         setAvanzandoGuia(guia);
         try {
@@ -147,6 +150,32 @@ export default function LogisticaFullPage() {
             console.error(e);
         } finally {
             setAvanzandoGuia(null);
+        }
+    };
+
+    const verEnvio = async (guia: string) => {
+        setDetalleLoading(true);
+        try {
+            const r = await fetch(`/api/logistica-full/envio?guia=${encodeURIComponent(guia)}`);
+            const j = await r.json();
+            if (j.success) setDetalle({ guia, egresos: j.egresos || [] });
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setDetalleLoading(false);
+        }
+    };
+
+    const ajustarCantidad = async (egresoId: string, cantidad: number) => {
+        try {
+            await fetch('/api/logistica-full/envio', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ egreso_id: egresoId, cantidad }),
+            });
+            if (detalle) await verEnvio(detalle.guia);
+        } catch (e) {
+            console.error(e);
         }
     };
 
@@ -231,7 +260,10 @@ export default function LogisticaFullPage() {
             key: 'acciones',
             label: '',
             render: (r) => (
-                <div className="flex gap-1.5 justify-end">
+                <div className="flex gap-1.5 justify-end flex-wrap">
+                    <Btn size="sm" variant="ghost" onClick={() => verEnvio(r.guia)}>
+                        Ver
+                    </Btn>
                     {r.estado === 'Pendiente' && (
                         <Btn size="sm" variant="outline" loading={avanzandoGuia === r.guia} onClick={() => avanzar(r.guia, 'reunir')}>
                             Reunir
@@ -354,6 +386,43 @@ export default function LogisticaFullPage() {
                     empty="Sin envíos Full en los últimos 30 días"
                 />
             </Card>
+
+            {/* Detalle de envío (ajustar cantidad + verificar cambios) */}
+            {detalle && (
+                <Card title={`Detalle envío ${detalle.guia} (${detalle.egresos.length} ítems)`}>
+                    {detalleLoading ? (
+                        <div className="px-6 py-8 text-center text-[var(--text-faint)]">Cargando…</div>
+                    ) : (
+                        <div className="divide-y divide-[var(--border)]">
+                            {detalle.egresos.map((e: any) => (
+                                <div key={e.egreso_id || e.id} className="px-4 py-2.5 flex flex-wrap items-center gap-3">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm text-[var(--text)] truncate">{e.nombre || e.articulo_id}</p>
+                                        {e.notas && <p className="text-xs text-[var(--warn)] mt-0.5 break-words">{e.notas}</p>}
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs text-[var(--text-faint)]">cant.</span>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            defaultValue={e.cantidad}
+                                            key={`${e.egreso_id || e.id}-${e.cantidad}`}
+                                            onBlur={(ev) => {
+                                                const v = Number(ev.target.value);
+                                                if (Number.isFinite(v) && v >= 0 && v !== Number(e.cantidad)) ajustarCantidad(e.egreso_id || e.id, v);
+                                            }}
+                                            className="w-20 px-2 py-1 bg-[var(--surface)] border border-[var(--border)] rounded text-sm text-[var(--text)] font-mono"
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                            <div className="px-4 py-2 flex justify-end">
+                                <Btn size="sm" variant="ghost" onClick={() => setDetalle(null)}>Cerrar</Btn>
+                            </div>
+                        </div>
+                    )}
+                </Card>
+            )}
         </Page>
     );
 }

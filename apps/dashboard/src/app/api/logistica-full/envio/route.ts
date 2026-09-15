@@ -93,3 +93,55 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: err.message || 'Error avanzando estado' }, { status: 500 });
     }
 }
+
+// PATCH /api/logistica-full/envio — ajusta la cantidad de un egreso y deja rastro del cambio.
+// body: { egreso_id, cantidad }
+export async function PATCH(req: Request) {
+    try {
+        const body = await req.json();
+        const { egreso_id, cantidad } = body;
+        if (!egreso_id || cantidad == null) return NextResponse.json({ error: 'egreso_id y cantidad requeridos' }, { status: 400 });
+        const nueva = Number(cantidad);
+        if (!Number.isFinite(nueva) || nueva < 0) return NextResponse.json({ error: 'cantidad inválida' }, { status: 400 });
+
+        const { data: eg, error } = await supabaseAdmin
+            .from('egresos')
+            .select(`${CAMPOS_EGRESO}`)
+            .eq('egreso_id', egreso_id)
+            .maybeSingle();
+        if (error) throw error;
+        if (!eg) return NextResponse.json({ error: 'egreso no encontrado' }, { status: 404 });
+
+        const original = Number(eg.cantidad || 0);
+        const notaCambio = original !== nueva
+            ? `[${new Date().toLocaleDateString('es-MX')}] cantidad ajustada ${original} → ${nueva}` + (eg.notas ? ' · ' + eg.notas : '')
+            : eg.notas;
+
+        const { error: rpcErr } = await supabaseAdmin.rpc('web_upsert_egreso', {
+            p_egreso_id: eg.egreso_id,
+            p_articulo_id: eg.articulo_id,
+            p_cantidad: nueva,
+            p_tipo_egreso: 'envio_full',
+            p_importacion_full_id: eg.importacion_full_id,
+            p_guia: eg.guia,
+            p_transportista: eg.transportista,
+            p_operador_id: eg.operador_id,
+            p_notas: notaCambio,
+            p_fecha: eg.fecha,
+            p_largo: eg.largo,
+            p_ancho: eg.ancho,
+            p_alto: eg.alto,
+            p_peso: eg.peso,
+            p_salidas_periodo: eg.salidas_periodo,
+            p_codigo_ml: eg.codigo_ml,
+            p_edo_reunido: eg.edo_reunido,
+            p_fecha_reunido: eg.fecha_reunido,
+            p_fecha_preparado: eg.fecha_preparado,
+        });
+        if (rpcErr) throw rpcErr;
+
+        return NextResponse.json({ success: true, original, nueva, nota: notaCambio });
+    } catch (err: any) {
+        return NextResponse.json({ error: err.message || 'Error ajustando cantidad' }, { status: 500 });
+    }
+}
