@@ -51,7 +51,7 @@ export default function LogisticaFullPage() {
     const [envios, setEnvios] = useState<Envio[]>([]);
     const [avanzandoGuia, setAvanzandoGuia] = useState<string | null>(null);
     const [cobertura, setCobertura] = useState(30);
-    const [metodo, setMetodo] = useState<'ultimo_mes' | 'historico' | 'hibrido'>('hibrido');
+    const [metodo, setMetodo] = useState<'ultimo_mes' | 'historico_promedio' | 'historico_mediana' | 'hibrido'>('hibrido');
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -264,7 +264,8 @@ export default function LogisticaFullPage() {
                     >
                         <option value="hibrido">Híbrido (recomendado)</option>
                         <option value="ultimo_mes">Último mes</option>
-                        <option value="historico">Histórico (mediana)</option>
+                        <option value="historico_promedio">Histórico (promedio 6m)</option>
+                        <option value="historico_mediana">Histórico (mediana)</option>
                     </select>
                 </label>
             </div>

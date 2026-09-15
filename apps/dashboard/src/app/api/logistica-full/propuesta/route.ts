@@ -5,14 +5,19 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const DIAS_VENTANA = 30;       // horizonte base de demanda (1 mes)
-const SEMANAS_HISTORICO = 12;  // semanas para el promedio histórico robusto
+const SEMANAS_HISTORICO = 12;  // semanas para la mediana (robusta a picos)
 const DIAS_HISTORICO = SEMANAS_HISTORICO * 7;
+const DIAS_6MESES = 180;       // ventana del promedio histórico (6 meses)
+const MESES_HISTORICO = 6;
 const SEMANAS_POR_MES = 4.33;
 
 // T1 Logística Full — propuesta de reposición.
 // Regla: UnidadesRecomendadas = max(0, (Demanda/30) × CoberturaDeseada − StockEfectivo)
-// Demanda según método: 'ultimo_mes' | 'historico' | 'hibrido' (default).
-// El promedio histórico usa la MEDIANA semanal (robusta a picos irregulares).
+// Demanda según método (4 opciones):
+//   'ultimo_mes'          → V30
+//   'historico_promedio'  → promedio 6 meses
+//   'historico_mediana'   → mediana semanal × 4.33 (robusta a picos)
+//   'hibrido' (default)   → min(V30, (V30 + promedio6m)/2)
 // La sugerencia de ML (replenishment_suggested) es solo referencia: NO entra al cálculo.
 export async function GET(req: Request) {
     try {
@@ -34,11 +39,12 @@ export async function GET(req: Request) {
 
         if (mapeosErr) throw mapeosErr;
 
-        // 2. Ventas por artículo: total 30d + buckets semanales (para mediana robusta).
-        const desdeHistorico = new Date(Date.now() - DIAS_HISTORICO * 24 * 60 * 60 * 1000).toISOString();
+        // 2. Ventas por artículo: total 30d, total 6m y buckets semanales (mediana).
+        const desde6Meses = new Date(Date.now() - DIAS_6MESES * 24 * 60 * 60 * 1000).toISOString();
         const corte30 = Date.now() - DIAS_VENTANA * 24 * 60 * 60 * 1000;
 
         const ventas30 = new Map<string, number>();
+        const ventas6m = new Map<string, number>();
         const semanalPorArticulo = new Map<string, number[]>();
 
         let from = 0;
@@ -48,7 +54,7 @@ export async function GET(req: Request) {
                 .from('egresos')
                 .select('articulo_id, cantidad, fecha')
                 .eq('tipo_egreso', 'venta')
-                .gte('fecha', desdeHistorico)
+                .gte('fecha', desde6Meses)
                 .range(from, from + PAGE - 1);
             if (ventasErr) throw ventasErr;
             const rows = ventas || [];
@@ -57,13 +63,15 @@ export async function GET(req: Request) {
                 const cant = Number(v.cantidad || 0);
                 const fecha = new Date(v.fecha).getTime();
                 if (!Number.isFinite(fecha)) continue;
+                ventas6m.set(aid, (ventas6m.get(aid) || 0) + cant);
+                if (fecha >= corte30) ventas30.set(aid, (ventas30.get(aid) || 0) + cant);
                 // bucket semanal: índice 0..11 (0 = semana más reciente)
                 const bucket = Math.floor((Date.now() - fecha) / (7 * 24 * 60 * 60 * 1000));
-                if (bucket < 0 || bucket >= SEMANAS_HISTORICO) continue;
-                if (fecha >= corte30) ventas30.set(aid, (ventas30.get(aid) || 0) + cant);
-                let arr = semanalPorArticulo.get(aid);
-                if (!arr) { arr = new Array(SEMANAS_HISTORICO).fill(0); semanalPorArticulo.set(aid, arr); }
-                arr[bucket] += cant;
+                if (bucket >= 0 && bucket < SEMANAS_HISTORICO) {
+                    let arr = semanalPorArticulo.get(aid);
+                    if (!arr) { arr = new Array(SEMANAS_HISTORICO).fill(0); semanalPorArticulo.set(aid, arr); }
+                    arr[bucket] += cant;
+                }
             }
             if (rows.length < PAGE) break;
             from += PAGE;
@@ -112,17 +120,19 @@ export async function GET(req: Request) {
             });
         }
 
-        // 4. Proyección de demanda robusta y cálculo final.
+        // 4. Proyección de demanda (4 métodos) y cálculo final.
         const propuesta = [...byArticle.values()].map((e: any) => {
             const v30 = ventas30.get(e.articulo_id) || 0;
+            const total6m = ventas6m.get(e.articulo_id) || 0;
+            const vPromedio6m = Math.round(total6m / MESES_HISTORICO);
             const semanas = semanalPorArticulo.get(e.articulo_id) || new Array(SEMANAS_HISTORICO).fill(0);
-            const medianaSemanal = mediana(semanas);
-            const vHist = Math.round(medianaSemanal * SEMANAS_POR_MES);
+            const vMediana = Math.round(mediana(semanas) * SEMANAS_POR_MES);
 
             let demanda: number;
             if (metodo === 'ultimo_mes') demanda = v30;
-            else if (metodo === 'historico') demanda = vHist;
-            else demanda = Math.min(v30, (v30 + vHist) / 2); // híbrido, limitado a V30
+            else if (metodo === 'historico_promedio') demanda = vPromedio6m;
+            else if (metodo === 'historico_mediana') demanda = vMediana;
+            else demanda = Math.min(v30, (v30 + vPromedio6m) / 2); // híbrido, limitado a V30
 
             const demandaDiaria = demanda / DIAS_VENTANA;
             const stockEfectivo = e.stock_efectivo;
@@ -137,7 +147,8 @@ export async function GET(req: Request) {
                 inventory_ids: [...e.inventory_ids],
                 stock_efectivo: stockEfectivo,
                 ventas_30d: v30,
-                demanda_historica: vHist,
+                demanda_historica: vPromedio6m,
+                demanda_mediana: vMediana,
                 demanda: Math.round(demanda),
                 demanda_diaria: Math.round(demandaDiaria * 100) / 100,
                 cobertura_actual: coberturaActual,
