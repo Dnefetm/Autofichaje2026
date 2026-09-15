@@ -48,25 +48,52 @@ export async function GET() {
             from += PAGE;
         }
 
-        // 3. Armar la propuesta.
-        const propuesta = (mapeos || []).map((m: any) => {
-            const art = m.articulo;
-            const pub = m.publicacion;
-            const ventas60 = ventasPorArticulo.get(m.articulo_id) || 0;
-            const stockFull = pub?.stock_full != null ? Number(pub.stock_full) : null;
-            const sugerido = stockFull != null ? Math.max(0, ventas60 - stockFull) : null;
-            return {
-                articulo_id: m.articulo_id,
-                nombre: art?.nombre || null,
-                es_full: art?.es_full ?? false,
-                disponibles: art?.disponibles != null ? Number(art.disponibles) : null,
-                inventory_id: pub?.inventory_id || null,
+        // 3. Agrupar por artículo (un artículo puede tener varios inventory_id/packs).
+        //    El stock Full se suma por inventory_id DISTINTO para no duplicar.
+        const byArticle = new Map<string, any>();
+        for (const m of (mapeos || []) as any[]) {
+            const art: any = m.articulo;
+            const pub: any = m.publicacion;
+            const aid = m.articulo_id;
+            if (!byArticle.has(aid)) {
+                byArticle.set(aid, {
+                    articulo_id: aid,
+                    nombre: art?.nombre || null,
+                    es_full: art?.es_full ?? false,
+                    disponibles: art?.disponibles != null ? Number(art.disponibles) : null,
+                    inventory_ids: new Set<string>(),
+                    stock_full: 0,
+                    packs: [] as any[],
+                });
+            }
+            const entry = byArticle.get(aid);
+            const invId = pub?.inventory_id;
+            if (invId && !entry.inventory_ids.has(invId)) {
+                entry.inventory_ids.add(invId);
+                entry.stock_full += pub?.stock_full != null ? Number(pub.stock_full) : 0;
+            }
+            entry.packs.push({
+                inventory_id: invId || null,
                 external_item_id: pub?.external_item_id || null,
-                stock_full: stockFull,
-                precio_venta: pub?.precio_venta,
-                sold_quantity: pub?.sold_quantity,
+                stock_full: pub?.stock_full != null ? Number(pub.stock_full) : null,
+                precio_venta: pub?.precio_venta ?? null,
+                cantidad_requerida: m.cantidad_requerida ?? null,
+            });
+        }
+
+        const propuesta = [...byArticle.values()].map((e: any) => {
+            const ventas60 = ventasPorArticulo.get(e.articulo_id) || 0;
+            const sugerido = Math.max(0, ventas60 - e.stock_full);
+            return {
+                articulo_id: e.articulo_id,
+                nombre: e.nombre,
+                es_full: e.es_full,
+                disponibles: e.disponibles,
+                inventory_ids: [...e.inventory_ids],
+                stock_full: e.stock_full,
                 ventas_60d: ventas60,
                 sugerido,
+                packs: e.packs,
             };
         });
 
