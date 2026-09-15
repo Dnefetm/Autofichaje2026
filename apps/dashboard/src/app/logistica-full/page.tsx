@@ -14,12 +14,18 @@ interface PropItem {
     es_full: boolean;
     disponibles: number | null;
     inventory_ids: string[];
-    stock_full: number;
-    ventas_60d: number;
+    stock_efectivo: number;
+    ventas_30d: number;
+    demanda: number;
+    cobertura_actual: number | null;
     sugerido: number;
+    sugerencia_ml: number | null;
+    shipping_urgency: string | null;
 }
 
 interface PropData {
+    cobertura_deseada: number;
+    metodo: string;
     dias_ventana: number;
     total_items: number;
     requieren_envio: number;
@@ -44,11 +50,13 @@ export default function LogisticaFullPage() {
     const [syncing, setSyncing] = useState(false);
     const [envios, setEnvios] = useState<Envio[]>([]);
     const [avanzandoGuia, setAvanzandoGuia] = useState<string | null>(null);
+    const [cobertura, setCobertura] = useState(30);
+    const [metodo, setMetodo] = useState<'ultimo_mes' | 'historico' | 'hibrido'>('hibrido');
 
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            const r = await fetch('/api/logistica-full/propuesta');
+            const r = await fetch(`/api/logistica-full/propuesta?cobertura=${cobertura}&metodo=${metodo}`);
             const j = await r.json();
             if (j.success) setData(j);
         } catch (e) {
@@ -56,7 +64,7 @@ export default function LogisticaFullPage() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [cobertura, metodo]);
 
     const loadEnvios = useCallback(async () => {
         try {
@@ -114,27 +122,54 @@ export default function LogisticaFullPage() {
                 </div>
             ),
         },
-        { key: 'stock_full', label: 'Stock Full', align: 'right', render: (r) => <span className="font-mono">{r.stock_full}</span> },
+        { key: 'stock_efectivo', label: 'Stock efectivo', align: 'right', render: (r) => <span className="font-mono">{r.stock_efectivo}</span> },
+        { key: 'ventas_30d', label: 'Ventas 30d', align: 'right', render: (r) => <span className="font-mono">{r.ventas_30d}</span> },
+        { key: 'demanda', label: 'Demanda', align: 'right', render: (r) => <span className="font-mono">{r.demanda}</span> },
         {
-            key: 'disponibles',
-            label: 'Bodega',
+            key: 'cobertura_actual',
+            label: 'Cobertura',
             align: 'right',
-            render: (r) => (
-                <span className="font-mono" style={{ color: r.disponibles != null && r.disponibles < 0 ? 'var(--err)' : undefined }}>
-                    {r.disponibles ?? '—'}
-                </span>
-            ),
+            render: (r) => {
+                const bajo = r.cobertura_actual != null && r.cobertura_actual < (data?.cobertura_deseada ?? 30);
+                return r.cobertura_actual != null ? (
+                    <span className="font-mono" style={{ color: bajo ? 'var(--err)' : 'var(--ok)' }}>{r.cobertura_actual}d</span>
+                ) : (
+                    <span className="font-mono text-[var(--text-faint)]">—</span>
+                );
+            },
         },
-        { key: 'ventas_60d', label: `Ventas ${data?.dias_ventana ?? 60}d`, align: 'right', render: (r) => <span className="font-mono">{r.ventas_60d}</span> },
         {
             key: 'sugerido',
-            label: 'Sugerido',
+            label: 'A enviar',
             align: 'right',
             render: (r) =>
                 r.sugerido > 0 ? (
                     <Badge tone="warning"><Truck className="w-3 h-3" /> {r.sugerido}</Badge>
                 ) : (
                     <span className="font-mono text-[var(--text-faint)]">—</span>
+                ),
+        },
+        {
+            key: 'sugerencia_ml',
+            label: 'ML (ref)',
+            align: 'right',
+            render: (r) =>
+                r.sugerencia_ml != null ? (
+                    <span className="font-mono text-[var(--text-faint)]">{r.sugerencia_ml}</span>
+                ) : (
+                    <span className="font-mono text-[var(--text-faint)]">—</span>
+                ),
+        },
+        {
+            key: 'shipping_urgency',
+            label: 'Urgencia',
+            render: (r) =>
+                r.shipping_urgency ? (
+                    <Badge tone={r.shipping_urgency === 'URGENT' || r.shipping_urgency === 'THIS_WEEK' ? 'danger' : 'neutral'}>
+                        {r.shipping_urgency}
+                    </Badge>
+                ) : (
+                    <span className="text-[var(--text-faint)]">—</span>
                 ),
         },
     ];
@@ -205,6 +240,33 @@ export default function LogisticaFullPage() {
                         <p className="text-2xl font-bold text-[var(--accent)]">{data?.total_sugerido ?? '—'}</p>
                     </div>
                 </Card>
+            </div>
+
+            {/* Controles */}
+            <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+                    Cobertura deseada (días)
+                    <input
+                        type="number"
+                        min={7}
+                        max={60}
+                        value={cobertura}
+                        onChange={(e) => setCobertura(Number(e.target.value) || 30)}
+                        className="w-28 px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)]"
+                    />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+                    Método de proyección
+                    <select
+                        value={metodo}
+                        onChange={(e) => setMetodo(e.target.value as any)}
+                        className="px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)]"
+                    >
+                        <option value="hibrido">Híbrido (recomendado)</option>
+                        <option value="ultimo_mes">Último mes</option>
+                        <option value="historico">Histórico (mediana)</option>
+                    </select>
+                </label>
             </div>
 
             {/* Propuesta */}
