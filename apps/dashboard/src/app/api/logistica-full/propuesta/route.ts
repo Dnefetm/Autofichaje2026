@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const DIAS_VENTANA = 60;
+const DIAS_VENTANA = 30; // Horizonte de reposición: ~1 mes (corregido de 60).
 
 // T1 Logística Full — propuesta de reposición.
 // Para cada publicación Full mapeada: compara el stock en el depósito Full
