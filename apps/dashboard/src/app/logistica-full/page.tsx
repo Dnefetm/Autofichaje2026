@@ -6,7 +6,7 @@ import { Btn } from '@/components/ui/Btn';
 import { Card } from '@/components/ui/Card';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/Badge';
-import { RefreshCw, PackageSearch, Truck, Boxes } from 'lucide-react';
+import { RefreshCw, PackageSearch, Truck, Boxes, Download } from 'lucide-react';
 
 interface PropItem {
     articulo_id: string;
@@ -92,6 +92,28 @@ export default function LogisticaFullPage() {
         } finally {
             setSyncing(false);
         }
+    };
+
+    const exportarCSV = () => {
+        if (!data?.propuesta?.length) return;
+        const head = ['articulo', 'stock_efectivo', 'ventas_30d', 'demanda', 'cobertura_dias', 'a_enviar', 'sugerencia_ml', 'urgencia'];
+        const rows = data.propuesta.map((p) => [
+            `"${(p.nombre || '').replace(/"/g, '""')}"`,
+            p.stock_efectivo,
+            p.ventas_30d,
+            p.demanda,
+            p.cobertura_actual ?? '',
+            p.sugerido,
+            p.sugerencia_ml ?? '',
+            p.shipping_urgency ?? '',
+        ].join(','));
+        const csv = [head.join(','), ...rows].join('\n');
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `reposicion-full-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
     };
 
     const avanzar = async (guia: string, accion: 'reunir' | 'preparar') => {
@@ -214,9 +236,14 @@ export default function LogisticaFullPage() {
                 title="Logística Full"
                 description="Stock en el depósito Full de MeLi y propuesta de reposición."
                 actions={
-                    <Btn onClick={sync} loading={syncing} icon={<RefreshCw className="w-4 h-4" />}>
-                        Sincronizar stock
-                    </Btn>
+                    <>
+                        <Btn variant="outline" onClick={exportarCSV} icon={<Download className="w-4 h-4" />}>
+                            Exportar CSV
+                        </Btn>
+                        <Btn onClick={sync} loading={syncing} icon={<RefreshCw className="w-4 h-4" />}>
+                            Sincronizar stock
+                        </Btn>
+                    </>
                 }
             />
 
