@@ -487,6 +487,23 @@ await supabaseAdmin.from('publicaciones_externas').update({ status_externo: 'pau
 }
 
 // ========================================
+// T1: acumula una venta por código ML en la tabla diaria (ventas_diarias_ml).
+// ========================================
+async function acumularVentaML(marketplaceId: string, codigoMl: string, fechaIso: string | null, unidades: number) {
+    const fechaDia = fechaIso ? fechaIso.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    try {
+        await supabaseAdmin.rpc('upsert_venta_diaria_ml', {
+            p_marketplace_id: marketplaceId,
+            p_codigo_ml: codigoMl,
+            p_fecha_dia: fechaDia,
+            p_unidades: unidades,
+        });
+    } catch (e: any) {
+        logger.warn({ marketplaceId, codigoMl, error: e?.message }, 'ventas_diarias_ml: no se pudo acumular');
+    }
+}
+
+// ========================================
 // Handler process_sale
 // ========================================
 async function handleProcessSale(job: any, meli: MeliAdapter) {
@@ -592,17 +609,23 @@ let articuloId: string | null = null;
 
 const { data: pubRow } = await supabaseAdmin
 .from('publicaciones_externas')
-.select('id')
+.select('id, inventory_id')
 .eq('marketplace_id', marketplaceId)
 .eq('external_item_id', meliItemId)
 .eq('external_variation_id', variationQuery)
 .maybeSingle();
-const pubResult = pubRow ?? (variationId ? (await supabaseAdmin.from('publicaciones_externas').select('id')
+const pubResult = pubRow ?? (variationId ? (await supabaseAdmin.from('publicaciones_externas').select('id, inventory_id')
 .eq('marketplace_id', marketplaceId)
 .eq('external_item_id', meliItemId)
 .eq('external_variation_id', '0')
 .maybeSingle()).data : null);
 publicacionId = pubResult?.id ?? null;
+const inventoryId = pubResult?.inventory_id ?? null;
+
+// T1: acumular la venta por código ML (demanda de reposición Full).
+if (inventoryId && quantity > 0) {
+await acumularVentaML(marketplaceId, inventoryId, order.date_created, quantity);
+}
 
 if (publicacionId) {
 const { data: mapRow } = await supabaseAdmin

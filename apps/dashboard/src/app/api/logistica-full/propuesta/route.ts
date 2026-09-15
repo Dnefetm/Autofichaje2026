@@ -34,36 +34,44 @@ export async function GET(req: Request) {
         const { data: mapeos, error: mapeosErr } = await query;
         if (mapeosErr) throw mapeosErr;
 
-        // 2. Histórico 6m por artículo (egresos) — para el promedio histórico.
-        const desde6m = new Date(Date.now() - DIAS_6MESES * 24 * 60 * 60 * 1000).toISOString();
-        const ventas6mPorArticulo = new Map<string, number>();
-        const semanalPorArticulo = new Map<string, number[]>();
-        let from = 0;
-        const PAGE = 1000;
-        while (true) {
-            const { data: ventas, error: ve } = await supabaseAdmin
-                .from('egresos')
-                .select('articulo_id, cantidad, fecha')
-                .eq('tipo_egreso', 'venta')
-                .gte('fecha', desde6m)
-                .range(from, from + PAGE - 1);
-            if (ve) throw ve;
-            const rows = ventas || [];
-            for (const v of rows) {
-                const aid = v.articulo_id;
-                const cant = Number(v.cantidad || 0);
-                const fecha = new Date(v.fecha).getTime();
-                if (!Number.isFinite(fecha)) continue;
-                ventas6mPorArticulo.set(aid, (ventas6mPorArticulo.get(aid) || 0) + cant);
-                const bucket = Math.floor((Date.now() - fecha) / (7 * 24 * 60 * 60 * 1000));
-                if (bucket >= 0 && bucket < 12) {
-                    let arr = semanalPorArticulo.get(aid);
-                    if (!arr) { arr = new Array(12).fill(0); semanalPorArticulo.set(aid, arr); }
-                    arr[bucket] += cant;
+        // 2. Ventas por código ML desde la tabla de agregación diaria.
+        //    Fallback: si la tabla aún no existe (migración no aplicada), se usa sales_30d_full de ML.
+        const corte30 = Date.now() - DIAS_VENTANA * 24 * 60 * 60 * 1000;
+        const ventas30PorCodigo = new Map<string, number>();
+        const ventas6mPorCodigo = new Map<string, number>();
+        const semanalPorCodigo = new Map<string, number[]>();
+        let tieneVentasDiarias = true;
+        try {
+            let from = 0;
+            const PAGE = 1000;
+            while (true) {
+                const { data: ventas, error: ve } = await supabaseAdmin
+                    .from('ventas_diarias_ml')
+                    .select('codigo_ml, fecha_dia, unidades_vendidas')
+                    .gte('fecha_dia', new Date(Date.now() - DIAS_6MESES * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
+                    .range(from, from + PAGE - 1);
+                if (ve) throw ve;
+                const rows = ventas || [];
+                for (const v of rows) {
+                    const cod = v.codigo_ml;
+                    const uni = Number(v.unidades_vendidas || 0);
+                    ventas6mPorCodigo.set(cod, (ventas6mPorCodigo.get(cod) || 0) + uni);
+                    const fecha = new Date(v.fecha_dia).getTime();
+                    if (Number.isFinite(fecha) && fecha >= corte30) {
+                        ventas30PorCodigo.set(cod, (ventas30PorCodigo.get(cod) || 0) + uni);
+                    }
+                    const bucket = Math.floor((Date.now() - fecha) / (7 * 24 * 60 * 60 * 1000));
+                    if (bucket >= 0 && bucket < 12) {
+                        let arr = semanalPorCodigo.get(cod);
+                        if (!arr) { arr = new Array(12).fill(0); semanalPorCodigo.set(cod, arr); }
+                        arr[bucket] += uni;
+                    }
                 }
+                if (rows.length < PAGE) break;
+                from += PAGE;
             }
-            if (rows.length < PAGE) break;
-            from += PAGE;
+        } catch {
+            tieneVentasDiarias = false;
         }
 
         // 3. Agrupar por CÓDIGO ML (inventory_id).
@@ -89,10 +97,11 @@ export async function GET(req: Request) {
 
         // 4. Cálculo por código ML.
         const propuesta = [...byInv.values()].map((e: any) => {
-            const v30 = e.sales_30d_full;
-            const total6m = ventas6mPorArticulo.get(e.articulo_id) || 0;
-            const vPromedio6m = Math.round(total6m / MESES_HISTORICO);
-            const semanas = semanalPorArticulo.get(e.articulo_id) || new Array(12).fill(0);
+            const cod = e.inventory_id;
+            const v30 = tieneVentasDiarias ? (ventas30PorCodigo.get(cod) || 0) : e.sales_30d_full;
+            const total6m = ventas6mPorCodigo.get(cod) || 0;
+            const vPromedio6m = tieneVentasDiarias ? Math.round(total6m / MESES_HISTORICO) : e.sales_30d_full;
+            const semanas = semanalPorCodigo.get(cod) || new Array(12).fill(0);
             const vMediana = Math.round(mediana(semanas) * 4.33);
 
             let demanda: number;
