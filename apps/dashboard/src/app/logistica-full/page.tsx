@@ -10,15 +10,14 @@ import { supabaseBrowser } from '@/lib/supabase-browser';
 import { RefreshCw, PackageSearch, Truck, Boxes, Download } from 'lucide-react';
 
 interface PropItem {
-    articulo_id: string;
+    inventory_id: string;
     nombre: string | null;
-    es_full: boolean;
-    disponibles: number | null;
-    inventory_ids: string[];
+    articulo_id: string;
+    ventas_ultimo_mes: number;
+    stock_full: number;
+    pendientes: number;
     stock_efectivo: number;
-    ventas_30d: number;
-    demanda: number;
-    cobertura_actual: number | null;
+    cobertura_dias: number | null;
     sugerido: number;
     sugerencia_ml: number | null;
     shipping_urgency: string | null;
@@ -113,13 +112,15 @@ export default function LogisticaFullPage() {
 
     const exportarCSV = () => {
         if (!data?.propuesta?.length) return;
-        const head = ['articulo', 'stock_efectivo', 'ventas_30d', 'demanda', 'cobertura_dias', 'a_enviar', 'sugerencia_ml', 'urgencia'];
+        const head = ['codigo_ml', 'producto', 'ventas_mes', 'stock_full_aptas', 'pendientes', 'stock_efectivo', 'cobertura_dias', 'a_enviar', 'sugerencia_ml', 'urgencia'];
         const rows = data.propuesta.map((p) => [
+            p.inventory_id,
             `"${(p.nombre || '').replace(/"/g, '""')}"`,
+            p.ventas_ultimo_mes,
+            p.stock_full,
+            p.pendientes,
             p.stock_efectivo,
-            p.ventas_30d,
-            p.demanda,
-            p.cobertura_actual ?? '',
+            p.cobertura_dias ?? '',
             p.sugerido,
             p.sugerencia_ml ?? '',
             p.shipping_urgency ?? '',
@@ -182,25 +183,31 @@ export default function LogisticaFullPage() {
     const columns: Column<PropItem>[] = [
         {
             key: 'nombre',
-            label: 'Artículo',
+            label: 'Producto',
             render: (r) => (
                 <div className="min-w-0">
                     <p className="font-medium text-[var(--text)] truncate">{r.nombre || '(sin nombre)'}</p>
-                    <p className="text-xs text-[var(--text-faint)]">{r.inventory_ids.length} pack(s) Full</p>
+                    <p className="text-xs text-[var(--text-faint)] font-mono">{r.inventory_id}</p>
                 </div>
             ),
         },
-        { key: 'stock_efectivo', label: 'Stock efectivo', align: 'right', render: (r) => <span className="font-mono">{r.stock_efectivo}</span> },
-        { key: 'ventas_30d', label: 'Ventas 30d', align: 'right', render: (r) => <span className="font-mono">{r.ventas_30d}</span> },
-        { key: 'demanda', label: 'Demanda', align: 'right', render: (r) => <span className="font-mono">{r.demanda}</span> },
+        { key: 'ventas_ultimo_mes', label: 'Ventas mes', align: 'right', render: (r) => <span className="font-mono">{r.ventas_ultimo_mes}</span> },
+        { key: 'stock_full', label: 'Full (aptas)', align: 'right', render: (r) => <span className="font-mono">{r.stock_full}</span> },
         {
-            key: 'cobertura_actual',
+            key: 'pendientes',
+            label: 'Pendientes',
+            align: 'right',
+            render: (r) => (r.pendientes > 0 ? <span className="font-mono text-[var(--info)]">+{r.pendientes}</span> : <span className="font-mono text-[var(--text-faint)]">0</span>),
+        },
+        { key: 'stock_efectivo', label: 'Efectivo', align: 'right', render: (r) => <span className="font-mono font-semibold">{r.stock_efectivo}</span> },
+        {
+            key: 'cobertura_dias',
             label: 'Cobertura',
             align: 'right',
             render: (r) => {
-                const bajo = r.cobertura_actual != null && r.cobertura_actual < (data?.cobertura_deseada ?? 30);
-                return r.cobertura_actual != null ? (
-                    <span className="font-mono" style={{ color: bajo ? 'var(--err)' : 'var(--ok)' }}>{r.cobertura_actual}d</span>
+                const bajo = r.cobertura_dias != null && r.cobertura_dias < (data?.cobertura_deseada ?? 30);
+                return r.cobertura_dias != null ? (
+                    <span className="font-mono" style={{ color: bajo ? 'var(--err)' : 'var(--ok)' }}>{r.cobertura_dias}d</span>
                 ) : (
                     <span className="font-mono text-[var(--text-faint)]">—</span>
                 );
@@ -371,7 +378,7 @@ export default function LogisticaFullPage() {
                         const urg = r.shipping_urgency;
                         if (urg === 'URGENT' || urg === 'THIS_WEEK') return 'bg-[var(--err)]/10';
                         if (urg === 'NEXT_WEEK' || urg === 'IN_TWO_WEEKS') return 'bg-[var(--warn)]/10';
-                        if (r.cobertura_actual != null && r.cobertura_actual < (data?.cobertura_deseada ?? 30) && r.demanda > 0) return 'bg-[var(--warn)]/10';
+                        if (r.cobertura_dias != null && r.cobertura_dias < (data?.cobertura_deseada ?? 30) && r.ventas_ultimo_mes > 0) return 'bg-[var(--warn)]/10';
                         return undefined;
                     }}
                 />

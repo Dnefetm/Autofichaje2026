@@ -4,21 +4,15 @@ import { supabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const DIAS_VENTANA = 30;       // horizonte base de demanda (1 mes)
-const SEMANAS_HISTORICO = 12;  // semanas para la mediana (robusta a picos)
-const DIAS_HISTORICO = SEMANAS_HISTORICO * 7;
-const DIAS_6MESES = 180;       // ventana del promedio histórico (6 meses)
+const DIAS_VENTANA = 30;
 const MESES_HISTORICO = 6;
-const SEMANAS_POR_MES = 4.33;
+const DIAS_6MESES = 180;
 
-// T1 Logística Full — propuesta de reposición.
-// Regla: UnidadesRecomendadas = max(0, (Demanda/30) × CoberturaDeseada − StockEfectivo)
-// Demanda según método (4 opciones):
-//   'ultimo_mes'          → V30
-//   'historico_promedio'  → promedio 6 meses
-//   'historico_mediana'   → mediana semanal × 4.33 (robusta a picos)
-//   'hibrido' (default)   → min(V30, (V30 + promedio6m)/2)
-// La sugerencia de ML (replenishment_suggested) es solo referencia: NO entra al cálculo.
+// T1 Logística Full — propuesta de reposición, AGRUPADA POR CÓDIGO ML (inventory_id).
+// Datos de ML (replenishment): sales_30d_full (venta Full 30d), stock_full (aptas),
+// stock_full_total (efectivo = aptas + pendientes + en tránsito).
+// Regla: sugerido = max(0, (Demanda/30) × CoberturaDeseada − StockEfectivo).
+// Sugerencia ML es solo referencia (no entra al cálculo).
 export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
@@ -26,53 +20,45 @@ export async function GET(req: Request) {
         const metodo = searchParams.get('metodo') || 'hibrido';
         const accountId = searchParams.get('cuenta') || undefined;
 
-        // 1. Publicaciones Full mapeadas (con artículo y stock Full), opcional por cuenta.
+        // 1. Publicaciones Full mapeadas (con artículo + datos de ML).
         let query = supabaseAdmin
             .from('mapeo_publicacion_articulo')
             .select(`
-                articulo_id,
-                cantidad_requerida,
-                articulo:articulos(articulo_id, nombre, disponibles, es_full),
-                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, precio_venta, sold_quantity, marketplace_id)
+                articulo_id, cantidad_requerida,
+                articulo:articulos(articulo_id, nombre),
+                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, stock_full_total, sales_30d_full, replenishment_suggested, shipping_urgency, marketplace_id)
             `)
             .eq('publicacion.logistic_type', 'fulfillment')
             .not('publicacion.inventory_id', 'is', null);
         if (accountId) query = query.eq('publicacion.marketplace_id', accountId);
         const { data: mapeos, error: mapeosErr } = await query;
-
         if (mapeosErr) throw mapeosErr;
 
-        // 2. Ventas por artículo: total 30d, total 6m y buckets semanales (mediana).
-        const desde6Meses = new Date(Date.now() - DIAS_6MESES * 24 * 60 * 60 * 1000).toISOString();
-        const corte30 = Date.now() - DIAS_VENTANA * 24 * 60 * 60 * 1000;
-
-        const ventas30 = new Map<string, number>();
-        const ventas6m = new Map<string, number>();
+        // 2. Histórico 6m por artículo (egresos) — para el promedio histórico.
+        const desde6m = new Date(Date.now() - DIAS_6MESES * 24 * 60 * 60 * 1000).toISOString();
+        const ventas6mPorArticulo = new Map<string, number>();
         const semanalPorArticulo = new Map<string, number[]>();
-
         let from = 0;
         const PAGE = 1000;
         while (true) {
-            const { data: ventas, error: ventasErr } = await supabaseAdmin
+            const { data: ventas, error: ve } = await supabaseAdmin
                 .from('egresos')
                 .select('articulo_id, cantidad, fecha')
                 .eq('tipo_egreso', 'venta')
-                .gte('fecha', desde6Meses)
+                .gte('fecha', desde6m)
                 .range(from, from + PAGE - 1);
-            if (ventasErr) throw ventasErr;
+            if (ve) throw ve;
             const rows = ventas || [];
             for (const v of rows) {
                 const aid = v.articulo_id;
                 const cant = Number(v.cantidad || 0);
                 const fecha = new Date(v.fecha).getTime();
                 if (!Number.isFinite(fecha)) continue;
-                ventas6m.set(aid, (ventas6m.get(aid) || 0) + cant);
-                if (fecha >= corte30) ventas30.set(aid, (ventas30.get(aid) || 0) + cant);
-                // bucket semanal: índice 0..11 (0 = semana más reciente)
+                ventas6mPorArticulo.set(aid, (ventas6mPorArticulo.get(aid) || 0) + cant);
                 const bucket = Math.floor((Date.now() - fecha) / (7 * 24 * 60 * 60 * 1000));
-                if (bucket >= 0 && bucket < SEMANAS_HISTORICO) {
+                if (bucket >= 0 && bucket < 12) {
                     let arr = semanalPorArticulo.get(aid);
-                    if (!arr) { arr = new Array(SEMANAS_HISTORICO).fill(0); semanalPorArticulo.set(aid, arr); }
+                    if (!arr) { arr = new Array(12).fill(0); semanalPorArticulo.set(aid, arr); }
                     arr[bucket] += cant;
                 }
             }
@@ -80,85 +66,59 @@ export async function GET(req: Request) {
             from += PAGE;
         }
 
-        // 3. Agrupar por artículo (stock efectivo por inventory_id DISTINTO).
-        const byArticle = new Map<string, any>();
+        // 3. Agrupar por CÓDIGO ML (inventory_id).
+        const byInv = new Map<string, any>();
         for (const m of (mapeos || []) as any[]) {
-            const art: any = m.articulo;
             const pub: any = m.publicacion;
-            const aid = m.articulo_id;
-            if (!byArticle.has(aid)) {
-                byArticle.set(aid, {
-                    articulo_id: aid,
+            const art: any = m.articulo;
+            const inv = pub?.inventory_id;
+            if (!inv) continue;
+            if (!byInv.has(inv)) {
+                byInv.set(inv, {
+                    inventory_id: inv,
                     nombre: art?.nombre || null,
-                    es_full: art?.es_full ?? false,
-                    disponibles: art?.disponibles != null ? Number(art.disponibles) : null,
-                    inventory_ids: new Set<string>(),
-                    stock_efectivo: 0,
-                    replenishment_suggested: null as number | null,
-                    shipping_urgency: null as string | null,
-                    packs: [] as any[],
+                    articulo_id: m.articulo_id,
+                    stock_full: pub?.stock_full != null ? Number(pub.stock_full) : 0,
+                    stock_full_total: pub?.stock_full_total != null ? Number(pub.stock_full_total) : (pub?.stock_full != null ? Number(pub.stock_full) : 0),
+                    sales_30d_full: pub?.sales_30d_full != null ? Number(pub.sales_30d_full) : 0,
+                    replenishment_suggested: pub?.replenishment_suggested ?? null,
+                    shipping_urgency: pub?.shipping_urgency ?? null,
                 });
             }
-            const entry = byArticle.get(aid);
-            const invId = pub?.inventory_id;
-            // TODO(tras migración): usar stock_full_total (aptas + tránsito + pendientes).
-            const stockEfectivo = pub?.stock_full != null ? Number(pub.stock_full) : 0;
-            if (invId && !entry.inventory_ids.has(invId)) {
-                entry.inventory_ids.add(invId);
-                entry.stock_efectivo += stockEfectivo;
-            }
-            if (entry.replenishment_suggested == null && pub?.replenishment_suggested != null) {
-                entry.replenishment_suggested = Number(pub.replenishment_suggested);
-            }
-            if (entry.shipping_urgency == null && pub?.shipping_urgency) {
-                entry.shipping_urgency = pub.shipping_urgency;
-            }
-            entry.packs.push({
-                inventory_id: invId || null,
-                external_item_id: pub?.external_item_id || null,
-                stock_full: pub?.stock_full != null ? Number(pub.stock_full) : null,
-                stock_full_total: pub?.stock_full_total != null ? Number(pub.stock_full_total) : null,
-                precio_venta: pub?.precio_venta ?? null,
-                cantidad_requerida: m.cantidad_requerida ?? null,
-            });
         }
 
-        // 4. Proyección de demanda (4 métodos) y cálculo final.
-        const propuesta = [...byArticle.values()].map((e: any) => {
-            const v30 = ventas30.get(e.articulo_id) || 0;
-            const total6m = ventas6m.get(e.articulo_id) || 0;
+        // 4. Cálculo por código ML.
+        const propuesta = [...byInv.values()].map((e: any) => {
+            const v30 = e.sales_30d_full;
+            const total6m = ventas6mPorArticulo.get(e.articulo_id) || 0;
             const vPromedio6m = Math.round(total6m / MESES_HISTORICO);
-            const semanas = semanalPorArticulo.get(e.articulo_id) || new Array(SEMANAS_HISTORICO).fill(0);
-            const vMediana = Math.round(mediana(semanas) * SEMANAS_POR_MES);
+            const semanas = semanalPorArticulo.get(e.articulo_id) || new Array(12).fill(0);
+            const vMediana = Math.round(mediana(semanas) * 4.33);
 
             let demanda: number;
             if (metodo === 'ultimo_mes') demanda = v30;
             else if (metodo === 'historico_promedio') demanda = vPromedio6m;
             else if (metodo === 'historico_mediana') demanda = vMediana;
-            else demanda = Math.min(v30, (v30 + vPromedio6m) / 2); // híbrido, limitado a V30
+            else demanda = Math.min(v30, (v30 + vPromedio6m) / 2);
 
             const demandaDiaria = demanda / DIAS_VENTANA;
-            const stockEfectivo = e.stock_efectivo;
-            const sugerido = Math.max(0, Math.round(demandaDiaria * coberturaDeseada - stockEfectivo));
-            const coberturaActual = demandaDiaria > 0 ? Math.round((stockEfectivo / demandaDiaria) * 10) / 10 : null;
+            const efectivo = e.stock_full_total;
+            const pendientes = Math.max(0, efectivo - e.stock_full);
+            const sugerido = Math.max(0, Math.round(demandaDiaria * coberturaDeseada - efectivo));
+            const cobertura = demandaDiaria > 0 ? Math.round((efectivo / demandaDiaria) * 10) / 10 : null;
 
             return {
-                articulo_id: e.articulo_id,
+                inventory_id: e.inventory_id,
                 nombre: e.nombre,
-                es_full: e.es_full,
-                disponibles: e.disponibles,
-                inventory_ids: [...e.inventory_ids],
-                stock_efectivo: stockEfectivo,
-                ventas_30d: v30,
-                demanda_historica: vPromedio6m,
-                demanda_mediana: vMediana,
-                demanda: Math.round(demanda),
-                demanda_diaria: Math.round(demandaDiaria * 100) / 100,
-                cobertura_actual: coberturaActual,
+                articulo_id: e.articulo_id,
+                ventas_ultimo_mes: v30,
+                stock_full: e.stock_full,
+                pendientes,
+                stock_efectivo: efectivo,
+                cobertura_dias: cobertura,
                 sugerido,
                 sugerencia_ml: e.replenishment_suggested,
                 shipping_urgency: e.shipping_urgency,
-                packs: e.packs,
             };
         });
 
@@ -171,7 +131,6 @@ export async function GET(req: Request) {
             success: true,
             cobertura_deseada: coberturaDeseada,
             metodo,
-            dias_ventana: DIAS_VENTANA,
             total_items: propuesta.length,
             requieren_envio: requierenEnvio,
             total_sugerido: totalSugerido,
