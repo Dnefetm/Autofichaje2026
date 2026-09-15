@@ -367,14 +367,26 @@ export class MeliAdapter implements MarketplaceAdapter {
         const accessToken = await this.getAccessToken(accountId);
         const CONCURRENCY = 10;
 
-        const { data: pubs } = await supabase
-            .from('publicaciones_externas')
-            .select('id, inventory_id')
-            .eq('marketplace_id', accountId)
-            .eq('logistic_type', 'fulfillment')
-            .not('inventory_id', 'is', null);
+        // Paginar para no perder filas por el límite de filas de PostgREST (1000).
+        const allInvIds = new Set<string>();
+        const PAGE = 1000;
+        let from = 0;
+        while (true) {
+            const { data: pubs } = await supabase
+                .from('publicaciones_externas')
+                .select('inventory_id')
+                .eq('marketplace_id', accountId)
+                .eq('logistic_type', 'fulfillment')
+                .not('inventory_id', 'is', null)
+                .order('inventory_id')
+                .range(from, from + PAGE - 1);
+            const rows = pubs || [];
+            rows.forEach(r => { if (r.inventory_id) allInvIds.add(r.inventory_id); });
+            if (rows.length < PAGE) break;
+            from += PAGE;
+        }
 
-        const invIds = [...new Set((pubs || []).map(p => p.inventory_id).filter(Boolean))] as string[];
+        const invIds = [...allInvIds] as string[];
         let updated = 0;
         let errors = 0;
 
