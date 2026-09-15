@@ -27,10 +27,23 @@ interface PropData {
     propuesta: PropItem[];
 }
 
+interface Envio {
+    guia: string;
+    estado: 'Pendiente' | 'Reunido' | 'Preparado';
+    count: number;
+    cantidad: number;
+    pendiente: number;
+    reunido: number;
+    preparado: number;
+    fecha: string;
+}
+
 export default function LogisticaFullPage() {
     const [data, setData] = useState<PropData | null>(null);
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
+    const [envios, setEnvios] = useState<Envio[]>([]);
+    const [avanzandoGuia, setAvanzandoGuia] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -45,7 +58,17 @@ export default function LogisticaFullPage() {
         }
     }, []);
 
-    useEffect(() => { load(); }, [load]);
+    const loadEnvios = useCallback(async () => {
+        try {
+            const r = await fetch('/api/logistica-full/lotes');
+            const j = await r.json();
+            if (j.success) setEnvios(j.envios || []);
+        } catch (e) {
+            console.error(e);
+        }
+    }, []);
+
+    useEffect(() => { load(); loadEnvios(); }, [load, loadEnvios]);
 
     const sync = async () => {
         setSyncing(true);
@@ -60,6 +83,23 @@ export default function LogisticaFullPage() {
             console.error(e);
         } finally {
             setSyncing(false);
+        }
+    };
+
+    const avanzar = async (guia: string, accion: 'reunir' | 'preparar') => {
+        setAvanzandoGuia(guia);
+        try {
+            const r = await fetch('/api/logistica-full/envio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ guia, accion }),
+            });
+            const j = await r.json();
+            await loadEnvios();
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setAvanzandoGuia(null);
         }
     };
 
@@ -96,6 +136,40 @@ export default function LogisticaFullPage() {
                 ) : (
                     <span className="font-mono text-[var(--text-faint)]">—</span>
                 ),
+        },
+    ];
+
+    const envioColumns: Column<Envio>[] = [
+        { key: 'guia', label: 'Guía', render: (r) => <span className="font-mono font-semibold">{r.guia}</span> },
+        {
+            key: 'estado',
+            label: 'Estado',
+            render: (r) => (
+                <Badge tone={r.estado === 'Preparado' ? 'success' : r.estado === 'Reunido' ? 'info' : 'neutral'}>
+                    {r.estado}
+                </Badge>
+            ),
+        },
+        { key: 'count', label: 'Ítems', align: 'right', render: (r) => <span className="font-mono">{r.count}</span> },
+        { key: 'cantidad', label: 'Unidades', align: 'right', render: (r) => <span className="font-mono">{r.cantidad}</span> },
+        { key: 'fecha', label: 'Fecha', render: (r) => (r.fecha ? new Date(r.fecha).toLocaleDateString('es-MX') : '—') },
+        {
+            key: 'acciones',
+            label: '',
+            render: (r) => (
+                <div className="flex gap-1.5 justify-end">
+                    {r.estado === 'Pendiente' && (
+                        <Btn size="sm" variant="outline" loading={avanzandoGuia === r.guia} onClick={() => avanzar(r.guia, 'reunir')}>
+                            Reunir
+                        </Btn>
+                    )}
+                    {(r.estado === 'Pendiente' || r.estado === 'Reunido') && (
+                        <Btn size="sm" variant="primary" loading={avanzandoGuia === r.guia} onClick={() => avanzar(r.guia, 'preparar')}>
+                            Preparar
+                        </Btn>
+                    )}
+                </div>
+            ),
         },
     ];
 
@@ -141,6 +215,16 @@ export default function LogisticaFullPage() {
                     rowKey={(r) => r.articulo_id}
                     loading={loading}
                     empty="Sin artículos Full mapeados"
+                />
+            </Card>
+
+            {/* Workflow de envíos */}
+            <Card title="Envíos Full (pendiente → reunido → preparado)">
+                <DataTable<Envio>
+                    columns={envioColumns}
+                    rows={envios}
+                    rowKey={(r) => r.guia}
+                    empty="Sin envíos Full en los últimos 30 días"
                 />
             </Card>
         </Page>
