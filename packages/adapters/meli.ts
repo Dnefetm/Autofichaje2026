@@ -425,7 +425,22 @@ export class MeliAdapter implements MarketplaceAdapter {
         const accessToken = await this.getAccessToken(accountId);
         const CONCURRENCY = 5;
 
-        // 1. Ítems Full padre con inventory_id (paginado).
+        // 1. Solo ítems Full MAPEADOS (para no exceder el timeout de Vercel).
+        const mappedIds = new Set<string>();
+        {
+            let mfrom = 0;
+            while (true) {
+                const { data: m } = await supabase
+                    .from('mapeo_publicacion_articulo')
+                    .select('publicacion_id')
+                    .range(mfrom, mfrom + 999);
+                const rows = m || [];
+                rows.forEach(r => mappedIds.add(r.publicacion_id));
+                if (rows.length < 1000) break;
+                mfrom += 1000;
+            }
+        }
+
         const items: { external_item_id: string }[] = [];
         let from = 0;
         const PAGE = 1000;
@@ -437,6 +452,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 .eq('logistic_type', 'fulfillment')
                 .not('inventory_id', 'is', null)
                 .eq('external_variation_id', '0')
+                .in('id', [...mappedIds])
                 .order('external_item_id')
                 .range(from, from + PAGE - 1);
             const rows = data || [];
