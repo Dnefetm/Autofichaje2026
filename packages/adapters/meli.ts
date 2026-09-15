@@ -908,13 +908,16 @@ export class MeliAdapter implements MarketplaceAdapter {
             if (sellerId) {
                 const { data: pubRows } = await supabase
                     .from('publicaciones_externas')
-                    .select('external_item_id, free_shipping')
+                    .select('id, external_item_id, free_shipping')
                     .eq('marketplace_id', accountId)
-                    .in('external_item_id', itemIds);
+                    .in('external_item_id', itemIds)
+                    .in('external_variation_id', ['0']);
 
                 const freeShippingMap = new Map<string, boolean>();
+                const pubIdMap = new Map<string, string>();
                 (pubRows || []).forEach(p => {
                     freeShippingMap.set(p.external_item_id, p.free_shipping === true);
+                    pubIdMap.set(p.external_item_id, p.id);
                 });
 
                 for (let i = 0; i < itemIds.length; i += CONCURRENCY) {
@@ -934,6 +937,18 @@ export class MeliAdapter implements MarketplaceAdapter {
                                     .update({ shipping_cost_monto: listCost })
                                     .eq('marketplace_id', accountId)
                                     .eq('external_item_id', itemId);
+
+                                // Recalcular el precio para que el draft refleje el envío actualizado.
+                                // Antes este recálculo no se disparaba tras el sync de envío, por lo que
+                                // "Envío Real MeLi" quedaba en $0 en el draft (bug reportado).
+                                const pubId = pubIdMap.get(itemId);
+                                if (pubId) {
+                                    try {
+                                        await supabase.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id: pubId });
+                                    } catch (recalcErr: any) {
+                                        logger.warn({ accountId, itemId, pubId, error: recalcErr?.message }, 'V31: fallo al recalcular precio tras actualizar envío');
+                                    }
+                                }
                             } else if (shipResp.data?.status === 403) {
                                 logger.error({ accountId, itemId, error: shipResp.data }, 'V31: ML bloqueó la petición de envíos (403 PolicyAgent)');
                             } else if (shipResp.data?.error) {
