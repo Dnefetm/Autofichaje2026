@@ -361,6 +361,51 @@ export class MeliAdapter implements MarketplaceAdapter {
         }
     }
 
+    // V33 (T1 Logística Full): sincroniza el stock disponible en el depósito Full
+    // de MeLi para cada inventory_id del accountId, guardándolo en stock_full.
+    async syncFullStock(accountId: string): Promise<{ updated: number; errors: number }> {
+        const accessToken = await this.getAccessToken(accountId);
+        const CONCURRENCY = 10;
+
+        const { data: pubs } = await supabase
+            .from('publicaciones_externas')
+            .select('id, inventory_id')
+            .eq('marketplace_id', accountId)
+            .eq('logistic_type', 'fulfillment')
+            .not('inventory_id', 'is', null);
+
+        const invIds = [...new Set((pubs || []).map(p => p.inventory_id).filter(Boolean))] as string[];
+        let updated = 0;
+        let errors = 0;
+
+        for (let i = 0; i < invIds.length; i += CONCURRENCY) {
+            const chunk = invIds.slice(i, i + CONCURRENCY);
+            await Promise.all(chunk.map(async (invId) => {
+                try {
+                    const resp = await axios.get(
+                        `https://api.mercadolibre.com/inventories/${invId}/stock/fulfillment`,
+                        { headers: { Authorization: `Bearer ${accessToken}` } }
+                    );
+                    const qty = resp.data?.available_quantity;
+                    if (qty != null) {
+                        const { error } = await supabase
+                            .from('publicaciones_externas')
+                            .update({ stock_full: qty, stock_full_updated_at: new Date().toISOString() })
+                            .eq('marketplace_id', accountId)
+                            .eq('inventory_id', invId);
+                        if (error) errors++; else updated++;
+                    }
+                } catch (err: any) {
+                    errors++;
+                    logger.warn({ accountId, invId, error: err?.message }, 'V33: fallo al obtener stock Full');
+                }
+            }));
+        }
+
+        logger.info({ accountId, invIds: invIds.length, updated, errors }, 'V33: stock Full sincronizado');
+        return { updated, errors };
+    }
+
 
     // --- NUEVA FUNCIÓN SERVERLESS: BATCH SYNC ---
     async syncCatalogBatch(accountId: string, itemIds: string[]): Promise<number> {
