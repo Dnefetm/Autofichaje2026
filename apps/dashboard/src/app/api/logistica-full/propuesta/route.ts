@@ -19,7 +19,7 @@ export async function GET() {
                 articulo_id,
                 cantidad_requerida,
                 articulo:articulos(articulo_id, nombre, disponibles, es_full),
-                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, precio_venta, sold_quantity)
+                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, stock_full_total, precio_venta, sold_quantity)
             `)
             .eq('publicacion.logistic_type', 'fulfillment')
             .not('publicacion.inventory_id', 'is', null);
@@ -68,14 +68,18 @@ export async function GET() {
             }
             const entry = byArticle.get(aid);
             const invId = pub?.inventory_id;
+            // Stock efectivo = stock_full_total (aptas + en tránsito + pendientes);
+            // si aún no está sincronizado, caer a stock_full (solo aptas).
+            const stockEfectivo = pub?.stock_full_total != null ? Number(pub.stock_full_total) : (pub?.stock_full != null ? Number(pub.stock_full) : 0);
             if (invId && !entry.inventory_ids.has(invId)) {
                 entry.inventory_ids.add(invId);
-                entry.stock_full += pub?.stock_full != null ? Number(pub.stock_full) : 0;
+                entry.stock_full += stockEfectivo;
             }
             entry.packs.push({
                 inventory_id: invId || null,
                 external_item_id: pub?.external_item_id || null,
                 stock_full: pub?.stock_full != null ? Number(pub.stock_full) : null,
+                stock_full_total: pub?.stock_full_total != null ? Number(pub.stock_full_total) : null,
                 precio_venta: pub?.precio_venta ?? null,
                 cantidad_requerida: m.cantidad_requerida ?? null,
             });

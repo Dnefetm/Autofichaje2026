@@ -479,11 +479,17 @@ export class MeliAdapter implements MarketplaceAdapter {
                         { headers: { Authorization: `Bearer ${accessToken}` } }
                     );
                     const b = resp.data;
+                    // suggested_quantity es un objeto: { type:'exact', value } o { type:'range', min, max }.
+                    const sq = b?.recommendation?.suggested_quantity;
+                    const sugerido = typeof sq === 'object' && sq != null
+                        ? (sq.type === 'range' ? sq.max : sq.value)
+                        : (sq ?? null);
                     const { error } = await supabase
                         .from('publicaciones_externas')
                         .update({
                             user_product_id: upId,
-                            replenishment_suggested: b?.recommendation?.suggested_quantity ?? null,
+                            stock_full_total: b?.stock?.total_stock ?? null,
+                            replenishment_suggested: sugerido ?? null,
                             shipping_urgency: b?.stock?.shipping_urgency ?? null,
                             replenishment_deadline: b?.recommendation?.replenishment_deadline ?? null,
                             sales_30d_full: b?.sales?.sales_totals?.units_sold?.[0]?.full ?? null,
