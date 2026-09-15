@@ -309,6 +309,56 @@ export class MeliAdapter implements MarketplaceAdapter {
         } catch (error: any) {
             logger.error({ itemId, error: error.response?.data || error.message }, 'Error al sincronizar publicación individual de MeLi');
         }
+        // V32: traer también el costo de envío efectivo de MeLi (automático, sin botón manual).
+        await this.syncShippingCost(accountId, itemId);
+    }
+
+    // V32: sincroniza el costo de envío efectivo que MeLi cobra por un ítem.
+    // Se invoca desde syncCatalogItem (flujo automático webhook → sync_item), para que
+    // el envío se actualice sin depender del botón manual "Forzar Sync MeLi".
+    private async syncShippingCost(accountId: string, itemId: string): Promise<void> {
+        try {
+            const { data: mkp } = await supabase
+                .from('marketplace_configs')
+                .select('settings')
+                .eq('id', accountId)
+                .single();
+            const sellerId = mkp?.settings?.seller_id;
+            if (!sellerId) return;
+
+            const { data: pub } = await supabase
+                .from('publicaciones_externas')
+                .select('id, free_shipping')
+                .eq('marketplace_id', accountId)
+                .eq('external_item_id', itemId)
+                .eq('external_variation_id', '0')
+                .maybeSingle();
+            if (!pub) return;
+
+            const isFree = pub.free_shipping === true;
+            const queryParam = isFree ? '&free_shipping=true' : '';
+            const path = `/users/${sellerId}/shipping_options/free?item_id=${itemId}${queryParam}`;
+            const shipResp = await axios.get(
+                `https://autofichaje2026-dashboard-1img.vercel.app/api/admin/debug-meli?account_id=${accountId}&path=${encodeURIComponent(path)}`
+            );
+            const listCost = shipResp.data?.coverage?.all_country?.list_cost;
+            if (listCost == null) return;
+
+            await supabase
+                .from('publicaciones_externas')
+                .update({ shipping_cost_monto: listCost })
+                .eq('marketplace_id', accountId)
+                .eq('external_item_id', itemId);
+
+            // Recalcular el precio para que el draft refleje el envío actualizado.
+            try {
+                await supabase.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id: pub.id });
+            } catch (recalcErr: any) {
+                logger.warn({ accountId, itemId, pubId: pub.id, error: recalcErr?.message }, 'V32: fallo al recalcular precio tras sincronizar envío');
+            }
+        } catch (err: any) {
+            logger.warn({ accountId, itemId, error: err?.message }, 'V32: fallo al sincronizar costo de envío');
+        }
     }
 
 
