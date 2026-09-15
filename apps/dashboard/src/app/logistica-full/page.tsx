@@ -6,6 +6,7 @@ import { Btn } from '@/components/ui/Btn';
 import { Card } from '@/components/ui/Card';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/Badge';
+import { supabaseBrowser } from '@/lib/supabase-browser';
 import { RefreshCw, PackageSearch, Truck, Boxes, Download } from 'lucide-react';
 
 interface PropItem {
@@ -52,11 +53,25 @@ export default function LogisticaFullPage() {
     const [avanzandoGuia, setAvanzandoGuia] = useState<string | null>(null);
     const [cobertura, setCobertura] = useState(30);
     const [metodo, setMetodo] = useState<'ultimo_mes' | 'historico_promedio' | 'historico_mediana' | 'hibrido'>('hibrido');
+    const [cuentas, setCuentas] = useState<{ id: string; nombre: string }[]>([]);
+    const [cuenta, setCuenta] = useState<string>('');
+
+    const loadCuentas = useCallback(async () => {
+        try {
+            const sb = supabaseBrowser();
+            const { data } = await sb.from('marketplace_configs').select('id, account_name, settings').eq('is_active', true);
+            setCuentas((data || []).map((c: any) => ({ id: c.id, nombre: c.settings?.store_name || c.account_name || c.id })));
+        } catch (e) {
+            console.error(e);
+        }
+    }, []);
 
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            const r = await fetch(`/api/logistica-full/propuesta?cobertura=${cobertura}&metodo=${metodo}`);
+            const q = new URLSearchParams({ cobertura: String(cobertura), metodo });
+            if (cuenta) q.set('cuenta', cuenta);
+            const r = await fetch(`/api/logistica-full/propuesta?${q.toString()}`);
             const j = await r.json();
             if (j.success) setData(j);
         } catch (e) {
@@ -64,7 +79,9 @@ export default function LogisticaFullPage() {
         } finally {
             setLoading(false);
         }
-    }, [cobertura, metodo]);
+    }, [cobertura, metodo, cuenta]);
+
+    useEffect(() => { loadCuentas(); }, [loadCuentas]);
 
     const loadEnvios = useCallback(async () => {
         try {
@@ -271,6 +288,19 @@ export default function LogisticaFullPage() {
 
             {/* Controles */}
             <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+                    Cuenta
+                    <select
+                        value={cuenta}
+                        onChange={(e) => setCuenta(e.target.value)}
+                        className="px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)]"
+                    >
+                        <option value="">Todas</option>
+                        {cuentas.map((c) => (
+                            <option key={c.id} value={c.id}>{c.nombre}</option>
+                        ))}
+                    </select>
+                </label>
                 <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
                     Cobertura deseada (días)
                     <input

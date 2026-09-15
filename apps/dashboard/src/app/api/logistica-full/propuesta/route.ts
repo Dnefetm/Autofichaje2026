@@ -24,18 +24,21 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const coberturaDeseada = Number(searchParams.get('cobertura') || 30);
         const metodo = searchParams.get('metodo') || 'hibrido';
+        const accountId = searchParams.get('cuenta') || undefined;
 
-        // 1. Publicaciones Full mapeadas (con artículo y stock Full).
-        const { data: mapeos, error: mapeosErr } = await supabaseAdmin
+        // 1. Publicaciones Full mapeadas (con artículo y stock Full), opcional por cuenta.
+        let query = supabaseAdmin
             .from('mapeo_publicacion_articulo')
             .select(`
                 articulo_id,
                 cantidad_requerida,
                 articulo:articulos(articulo_id, nombre, disponibles, es_full),
-                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, precio_venta, sold_quantity)
+                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, precio_venta, sold_quantity, marketplace_id)
             `)
             .eq('publicacion.logistic_type', 'fulfillment')
             .not('publicacion.inventory_id', 'is', null);
+        if (accountId) query = query.eq('publicacion.marketplace_id', accountId);
+        const { data: mapeos, error: mapeosErr } = await query;
 
         if (mapeosErr) throw mapeosErr;
 
