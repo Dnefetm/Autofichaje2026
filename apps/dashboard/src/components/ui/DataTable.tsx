@@ -17,6 +17,7 @@ export function DataTable<T>({
   empty = 'Sin datos',
   loading = false,
   className,
+  rowClassName,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -24,6 +25,7 @@ export function DataTable<T>({
   empty?: React.ReactNode;
   loading?: boolean;
   className?: string;
+  rowClassName?: (row: T) => string | undefined;
 }) {
   if (loading) {
     return (
@@ -55,7 +57,7 @@ export function DataTable<T>({
         </thead>
         <tbody className="divide-y divide-[var(--border)]">
           {rows.map((row) => (
-            <tr key={rowKey(row)}>
+            <tr key={rowKey(row)} className={rowClassName?.(row)}>
               {columns.map((c) => (
                 <td key={c.key} className={cn('px-4 py-3 align-middle', c.align === 'right' && 'text-right')}>
                   {value(row, c)}
@@ -69,7 +71,7 @@ export function DataTable<T>({
       {/* Móvil: cards apiladas */}
       <div className="md:hidden divide-y divide-[var(--border)]">
         {rows.map((row) => (
-          <div key={rowKey(row)} className="px-4 py-3 space-y-1.5">
+          <div key={rowKey(row)} className={cn('px-4 py-3 space-y-1.5', rowClassName?.(row))}>
             {columns.map((c) => (
               <div key={c.key} className="flex items-start justify-between gap-3">
                 <span className="text-xs text-[var(--text-faint)] uppercase tracking-wider shrink-0 pt-0.5">{c.label}</span>

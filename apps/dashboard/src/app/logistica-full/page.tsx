@@ -335,6 +335,13 @@ export default function LogisticaFullPage() {
                     rowKey={(r) => r.articulo_id}
                     loading={loading}
                     empty="Sin artículos Full mapeados"
+                    rowClassName={(r) => {
+                        const urg = r.shipping_urgency;
+                        if (urg === 'URGENT' || urg === 'THIS_WEEK') return 'bg-[var(--err)]/10';
+                        if (urg === 'NEXT_WEEK' || urg === 'IN_TWO_WEEKS') return 'bg-[var(--warn)]/10';
+                        if (r.cobertura_actual != null && r.cobertura_actual < (data?.cobertura_deseada ?? 30) && r.demanda > 0) return 'bg-[var(--warn)]/10';
+                        return undefined;
+                    }}
                 />
             </Card>
 
