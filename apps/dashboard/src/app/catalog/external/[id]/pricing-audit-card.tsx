@@ -281,12 +281,12 @@ export default function PricingAuditCard({
     return (
         <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] overflow-hidden flex flex-col h-full shadow-sm">
             {/* Header */}
-            <div className="px-5 py-3 border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-2 bg-[var(--surface-2)]">
-                <div className="flex items-center gap-2.5 shrink-0 min-w-0">
-                    <div className="text-[var(--accent)]"><DollarSign className="w-4 h-4" /></div>
-                    <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider whitespace-nowrap">Auditoría de Precio</h2>
+            <div className="px-5 py-3 border-b border-[var(--border)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-[var(--surface-2)]">
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                    <div className="text-[var(--accent)] shrink-0"><DollarSign className="w-4 h-4" /></div>
+                    <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider truncate">Auditoría de Precio</h2>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
                     <button 
                         onClick={handleForceRecalculate} 
                         disabled={recalculating || loading}

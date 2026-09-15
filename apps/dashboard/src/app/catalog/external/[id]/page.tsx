@@ -1092,13 +1092,13 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <div className="divide-y divide-[var(--border)]">
                                     {(mapeos || []).map(m => (
                                         <div key={m.id} className="py-3">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="min-w-0">
-                                                    <p className="text-xs font-bold text-[var(--text)]">{m.articulo?.nombre}</p>
+                                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                                <div className="w-full sm:flex-1 min-w-0">
+                                                    <p className="text-xs font-bold text-[var(--text)] break-words">{m.articulo?.nombre}</p>
                                                     <p className="text-[10px] font-mono text-[var(--text-faint)] mt-0.5">{m.articulo?.articulo_id}</p>
                                                     {m.articulo?.marca && <p className="text-[10px] text-[var(--text-faint)]">{m.articulo.marca}</p>}
                                                 </div>
-                                                <div className="flex items-center gap-2 shrink-0">
+                                                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2 shrink-0">
                                                     <span className="text-xs font-bold bg-[var(--accent)]/10 text-[var(--accent)] px-2 py-0.5 rounded-[var(--radius-sm)]">
                                                         ×{m.cantidad_requerida}
                                                     </span>
