@@ -418,6 +418,91 @@ export class MeliAdapter implements MarketplaceAdapter {
         return { updated, errors };
     }
 
+    // V34 (T1 Logística Full): sincroniza los datos de replenishment de MeLi
+    // (sugerencia de envío de ML, urgencia, deadline y ventas 30d nativas) para
+    // cada ítem Full. Reemplaza el "Reporte de planificación" que antes era un Excel.
+    async syncReplenishment(accountId: string): Promise<{ updated: number; errors: number }> {
+        const accessToken = await this.getAccessToken(accountId);
+        const CONCURRENCY = 5;
+
+        // 1. Ítems Full padre con inventory_id (paginado).
+        const items: { external_item_id: string }[] = [];
+        let from = 0;
+        const PAGE = 1000;
+        while (true) {
+            const { data } = await supabase
+                .from('publicaciones_externas')
+                .select('external_item_id')
+                .eq('marketplace_id', accountId)
+                .eq('logistic_type', 'fulfillment')
+                .not('inventory_id', 'is', null)
+                .eq('external_variation_id', '0')
+                .order('external_item_id')
+                .range(from, from + PAGE - 1);
+            const rows = data || [];
+            items.push(...rows.map(r => ({ external_item_id: r.external_item_id })));
+            if (rows.length < PAGE) break;
+            from += PAGE;
+        }
+
+        // 2. Obtener user_product_id por ítem vía multiGET.
+        const upIdByItem = new Map<string, string>();
+        for (let i = 0; i < items.length; i += 20) {
+            const chunk = items.slice(i, i + 20);
+            const ids = chunk.map(it => it.external_item_id).join(',');
+            try {
+                const resp = await axios.get(`https://api.mercadolibre.com/items?ids=${ids}`, {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                });
+                const results = resp.data || [];
+                for (const r of results) {
+                    if (r.code === 200 && r.body?.user_product_id) {
+                        upIdByItem.set(r.body.id, r.body.user_product_id);
+                    }
+                }
+            } catch (err: any) {
+                logger.warn({ accountId, error: err?.message }, 'V34: fallo al obtener user_product_id (multiGET)');
+            }
+        }
+
+        // 3. Llamar replenishment por user_product_id y guardar.
+        let updated = 0;
+        let errors = 0;
+        const targets = items.filter(it => upIdByItem.has(it.external_item_id));
+        for (let i = 0; i < targets.length; i += CONCURRENCY) {
+            const chunk = targets.slice(i, i + CONCURRENCY);
+            await Promise.all(chunk.map(async (it) => {
+                const upId = upIdByItem.get(it.external_item_id);
+                try {
+                    const resp = await axios.get(
+                        `https://api.mercadolibre.com/marketplace/fbm/user-products/${upId}/replenishment?country=MX`,
+                        { headers: { Authorization: `Bearer ${accessToken}` } }
+                    );
+                    const b = resp.data;
+                    const { error } = await supabase
+                        .from('publicaciones_externas')
+                        .update({
+                            user_product_id: upId,
+                            replenishment_suggested: b?.recommendation?.suggested_quantity ?? null,
+                            shipping_urgency: b?.stock?.shipping_urgency ?? null,
+                            replenishment_deadline: b?.recommendation?.replenishment_deadline ?? null,
+                            sales_30d_full: b?.sales?.sales_totals?.units_sold?.[0]?.full ?? null,
+                            replenishment_updated_at: new Date().toISOString(),
+                        })
+                        .eq('marketplace_id', accountId)
+                        .eq('external_item_id', it.external_item_id);
+                    if (error) errors++; else updated++;
+                } catch (err: any) {
+                    errors++;
+                    logger.warn({ accountId, itemId: it.external_item_id, error: err?.message }, 'V34: fallo al obtener replenishment');
+                }
+            }));
+        }
+
+        logger.info({ accountId, items: items.length, updated, errors }, 'V34: replenishment sincronizado');
+        return { updated, errors };
+    }
+
 
     // --- NUEVA FUNCIÓN SERVERLESS: BATCH SYNC ---
     async syncCatalogBatch(accountId: string, itemIds: string[]): Promise<number> {

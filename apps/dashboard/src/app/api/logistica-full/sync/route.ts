@@ -5,8 +5,8 @@ import { MeliAdapter } from '@gestor/adapters/meli';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// T1 Logística Full — sincroniza el stock del depósito Full de MeLi hacia
-// publicaciones_externas.stock_full (por inventory_id único).
+// T1 Logística Full — sincroniza el stock del depósito Full (stock_full) y los
+// datos de replenishment (sugerencia ML, urgencia, ventas 30d) hacia publicaciones_externas.
 export async function POST(req: Request) {
     try {
         const body = await req.json().catch(() => ({}));
@@ -28,10 +28,17 @@ export async function POST(req: Request) {
         }
 
         const meli = new MeliAdapter();
-        const results: { accountId: string; updated: number; errors: number }[] = [];
+        const results: { accountId: string; stock: { updated: number; errors: number }; replenishment: { updated: number; errors: number } }[] = [];
         for (const acc of accounts) {
-            const r = await meli.syncFullStock(acc.id);
-            results.push({ accountId: acc.id, ...r });
+            const stock = await meli.syncFullStock(acc.id);
+            let replenishment = { updated: 0, errors: 0 };
+            try {
+                replenishment = await meli.syncReplenishment(acc.id);
+            } catch (e: any) {
+                // Si la migración de columnas aún no está aplicada, no romper el sync de stock.
+                replenishment = { updated: 0, errors: 1 };
+            }
+            results.push({ accountId: acc.id, stock, replenishment });
         }
 
         return NextResponse.json({ success: true, results });
