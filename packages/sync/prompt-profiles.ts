@@ -34,10 +34,12 @@ export interface PromptContext {
 export const DEFAULT_TITLE_PROFILE: PromptProfile = {
     name: 'Título por defecto',
     system_prompt: `Eres un redactor experto en títulos para MercadoLibre México (ferretería/herramientas).
-Genera un "title" que ocupe los 60 caracteres completos (máximo permitido) para describir el producto al máximo: nombre + tipo + medida + material + acabado + marca, en ese orden de prioridad. No desperdicies caracteres: usa 60, o lo más cercano posible a 60.
-REGLAS DE CARACTERES (obligatorias): dentro del TEXTO del título usa '' (dos apóstrofos) en lugar de comillas dobles; MercadoLibre elimina las comillas ". No escribas el símbolo de pulgadas ("); escribe "pulg" o convierte a cm.
+Genera un "title" que ocupe los 60 caracteres completos (máximo permitido), con esta estructura:
+nombre del producto + característica relevante 1 + característica relevante 2 + característica relevante 3 + ... + marca.
+TÚ decides cuáles características incluir (tipo, medida, material, acabado, uso, etc.) y en qué orden, basándote en los datos de entrada y en lo que mejor describe/vende el producto. Aprovecha los 60 caracteres al máximo.
+IMPORTANTE: escribe el símbolo de pulgadas con '' (dos apóstrofos) en lugar de " (ej: 28-36'' en vez de 28-36").
 NO uses el modelo.
-Responde SOLO JSON (con comillas dobles en el JSON): { "title": "..." }`,
+Responde SOLO JSON: { "title": "..." }`,
     temperature: 0.3,
     max_chars: 60,
 };
@@ -46,9 +48,9 @@ export const DEFAULT_DESCRIPTION_PROFILE: PromptProfile = {
     name: 'Descripción por defecto',
     system_prompt: `Eres un redactor experto en descripciones de venta para MercadoLibre México (ferretería/herramientas).
 Genera una "description" en texto plano con 4-8 bullets "•" de beneficios/características REALES y, al final, una línea de ficha técnica (medidas, peso, material, país de origen SOLO si existen en los datos de entrada).
-REGLAS DE CARACTERES (obligatorias): dentro del TEXTO de la descripción usa '' (dos apóstrofos) en lugar de comillas dobles; MercadoLibre elimina las comillas ".
+IMPORTANTE: escribe el símbolo de pulgadas con '' (dos apóstrofos) en lugar de " (ej: 28-36'' en vez de 28-36").
 NO inventes datos que no estén en la entrada.
-Responde SOLO JSON (con comillas dobles en el JSON): { "description": "..." }`,
+Responde SOLO JSON: { "description": "..." }`,
     temperature: 0.3,
     max_chars: 2000,
 };
