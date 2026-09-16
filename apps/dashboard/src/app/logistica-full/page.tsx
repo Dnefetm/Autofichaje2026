@@ -137,16 +137,15 @@ export default function LogisticaFullPage() {
     const [detalle, setDetalle] = useState<{ guia: string; egresos: any[] } | null>(null);
     const [detalleLoading, setDetalleLoading] = useState(false);
 
-    const avanzar = async (guia: string, accion: 'reunir' | 'preparar') => {
-        setAvanzandoGuia(guia);
+    const cambiarEstado = async (egresoId: string, accion: 'reunir' | 'preparar' | 'quitar') => {
+        setAvanzandoGuia(egresoId);
         try {
-            const r = await fetch('/api/logistica-full/envio', {
-                method: 'POST',
+            await fetch('/api/logistica-full/envio', {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ guia, accion }),
+                body: JSON.stringify({ egreso_id: egresoId, accion }),
             });
-            const j = await r.json();
-            await loadEnvios();
+            if (detalle) await verEnvio(detalle.guia);
         } catch (e) {
             console.error(e);
         } finally {
@@ -267,20 +266,10 @@ export default function LogisticaFullPage() {
             key: 'acciones',
             label: '',
             render: (r) => (
-                <div className="flex gap-1.5 justify-end flex-wrap">
+                <div className="flex gap-1.5 justify-end">
                     <Btn size="sm" variant="ghost" onClick={() => verEnvio(r.guia)}>
-                        Ver
+                        Ver productos
                     </Btn>
-                    {r.estado === 'Pendiente' && (
-                        <Btn size="sm" variant="outline" loading={avanzandoGuia === r.guia} onClick={() => avanzar(r.guia, 'reunir')}>
-                            Reunir
-                        </Btn>
-                    )}
-                    {(r.estado === 'Pendiente' || r.estado === 'Reunido') && (
-                        <Btn size="sm" variant="primary" loading={avanzandoGuia === r.guia} onClick={() => avanzar(r.guia, 'preparar')}>
-                            Preparar
-                        </Btn>
-                    )}
                 </div>
             ),
         },
@@ -405,11 +394,16 @@ export default function LogisticaFullPage() {
                         <div className="px-6 py-8 text-center text-[var(--text-faint)]">Cargando…</div>
                     ) : (
                         <div className="divide-y divide-[var(--border)]">
-                            {detalle.egresos.map((e: any) => (
+                            {detalle.egresos.map((e: any) => {
+                                const estado = e.edo_reunido === 'Preparado' ? 'Preparado' : e.edo_reunido === 'Reunido' ? 'Reunido' : 'Pendiente';
+                                return (
                                 <div key={e.egreso_id || e.id} className="px-4 py-2.5 flex flex-wrap items-center gap-3">
                                     <div className="min-w-0 flex-1">
                                         <p className="text-sm text-[var(--text)] truncate">{e.nombre || e.articulo_id}</p>
-                                        {e.notas && <p className="text-xs text-[var(--warn)] mt-0.5 break-words">{e.notas}</p>}
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <Badge tone={estado === 'Preparado' ? 'success' : estado === 'Reunido' ? 'info' : 'neutral'}>{estado}</Badge>
+                                            {e.notas && <span className="text-xs text-[var(--warn)] break-words">{e.notas}</span>}
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-xs text-[var(--text-faint)]">cant.</span>
@@ -425,8 +419,20 @@ export default function LogisticaFullPage() {
                                             className="w-20 px-2 py-1 bg-[var(--surface)] border border-[var(--border)] rounded text-sm text-[var(--text)] font-mono"
                                         />
                                     </div>
+                                    <div className="flex items-center gap-1">
+                                        {estado === 'Pendiente' && (
+                                            <Btn size="sm" variant="outline" loading={avanzandoGuia === (e.egreso_id || e.id)} onClick={() => cambiarEstado(e.egreso_id || e.id, 'reunir')}>Reunir</Btn>
+                                        )}
+                                        {estado === 'Reunido' && (
+                                            <Btn size="sm" variant="primary" loading={avanzandoGuia === (e.egreso_id || e.id)} onClick={() => cambiarEstado(e.egreso_id || e.id, 'preparar')}>Preparar</Btn>
+                                        )}
+                                        {(estado === 'Reunido' || estado === 'Preparado') && (
+                                            <Btn size="sm" variant="ghost" loading={avanzandoGuia === (e.egreso_id || e.id)} onClick={() => cambiarEstado(e.egreso_id || e.id, 'quitar')}>Quitar</Btn>
+                                        )}
+                                    </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                             <div className="px-4 py-2 flex justify-end">
                                 <Btn size="sm" variant="ghost" onClick={() => setDetalle(null)}>Cerrar</Btn>
                             </div>

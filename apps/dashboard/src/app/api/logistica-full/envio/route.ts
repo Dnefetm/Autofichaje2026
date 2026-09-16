@@ -94,15 +94,14 @@ export async function POST(req: Request) {
     }
 }
 
-// PATCH /api/logistica-full/envio — ajusta la cantidad de un egreso y deja rastro del cambio.
-// body: { egreso_id, cantidad }
+// PATCH /api/logistica-full/envio — edita UN producto del envío (cantidad y/o estado).
+// body: { egreso_id, cantidad?, accion?: 'reunir' | 'preparar' | 'quitar' }
+// El estado se marca/quita POR PRODUCTO (no por guía). "quitar" retrocede un paso.
 export async function PATCH(req: Request) {
     try {
         const body = await req.json();
-        const { egreso_id, cantidad } = body;
-        if (!egreso_id || cantidad == null) return NextResponse.json({ error: 'egreso_id y cantidad requeridos' }, { status: 400 });
-        const nueva = Number(cantidad);
-        if (!Number.isFinite(nueva) || nueva < 0) return NextResponse.json({ error: 'cantidad inválida' }, { status: 400 });
+        const { egreso_id, cantidad, accion } = body;
+        if (!egreso_id) return NextResponse.json({ error: 'egreso_id requerido' }, { status: 400 });
 
         const { data: eg, error } = await supabaseAdmin
             .from('egresos')
@@ -112,21 +111,48 @@ export async function PATCH(req: Request) {
         if (error) throw error;
         if (!eg) return NextResponse.json({ error: 'egreso no encontrado' }, { status: 404 });
 
+        let nuevaCantidad = eg.cantidad;
+        if (cantidad != null) {
+            const n = Number(cantidad);
+            if (!Number.isFinite(n) || n < 0) return NextResponse.json({ error: 'cantidad inválida' }, { status: 400 });
+            nuevaCantidad = n;
+        }
+
+        let edo = eg.edo_reunido;
+        let fReunido = eg.fecha_reunido;
+        let fPreparado = eg.fecha_preparado;
+        const now = new Date().toISOString();
+        const log: string[] = [];
+
+        if (accion === 'reunir') {
+            edo = 'Reunido'; fReunido = now; fPreparado = null; log.push('reunido');
+        } else if (accion === 'preparar') {
+            edo = 'Preparado'; if (!fReunido) fReunido = now; fPreparado = now; log.push('preparado');
+        } else if (accion === 'quitar') {
+            if (edo === 'Preparado') { edo = 'Reunido'; fPreparado = null; log.push('quitado preparado'); }
+            else if (edo === 'Reunido') { edo = null; fReunido = null; log.push('quitado reunido'); }
+        }
+
         const original = Number(eg.cantidad || 0);
-        const notaCambio = original !== nueva
-            ? `[${new Date().toLocaleDateString('es-MX')}] cantidad ajustada ${original} → ${nueva}` + (eg.notas ? ' · ' + eg.notas : '')
+        if (cantidad != null && Number(cantidad) !== original) {
+            log.push(`cantidad ${original} → ${Number(cantidad)}`);
+        }
+
+        const stamp = `[${new Date().toLocaleDateString('es-MX')}]`;
+        const notas = log.length > 0
+            ? `${stamp} ${log.join('; ')}` + (eg.notas ? ' · ' + eg.notas : '')
             : eg.notas;
 
         const { error: rpcErr } = await supabaseAdmin.rpc('web_upsert_egreso', {
             p_egreso_id: eg.egreso_id,
             p_articulo_id: eg.articulo_id,
-            p_cantidad: nueva,
+            p_cantidad: nuevaCantidad,
             p_tipo_egreso: 'envio_full',
             p_importacion_full_id: eg.importacion_full_id,
             p_guia: eg.guia,
             p_transportista: eg.transportista,
             p_operador_id: eg.operador_id,
-            p_notas: notaCambio,
+            p_notas: notas,
             p_fecha: eg.fecha,
             p_largo: eg.largo,
             p_ancho: eg.ancho,
@@ -134,14 +160,14 @@ export async function PATCH(req: Request) {
             p_peso: eg.peso,
             p_salidas_periodo: eg.salidas_periodo,
             p_codigo_ml: eg.codigo_ml,
-            p_edo_reunido: eg.edo_reunido,
-            p_fecha_reunido: eg.fecha_reunido,
-            p_fecha_preparado: eg.fecha_preparado,
+            p_edo_reunido: edo,
+            p_fecha_reunido: fReunido,
+            p_fecha_preparado: fPreparado,
         });
         if (rpcErr) throw rpcErr;
 
-        return NextResponse.json({ success: true, original, nueva, nota: notaCambio });
+        return NextResponse.json({ success: true, edo, notas });
     } catch (err: any) {
-        return NextResponse.json({ error: err.message || 'Error ajustando cantidad' }, { status: 500 });
+        return NextResponse.json({ error: err.message || 'Error editando producto' }, { status: 500 });
     }
 }
