@@ -260,8 +260,8 @@ export default function LogisticaFullPage() {
                 </Badge>
             ),
         },
-        { key: 'count', label: 'Ítems', align: 'right', render: (r) => <span className="font-mono">{r.count}</span> },
-        { key: 'cantidad', label: 'Unidades', align: 'right', render: (r) => <span className="font-mono">{r.cantidad}</span> },
+        { key: 'count', label: 'Productos', align: 'right', render: (r) => <span className="font-mono">{r.count}</span> },
+        { key: 'cantidad', label: 'Total uds', align: 'right', render: (r) => <span className="font-mono">{r.cantidad}</span> },
         { key: 'fecha', label: 'Fecha', render: (r) => (r.fecha ? new Date(r.fecha).toLocaleDateString('es-MX') : '—') },
         {
             key: 'acciones',
@@ -374,6 +374,8 @@ export default function LogisticaFullPage() {
                     rowKey={(r) => r.articulo_id}
                     loading={loading}
                     empty="Sin artículos Full mapeados"
+                    sortable
+                    initialSort={{ key: 'sugerido', dir: 'desc' }}
                     rowClassName={(r) => {
                         const urg = r.shipping_urgency;
                         if (urg === 'URGENT' || urg === 'THIS_WEEK') return 'bg-[var(--err)]/10';
@@ -391,6 +393,8 @@ export default function LogisticaFullPage() {
                     rows={envios}
                     rowKey={(r) => r.guia}
                     empty="Sin envíos Full en los últimos 30 días"
+                    sortable
+                    initialSort={{ key: 'fecha', dir: 'desc' }}
                 />
             </Card>
 
