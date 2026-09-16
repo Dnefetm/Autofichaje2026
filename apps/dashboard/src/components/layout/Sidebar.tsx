@@ -73,6 +73,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
         { name: 'Pedidos',          icon: ReceiptText,     href: '/ventas/pedidos' },
         { name: 'Compras',          icon: ShoppingBag,     href: '/ventas/compras' },
         { name: 'Logística Full',   icon: Truck,           href: '/logistica-full' },
+        { name: 'Preparación Full', icon: ClipboardList,   href: '/envios/preparacion' },
         { name: 'Vendedores',       icon: UserPlus,        href: '/ventas/vendedores' },
         { name: 'Crear con IA',     icon: PlusCircle,      href: '/autoficha' },
         { name: 'Fichas Técnicas',  icon: FileText,        href: '/fichas' },

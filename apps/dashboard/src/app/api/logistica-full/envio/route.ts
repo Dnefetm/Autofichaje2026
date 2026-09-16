@@ -21,23 +21,44 @@ export async function GET(req: Request) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Nombres de artículos (no hay FK egresos→articulos; se resuelve aparte).
-    const names = new Map<string, string>();
+    // Nombres + ubicación de artículos (no hay FK egresos→articulos; se resuelve aparte).
+    const infoArticulo = new Map<string, any>();
     const ids = [...new Set((egresos || []).map(e => e.articulo_id))];
     for (let i = 0; i < ids.length; i += 100) {
         const chunk = ids.slice(i, i + 100);
         const { data: arts } = await supabaseAdmin
             .from('articulos')
-            .select('articulo_id, nombre')
+            .select('articulo_id, nombre, caja_madre')
             .in('articulo_id', chunk);
-        (arts || []).forEach(a => names.set(a.articulo_id, a.nombre));
+        (arts || []).forEach(a => infoArticulo.set(a.articulo_id, a));
+    }
+
+    // Foto de la vitrina (por código ML → inventory_id en publicaciones_externas).
+    const fotoPorCodigo = new Map<string, string>();
+    const codigos = [...new Set((egresos || []).map(e => e.codigo_ml).filter(Boolean))];
+    for (let i = 0; i < codigos.length; i += 100) {
+        const chunk = codigos.slice(i, i + 100);
+        const { data: pubs } = await supabaseAdmin
+            .from('publicaciones_externas')
+            .select('inventory_id, url_imagen')
+            .in('inventory_id', chunk)
+            .eq('external_variation_id', '0');
+        (pubs || []).forEach(p => { if (p.url_imagen) fotoPorCodigo.set(p.inventory_id, p.url_imagen); });
     }
 
     return NextResponse.json({
         success: true,
         guia,
         count: (egresos || []).length,
-        egresos: (egresos || []).map(e => ({ ...e, nombre: names.get(e.articulo_id) || null })),
+        egresos: (egresos || []).map(e => {
+            const art = infoArticulo.get(e.articulo_id);
+            return {
+                ...e,
+                nombre: art?.nombre || null,
+                ubicacion: art?.caja_madre || null,
+                foto: fotoPorCodigo.get(e.codigo_ml) || null,
+            };
+        }),
     });
 }
 
