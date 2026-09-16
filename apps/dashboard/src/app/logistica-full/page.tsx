@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Page } from '@/components/ui/Page';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Btn } from '@/components/ui/Btn';
@@ -7,7 +7,8 @@ import { Card } from '@/components/ui/Card';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/Badge';
 import { supabaseBrowser } from '@/lib/supabase-browser';
-import { RefreshCw, PackageSearch, Truck, Boxes, Download } from 'lucide-react';
+import { RefreshCw, PackageSearch, Truck, Boxes, Download, Upload } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface PropItem {
     inventory_id: string;
@@ -54,6 +55,39 @@ export default function LogisticaFullPage() {
     const [metodo, setMetodo] = useState<'ultimo_mes' | 'historico_promedio' | 'historico_mediana' | 'hibrido'>('hibrido');
     const [cuentas, setCuentas] = useState<{ id: string; nombre: string }[]>([]);
     const [cuenta, setCuenta] = useState<string>('');
+    const [importando, setImportando] = useState(false);
+    const fileRef = useRef<HTMLInputElement>(null);
+
+    const importarPdf = async (ev: React.ChangeEvent<HTMLInputElement>) => {
+        const file = ev.target.files?.[0];
+        ev.target.value = '';
+        if (!file) return;
+        setImportando(true);
+        try {
+            const base64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            const r = await fetch('/api/logistica-full/importar-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pdfBase64: base64 }),
+            });
+            const j = await r.json();
+            if (j.success) {
+                toast.success(`PDF ${j.guia} importado: ${j.salidas_generadas} salidas (${j.nuevas} nuevas)`);
+                await loadEnvios();
+            } else {
+                toast.error(j.error || 'Error importando PDF');
+            }
+        } catch (e: any) {
+            toast.error(e.message || 'Error leyendo el PDF');
+        } finally {
+            setImportando(false);
+        }
+    };
 
     const loadCuentas = useCallback(async () => {
         try {
@@ -285,9 +319,19 @@ export default function LogisticaFullPage() {
                         <Btn variant="outline" onClick={exportarCSV} icon={<Download className="w-4 h-4" />}>
                             Exportar CSV
                         </Btn>
+                        <Btn variant="outline" onClick={() => fileRef.current?.click()} loading={importando} icon={<Upload className="w-4 h-4" />}>
+                            Importar PDF
+                        </Btn>
                         <Btn onClick={sync} loading={syncing} icon={<RefreshCw className="w-4 h-4" />}>
                             Sincronizar stock
                         </Btn>
+                        <input
+                            ref={fileRef}
+                            type="file"
+                            accept="application/pdf"
+                            className="hidden"
+                            onChange={importarPdf}
+                        />
                     </>
                 }
             />

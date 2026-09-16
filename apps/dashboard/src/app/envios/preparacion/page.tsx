@@ -32,6 +32,8 @@ export default function PreparacionPage() {
     const [salidas, setSalidas] = useState<Salida[]>([]);
     const [loading, setLoading] = useState(false);
     const [procesando, setProcesando] = useState<string | null>(null);
+    const [ficha, setFicha] = useState<Salida | null>(null);
+    const [notaTexto, setNotaTexto] = useState('');
 
     const loadEnvios = useCallback(async () => {
         const r = await fetch('/api/logistica-full/lotes');
@@ -66,6 +68,39 @@ export default function PreparacionPage() {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ egreso_id: salida.egreso_id, cantidad: valor }),
+        });
+        if (seleccionado) await abrirEnvio(seleccionado);
+    };
+
+    const abrirFicha = (salida: Salida) => { setFicha(salida); setNotaTexto(''); };
+
+    const guardarNota = async () => {
+        if (!ficha || !notaTexto.trim()) return;
+        await fetch('/api/logistica-full/envio', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ egreso_id: ficha.egreso_id, notas: notaTexto.trim() }),
+        });
+        setFicha(null);
+        setNotaTexto('');
+        if (seleccionado) await abrirEnvio(seleccionado);
+    };
+
+    const subirFoto = async (ev: React.ChangeEvent<HTMLInputElement>) => {
+        const file = ev.target.files?.[0];
+        ev.target.value = '';
+        if (!file || !ficha) return;
+        const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result));
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+        const actuales = (ficha as any).imagenes || [];
+        await fetch('/api/logistica-full/envio', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ egreso_id: ficha.egreso_id, imagenes: [...actuales, base64] }),
         });
         if (seleccionado) await abrirEnvio(seleccionado);
     };
@@ -156,6 +191,7 @@ export default function PreparacionPage() {
                                                 {(estado === 'Reunido' || estado === 'Preparado') && (
                                                     <Btn size="sm" variant="ghost" loading={procesando === s.egreso_id} onClick={() => cambiar(s, 'quitar')}>Quitar</Btn>
                                                 )}
+                                                <Btn size="sm" variant="ghost" onClick={() => abrirFicha(s)}>Ficha</Btn>
                                             </div>
                                         </div>
                                     );
@@ -163,6 +199,43 @@ export default function PreparacionPage() {
                             </div>
                         </div>
                     ))
+                )}
+
+                {/* Ficha de la salida (notas + fotos) */}
+                {ficha && (
+                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60" onClick={() => setFicha(null)}>
+                        <div className="w-full max-w-md bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <h3 className="font-semibold text-[var(--text)]">{ficha.nombre || ficha.articulo_id}</h3>
+                                    <p className="text-xs text-[var(--text-faint)] font-mono">{ficha.codigo_ml || '—'}</p>
+                                </div>
+                                <Btn size="sm" variant="ghost" onClick={() => setFicha(null)}>✕</Btn>
+                            </div>
+
+                            <p className="text-xs text-[var(--info)] mt-2 break-words">{ficha.notas}</p>
+
+                            <label className="block mt-3 text-xs text-[var(--text-muted)]">
+                                Nota
+                                <textarea
+                                    value={notaTexto}
+                                    onChange={(e) => setNotaTexto(e.target.value)}
+                                    placeholder="Ej. Merma, caja dañada, no hay stock…"
+                                    className="mt-1 w-full h-20 px-2 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded text-sm text-[var(--text)]"
+                                />
+                            </label>
+
+                            <div className="flex flex-wrap gap-2 mt-3">
+                                <label className="cursor-pointer">
+                                    <Btn size="sm" variant="outline" icon={<Package className="w-3.5 h-3.5" />} onClick={() => {}}>📷 Foto</Btn>
+                                    <input type="file" accept="image/*" className="hidden" onChange={subirFoto} />
+                                </label>
+                                <div className="flex-1" />
+                                <Btn size="sm" variant="ghost" onClick={() => setFicha(null)}>Cancelar</Btn>
+                                <Btn size="sm" variant="primary" onClick={guardarNota} disabled={!notaTexto.trim()}>Guardar nota</Btn>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </Page>
         );

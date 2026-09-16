@@ -121,7 +121,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
     try {
         const body = await req.json();
-        const { egreso_id, cantidad, accion } = body;
+        const { egreso_id, cantidad, accion, notas, imagenes } = body;
         if (!egreso_id) return NextResponse.json({ error: 'egreso_id requerido' }, { status: 400 });
 
         const { data: eg, error } = await supabaseAdmin
@@ -160,9 +160,13 @@ export async function PATCH(req: Request) {
         }
 
         const stamp = `[${new Date().toLocaleDateString('es-MX')}]`;
-        const notas = log.length > 0
+        let notasFinal = log.length > 0
             ? `${stamp} ${log.join('; ')}` + (eg.notas ? ' · ' + eg.notas : '')
             : eg.notas;
+        // Nota libre del operario (se antepone, no pisa el histórico)
+        if (typeof notas === 'string' && notas.trim()) {
+            notasFinal = `${stamp} ${notas.trim()}` + (notasFinal ? ' · ' + notasFinal : '');
+        }
 
         const { error: rpcErr } = await supabaseAdmin.rpc('web_upsert_egreso', {
             p_egreso_id: eg.egreso_id,
@@ -173,7 +177,7 @@ export async function PATCH(req: Request) {
             p_guia: eg.guia,
             p_transportista: eg.transportista,
             p_operador_id: eg.operador_id,
-            p_notas: notas,
+            p_notas: notasFinal,
             p_fecha: eg.fecha,
             p_largo: eg.largo,
             p_ancho: eg.ancho,
@@ -187,7 +191,12 @@ export async function PATCH(req: Request) {
         });
         if (rpcErr) throw rpcErr;
 
-        return NextResponse.json({ success: true, edo, notas });
+        // Fotos (imagenes) — el RPC no las maneja; se actualizan directo.
+        if (Array.isArray(imagenes)) {
+            await supabaseAdmin.from('egresos').update({ imagenes }).eq('egreso_id', eg.egreso_id);
+        }
+
+        return NextResponse.json({ success: true, edo, notas: notasFinal });
     } catch (err: any) {
         return NextResponse.json({ error: err.message || 'Error editando producto' }, { status: 500 });
     }
