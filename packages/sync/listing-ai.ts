@@ -54,7 +54,10 @@ function buildUser(input: ListingContentInput): string {
 - Bullets actuales: ${(input.bullet_points || []).join('; ') || '—'}`;
 }
 
-export async function generateListingContent(input: ListingContentInput): Promise<ListingContentOutput> {
+export async function generateListingContent(
+    input: ListingContentInput,
+    context?: { marketplace_id?: string | null; categoria?: string | null },
+): Promise<ListingContentOutput> {
     const fallbackTitle = [input.marca, input.nombre].filter(Boolean).join(' ').slice(0, 60);
     const fallback = {
         title: fallbackTitle,
@@ -70,9 +73,9 @@ export async function generateListingContent(input: ListingContentInput): Promis
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const user = buildUser(input);
 
-    // Perfiles independientes: título y descripción
-    const titleProfile = await loadPromptProfile('title');
-    const descProfile = await loadPromptProfile('description');
+    // Perfiles independientes: título y descripción (respeta overrides por cuenta/categoría)
+    const titleProfile = await loadPromptProfile('title', context);
+    const descProfile = await loadPromptProfile('description', context);
 
     let title = fallback.title;
     let description = fallback.description;

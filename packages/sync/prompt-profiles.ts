@@ -34,10 +34,10 @@ export interface PromptContext {
 export const DEFAULT_TITLE_PROFILE: PromptProfile = {
     name: 'Título por defecto',
     system_prompt: `Eres un redactor experto en títulos para MercadoLibre México (ferretería/herramientas).
-Genera un "title" de MÁXIMO 60 caracteres INCLUYENDO ESPACIOS, con esta fórmula EXACTA:
-nombre del producto + características principales en orden de prioridad (tipo, medida, material, acabado) + marca.
-NO uses el modelo. Usa el máximo de caracteres sin pasarte de 60.
-Responde SOLO JSON: { "title": "..." }`,
+Genera un "title" que ocupe los 60 caracteres completos (máximo permitido) para describir el producto al máximo: nombre + tipo + medida + material + acabado + marca, en ese orden de prioridad. No desperdicies caracteres: usa 60, o lo más cercano posible a 60.
+REGLAS DE CARACTERES (obligatorias): dentro del TEXTO del título usa '' (dos apóstrofos) en lugar de comillas dobles; MercadoLibre elimina las comillas ". No escribas el símbolo de pulgadas ("); escribe "pulg" o convierte a cm.
+NO uses el modelo.
+Responde SOLO JSON (con comillas dobles en el JSON): { "title": "..." }`,
     temperature: 0.3,
     max_chars: 60,
 };
@@ -46,8 +46,9 @@ export const DEFAULT_DESCRIPTION_PROFILE: PromptProfile = {
     name: 'Descripción por defecto',
     system_prompt: `Eres un redactor experto en descripciones de venta para MercadoLibre México (ferretería/herramientas).
 Genera una "description" en texto plano con 4-8 bullets "•" de beneficios/características REALES y, al final, una línea de ficha técnica (medidas, peso, material, país de origen SOLO si existen en los datos de entrada).
+REGLAS DE CARACTERES (obligatorias): dentro del TEXTO de la descripción usa '' (dos apóstrofos) en lugar de comillas dobles; MercadoLibre elimina las comillas ".
 NO inventes datos que no estén en la entrada.
-Responde SOLO JSON: { "description": "..." }`,
+Responde SOLO JSON (con comillas dobles en el JSON): { "description": "..." }`,
     temperature: 0.3,
     max_chars: 2000,
 };
@@ -128,10 +129,14 @@ async function loadDefaultProfile(scope: 'title' | 'description', fallback: Prom
         .eq('scope', scope)
         .eq('is_active', true)
         .order('is_default', { ascending: false })
-        .order('created_at', { ascending: true })
+        .order('updated_at', { ascending: false, nullsFirst: false })
         .limit(1)
         .maybeSingle();
-    if (error || !data) return fallback;
+    if (error || !data) {
+        console.warn(`[prompt-profiles] Sin perfil activo para scope=${scope}; usando fallback hardcodeado.`, error?.message || '');
+        return fallback;
+    }
+    console.log(`[prompt-profiles] Cargando perfil "${data.name}" para scope=${scope}`);
     return toProfile(data, fallback);
 }
 
@@ -170,9 +175,9 @@ export async function resolvePromptProfile(scope: 'title' | 'description', conte
     }
 }
 
-/** Compatibilidad: sin contexto (usa el default global). */
-export async function loadPromptProfile(scope: 'title' | 'description'): Promise<PromptProfile> {
-    return resolvePromptProfile(scope);
+/** Carga el perfil para un ámbito, aplicando overrides por cuenta/categoría si hay contexto. */
+export async function loadPromptProfile(scope: 'title' | 'description', context?: PromptContext): Promise<PromptProfile> {
+    return resolvePromptProfile(scope, context);
 }
 
 /** Lista todos los perfiles de un ámbito (para el editor). */

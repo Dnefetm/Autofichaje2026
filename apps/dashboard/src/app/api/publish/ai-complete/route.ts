@@ -54,7 +54,10 @@ export async function POST(req: NextRequest) {
         codigo_universal: ficha?.codigo_universal || articulo.codigo_universal || '',
     };
 
-    const result = await generateListingContent(merged);
+    const result = await generateListingContent(merged, {
+        marketplace_id,
+        categoria: merged.categoria,
+    });
 
     // Rellenar características secundarias SOLO con datos reales (determinístico, sin alucinar).
     let attributes: Array<{ id: string; value_name?: string; value_id?: string }> = [];
