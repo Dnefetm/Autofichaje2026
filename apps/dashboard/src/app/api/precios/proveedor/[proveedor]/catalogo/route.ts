@@ -58,17 +58,24 @@ export async function GET(
         return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
     }
 
-    // Consultar alias existentes para este proveedor
-    const { data: aliasList } = await supabaseAdmin
-        .from('proveedor_articulos_alias')
-        .select('codigo_excel, modelo_excel, marca_excel, articulo_id')
-        .eq('proveedor', proveedor);
-
+    // Consultar alias existentes para este proveedor (paginado: PostgREST corta en 1000)
     const aliasMap = new Map<string, string>();
-    aliasList?.forEach(a => {
-        if (a.codigo_excel) aliasMap.set(`code:${a.codigo_excel}`, a.articulo_id);
-        if (a.modelo_excel) aliasMap.set(`model:${a.modelo_excel}`, a.articulo_id);
-    });
+    let aliasOffset = 0;
+    while (true) {
+        const { data: aliasChunk } = await supabaseAdmin
+            .from('proveedor_articulos_alias')
+            .select('codigo_excel, modelo_excel, marca_excel, articulo_id')
+            .eq('proveedor', proveedor)
+            .order('id', { ascending: true })
+            .range(aliasOffset, aliasOffset + 999);
+        if (!aliasChunk || aliasChunk.length === 0) break;
+        aliasChunk.forEach(a => {
+            if (a.codigo_excel) aliasMap.set(`code:${a.codigo_excel}`, a.articulo_id);
+            if (a.modelo_excel) aliasMap.set(`model:${a.modelo_excel}`, a.articulo_id);
+        });
+        aliasOffset += 1000;
+        if (aliasChunk.length < 1000) break;
+    }
 
     const items = (rows || []).map(r => {
         const payload = r.payload || {};

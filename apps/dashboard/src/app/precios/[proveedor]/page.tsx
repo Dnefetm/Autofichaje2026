@@ -1,7 +1,8 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
-import { ArrowLeft, History, Search } from 'lucide-react';
+import { ArrowLeft, History } from 'lucide-react';
 import { CatalogoProveedorTable } from '@/components/precios/CatalogoProveedorTable';
+import { CatalogoProveedorSearch } from '@/components/precios/CatalogoProveedorSearch';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -92,17 +93,24 @@ export default async function HubProveedorPage(props: {
         totalEncontrados = count || 0;
     }
 
-    // 3. Traer alias existentes
-    const { data: aliasList } = await supa
-        .from('proveedor_articulos_alias')
-        .select('codigo_excel, modelo_excel, articulo_id')
-        .eq('proveedor', proveedorDecoded);
-
+    // 3. Traer alias existentes (paginado: PostgREST corta en 1000 filas, y hay >2000)
     const aliasMap = new Map<string, string>();
-    aliasList?.forEach(a => {
-        if (a.codigo_excel) aliasMap.set(`code:${a.codigo_excel}`, a.articulo_id);
-        if (a.modelo_excel) aliasMap.set(`model:${a.modelo_excel}`, a.articulo_id);
-    });
+    let aliasOffset = 0;
+    while (true) {
+        const { data: aliasChunk } = await supa
+            .from('proveedor_articulos_alias')
+            .select('codigo_excel, modelo_excel, articulo_id')
+            .eq('proveedor', proveedorDecoded)
+            .order('id', { ascending: true })
+            .range(aliasOffset, aliasOffset + 999);
+        if (!aliasChunk || aliasChunk.length === 0) break;
+        aliasChunk.forEach(a => {
+            if (a.codigo_excel) aliasMap.set(`code:${a.codigo_excel}`, a.articulo_id);
+            if (a.modelo_excel) aliasMap.set(`model:${a.modelo_excel}`, a.articulo_id);
+        });
+        aliasOffset += 1000;
+        if (aliasChunk.length < 1000) break;
+    }
 
     const itemsProcesados = listado.map(r => {
         const p = r.payload || {};
@@ -174,28 +182,11 @@ export default async function HubProveedorPage(props: {
             </header>
 
             <div className="flex-1 overflow-hidden flex flex-col bg-[var(--bg)]">
-                {/* Buscador */}
+                {/* Buscador (automático e inmediato: búsqueda por debounce sin recarga) */}
                 <div className="p-4 bg-[var(--surface)] border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
-                    <form action={`/precios/${encodeURIComponent(proveedorDecoded)}`} method="GET" className="flex items-center gap-3 flex-1">
-                        <div className="relative w-full max-w-xl">
-                            <Search className="w-4 h-4 absolute left-3.5 top-3 text-[var(--text-faint)]" />
-                            <input
-                                type="text"
-                                name="q"
-                                placeholder="Buscar por modelo, código universal o descripción..."
-                                defaultValue={searchParams.q || ''}
-                                className="pl-10 pr-4 py-2.5 w-full text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--bg)]/50"
-                            />
-                        </div>
-                        <button type="submit" className="px-5 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-xl text-sm font-bold transition-colors">
-                            Buscar
-                        </button>
-                        {q && (
-                            <Link href={`/precios/${encodeURIComponent(proveedorDecoded)}`} className="px-4 py-2.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)] rounded-xl text-sm font-medium transition-colors">
-                                Limpiar
-                            </Link>
-                        )}
-                    </form>
+                    <div className="flex-1">
+                        <CatalogoProveedorSearch proveedor={proveedorDecoded} initialQ={q} />
+                    </div>
                     <span className="text-sm text-[var(--text-faint)] shrink-0">
                         {q ? `${totalEncontrados.toLocaleString()} resultados` : `${(totalFilas || 0).toLocaleString()} productos · Página ${page + 1} de ${totalPaginas}`}
                     </span>
