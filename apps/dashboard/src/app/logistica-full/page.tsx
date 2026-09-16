@@ -388,8 +388,24 @@ export default function LogisticaFullPage() {
             </Card>
 
             {/* Detalle de envío (ajustar cantidad + verificar cambios) */}
-            {detalle && (
-                <Card title={`Detalle envío ${detalle.guia} (${detalle.egresos.length} ítems)`}>
+            {detalle && (() => {
+                const pendientes = detalle.egresos.filter((e: any) => e.edo_reunido == null).length;
+                const reunidos = detalle.egresos.filter((e: any) => e.edo_reunido === 'Reunido').length;
+                const preparados = detalle.egresos.filter((e: any) => e.edo_reunido === 'Preparado').length;
+                const totalPiezas = detalle.egresos.reduce((s: number, e: any) => s + Number(e.cantidad || 0), 0);
+                return (
+                <Card title={`Envío ${detalle.guia}`}>
+                    <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]">
+                        <p className="text-sm text-[var(--text)]">
+                            <span className="font-semibold">{detalle.egresos.length} productos</span>
+                            {' · '}<span className="font-semibold">{totalPiezas} piezas en total</span>
+                        </p>
+                        <div className="flex flex-wrap gap-2 mt-1.5">
+                            <Badge tone="neutral">{pendientes} pendientes</Badge>
+                            <Badge tone="info">{reunidos} reunidos</Badge>
+                            <Badge tone="success">{preparados} preparados</Badge>
+                        </div>
+                    </div>
                     {detalleLoading ? (
                         <div className="px-6 py-8 text-center text-[var(--text-faint)]">Cargando…</div>
                     ) : (
@@ -439,7 +455,8 @@ export default function LogisticaFullPage() {
                         </div>
                     )}
                 </Card>
-            )}
+                );
+            })()}
         </Page>
     );
 }
