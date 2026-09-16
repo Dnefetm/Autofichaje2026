@@ -37,6 +37,10 @@ function filaAObjetoSincEgreso(datos) {
   var ancho = datos.length > 14 && datos[14] ? String(datos[14]).trim() : null;
   var alto = datos.length > 15 && datos[15] ? String(datos[15]).trim() : null;
   var peso = datos.length > 16 && datos[16] ? String(datos[16]).trim() : null;
+  // Estado del envío Full (antes NO se sincronizaba → incoherencia Sheets vs Supabase)
+  var edo_reunido = datos.length > 19 && datos[19] ? String(datos[19]).trim() : null;
+  var fecha_reunido = datos.length > 20 ? parseFechaSincEgr(datos[20]) : null;
+  var fecha_preparado = datos.length > 21 ? parseFechaSincEgr(datos[21]) : null;
 
   var obj = {
     egreso_id: egreso_id,
@@ -53,6 +57,9 @@ function filaAObjetoSincEgreso(datos) {
     ancho: ancho,
     alto: alto,
     peso: peso,
+    edo_reunido: edo_reunido,
+    fecha_reunido: fecha_reunido,
+    fecha_preparado: fecha_preparado,
     origin: 'sheets'
   };
 
@@ -60,7 +67,8 @@ function filaAObjetoSincEgreso(datos) {
     (guia || '') + '|' + (transportista || '') + '|' + (tipo_egreso || '') + '|' +
     (notas || '') + '|' + (fecha || '') + '|' + (operador_id || '') + '|' +
     (importacion_full_id || '') + '|' + (largo || '') + '|' + (ancho || '') + '|' +
-    (alto || '') + '|' + (peso || '');
+    (alto || '') + '|' + (peso || '') + '|' + (edo_reunido || '') + '|' +
+    (fecha_reunido || '') + '|' + (fecha_preparado || '');
   obj.sync_hash = md5Egreso(hashStr);
 
   return obj;
