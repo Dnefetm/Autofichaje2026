@@ -47,7 +47,14 @@ export interface MeliAIHelperOutput {
     description?: string;
     ai_used: boolean;
     tokens_used?: number;
-    profiles?: { title: string; description: string; title_source?: string; description_source?: string };
+    profiles?: {
+        title: string;
+        description: string;
+        title_source?: string;
+        description_source?: string;
+        title_prompt_preview?: string;
+        description_prompt_preview?: string;
+    };
 }
 
 // --- Prompt ------------------------------------------------------------------
@@ -169,7 +176,9 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
     const titleProfile = await resolvePromptProfile('title', context);
     const descProfile = await resolvePromptProfile('description', context);
 
-    const { system, user } = buildPrompt(input, profileStyle(titleProfile), profileStyle(descProfile));
+    const titleStyle = profileStyle(titleProfile);
+    const descStyle = profileStyle(descProfile);
+    const { system, user } = buildPrompt(input, titleStyle, descStyle);
 
     try {
         const response = await openai.chat.completions.create({
@@ -212,6 +221,8 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
                 description: descProfile.name,
                 title_source: titleProfile.source || 'fallback',
                 description_source: descProfile.source || 'fallback',
+                title_prompt_preview: titleStyle.slice(0, 160),
+                description_prompt_preview: descStyle.slice(0, 160),
             },
         };
     } catch (err: any) {
@@ -226,6 +237,8 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
                 description: descProfile.name,
                 title_source: titleProfile.source || 'fallback',
                 description_source: descProfile.source || 'fallback',
+                title_prompt_preview: titleStyle.slice(0, 160),
+                description_prompt_preview: descStyle.slice(0, 160),
             },
         };
     }
