@@ -853,7 +853,7 @@ export async function POST(req: NextRequest) {
         const descripcionCompleta = (
             description_override && description_override.trim()
                 ? description_override
-                : (aiResult.description || ((resolved.descripcion || '') + bulletsText))
+                : ((aiResult.description || resolved.descripcion || '') + bulletsText)
         ).slice(0, 50000);
 
         // Título limpio final: override manual > AI > nombre resuelto (truncado ≤60 chars)
