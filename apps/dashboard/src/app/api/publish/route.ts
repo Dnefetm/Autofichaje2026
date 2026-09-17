@@ -1027,6 +1027,7 @@ export async function POST(req: NextRequest) {
             es_fuente_stock: boolean;
             id_padre: string | null;
             id_catalogo: string | null;
+            par_item_id: string | null;
         }> = [
             {
                 item: created,
@@ -1034,6 +1035,7 @@ export async function POST(req: NextRequest) {
                 es_fuente_stock: true,
                 id_padre: null,
                 id_catalogo: effectiveCatalogListing ? effectiveCatalogProductId : null,
+                par_item_id: createdCatalog ? createdCatalog.item_id : null,
             },
         ];
         if (createdCatalog) {
@@ -1043,6 +1045,7 @@ export async function POST(req: NextRequest) {
                 es_fuente_stock: false,
                 id_padre: created.item_id,
                 id_catalogo: effectiveCatalogProductId,
+                par_item_id: created.item_id,
             });
         }
 
@@ -1065,6 +1068,7 @@ export async function POST(req: NextRequest) {
                     tipo_publicacion:      p.tipo,
                     id_publicacion_padre:  p.id_padre,
                     id_producto_catalogo:  p.id_catalogo,
+                    par_item_id:           p.par_item_id,
                     es_fuente_stock:       p.es_fuente_stock,
                     free_shipping:         !!free_shipping,
                     shipping_mode:         shipping_mode,
