@@ -912,6 +912,7 @@ export async function POST(req: NextRequest) {
                 category_id,
                 price,
                 currency_id: precio_data?.currency || sourceData?.currency || 'MXN',
+                available_quantity: Math.max(stock, 1),
                 buying_mode: 'buy_it_now',
                 listing_type_id,
                 condition: 'new',
