@@ -178,21 +178,27 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
 
     const titleStyle = profileStyle(titleProfile);
     const descStyle = profileStyle(descProfile);
-    const { system, user } = buildPrompt(input, titleStyle, descStyle);
+
+    // Llamada 1: título + atributos (sin descripción, para no diluir el prompt de descripción).
+    const { system: titleSystem, user: productUser } = buildPrompt(
+        { ...input, rephrase_description: false },
+        titleStyle,
+        '',
+    );
 
     try {
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
-            temperature: 0.1,
+            temperature: titleProfile.temperature,
             response_format: { type: 'json_object' },
             messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: user },
+                { role: 'system', content: titleSystem },
+                { role: 'user', content: productUser },
             ],
         });
 
         const raw = JSON.parse(response.choices[0].message.content || '{}');
-        const tokensUsed = response.usage?.total_tokens;
+        let tokensUsed = response.usage?.total_tokens ?? 0;
 
         let family_name = (raw.family_name || familyNameFallback).toString().trim();
         let title = (raw.title || titleFallback).toString().trim();
@@ -205,9 +211,29 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
         const attributes: Array<{ id: string; value_id?: string; value_name?: string }> =
             Array.isArray(raw.attributes) ? raw.attributes.filter((a: any) => a?.id) : [];
 
-        const description = input.rephrase_description && typeof raw.description === 'string'
-            ? raw.description.trim().slice(0, 5000)
-            : undefined;
+        // Llamada 2: descripción (separada, con el prompt directo, no anidado).
+        let description: string | undefined;
+        if (input.rephrase_description) {
+            try {
+                const descSystem = `${ANTI_HALLUCINATION_BLOCK}\n\n${descStyle}`;
+                const descResp = await openai.chat.completions.create({
+                    model: 'gpt-4o-mini',
+                    temperature: descProfile.temperature,
+                    response_format: { type: 'json_object' },
+                    messages: [
+                        { role: 'system', content: descSystem },
+                        { role: 'user', content: productUser },
+                    ],
+                });
+                const descRaw = JSON.parse(descResp.choices[0].message.content || '{}');
+                tokensUsed += descResp.usage?.total_tokens ?? 0;
+                description = typeof descRaw.description === 'string'
+                    ? descRaw.description.trim().slice(0, 5000)
+                    : undefined;
+            } catch (descErr: any) {
+                console.error('[meli-ai-helper] Fallo en descripción:', descErr.message);
+            }
+        }
 
         return {
             family_name,
