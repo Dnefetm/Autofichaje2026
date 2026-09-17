@@ -48,6 +48,8 @@ function limpiarTitulo(nombre: string | null | undefined): string {
         /\bcheck\b.*$/gi,
     ];
     let limpio = nombre.trim();
+    // Pulgadas/comillas dobles → dos apóstrofos (MeLi elimina las comillas dobles).
+    limpio = limpio.replace(/"/g, "''");
     for (const pat of ANOTACIONES) {
         limpio = limpio.replace(pat, '').trim();
     }

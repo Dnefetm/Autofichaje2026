@@ -75,17 +75,20 @@ function buildPrompt(input: MeliAIHelperInput, titleStyle: string, descStyle: st
     const legacy = input.legacy === true;
 
     const tituloField = legacy
-        ? `"title": "título comercial (MÁXIMO ${maxChars} caracteres INCLUYENDO ESPACIOS; fórmula: producto + características + marca, SIN modelo)"`
+        ? `"title": "título comercial (MÁXIMO ${maxChars} caracteres INCLUYENDO ESPACIOS; fórmula: producto + características relevantes + marca, SIN modelo)"`
         : `"family_name": "nombre descriptivo (MÁXIMO ${maxChars} caracteres INCLUYENDO ESPACIOS, SIN marca ni modelo)"`;
 
     const tituloRule = legacy
-        ? `1. Generar un "title" comercial de MÁXIMO ${maxChars} caracteres INCLUYENDO ESPACIOS, con esta fórmula EXACTA:
-   nombre del producto + características principales en orden descendente de prioridad (tipo, medida, material, acabado) + marca.
-   NO uses el modelo. Usa el máximo de caracteres sin pasarte de ${maxChars}.
-   Ejemplo: "Juego de puntas y dados de impacto 33 piezas 1/2 pulgada Urrea".`
-        : `1. Generar un "family_name" descriptivo de MÁXIMO ${maxChars} caracteres INCLUYENDO ESPACIOS:
-   nombre del producto + características principales (tipo, medida, material).
-   SIN marca ni modelo — MercadoLibre (User Products) los agrega automáticamente al título visible.`;
+        ? `1. Generar un "title" comercial que ocupe los ${maxChars} caracteres completos INCLUYENDO ESPACIOS:
+   nombre del producto + característica relevante 1 + característica relevante 2 + característica relevante 3 + ... + marca.
+   TÚ decides cuáles características incluir (tipo, medida, material, acabado, uso, etc.) y en qué orden, según lo que mejor describa/venda el producto.
+   NO uses el modelo. Aprovecha los ${maxChars} caracteres al máximo.
+   IMPORTANTE: escribe el símbolo de pulgadas con '' (dos apóstrofos) en lugar de " (ej: 28-36'' en vez de 28-36").`
+        : `1. Generar un "family_name" descriptivo que ocupe los ${maxChars} caracteres completos INCLUYENDO ESPACIOS:
+   nombre del producto + característica relevante 1 + característica relevante 2 + característica relevante 3 + ...
+   TÚ decides cuáles características incluir (tipo, medida, material, acabado, uso, etc.) y en qué orden.
+   SIN marca ni modelo — MercadoLibre (User Products) los agrega automáticamente al título visible.
+   IMPORTANTE: escribe el símbolo de pulgadas con '' (dos apóstrofos) en lugar de " (ej: 28-36'' en vez de 28-36").`;
 
     const styleBlock = titleStyle
         ? `\n   Directrices de estilo de la marca (OBLIGATORIAS para redactar):\n${titleStyle.split('\n').map(l => '   ' + l).join('\n')}`
