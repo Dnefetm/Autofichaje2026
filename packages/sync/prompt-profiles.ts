@@ -24,6 +24,7 @@ export interface PromptProfile {
     include_model?: boolean;
     include_material?: boolean;
     language?: string;
+    source?: string; // 'override' | 'db' | 'fallback_sin_perfil' | 'fallback_error'
 }
 
 export interface PromptContext {
@@ -108,6 +109,7 @@ function toProfile(row: any, fallback: PromptProfile): PromptProfile {
         include_model: row?.include_model,
         include_material: row?.include_material,
         language: row?.language ?? null,
+        source: 'db',
     };
 }
 
@@ -136,7 +138,7 @@ async function loadDefaultProfile(scope: 'title' | 'description', fallback: Prom
         .maybeSingle();
     if (error || !data) {
         console.warn(`[prompt-profiles] Sin perfil activo para scope=${scope}; usando fallback hardcodeado.`, error?.message || '');
-        return fallback;
+        return { ...fallback, source: error ? 'fallback_error' : 'fallback_sin_perfil' };
     }
     console.log(`[prompt-profiles] Cargando perfil "${data.name}" para scope=${scope}`);
     return toProfile(data, fallback);
@@ -168,12 +170,12 @@ export async function resolvePromptProfile(scope: 'title' | 'description', conte
             if (best) {
                 const profRaw: any = best.prompt_profiles;
                 const prof = Array.isArray(profRaw) ? profRaw[0] : profRaw;
-                if (prof) return toProfile(prof, fallback);
+                if (prof) return { ...toProfile(prof, fallback), source: 'override' };
             }
         }
         return await loadDefaultProfile(scope, fallback);
     } catch {
-        return fallback;
+        return { ...fallback, source: 'fallback_error' };
     }
 }
 

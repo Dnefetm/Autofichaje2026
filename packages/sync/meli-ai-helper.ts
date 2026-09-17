@@ -47,7 +47,7 @@ export interface MeliAIHelperOutput {
     description?: string;
     ai_used: boolean;
     tokens_used?: number;
-    profiles?: { title: string; description: string };
+    profiles?: { title: string; description: string; title_source?: string; description_source?: string };
 }
 
 // --- Prompt ------------------------------------------------------------------
@@ -208,7 +208,12 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
             description,
             ai_used: true,
             tokens_used: tokensUsed,
-            profiles: { title: titleProfile.name, description: descProfile.name },
+            profiles: {
+                title: titleProfile.name,
+                description: descProfile.name,
+                title_source: titleProfile.source || 'fallback',
+                description_source: descProfile.source || 'fallback',
+            },
         };
     } catch (err: any) {
         console.error('[meli-ai-helper] Fallo en GPT-4o-mini:', err.message);
@@ -217,7 +222,12 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
             title: titleFallback,
             attributes: [],
             ai_used: false,
-            profiles: { title: titleProfile.name, description: descProfile.name },
+            profiles: {
+                title: titleProfile.name,
+                description: descProfile.name,
+                title_source: titleProfile.source || 'fallback',
+                description_source: descProfile.source || 'fallback',
+            },
         };
     }
 }
