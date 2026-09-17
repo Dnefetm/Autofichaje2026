@@ -769,7 +769,7 @@ export async function POST(req: NextRequest) {
             unresolved_attributes:  unresolvedAttrs,
             max_family_name_chars:  isLegacy ? 60 : 50, // legacy: título completo; UP: family_name sin marca/modelo
             legacy:                 isLegacy,
-            rephrase_description:   !!sourceData, // copia adaptada: descripción ligeramente distinta
+            rephrase_description:   true, // genera la descripción con IA también en publicaciones nuevas
         }, { marketplace_id, categoria: category_id });
         // Limpiar family_name generado por AI también
         if (aiResult.family_name) {

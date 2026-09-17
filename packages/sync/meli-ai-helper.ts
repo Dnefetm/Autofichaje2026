@@ -95,12 +95,11 @@ function buildPrompt(input: MeliAIHelperInput, titleStyle: string, descStyle: st
         : '';
 
     const descTask = input.rephrase_description
-        ? `\n3. Reescribe la "description" del producto de forma ligeramente distinta a la original (máximo 2000 caracteres),
-   conservando TODA la información útil y las características, pero con redacción y estructura diferentes.${descStyle ? `\n   Directrices de estilo:\n${descStyle.split('\n').map(l => '   ' + l).join('\n')}` : ''}`
+        ? `\n3. Genera la "description" del producto a partir de TODOS los datos de entrada (nombre, descripción, atributos específicos).${descStyle ? `\n   Directrices de estilo (OBLIGATORIAS):\n${descStyle.split('\n').map(l => '   ' + l).join('\n')}` : ''}`
         : '';
 
     const descJsonField = input.rephrase_description
-        ? `,\n  "description": "descripción reformulada (máx 2000 caracteres)"`
+        ? `,\n  "description": "descripción generada (texto plano)"`
         : '';
 
     const system = `${ANTI_HALLUCINATION_BLOCK}
@@ -136,7 +135,7 @@ Responde SOLO con JSON sin markdown:
   Nombre: ${input.nombre}
   Marca: ${input.marca}
   Modelo: ${input.modelo}
-  Descripción: ${input.descripcion?.slice(0, 500) || 'No disponible'}
+  Descripción: ${input.descripcion?.slice(0, 2000) || 'No disponible'}
   Atributos específicos: ${input.atributos_especificos ? JSON.stringify(input.atributos_especificos).slice(0, 3000) : 'No disponibles'}
 
 Atributos requeridos sin resolver:
