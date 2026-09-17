@@ -9,8 +9,10 @@
 import { OpenAI } from 'openai';
 import { ANTI_HALLUCINATION_BLOCK } from './ai-guard';
 import { loadPromptProfile } from './prompt-profiles';
+import { getAIConfig } from './ai-config';
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+const AI_CFG = getAIConfig();
+const MODEL = AI_CFG.model;
 
 export interface ListingContentInput {
     nombre: string;
@@ -73,8 +75,8 @@ export async function generateListingContent(
     }
 
     const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        baseURL: process.env.OPENAI_BASE_URL || undefined, // ej. 'https://api.deepseek.com'
+        apiKey: AI_CFG.apiKey,
+        baseURL: AI_CFG.baseURL,
     });
     const user = buildUser(input);
 

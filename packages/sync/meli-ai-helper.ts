@@ -13,9 +13,10 @@
 import { OpenAI } from 'openai';
 import { ANTI_HALLUCINATION_BLOCK } from './ai-guard';
 import { resolvePromptProfile, PromptContext, PromptProfile } from './prompt-profiles';
+import { getAIConfig } from './ai-config';
 
-// Modelo configurable por entorno (Vercel): OPENAI_MODEL. Default: gpt-4o (mejor seguimiento de instrucciones).
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+const AI_CFG = getAIConfig();
+const MODEL = AI_CFG.model;
 
 // --- Tipos --------------------------------------------------------------------
 
@@ -170,8 +171,8 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
         .filter(Boolean).join(' ').slice(0, maxChars).trim();
 
     const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        baseURL: process.env.OPENAI_BASE_URL || undefined, // ej. 'https://api.deepseek.com'
+        apiKey: AI_CFG.apiKey,
+        baseURL: AI_CFG.baseURL,
     });
 
     if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('placeholder')) {
