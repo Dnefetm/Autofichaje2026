@@ -120,8 +120,10 @@ export default function PromptProfilesPage() {
         setFormLanguage(p.language || 'es-MX');
         setFormTemp(String(p.temperature));
         setFormMax(String(p.max_chars));
-        setExpertMode(false);
-        setFormExpertPrompt('');
+        // Perfil experto (system_prompt sin instructions): mostrar el prompt crudo editable.
+        const hasExpertPrompt = !!p.system_prompt && !p.instructions;
+        setExpertMode(hasExpertPrompt);
+        setFormExpertPrompt(hasExpertPrompt ? p.system_prompt : '');
     }
 
     async function save() {
