@@ -71,6 +71,7 @@ export default function PromptProfilesPage() {
     const [formMax, setFormMax] = useState('60');
     const [expertMode, setExpertMode] = useState(false);
     const [formExpertPrompt, setFormExpertPrompt] = useState('');
+    const [formIsDefault, setFormIsDefault] = useState(false);
 
     async function load() {
         setLoading(true);
@@ -104,6 +105,7 @@ export default function PromptProfilesPage() {
         setFormMax(scope === 'title' ? '60' : '2000');
         setExpertMode(false);
         setFormExpertPrompt('');
+        setFormIsDefault(false);
     }
 
     function startEdit(p: Profile) {
@@ -124,6 +126,7 @@ export default function PromptProfilesPage() {
         const hasExpertPrompt = !!p.system_prompt && !p.instructions;
         setExpertMode(hasExpertPrompt);
         setFormExpertPrompt(hasExpertPrompt ? p.system_prompt : '');
+        setFormIsDefault(p.is_default === true);
     }
 
     async function save() {
@@ -146,6 +149,7 @@ export default function PromptProfilesPage() {
                 include_model: formIncludeModel,
                 include_material: formIncludeMaterial,
                 language: formLanguage || 'es-MX',
+                is_default: formIsDefault,
             };
             if (expertMode && formExpertPrompt.trim()) {
                 body.system_prompt = formExpertPrompt.trim();
@@ -272,6 +276,10 @@ export default function PromptProfilesPage() {
                                         </label>
                                     ))}
                                 </div>
+                                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                                    <input type="checkbox" checked={formIsDefault} onChange={e => setFormIsDefault(e.target.checked)} className="w-4 h-4 rounded text-[var(--accent)]" />
+                                    <span className="text-[var(--text)] font-semibold">Marcar como perfil por defecto (default)</span>
+                                </label>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                     <div>
                                         <label className="text-[10px] font-bold text-[var(--text-faint)] uppercase block mb-1">Idioma</label>

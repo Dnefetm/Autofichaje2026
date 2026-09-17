@@ -82,6 +82,15 @@ export async function POST(req: NextRequest) {
             .single();
         if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
+        // Si se marca como default, quitar el default a los demás del mismo scope.
+        if (data && body.is_default === true) {
+            await supabaseAdmin
+                .from('prompt_profiles')
+                .update({ is_default: false, updated_at: new Date().toISOString() })
+                .eq('scope', data.scope)
+                .neq('name', data.name);
+        }
+
         // Override de herencia (cuenta/categoría) si se indicó.
         if (data && (body.marketplace_id || body.categoria)) {
             const { error: ovErr } = await supabaseAdmin
