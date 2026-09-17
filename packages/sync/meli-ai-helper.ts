@@ -222,7 +222,7 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
         let description: string | undefined;
         if (input.rephrase_description) {
             try {
-                const descSystem = `${ANTI_HALLUCINATION_BLOCK}\n\n${descStyle}\n\nFORMATO DE SALIDA OBLIGATORIO: responde SOLO JSON con estos dos campos:\n{ "narrative": "los párrafos narrativos completos", "bullet_points": ["bullet de beneficio 1", "bullet de beneficio 2", "..."] }\nLos bullet_points deben ser beneficios concretos derivados de los datos técnicos y de los tipos de uso del producto. Entre 3 y 8 bullets.`;
+                const descSystem = `${ANTI_HALLUCINATION_BLOCK}\n\n${descStyle}\n\nFORMATO DE SALIDA OBLIGATORIO: responde SOLO JSON con estos dos campos:\n{ "narrative": "los párrafos narrativos completos", "bullet_points": ["bullet 1", "bullet 2", "..."] }\nReglas de bullet_points (obligatorias):\n- Cada bullet es un BENEFICIO en lenguaje natural, por ejemplo "Alcanza ramas altas sin esfuerzo gracias a su longitud ajustable". NUNCA uses el formato "Campo: valor" (no escribas "Materiales: acero" ni "Identificación: ...").\n- Deriva los beneficios de los datos técnicos y de los tipos de uso del producto.\n- OMITE cualquier categoría o dato que no exista: nunca escribas "null", "vacío", "sin dato" ni inventes.\n- Entre 3 y 8 bullets.`;
                 const descResp = await openai.chat.completions.create({
                     model: MODEL,
                     temperature: descProfile.temperature,
