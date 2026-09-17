@@ -236,9 +236,11 @@ export default function PromptProfilesPage() {
                             ))}
                         </div>
 
-                        {editingId === null && formScope === scope && (
+                        {editingId !== '__cancel__' && formScope === scope && (
                             <div className="px-5 py-4 border-t border-[var(--border)] bg-[var(--bg)] space-y-3">
-                                <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Nuevo perfil de {SCOPE_LABEL[scope]}</p>
+                                <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                                    {editingId ? `Editar perfil: ${formName}` : `Nuevo perfil de ${SCOPE_LABEL[scope]}`}
+                                </p>
                                 <input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Nombre del perfil (ej. Herramientas MX)" className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                                 <textarea value={formInstructions} onChange={e => setFormInstructions(e.target.value)} rows={3} placeholder="Instrucción en lenguaje natural (ej. Títulos cortos y técnicos, incluye medida y material, sin adjetivos comerciales)" className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                                 <div className="grid grid-cols-2 gap-2">
