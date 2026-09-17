@@ -72,7 +72,10 @@ export async function generateListingContent(
         return fallback;
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        baseURL: process.env.OPENAI_BASE_URL || undefined, // ej. 'https://api.deepseek.com'
+    });
     const user = buildUser(input);
 
     // Perfiles independientes: título y descripción (respeta overrides por cuenta/categoría)

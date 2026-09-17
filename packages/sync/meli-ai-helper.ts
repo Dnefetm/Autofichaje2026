@@ -169,7 +169,10 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
     const titleFallback = [input.marca, input.modelo, input.nombre]
         .filter(Boolean).join(' ').slice(0, maxChars).trim();
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        baseURL: process.env.OPENAI_BASE_URL || undefined, // ej. 'https://api.deepseek.com'
+    });
 
     if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('placeholder')) {
         return { family_name: familyNameFallback, title: titleFallback, attributes: [], ai_used: false };
