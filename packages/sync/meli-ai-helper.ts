@@ -14,6 +14,9 @@ import { OpenAI } from 'openai';
 import { ANTI_HALLUCINATION_BLOCK } from './ai-guard';
 import { resolvePromptProfile, PromptContext, PromptProfile } from './prompt-profiles';
 
+// Modelo configurable por entorno (Vercel): OPENAI_MODEL. Default: gpt-4o (mejor seguimiento de instrucciones).
+const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+
 // --- Tipos --------------------------------------------------------------------
 
 export interface MeliAttributeOption {
@@ -188,7 +191,7 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
 
     try {
         const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: MODEL,
             temperature: titleProfile.temperature,
             response_format: { type: 'json_object' },
             messages: [
@@ -217,7 +220,7 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
             try {
                 const descSystem = `${ANTI_HALLUCINATION_BLOCK}\n\n${descStyle}\n\nFORMATO DE SALIDA OBLIGATORIO: responde SOLO JSON con estos dos campos:\n{ "narrative": "los párrafos narrativos completos", "bullet_points": ["bullet de beneficio 1", "bullet de beneficio 2", "..."] }\nLos bullet_points deben ser beneficios concretos derivados de los datos técnicos y de los tipos de uso del producto. Entre 3 y 8 bullets.`;
                 const descResp = await openai.chat.completions.create({
-                    model: 'gpt-4o-mini',
+                    model: MODEL,
                     temperature: descProfile.temperature,
                     response_format: { type: 'json_object' },
                     messages: [

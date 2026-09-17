@@ -10,6 +10,8 @@ import { OpenAI } from 'openai';
 import { ANTI_HALLUCINATION_BLOCK } from './ai-guard';
 import { loadPromptProfile } from './prompt-profiles';
 
+const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+
 export interface ListingContentInput {
     nombre: string;
     marca: string;
@@ -84,7 +86,7 @@ export async function generateListingContent(
     // 1) Título
     try {
         const r = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: MODEL,
             temperature: titleProfile.temperature,
             response_format: { type: 'json_object' },
             messages: [
@@ -102,7 +104,7 @@ export async function generateListingContent(
     // 2) Descripción
     try {
         const r = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: MODEL,
             temperature: descProfile.temperature,
             response_format: { type: 'json_object' },
             messages: [
