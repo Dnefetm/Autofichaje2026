@@ -215,7 +215,7 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
         let description: string | undefined;
         if (input.rephrase_description) {
             try {
-                const descSystem = `${ANTI_HALLUCINATION_BLOCK}\n\n${descStyle}`;
+                const descSystem = `${ANTI_HALLUCINATION_BLOCK}\n\n${descStyle}\n\nFORMATO DE SALIDA OBLIGATORIO: responde SOLO JSON con estos dos campos:\n{ "narrative": "los párrafos narrativos completos", "bullet_points": ["bullet de beneficio 1", "bullet de beneficio 2", "..."] }\nLos bullet_points deben ser beneficios concretos derivados de los datos técnicos y de los tipos de uso del producto. Entre 3 y 8 bullets.`;
                 const descResp = await openai.chat.completions.create({
                     model: 'gpt-4o-mini',
                     temperature: descProfile.temperature,
@@ -227,9 +227,16 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
                 });
                 const descRaw = JSON.parse(descResp.choices[0].message.content || '{}');
                 tokensUsed += descResp.usage?.total_tokens ?? 0;
-                description = typeof descRaw.description === 'string'
-                    ? descRaw.description.trim().slice(0, 5000)
-                    : undefined;
+                const narrative = typeof descRaw.narrative === 'string'
+                    ? descRaw.narrative.trim()
+                    : (typeof descRaw.description === 'string' ? descRaw.description.trim() : '');
+                const bullets = Array.isArray(descRaw.bullet_points)
+                    ? descRaw.bullet_points.map((b: any) => String(b).trim()).filter(Boolean)
+                    : [];
+                const bulletsBlock = bullets.length > 0
+                    ? '\n\n' + bullets.map((b: string) => `• ${b}`).join('\n')
+                    : '';
+                description = narrative ? (narrative + bulletsBlock).slice(0, 5000) : undefined;
             } catch (descErr: any) {
                 console.error('[meli-ai-helper] Fallo en descripción:', descErr.message);
             }
