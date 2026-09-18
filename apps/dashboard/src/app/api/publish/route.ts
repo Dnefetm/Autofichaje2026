@@ -995,6 +995,43 @@ export async function POST(req: NextRequest) {
         };
         trace.paso_12_meli_raw = created.raw; // respuesta completa de MeLi para inspección
 
+        // -- 12bis. Esperar a que MeLi descargue las imágenes ---------------------
+        // MeLi crea la publicación 'paused' con sub_status 'picture_download_pending'
+        // mientras baja las fotos. El optin exige 'active', así que sondeamos hasta
+        // que quede activa (máx ~20s) antes de optar al catálogo.
+        if (
+            effectiveCatalogListing && effectiveCatalogProductId &&
+            created.status === 'paused' &&
+            Array.isArray(created.raw?.sub_status) && created.raw.sub_status.includes('picture_download_pending')
+        ) {
+            const esperaInicio = Date.now();
+            const maxEsperaMs = 20000;
+            const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+            let intentos = 0;
+            let esperaError: string | null = null;
+            while (Date.now() - esperaInicio < maxEsperaMs && created.status === 'paused') {
+                await sleep(2000);
+                intentos++;
+                try {
+                    const refrescado = await (meli as any).getItem(marketplace_id, created.item_id);
+                    if (refrescado) {
+                        created.status = refrescado.status || created.status;
+                        trace.paso_12_meli_raw = refrescado; // estado más reciente para diagnóstico
+                    }
+                } catch (e: any) {
+                    esperaError = e.message;
+                    break;
+                }
+            }
+            trace.paso_12_espera_imagenes = {
+                status_inicial: 'paused',
+                status_final: created.status,
+                ms: Date.now() - esperaInicio,
+                intentos,
+                ...(esperaError ? { error: esperaError } : {}),
+            };
+        }
+
         // -- 12b. Optin a CATÁLOGO vinculado (si aplica) ------------------------
         // Usa POST /items/catalog_listings con el item_id de la tradicional recién
         // creada + catalog_product_id. MeLi las relaciona nativamente (item_relations).
