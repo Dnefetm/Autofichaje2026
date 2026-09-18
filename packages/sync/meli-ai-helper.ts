@@ -204,7 +204,9 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
             ],
         });
 
-        const raw = JSON.parse(response.choices[0].message.content || '{}');
+        let content = response.choices[0].message.content || '{}';
+        content = content.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const raw = JSON.parse(content);
         let tokensUsed = response.usage?.total_tokens ?? 0;
 
         let family_name = (raw.family_name || familyNameFallback).toString().trim();
@@ -232,7 +234,9 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
                         { role: 'user', content: productUser },
                     ],
                 });
-                const descRaw = JSON.parse(descResp.choices[0].message.content || '{}');
+                let descContent = descResp.choices[0].message.content || '{}';
+                descContent = descContent.replace(/```json/gi, '').replace(/```/g, '').trim();
+                const descRaw = JSON.parse(descContent);
                 tokensUsed += descResp.usage?.total_tokens ?? 0;
                 const narrative = typeof descRaw.narrative === 'string'
                     ? descRaw.narrative.trim()
