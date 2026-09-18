@@ -914,6 +914,10 @@ export async function POST(req: NextRequest) {
             attributes: allAttributes,
             // legacy: MeLi exige title; UP: family_name.
             ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
+            // Asociar la tradicional al producto de catálogo para que MeLi NO la pause
+            // al nacer en categorías con catálogo obligatorio. Sin catalog_listing: true
+            // sigue siendo tradicional; el vínculo nativo lo crea el optin posterior.
+            ...(effectiveCatalogListing && effectiveCatalogProductId ? { catalog_product_id: effectiveCatalogProductId } : {}),
         };
 
         trace.paso_9_titulo = {
