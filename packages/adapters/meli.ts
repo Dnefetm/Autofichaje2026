@@ -1464,6 +1464,61 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
+     * optinCatalogListing — Crea una publicación de CATÁLOGO vinculada a una
+     * publicación tradicional (marketplace) existente vía "optin".
+     * Endpoint oficial: POST /items/catalog_listings
+     * Ref: https://developers.mercadolibre.com.uy/en_us/catalog-listing#Optin-from-a-traditional-publication
+     */
+    async optinCatalogListing(accountId: string, body: {
+        item_id: string;
+        catalog_product_id: string;
+        variation_id?: number;
+    }): Promise<{
+        item_id: string;
+        permalink: string;
+        title: string;
+        status: string;
+        item_relations: Array<{ id: string; variation_id: number | null; stock_relation: number }>;
+        raw: any;
+    }> {
+        const accessToken = await this.getAccessToken(accountId);
+        logger.info(
+            { accountId, item_id: body.item_id, catalog_product_id: body.catalog_product_id },
+            'optinCatalogListing: iniciando POST /items/catalog_listings'
+        );
+        let respData: any;
+        try {
+            const resp = await axios.post(
+                'https://api.mercadolibre.com/items/catalog_listings',
+                body,
+                { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+            );
+            respData = resp.data;
+        } catch (err: any) {
+            const meliError = err.response?.data;
+            logger.error(
+                { accountId, meliError, statusCode: err.response?.status },
+                'optinCatalogListing: MeLi rechazó el POST /items/catalog_listings'
+            );
+            throw new Error(
+                `MeLi POST /items/catalog_listings falló [${err.response?.status}]: ${JSON.stringify(meliError)}`
+            );
+        }
+        logger.info(
+            { accountId, item_id: respData.id, title: respData.title, status: respData.status },
+            'optinCatalogListing: catálogo creado y vinculado exitosamente'
+        );
+        return {
+            item_id: respData.id,
+            permalink: respData.permalink || '',
+            title: respData.title || '',
+            status: respData.status || '',
+            item_relations: respData.item_relations || [],
+            raw: respData,
+        };
+    }
+
+    /**
      * getItem — Obtiene un item completo de MeLi (propietario).
      * GET /items/{item_id} con include_attributes=all para traer también
      * family_name (UP), seller_custom_field y attributes[] completos.

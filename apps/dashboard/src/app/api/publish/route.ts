@@ -872,9 +872,10 @@ export async function POST(req: NextRequest) {
         const srcWarrantyType = sourceData?.sale_terms?.find((s: any) => s.id === 'WARRANTY_TYPE')?.value_name;
         const srcWarrantyTime = sourceData?.sale_terms?.find((s: any) => s.id === 'WARRANTY_TIME')?.value_name;
 
-        // -- 9. Construir los bodies -------------------------------------------
+        // -- 9. Construir el body del POST /items (UP o legacy) -----------------
         // La publicación TRADICIONAL (base) se crea SIEMPRE: título, fotos, atributos, envío, garantía.
-        // Si se eligió "usar catálogo", se añade la referencia catalog_product_id (enlace) SIN catalog_listing.
+        // El vínculo a catálogo NO se inyecta aquí: se hace después con el optin
+        // (POST /items/catalog_listings) para que MeLi las relacione nativamente.
         const tradicionalBody: any = {
             category_id,
             price,
@@ -902,24 +903,7 @@ export async function POST(req: NextRequest) {
             attributes: allAttributes,
             // legacy: MeLi exige title; UP: family_name.
             ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
-            // Enlace al producto de catálogo (referencia) si se eligió catálogo
-            ...(effectiveCatalogListing && effectiveCatalogProductId ? { catalog_product_id: effectiveCatalogProductId } : {}),
         };
-
-        // Publicación de CATÁLOGO (enlazada, solo si se eligió): body mínimo — MeLi aporta la ficha.
-        const catalogBody: any = (effectiveCatalogListing && effectiveCatalogProductId)
-            ? {
-                category_id,
-                price,
-                currency_id: precio_data?.currency || sourceData?.currency || 'MXN',
-                available_quantity: Math.max(stock, 1),
-                buying_mode: 'buy_it_now',
-                listing_type_id,
-                condition: 'new',
-                catalog_product_id: effectiveCatalogProductId,
-                catalog_listing: true,
-              }
-            : null;
 
         trace.paso_9_titulo = {
             modelo_seller: isLegacy ? 'legacy' : 'up',
@@ -932,7 +916,6 @@ export async function POST(req: NextRequest) {
         trace.paso_9_descripcion = { chars: descripcionCompleta.length, bullets: resolved.bullet_points.length };
 
         trace.paso_9_body = tradicionalBody;
-        trace.paso_9_catalog_body = catalogBody;
 
         // -- 10. Validaciones DURAS — errores 422 bloqueantes -----------------
         const erroresDuros: string[] = [];
@@ -997,15 +980,21 @@ export async function POST(req: NextRequest) {
         };
         trace.paso_12_meli_raw = created.raw; // respuesta completa de MeLi para inspección
 
-        // -- 12b. Crear la publicación de CATÁLOGO enlazada (si aplica) ---------
+        // -- 12b. Optin a CATÁLOGO vinculado (si aplica) ------------------------
+        // Usa POST /items/catalog_listings con el item_id de la tradicional recién
+        // creada + catalog_product_id. MeLi las relaciona nativamente (item_relations).
         let createdCatalog: any = null;
-        if (catalogBody) {
-            createdCatalog = await (meli as any).createItem(marketplace_id, catalogBody);
+        if (effectiveCatalogListing && effectiveCatalogProductId) {
+            createdCatalog = await (meli as any).optinCatalogListing(marketplace_id, {
+                item_id: created.item_id,
+                catalog_product_id: effectiveCatalogProductId,
+            });
             trace.paso_12b_catalogo = {
-                item_id:   createdCatalog.item_id,
-                permalink: createdCatalog.permalink,
-                title:     createdCatalog.title,
-                status:    createdCatalog.status,
+                item_id:        createdCatalog.item_id,
+                permalink:      createdCatalog.permalink,
+                title:          createdCatalog.title,
+                status:         createdCatalog.status,
+                item_relations: createdCatalog.item_relations,
             };
         } else {
             trace.paso_12b_catalogo = { omitido: 'Sin catálogo' };
@@ -1034,7 +1023,9 @@ export async function POST(req: NextRequest) {
                 tipo: created.user_product_id ? 'up' : 'tradicional',
                 es_fuente_stock: true,
                 id_padre: null,
-                id_catalogo: effectiveCatalogListing ? effectiveCatalogProductId : null,
+                // La tradicional ya NO referencia catalog_product_id (el vínculo lo
+                // crea el optin). El sync rellenará este campo si MeLi lo asigna.
+                id_catalogo: null,
                 par_item_id: createdCatalog ? createdCatalog.item_id : null,
             },
         ];
