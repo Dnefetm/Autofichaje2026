@@ -914,6 +914,8 @@ export async function POST(req: NextRequest) {
             attributes: allAttributes,
             // legacy: MeLi exige title; UP: family_name.
             ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
+            // Restaurar catalog_product_id para evitar que MeLi la cree 'paused' (out_of_catalog)
+            ...(effectiveCatalogListing && effectiveCatalogProductId ? { catalog_product_id: effectiveCatalogProductId } : {}),
         };
 
         trace.paso_9_titulo = {
