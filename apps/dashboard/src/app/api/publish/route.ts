@@ -567,11 +567,22 @@ export async function POST(req: NextRequest) {
                 category_info = { category_id, category_name: fichaCategoria.category_name || '', candidates: [], from_ficha: true };
             } else {
                 // Query enriquecida con datos de la ficha
-                const query = [
+                let query = [
                     resolved.nombre, resolved.marca, resolved.modelo,
                     resolved.codigo_universal, resolved.categoria,
                 ].filter(Boolean).join(' ').trim().slice(0, 100);
-                category_info = await (meli as any).predictCategory(marketplace_id, query);
+                
+                try {
+                    category_info = await (meli as any).predictCategory(marketplace_id, query);
+                } catch (e: any) {
+                    // Si el query largo falla (ej. demasiados datos), intentar con uno corto
+                    if (e.message.includes('no devolvió categorías')) {
+                        const queryCorto = resolved.nombre.slice(0, 80).trim();
+                        category_info = await (meli as any).predictCategory(marketplace_id, queryCorto);
+                    } else {
+                        throw e;
+                    }
+                }
                 category_id = category_info.category_id;
             }
         }
