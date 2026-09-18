@@ -92,12 +92,12 @@ function buildPrompt(input: MeliAIHelperInput, titleStyle: string, descStyle: st
     const tituloRule = legacy
         ? `1. Generar un "title" comercial que ocupe los ${maxChars} caracteres completos INCLUYENDO ESPACIOS:
    nombre del producto + característica relevante 1 + característica relevante 2 + característica relevante 3 + ... + marca.
-   ${titleStyle ? `Cíñete estrictamente a las directrices de estilo del usuario para decidir qué características incluir y su orden.` : `TÚ decides cuáles características incluir (tipo, medida, material, acabado, uso, etc.) y en qué orden, según lo que mejor describa/venda el producto.`}
+   TÚ decides cuáles características incluir (tipo, medida, material, acabado, uso, etc.) y en qué orden, según lo que mejor describa/venda el producto.
    NO uses el modelo. Aprovecha los ${maxChars} caracteres al máximo.
    IMPORTANTE: escribe el símbolo de pulgadas con '' (dos apóstrofos) en lugar de " (ej: 28-36'' en vez de 28-36").`
         : `1. Generar un "family_name" descriptivo que ocupe los ${maxChars} caracteres completos INCLUYENDO ESPACIOS:
    nombre del producto + característica relevante 1 + característica relevante 2 + característica relevante 3 + ...
-   ${titleStyle ? `Cíñete estrictamente a las directrices de estilo del usuario para decidir qué características incluir y su orden.` : `TÚ decides cuáles características incluir (tipo, medida, material, acabado, uso, etc.) y en qué orden.`}
+   TÚ decides cuáles características incluir (tipo, medida, material, acabado, uso, etc.) y en qué orden.
    SIN marca ni modelo — MercadoLibre (User Products) los agrega automáticamente al título visible.
    IMPORTANTE: escribe el símbolo de pulgadas con '' (dos apóstrofos) en lugar de " (ej: 28-36'' en vez de 28-36").`;
 
@@ -222,22 +222,7 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
         let description: string | undefined;
         if (input.rephrase_description) {
             try {
-                // Si el usuario configuró un estilo, lo usamos al final para que tenga máxima prioridad.
-                // Si no, usamos el tono por defecto.
-                const defaultTone = descStyle ? '' : `\n\nTONO (obligatorio): escribe como una persona real, no como robot ni catálogo. Evita frases hechas de marketing como "diseñada para ofrecerte comodidad y rendimiento". Usa frases cortas, concretas y variadas.`;
-                
-                const descSystem = `${ANTI_HALLUCINATION_BLOCK}${defaultTone}
-
-FORMATO DE SALIDA OBLIGATORIO: responde SOLO JSON con estos dos campos:
-{ "narrative": "los párrafos narrativos completos", "bullet_points": ["bullet 1", "bullet 2", "..."] }
-Reglas de bullet_points (obligatorias):
-- Cada bullet es un BENEFICIO en lenguaje natural. NUNCA uses el formato "Campo: valor".
-- Deriva los beneficios de los datos técnicos y de los tipos de uso del producto.
-- OMITE cualquier categoría o dato que no exista: nunca escribas "null", "vacío", "sin dato" ni inventes.
-- Entre 3 y 8 bullets.
-
-${descStyle ? `\nDIRECTRICES DEL USUARIO (OBLIGATORIAS Y SOBREESCRIBEN CUALQUIER OTRA REGLA):\n${descStyle}` : ''}`;
-
+                const descSystem = `${ANTI_HALLUCINATION_BLOCK}\n\n${descStyle}\n\nTONO (obligatorio): escribe como una persona real, no como robot ni catálogo. Evita frases hechas de marketing como "diseñada para ofrecerte comodidad y rendimiento", "perfecta para quienes buscan", "te garantizan un rendimiento superior y duradero". Usa frases cortas, concretas y variadas.\n\nFORMATO DE SALIDA OBLIGATORIO: responde SOLO JSON con estos dos campos:\n{ "narrative": "los párrafos narrativos completos", "bullet_points": ["bullet 1", "bullet 2", "..."] }\nReglas de bullet_points (obligatorias):\n- Cada bullet es un BENEFICIO en lenguaje natural, por ejemplo "Alcanza ramas altas sin esfuerzo gracias a su longitud ajustable". NUNCA uses el formato "Campo: valor" (no escribas "Materiales: acero" ni "Identificación: ...").\n- Deriva los beneficios de los datos técnicos y de los tipos de uso del producto.\n- OMITE cualquier categoría o dato que no exista: nunca escribas "null", "vacío", "sin dato" ni inventes.\n- Entre 3 y 8 bullets.`;
                 const descResp = await openai.chat.completions.create({
                     model: MODEL,
                     temperature: descProfile.temperature,
