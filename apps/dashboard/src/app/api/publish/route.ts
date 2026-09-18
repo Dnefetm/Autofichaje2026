@@ -1196,15 +1196,26 @@ export async function POST(req: NextRequest) {
 
         if (isMeliValidation) {
             const cause = Array.isArray(meliError?.cause) ? meliError.cause : [];
+            const erroresList: string[] = cause
+                .filter((c: any) => c && (c.code || c.message))
+                .map((c: any) => `[${c.code || 'error'}] ${c.message || ''}`);
+
+            // Diagnóstico: exponer el estado real de la tradicional (trace.paso_12_meli_raw)
+            // para saber POR QUÉ MeLi la dejó pausada sin necesidad de abrir DevTools.
+            const tradRaw = trace.paso_12_meli_raw;
+            if (tradRaw && typeof tradRaw === 'object') {
+                erroresList.push(
+                    `[diagnóstico] tradicional=${tradRaw.id || '?'} status=${tradRaw.status || '?'} sub_status=${JSON.stringify(tradRaw.sub_status || [])} tags=${JSON.stringify(tradRaw.tags || [])}`
+                );
+            }
+
             return NextResponse.json({
                 ok: false,
                 error: 'MeLi rechazó la publicación (validation_error)',
                 meli_status: 400,
                 meli_error: meliError,
                 meli_message: typeof meliError?.message === 'string' ? meliError.message : null,
-                errores: cause
-                    .filter((c: any) => c && (c.code || c.message))
-                    .map((c: any) => `[${c.code || 'error'}] ${c.message || ''}`),
+                errores: erroresList,
                 duracion_ms: Date.now() - startTime,
                 trace,
             }, { status: 422 });
