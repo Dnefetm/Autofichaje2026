@@ -1464,6 +1464,66 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
+     * uploadPicture — Sube una imagen (buffer) a MeLi y devuelve su picture_id.
+     * POST /pictures/items/upload (multipart). Evita el estado 'paused' con
+     * sub_status 'picture_download_pending' que ocurre al publicar con {source: url}.
+     */
+    async uploadPicture(accountId: string, imageBuffer: Buffer, contentType: string): Promise<string> {
+        const accessToken = await this.getAccessToken(accountId);
+        const ext = contentType?.includes('png') ? 'png' : 'jpg';
+        const filename = `imagen.${ext}`;
+        const boundary = `----autofichaje${Date.now()}${Math.floor(Math.random() * 1e6)}`;
+        const head = Buffer.from(
+            `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${contentType || 'image/jpeg'}\r\n\r\n`,
+            'utf8',
+        );
+        const tail = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8');
+        const body = Buffer.concat([head, imageBuffer, tail]);
+        const resp = await axios.post(
+            'https://api.mercadolibre.com/pictures/items/upload',
+            body,
+            {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                    'Content-Length': body.length,
+                },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity,
+                timeout: 30000,
+            },
+        );
+        const id: string = resp.data?.id || '';
+        if (!id) throw new Error('uploadPicture: MeLi no devolvió picture id');
+        logger.info({ accountId, pictureId: id }, 'uploadPicture: imagen subida a MeLi');
+        return id;
+    }
+
+    /**
+     * uploadPicturesFromUrls — Descarga cada URL y la sube a MeLi. Devuelve solo
+     * los picture_id que se lograron subir; los fallos individuales se omiten.
+     */
+    async uploadPicturesFromUrls(accountId: string, urls: string[]): Promise<string[]> {
+        const ids: string[] = [];
+        for (const url of urls) {
+            try {
+                const dl = await axios.get(url, {
+                    responseType: 'arraybuffer',
+                    timeout: 20000,
+                    maxContentLength: 10 * 1024 * 1024,
+                });
+                const buf = Buffer.from(dl.data);
+                const contentType = dl.headers?.['content-type'] || 'image/jpeg';
+                const id = await this.uploadPicture(accountId, buf, contentType);
+                if (id) ids.push(id);
+            } catch (err: any) {
+                logger.warn({ accountId, url, error: err.message }, 'uploadPicturesFromUrls: imagen no subida');
+            }
+        }
+        return ids;
+    }
+
+    /**
      * optinCatalogListing — Crea una publicación de CATÁLOGO vinculada a una
      * publicación tradicional (marketplace) existente vía "optin".
      * Endpoint oficial: POST /items/catalog_listings

@@ -852,6 +852,21 @@ export async function POST(req: NextRequest) {
             ? pictures
             : (sourceData?.pictures?.length ? sourceData.pictures : []);
 
+        // -- Pre-subir nuestras imágenes a MeLi (solo publish real) --------------
+        // Evita 'picture_download_pending': subimos la imagen y obtenemos un
+        // picture_id, creando con {id} en vez de {source: url}. Si todo falla,
+        // se cae al source URL (comportamiento anterior) y el diagnóstico informa.
+        let picturesField: Array<{ id: string } | { source: string }>;
+        if (!dry_run && effectivePictures.length > 0) {
+            const subidas: string[] = await (meli as any).uploadPicturesFromUrls(marketplace_id, effectivePictures);
+            picturesField = subidas.length > 0
+                ? subidas.map((id: string) => ({ id }))
+                : effectivePictures.map((url: string) => ({ source: url }));
+            trace.paso_9_preupload_pictures = { subidas: subidas.length, total: effectivePictures.length };
+        } else {
+            picturesField = effectivePictures.map((url: string) => ({ source: url }));
+        }
+
         // Enlace a catálogo efectivo: si no se indicó, se hereda de una vidriera de catálogo.
         const effectiveCatalogProductId: string | null = catalog_product_id
             || (sourceData?.catalog_listing ? sourceData.catalog_product_id : null);
@@ -910,7 +925,7 @@ export async function POST(req: NextRequest) {
                     ? [{ id: 'MANUFACTURING_TIME', value_name: `${Number(manufacturing_time_days)} días` }]
                     : []),
             ],
-            pictures: effectivePictures.map((url: string) => ({ source: url })),
+            pictures: picturesField,
             attributes: allAttributes,
             // legacy: MeLi exige title; UP: family_name.
             ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
