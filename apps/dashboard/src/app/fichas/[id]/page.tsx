@@ -1225,7 +1225,7 @@ export default function FichaDetallePage() {
                         })()}
                         {art && (
                             <div className="border-t border-[var(--border)] pt-2 flex items-center gap-3 flex-wrap">
-                                <Link href={`/catalog?q=${art.articulo_id}`} target="_blank"
+                                <Link href={`/catalog/${encodeURIComponent(art.articulo_id)}`} target="_blank"
                                     className="inline-flex items-center gap-1 text-[var(--accent)] hover:text-[var(--accent)] text-xs font-semibold">
                                     <Link2 className="w-3 h-3" /> Ver en catálogo <ExternalLink className="w-3 h-3" />
                                 </Link>
