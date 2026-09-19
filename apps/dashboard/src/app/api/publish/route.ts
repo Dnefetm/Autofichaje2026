@@ -168,6 +168,11 @@ export async function POST(req: NextRequest) {
                 const pkgLengthCm = parseNum(attrVal('SELLER_PACKAGE_LENGTH'));
                 const pkgWidthCm  = parseNum(attrVal('SELLER_PACKAGE_WIDTH'));
                 const pkgHeightCm = parseNum(attrVal('SELLER_PACKAGE_HEIGHT'));
+                // Fotos de la vidriera origen, conservando el id oficial de MeLi
+                // para reutilizarlas (evita re-descargar/re-subir en copia de condición).
+                const sourcePics = (sourceItem.pictures || [])
+                    .map((p: any) => ({ id: p.id || null, url: p.secure_url || p.url }))
+                    .filter((p: any) => p.url);
 
                 sourceData = {
                     nombre:             sourceItem.family_name || sourceItem.title || '',
@@ -181,7 +186,8 @@ export async function POST(req: NextRequest) {
                     largo_cm:           dims?.length ?? pkgLengthCm,
                     ancho_cm:           dims?.width ?? pkgWidthCm,
                     alto_cm:            dims?.height ?? pkgHeightCm,
-                    pictures:           (sourceItem.pictures || []).map((p: any) => p.secure_url || p.url).filter(Boolean),
+                    pictures:           sourcePics.map((p: any) => p.url),
+                    picture_ids:        sourcePics.map((p: any) => p.id),
                     price:              sourceItem.price ?? null,
                     currency:           sourceItem.currency_id ?? null,
                     stock:              sourceItem.available_quantity ?? null,
@@ -852,17 +858,47 @@ export async function POST(req: NextRequest) {
             ? pictures
             : (sourceData?.pictures?.length ? sourceData.pictures : []);
 
-        // -- Pre-subir nuestras imágenes a MeLi (solo publish real) --------------
-        // Evita 'picture_download_pending': subimos la imagen y obtenemos un
-        // picture_id, creando con {id} en vez de {source: url}. Si todo falla,
-        // se cae al source URL (comportamiento anterior) y el diagnóstico informa.
+        // IDs MeLi ya existentes, alineados con effectivePictures. Solo aplican
+        // cuando heredamos de la vidriera origen (Flujo 1); las URLs externas del
+        // request nunca traen id, así que se re-suben.
+        const inheritedIds: (string | null)[] = (pictures.length === 0 && sourceData?.picture_ids)
+            ? sourceData.picture_ids
+            : effectivePictures.map(() => null);
+
+        // -- Pre-subir SOLO las imágenes sin id MeLi (publish real) --------------
+        // Flujo 1: las fotos que ya viven en MeLi se referencian por su {id} sin
+        // re-descargar ni re-subir. Las URLs externas (o sin id) se suben para
+        // obtener un picture_id y crear con {id} en vez de {source: url}, evitando
+        // 'picture_download_pending'. Si todo falla, cae al source URL (comportamiento
+        // anterior) y el diagnóstico informa.
         let picturesField: Array<{ id: string } | { source: string }>;
         if (!dry_run && effectivePictures.length > 0) {
-            const subidas: string[] = await (meli as any).uploadPicturesFromUrls(marketplace_id, effectivePictures);
-            picturesField = subidas.length > 0
-                ? subidas.map((id: string) => ({ id }))
-                : effectivePictures.map((url: string) => ({ source: url }));
-            trace.paso_9_preupload_pictures = { subidas: subidas.length, total: effectivePictures.length };
+            const field: Array<{ id: string } | { source: string }> = [];
+            const urlsPorSubir: Array<{ index: number; url: string }> = [];
+
+            effectivePictures.forEach((url, i) => {
+                const id = inheritedIds[i];
+                if (id) {
+                    field[i] = { id }; // ya MeLi → reutilizar, sin re-subir
+                } else {
+                    urlsPorSubir.push({ index: i, url });
+                }
+            });
+
+            const subidas: string[] = await (meli as any).uploadPicturesFromUrls(
+                marketplace_id,
+                urlsPorSubir.map((x) => x.url),
+            );
+            urlsPorSubir.forEach((x, k) => {
+                field[x.index] = subidas[k] ? { id: subidas[k] } : { source: x.url };
+            });
+
+            picturesField = field;
+            trace.paso_9_preupload_pictures = {
+                reutilizadas: inheritedIds.filter(Boolean).length,
+                subidas: subidas.length,
+                total: effectivePictures.length,
+            };
         } else {
             picturesField = effectivePictures.map((url: string) => ({ source: url }));
         }
