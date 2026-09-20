@@ -1124,11 +1124,17 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                     )}
                                                     {/* V71: toggle de sincronización de stock por mapeo */}
                                                     <button
+                                                        type="button"
                                                         onClick={() => toggleSyncStock(m)}
+                                                        role="switch"
+                                                        aria-checked={m.sincronizar_stock !== false}
                                                         title={m.sincronizar_stock === false ? 'Stock no sincronizado (activar)' : 'Stock sincronizado (desactivar)'}
-                                                        className={`relative w-9 h-5 rounded-full transition-colors ${m.sincronizar_stock === false ? 'bg-[var(--border)]' : 'bg-[var(--ok)]'}`}
+                                                        className="inline-flex items-center gap-1.5 select-none group"
                                                     >
-                                                        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-[var(--text)] shadow transition-transform ${m.sincronizar_stock === false ? 'translate-x-0.5' : 'translate-x-[18px]'}`} />
+                                                        <span className="text-[11px] font-semibold text-[var(--text-muted)] group-hover:text-[var(--text)] transition-colors">Stock</span>
+                                                        <span className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${m.sincronizar_stock === false ? 'bg-[var(--border)]' : 'bg-[var(--ok)]'}`}>
+                                                            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transform transition-transform ${m.sincronizar_stock === false ? 'translate-x-0.5' : 'translate-x-[18px]'}`} />
+                                                        </span>
                                                     </button>
                                                 </div>
                                             </div>
