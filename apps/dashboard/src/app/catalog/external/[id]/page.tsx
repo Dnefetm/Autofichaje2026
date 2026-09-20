@@ -1094,7 +1094,18 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                         <div key={m.id} className="py-3">
                                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                                                 <div className="w-full sm:flex-1 min-w-0">
-                                                    <p className="text-xs font-bold text-[var(--text)] break-words">{m.articulo?.nombre}</p>
+                                                    {m.articulo?.articulo_id ? (
+                                                        <Link
+                                                            href={`/catalog/${encodeURIComponent(m.articulo.articulo_id)}`}
+                                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--text)] hover:text-[var(--accent)] hover:underline break-words transition-colors"
+                                                            title="Ver producto en catálogo"
+                                                        >
+                                                            <Package className="w-3.5 h-3.5 shrink-0 text-[var(--text-faint)]" />
+                                                            {m.articulo?.nombre || 'Producto'}
+                                                        </Link>
+                                                    ) : (
+                                                        <p className="text-xs font-bold text-[var(--text)] break-words">{m.articulo?.nombre}</p>
+                                                    )}
                                                     <p className="text-[10px] font-mono text-[var(--text-faint)] mt-0.5">{m.articulo?.articulo_id}</p>
                                                     {m.articulo?.marca && <p className="text-[10px] text-[var(--text-faint)]">{m.articulo.marca}</p>}
                                                 </div>
@@ -1102,6 +1113,15 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                     <span className="text-xs font-bold bg-[var(--accent)]/10 text-[var(--accent)] px-2 py-0.5 rounded-[var(--radius-sm)]">
                                                         ×{m.cantidad_requerida}
                                                     </span>
+                                                    {m.articulo?.articulo_id && (
+                                                        <Link
+                                                            href={`/catalog/${encodeURIComponent(m.articulo.articulo_id)}`}
+                                                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-[var(--accent)] hover:bg-[var(--accent)]/10 rounded-[var(--radius-sm)] transition-colors"
+                                                            title="Ver producto en catálogo"
+                                                        >
+                                                            Ver producto
+                                                        </Link>
+                                                    )}
                                                     {/* V71: toggle de sincronización de stock por mapeo */}
                                                     <button
                                                         onClick={() => toggleSyncStock(m)}
