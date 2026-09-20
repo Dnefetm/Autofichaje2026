@@ -9,6 +9,8 @@ interface ArticuloSearchResult {
     modelo: string;
     marca: string;
     codigo_universal: string | null;
+    caja_madre: string | null;
+    variante: string | null;
 }
 
 export function VincularArticuloModal({
@@ -179,6 +181,13 @@ export function VincularArticuloModal({
                                     <p className="text-sm font-medium text-[var(--text)] truncate mt-1">
                                         {art.nombre}
                                     </p>
+                                    {(art.variante || art.caja_madre || art.codigo_universal) && (
+                                        <p className="text-[11px] text-[var(--text-muted)] mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5">
+                                            {art.variante && <span><span className="text-[var(--text-faint)]">Var:</span> {art.variante}</span>}
+                                            {art.caja_madre && <span><span className="text-[var(--text-faint)]">Caja:</span> {art.caja_madre}</span>}
+                                            {art.codigo_universal && <span className="font-mono"><span className="text-[var(--text-faint)]">EAN:</span> {art.codigo_universal}</span>}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <button
