@@ -394,7 +394,13 @@ export default function ArticuloDetailPage() {
                                 <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-sm font-semibold text-[var(--text)] truncate">{p.titulo || p.external_item_id}</span>
+                                            <Link
+                                                href={`/catalog/external/${p.id}`}
+                                                className="text-sm font-semibold text-[var(--text)] hover:text-[var(--accent)] hover:underline truncate transition-colors"
+                                                title="Abrir ficha de la vidriera"
+                                            >
+                                                {p.titulo || p.external_item_id}
+                                            </Link>
                                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]">{tipoLabel}</span>
                                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]">{listingLabel}</span>
                                             <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusTone)}>{statusLabel}</span>
@@ -410,6 +416,13 @@ export default function ArticuloDetailPage() {
                                                 stock {p.stock_publicado ?? '—'} · {p.free_shipping ? 'Envío incluido' : 'Sin envío gratis'}
                                             </p>
                                         </div>
+                                        <Link
+                                            href={`/catalog/external/${p.id}`}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-[var(--text)] bg-[var(--surface-2)] border border-[var(--border)] rounded-[var(--radius-sm)] hover:bg-[var(--bg)] transition-colors whitespace-nowrap"
+                                            title="Abrir ficha de la vidriera"
+                                        >
+                                            <ExternalLink className="w-3 h-3" /> Ver vidriera
+                                        </Link>
                                         <button
                                             onClick={() => setNewConditionPub(p)}
                                             className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors whitespace-nowrap"
