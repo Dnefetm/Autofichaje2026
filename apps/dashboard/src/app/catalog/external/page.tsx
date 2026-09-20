@@ -795,9 +795,13 @@ export default function VirtualCatalogPage() {
             if (filters.marketplace_id) query = query.eq('marketplace_id', filters.marketplace_id);
             // Tipo de publicación
             if (filters.tipoPublicacion.length > 0) query = query.in('tipo_publicacion', filters.tipoPublicacion);
-            // Estado
+            // Estado: sin filtro explícito → solo vitrinas vivas (ocultar por defecto
+            // cerradas/borradas/inactivas). Con filtro explícito se respeta la selección
+            // (p. ej. marcar "Cerrada" para verlas).
             if (filters.statusExterno.length > 0 && filters.statusExterno.length < 4) {
                 query = query.in('status_externo', filters.statusExterno);
+            } else if (filters.statusExterno.length === 0) {
+                query = query.in('status_externo', ['active', 'paused', 'under_review']);
             }
             // Mapeo
             if (filters.mapeoFilter === 'unmapped') query = query.eq('esta_mapeado', false);

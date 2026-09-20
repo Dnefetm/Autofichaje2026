@@ -973,32 +973,58 @@ export class MeliAdapter implements MarketplaceAdapter {
                     { headers: { Authorization: `Bearer ${accessToken}` } }
                 );
 
-                for (const res of resp.data) {
-                    if (res.code !== 200 || !res.body) continue;
-
-                    const meliStatus: string = res.body.status;
-                    const itemId: string = res.body.id;
+                // MeLi devuelve un array alineado con `chunk`. Los ítems borrados
+                // vienen como {code: 404} (sin body.id), así que iteramos por índice
+                // para mapear cada respuesta a su item_id original.
+                const results = Array.isArray(resp.data) ? resp.data : [];
+                for (let j = 0; j < chunk.length; j++) {
+                    const itemId = chunk[j];
+                    const res = results[j];
+                    if (!res) continue;
                     const oldStatus = bdStatusMap.get(itemId) || 'unknown';
 
-                    // Solo actualizar si MeLi reporta un estado terminal que difiere del de BD
-                    if (['closed', 'inactive'].includes(meliStatus) && oldStatus !== meliStatus) {
+                    if (res.code === 200 && res.body) {
+                        const meliStatus: string = res.body.status;
+                        // Solo actualizar si MeLi reporta un estado terminal que difiere del de BD.
+                        if (['closed', 'inactive'].includes(meliStatus) && oldStatus !== meliStatus) {
+                            const { error } = await supabase
+                                .from('publicaciones_externas')
+                                .update({
+                                    status_externo: meliStatus,
+                                    sub_status: res.body.sub_status || [],
+                                    actualizado_el: new Date().toISOString(),
+                                })
+                                .eq('marketplace_id', accountId)
+                                .eq('external_item_id', itemId);
+
+                            if (!error) {
+                                details.push({ item_id: itemId, old_status: oldStatus, new_status: meliStatus });
+                                updated++;
+                            } else {
+                                logger.warn({ accountId, itemId, error: error.message }, 'reconcileClosedItems: error al actualizar status');
+                            }
+                        }
+                    } else if (res.code === 404) {
+                        // Ítem borrado en MeLi (ya no existe). Marcar 'closed' + sub_status
+                        // ['deleted'], consistente con el paso 1.4 de publish/route.ts.
                         const { error } = await supabase
                             .from('publicaciones_externas')
                             .update({
-                                status_externo: meliStatus,
-                                sub_status: res.body.sub_status || [],
+                                status_externo: 'closed',
+                                sub_status: ['deleted'],
                                 actualizado_el: new Date().toISOString(),
                             })
                             .eq('marketplace_id', accountId)
                             .eq('external_item_id', itemId);
 
                         if (!error) {
-                            details.push({ item_id: itemId, old_status: oldStatus, new_status: meliStatus });
+                            details.push({ item_id: itemId, old_status: oldStatus, new_status: 'deleted' });
                             updated++;
                         } else {
-                            logger.warn({ accountId, itemId, error: error.message }, 'reconcileClosedItems: error al actualizar status');
+                            logger.warn({ accountId, itemId, error: error.message }, 'reconcileClosedItems: error al marcar ítem borrado');
                         }
                     }
+                    // Otros códigos (500, 429, etc.) → no tocar (evitar falsos borrados).
                 }
             } catch (err: any) {
                 logger.warn({ accountId, chunk, error: err.message }, 'reconcileClosedItems: error en chunk multiGET');
