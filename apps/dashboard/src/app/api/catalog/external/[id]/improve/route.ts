@@ -182,6 +182,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             return NextResponse.json({ ok: true, descripcion_mejorada: ai.description || baseDesc, perfiles: ai.profiles ?? null });
         }
 
+        // Atributos editables (características primarias/secundarias): todos los
+        // del ítem, salvo los ya propuestos arriba y los de sistema.
+        const ATTR_FIJOS = new Set(['GTIN', 'EAN', 'UPC', 'BRAND', 'MODEL', 'MATERIAL', 'SELLER_PACKAGE_WEIGHT', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_HEIGHT', 'ITEM_CONDITION']);
+        const atributosEditables = (item.attributes || []).map((a: any) => ({
+            id: a.id,
+            name: a.name || a.id,
+            value_name: a.value_name ?? '',
+            value_id: a.value_id ?? null,
+        })).filter((a: any) => a.id && !ATTR_FIJOS.has(a.id));
+
         // 4. DRY RUN: devolver propuestas
         if (dry_run) {
             return NextResponse.json({
@@ -191,6 +201,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 titulo_restringido: tieneVentas,
                 imagenes_actuales: itemPictures,
                 imagenes_sugeridas: imagenesSugeridas,
+                atributos: atributosEditables,
             });
         }
 
@@ -198,9 +209,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const camposAceptados: Record<string, string> = body.campos_aceptados || {};
         const imagenes: string[] | undefined = Array.isArray(body.imagenes) ? body.imagenes : undefined;
 
-        const ATTR_CAMPOS = new Set(['GTIN', 'BRAND', 'MODEL', 'MATERIAL', 'SELLER_PACKAGE_WEIGHT', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_HEIGHT']);
+        // Cualquier campo que no sea título/descripción se trata como atributo
+        // (permite editar características primarias y secundarias libremente).
+        const NO_ATTR = new Set(['titulo', 'descripcion']);
         const attributes = Object.entries(camposAceptados)
-            .filter(([campo, valor]) => ATTR_CAMPOS.has(campo) && valor)
+            .filter(([campo, valor]) => !NO_ATTR.has(campo) && valor)
             .map(([campo, valor]) => ({ id: campo, value_name: String(valor) }));
 
         const seller = await (meli as any).detectSellerModel(pub.marketplace_id);

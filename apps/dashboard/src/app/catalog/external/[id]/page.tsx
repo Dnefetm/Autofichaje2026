@@ -310,6 +310,11 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [imagenes, setImagenes] = useState<string[]>([]);
     const [imgSugeridas, setImgSugeridas] = useState<any[]>([]);
     const [nuevaImgUrl, setNuevaImgUrl] = useState('');
+    const [extractUrl, setExtractUrl] = useState('');
+    const [extracting, setExtracting] = useState(false);
+    const [descripcionManual, setDescripcionManual] = useState('');
+    const [atributosEditables, setAtributosEditables] = useState<any[]>([]);
+    const [attrValores, setAttrValores] = useState<Record<string, string>>({});
     const [tituloRestringido, setTituloRestringido] = useState(false);
     const [combinandoCampo, setCombinandoCampo] = useState<string | null>(null);
     // Fase 3: datos enriquecidos lazy (health actions, costs, visits)
@@ -426,6 +431,11 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             setPropuestas(data.propuestas || []);
             setImgSugeridas(data.imagenes_sugeridas || []);
             setImagenes(data.imagenes_actuales || []);
+            setAtributosEditables(data.atributos || []);
+            const av: Record<string, string> = {};
+            for (const a of (data.atributos || [])) av[a.id] = a.value_name || '';
+            setAttrValores(av);
+            setDescripcionManual('');
             setTituloRestringido(!!data.titulo_restringido);
             const sel: Record<string, string> = {};
             for (const p of (data.propuestas || [])) {
@@ -461,6 +471,49 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         }
     }
 
+    // Extraer imágenes de una página web (reutiliza /api/publish/extract-images).
+    async function extractImagesFromUrl() {
+        const url = extractUrl.trim();
+        if (!url.startsWith('http')) { toast.error('Pega una URL válida (http...)'); return; }
+        setExtracting(true);
+        try {
+            const res = await fetch('/api/publish/extract-images', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url }),
+            });
+            const data = await res.json();
+            if (data.ok && data.imagenes?.length) {
+                setImagenes(prev => {
+                    const existing = new Set(prev);
+                    const added = data.imagenes.map((i: any) => i.url).filter((u: string) => !existing.has(u));
+                    return [...prev, ...added];
+                });
+                setExtractUrl('');
+            } else {
+                toast.error(data.advertencia || data.error || 'No se encontraron imágenes');
+            }
+        } catch (e: any) {
+            toast.error(e.message || 'Error extrayendo imágenes');
+        } finally {
+            setExtracting(false);
+        }
+    }
+
+    // Subir una imagen desde archivo (multipart) → URL pública.
+    async function uploadImagenFile(file: File) {
+        const form = new FormData();
+        form.append('file', file);
+        try {
+            const res = await fetch('/api/upload-imagen', { method: 'POST', body: form });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Error al subir imagen');
+            setImagenes(prev => prev.includes(data.url) ? prev : [...prev, data.url]);
+        } catch (e: any) {
+            toast.error(e.message || 'Error al subir imagen');
+        }
+    }
+
     // Aplicar solo lo que el usuario aprobó.
     async function aplicarMejoras() {
         const camposAceptados: Record<string, string> = {};
@@ -468,6 +521,13 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             const sel = seleccion[p.campo];
             if (sel === 'nuevo') camposAceptados[p.campo] = p.valor_nuevo;
             else if (sel === 'combinar') camposAceptados[p.campo] = combinados[p.campo] ?? p.valor_nuevo;
+        }
+        // Descripción manual (sobreescribe cualquier propuesta de descripción).
+        if (descripcionManual.trim()) camposAceptados.descripcion = descripcionManual.trim();
+        // Atributos (características) editados manualmente.
+        for (const a of atributosEditables) {
+            const v = (attrValores[a.id] ?? '').trim();
+            if (v && v !== (a.value_name ?? '').trim()) camposAceptados[a.id] = v;
         }
         if (Object.keys(camposAceptados).length === 0 && imagenes.length === 0) {
             toast.error('No has aprobado ningún cambio');
@@ -1346,7 +1406,36 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                             <input value={nuevaImgUrl} onChange={e => setNuevaImgUrl(e.target.value)} placeholder="https://… URL de imagen" className="flex-1 px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)]" />
                                             <button type="button" onClick={() => { const u = nuevaImgUrl.trim(); if (u && !imagenes.includes(u)) { setImagenes([...imagenes, u]); setNuevaImgUrl(''); } }} className="px-3 py-1.5 text-xs font-bold bg-[var(--surface-2)] border border-[var(--border)] rounded-lg">Agregar</button>
                                         </div>
+                                        <div className="flex gap-2">
+                                            <input value={extractUrl} onChange={e => setExtractUrl(e.target.value)} placeholder="Página web (extrae varias imágenes)…" className="flex-1 px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)]" />
+                                            <button type="button" onClick={extractImagesFromUrl} disabled={extracting} className="px-3 py-1.5 text-xs font-bold bg-[var(--surface-2)] border border-[var(--border)] rounded-lg disabled:opacity-50">{extracting ? 'Extrayendo…' : 'Extraer'}</button>
+                                        </div>
+                                        <label className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)] cursor-pointer w-fit">
+                                            <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadImagenFile(f); e.target.value = ''; }} />
+                                            <span className="px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--surface-2)] hover:bg-[var(--bg)]">Subir archivo…</span>
+                                        </label>
                                     </div>
+
+                                    {/* Descripción manual */}
+                                    <div className="border border-[var(--border)] rounded-lg p-3 space-y-1.5">
+                                        <p className="text-xs font-bold text-[var(--text)]">Descripción (edición manual)</p>
+                                        <textarea value={descripcionManual} onChange={e => setDescripcionManual(e.target.value)} rows={4} placeholder="Escribe o pega la descripción. Si la dejas vacía, se usan las propuestas de arriba." className="w-full px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] resize-y" />
+                                    </div>
+
+                                    {/* Características (atributos) */}
+                                    {atributosEditables.length > 0 && (
+                                        <div className="border border-[var(--border)] rounded-lg p-3 space-y-1.5">
+                                            <p className="text-xs font-bold text-[var(--text)]">Características</p>
+                                            <div className="max-h-48 overflow-y-auto space-y-1.5">
+                                                {atributosEditables.map(a => (
+                                                    <div key={a.id} className="flex items-center gap-2">
+                                                        <span className="w-40 shrink-0 text-[10px] font-bold uppercase text-[var(--text-faint)] truncate" title={a.id}>{a.name || a.id}</span>
+                                                        <input value={attrValores[a.id] ?? ''} onChange={e => setAttrValores(v => ({ ...v, [a.id]: e.target.value }))} className="flex-1 px-2.5 py-1 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)]" />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="flex items-center justify-end gap-2 pt-1">
                                         <button onClick={() => setShowImproveModal(false)} className="px-3 py-2 text-xs font-bold text-[var(--text-muted)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)]">Cancelar</button>

@@ -331,8 +331,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             .select('nombre, marca, modelo, variante, categoria, codigo_universal, peso_kg, largo_cm, ancho_cm, alto_cm, descripcion')
             .eq('articulo_id', articulo_id)
             .single()
-            .then(({ data }) => { if (!cancelled && data) setArticleData(data); })
-            .catch(() => { /* silencioso */ });
+            .then(({ data }) => { if (!cancelled && data) setArticleData(data); });
         return () => { cancelled = true; };
     }, [articulo_id]);
 
