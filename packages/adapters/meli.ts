@@ -169,8 +169,8 @@ export class MeliAdapter implements MarketplaceAdapter {
     async getAccountItems(accountId: string): Promise<string[]> {
         const accessToken = await this.getAccessToken(accountId);
         let itemIds: string[] = [];
-        let offset = 0;
-        const limit = 50;
+        let scrollId: string | null = null;
+        const limit = 100;
         let hasMore = true;
 
         try {
@@ -180,29 +180,31 @@ export class MeliAdapter implements MarketplaceAdapter {
             });
             const userId = meResponse.data.id;
 
-            // Búsqueda de items del usuario con iteración (Offset / Paginación)
+            // Búsqueda de items del usuario con iteración (Scan / scroll_id).
+            // MeLi exige search_type=scan en TODAS las peticiones para paginar más
+            // de 1000 ítems; el offset tradicional devuelve 400.
             const searchUrl = `https://api.mercadolibre.com/users/${userId}/items/search`;
 
             while (hasMore) {
                 // Respetar Rate Limits antes de cada página
                 await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
 
+                const params: any = { limit, search_type: 'scan' };
+                if (scrollId) params.scroll_id = scrollId;
+
                 const response = await axios.get(searchUrl, {
                     headers: { Authorization: `Bearer ${accessToken}` },
-                    params: { offset, limit }
+                    params
                 });
 
                 const results = response.data.results || [];
+                const newScrollId = response.data.scroll_id || null;
 
-                if (results.length > 0) {
-                    itemIds = itemIds.concat(results);
-                    offset += limit;
-                }
+                if (newScrollId) scrollId = newScrollId;
+                if (results.length > 0) itemIds = itemIds.concat(results);
 
-                // Si la API devuelve menos items que el límite, hemos llegado al final.
-                if (results.length < limit || response.data.paging?.total <= offset) {
-                    hasMore = false;
-                }
+                // Sin resultados → fin del scroll.
+                if (results.length === 0) hasMore = false;
             }
 
             logger.info({ accountId, itemCount: itemIds.length }, 'Finalizada extracción paginada de items MeLi');

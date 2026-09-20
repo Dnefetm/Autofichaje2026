@@ -222,10 +222,17 @@ await handleRecalcPricingBundle(job);
 break;
 case 'sync_account_catalog': {
 const accountId = job.payload.marketplace_id;
+// Sync (scan + upsert): best-effort. Si MeLi falla (400/rate limit), NO debe
+// impedir la reconciliación de vitrinas cerradas/borradas.
+try {
 const itemIds = await meli.getAccountItems(accountId);
 console.log(`[sync_account_catalog] Syncing ${itemIds.length} items for account ${accountId} via multiGET batch`);
 const accessToken = await (meli as any).getAccessToken(accountId);
 await meli.syncCatalogBatchFast(accountId, accessToken, itemIds);
+} catch (syncErr: any) {
+logger.warn({ accountId, error: syncErr.message }, 'sync_account_catalog: sync parcial falló, continúa reconciliación');
+}
+// Reconciliación: siempre, independiente del scan.
 const reconcile = await meli.reconcileClosedItems(accountId);
 if (reconcile.updated > 0) {
 console.log(`[sync_account_catalog] reconcileClosedItems: ${reconcile.checked} chequeados, ${reconcile.updated} actualizados`);
