@@ -304,6 +304,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     // Mejorar publicación existente
     const [showImproveModal, setShowImproveModal] = useState(false);
     const [improveLoading, setImproveLoading] = useState(false);
+    const [applyError, setApplyError] = useState('');
     const [identificacion, setIdentificacion] = useState<any[]>([]);
     const [identValores, setIdentValores] = useState<Record<string, string>>({});
     const [descripcion, setDescripcion] = useState<{ actual: string; catalogo: string; ficha: string }>({ actual: '', catalogo: '', ficha: '' });
@@ -425,6 +426,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         setExtractUrl('');
         setDescripcionManual('');
         setDescripcionIA('');
+        setApplyError('');
         try {
             const res = await fetch(`/api/catalog/external/${id}/improve`, {
                 method: 'POST',
@@ -560,7 +562,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             loadAll(true);
             toast.success(`Mejora aplicada (${data.aplicados ?? 'ok'})`);
         } catch (err: any) {
-            toast.error(err.message || 'Error al aplicar la mejora');
+            setApplyError(err.message || 'Error al aplicar la mejora');
         } finally {
             setImproveLoading(false);
         }
@@ -1342,6 +1344,16 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             </div>
                             <button onClick={() => setShowImproveModal(false)} className="p-1.5 text-[var(--text-faint)] hover:text-[var(--text)]" title="Cerrar"><X className="w-5 h-5" /></button>
                         </div>
+                        {/* error persistente */}
+                        {applyError && (
+                            <div className="mx-4 mt-3 p-3 rounded-xl border border-[var(--err)]/40 bg-[var(--err)]/10">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-xs font-bold text-[var(--err)]">MeLi rechazó la mejora:</p>
+                                    <button onClick={() => setApplyError('')} className="text-[var(--err)] shrink-0"><X className="w-4 h-4" /></button>
+                                </div>
+                                <pre className="mt-1 text-xs text-[var(--err)] whitespace-pre-wrap break-words max-h-40 overflow-y-auto">{applyError}</pre>
+                            </div>
+                        )}
                         {/* body scrolleable */}
                         <div className="flex-1 overflow-y-auto p-4 space-y-5">
                             {improveLoading ? (
