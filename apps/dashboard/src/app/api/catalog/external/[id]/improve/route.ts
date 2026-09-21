@@ -156,12 +156,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (pub.category_id) {
             const catAttrs = await (meli as any).getCategoryAttributes(pub.marketplace_id, pub.category_id).catch(() => null);
             const itemAttrMap: Map<string, any> = new Map((item.attributes || []).map((a: any) => [a.id, a]));
+            const UNIT_KNOWN: Record<string, string> = {
+                SELLER_PACKAGE_WEIGHT: 'g',
+                SELLER_PACKAGE_LENGTH: 'cm',
+                SELLER_PACKAGE_WIDTH: 'cm',
+                SELLER_PACKAGE_HEIGHT: 'cm',
+            };
             caracteristicas = (catAttrs?.raw || []).filter((a: any) => a.id && !IDENT_IDS.has(a.id)).map((a: any) => {
                 const cur = itemAttrMap.get(a.id);
                 return {
                     id: a.id,
                     name: a.name || a.id,
                     type: a.value_type || a.type || 'string',
+                    unit: UNIT_KNOWN[a.id] || a.unit || a.value_unit || null,
+                    hint: a.hint || null,
                     values: Array.isArray(a.values) ? a.values.map((v: any) => ({ id: v.id, name: v.name })) : [],
                     required: !!(a.tags || {}).required,
                     value_name: cur?.value_name ?? '',
@@ -214,9 +222,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const camposAceptados: Record<string, string> = body.campos_aceptados || {};
         const imagenes: string[] | undefined = Array.isArray(body.imagenes) ? body.imagenes : undefined;
 
-        // Cualquier campo que no sea título/descripción se trata como atributo
+        // Cualquier campo que no sea título/descripción/SKU se trata como atributo
         // (permite editar características primarias y secundarias libremente).
-        const NO_ATTR = new Set(['titulo', 'descripcion']);
+        const NO_ATTR = new Set(['titulo', 'descripcion', 'SELLER_SKU']);
         const attributes = Object.entries(camposAceptados)
             .filter(([campo, valor]) => !NO_ATTR.has(campo) && valor)
             .map(([campo, valor]) => ({ id: campo, value_name: String(valor) }));
@@ -230,6 +238,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             if (isLegacy) updateBody.title = camposAceptados.titulo;
             else updateBody.family_name = camposAceptados.titulo;
         }
+        if (camposAceptados.SELLER_SKU) updateBody.seller_custom_field = camposAceptados.SELLER_SKU;
         if (imagenes && imagenes.length) updateBody.pictures = imagenes.map((u: string) => ({ source: u }));
 
         let aplicados = 0;

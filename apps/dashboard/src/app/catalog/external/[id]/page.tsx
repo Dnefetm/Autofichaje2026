@@ -562,6 +562,15 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const fmtDate = (d: string | null) =>
         d ? new Date(d).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }) : null;
 
+    // Contador de cambios pendientes para el botón "Aplicar".
+    const cambiosCount = (() => {
+        let n = 0;
+        for (const f of identificacion) if ((identValores[f.campo] ?? '').trim() !== String(f.actual ?? '').trim()) n++;
+        if (descripcionElegida !== 'actual') n++;
+        for (const c of caracteristicas) if ((carValores[c.id] ?? '').trim() !== String(c.value_name ?? '').trim()) n++;
+        return n;
+    })();
+
     if (loading) return (
         <div className="flex-1 flex items-center justify-center min-h-screen">
             <RefreshCw className="w-8 h-8 animate-spin text-[var(--accent)]" />
@@ -1309,115 +1318,147 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 </div>
             )}
 
-            {/* Modal: Mejorar publicación existente */}
+            {/* Modal: Mejorar publicación existente (bottom sheet nativo) */}
             {showImproveModal && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/60 overflow-y-auto" onClick={() => setShowImproveModal(false)}>
-                    <div className="w-full max-w-2xl my-8" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-between px-5 py-3 bg-[var(--surface)] rounded-t-xl border border-[var(--border)]">
+                <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center" onClick={() => setShowImproveModal(false)}>
+                    <div className="w-full sm:max-w-lg bg-[var(--surface)] rounded-t-2xl border border-[var(--border)] flex flex-col max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+                        {/* agarradera */}
+                        <div className="flex justify-center pt-2 pb-1"><div className="w-10 h-1 rounded-full bg-[var(--border)]" /></div>
+                        {/* header */}
+                        <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)]">
                             <div className="flex items-center gap-2">
                                 <Zap className="w-4 h-4 text-[var(--warn)]" />
                                 <h3 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Mejorar publicación</h3>
                             </div>
-                            <button onClick={() => setShowImproveModal(false)} className="p-1 text-[var(--text-faint)] hover:text-[var(--text)] transition-colors" title="Cerrar">
-                                <X className="w-5 h-5" />
-                            </button>
+                            <button onClick={() => setShowImproveModal(false)} className="p-1.5 text-[var(--text-faint)] hover:text-[var(--text)]" title="Cerrar"><X className="w-5 h-5" /></button>
                         </div>
-                        <div className="p-5 space-y-4 bg-[var(--surface)] rounded-b-xl border border-t-0 border-[var(--border)] max-h-[70vh] overflow-y-auto">
+                        {/* body scrolleable */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-5">
                             {improveLoading ? (
-                                <div className="flex items-center justify-center py-10">
-                                    <RefreshCw className="w-6 h-6 animate-spin text-[var(--accent)]" />
-                                </div>
+                                <div className="flex items-center justify-center py-12"><RefreshCw className="w-6 h-6 animate-spin text-[var(--accent)]" /></div>
                             ) : (
                                 <>
-                                    <p className="text-xs text-[var(--text-muted)]">Revisa y edita. Nada se aplica hasta que pulses "Aplicar".</p>
-
                                     {/* Identificación */}
-                                    <div className="border border-[var(--border)] rounded-lg p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[var(--text)]">Identificación</p>
+                                    <section className="space-y-3">
+                                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-faint)]">Identificación</h4>
                                         {identificacion.map(f => (
                                             <div key={f.campo}>
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)]">{f.label}</label>
-                                                    {f.restringido && <span className="text-[10px] text-[var(--warn)] bg-[var(--warn)]/10 border border-[var(--warn)]/30 px-1.5 py-0.5 rounded">Restringido: tiene ventas</span>}
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs font-semibold text-[var(--text)]">{f.label}</label>
+                                                    {f.restringido && <span className="text-[10px] text-[var(--warn)] bg-[var(--warn)]/10 border border-[var(--warn)]/30 px-1.5 py-0.5 rounded">Con ventas</span>}
                                                 </div>
                                                 <input
                                                     value={identValores[f.campo] ?? ''}
                                                     onChange={e => setIdentValores(v => ({ ...v, [f.campo]: e.target.value }))}
                                                     disabled={f.restringido}
-                                                    className="w-full px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] disabled:opacity-50"
+                                                    placeholder="—"
+                                                    className="w-full mt-1 h-11 px-3 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)] disabled:opacity-50"
                                                 />
                                                 {f.sugerido != null && String(f.sugerido) !== String(f.actual ?? '') && !f.restringido && (
-                                                    <button type="button" onClick={() => setIdentValores(v => ({ ...v, [f.campo]: String(f.sugerido) }))} className="text-[10px] text-[var(--accent)] hover:underline mt-1 block">
-                                                        Sugerido ({f.fuente_label}): {String(f.sugerido)}
+                                                    <button type="button" onClick={() => setIdentValores(v => ({ ...v, [f.campo]: String(f.sugerido) }))} className="mt-1 text-xs text-[var(--accent)] font-semibold">
+                                                        Usar sugerido ({f.fuente_label}): {String(f.sugerido)}
                                                     </button>
                                                 )}
                                             </div>
                                         ))}
-                                    </div>
+                                    </section>
 
                                     {/* Descripción */}
-                                    <div className="border border-[var(--border)] rounded-lg p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[var(--text)]">Descripción</p>
-                                        {[{ k: 'actual', label: 'Vidriera (actual)', val: descripcion.actual }, { k: 'catalogo', label: 'Mi catálogo', val: descripcion.catalogo }, { k: 'ficha', label: 'Ficha técnica', val: descripcion.ficha }].filter(o => o.val).map(o => (
-                                            <button key={o.k} type="button" onClick={() => setDescripcionElegida(o.k)} className={`w-full p-2.5 rounded-lg text-left border transition-colors ${descripcionElegida === o.k ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]' : 'border-[var(--border)] hover:bg-[var(--bg)]'}`}>
-                                                <p className="text-[10px] font-bold uppercase text-[var(--text-faint)]">{o.label}</p>
-                                                <p className="text-xs text-[var(--text-muted)] break-words whitespace-pre-wrap max-h-24 overflow-y-auto">{o.val}</p>
-                                            </button>
-                                        ))}
-                                        <div className="flex items-center justify-between gap-2 pt-1">
-                                            <button type="button" onClick={generarDescripcionIA} disabled={generandoDescripcion} className="text-xs font-bold text-[var(--accent)] hover:underline disabled:opacity-50">
-                                                {generandoDescripcion ? 'Generando…' : 'Generar con IA (usar mi perfil de descripción)'}
-                                            </button>
-                                            {descripcionIA && descripcionElegida === 'ia' && <span className="text-[10px] font-bold text-[var(--accent)]">✓ IA seleccionada</span>}
-                                        </div>
-                                        {descripcionIA && descripcionElegida === 'ia' && <p className="text-xs text-[var(--text-muted)] break-words whitespace-pre-wrap max-h-24 overflow-y-auto">{descripcionIA}</p>}
-                                        <div>
-                                            <button type="button" onClick={() => setDescripcionElegida('manual')} className={`text-[10px] font-bold uppercase ${descripcionElegida === 'manual' ? 'text-[var(--accent)]' : 'text-[var(--text-faint)]'}`}>Manual</button>
-                                            <textarea value={descripcionManual} onChange={e => { setDescripcionManual(e.target.value); setDescripcionElegida('manual'); }} rows={4} placeholder="Escribe o pega la descripción" className="w-full px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] resize-y mt-1" />
-                                        </div>
-                                    </div>
+                                    <section className="space-y-2">
+                                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-faint)]">Descripción</h4>
+                                        <select value={descripcionElegida} onChange={e => setDescripcionElegida(e.target.value)} className="w-full h-11 px-3 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)]">
+                                            {descripcion.actual && <option value="actual">Vidriera (actual)</option>}
+                                            {descripcion.catalogo && <option value="catalogo">Mi catálogo</option>}
+                                            {descripcion.ficha && <option value="ficha">Ficha técnica</option>}
+                                            <option value="ia">IA (usar mi perfil)</option>
+                                            <option value="manual">Manual</option>
+                                        </select>
+                                        {descripcionElegida === 'manual' ? (
+                                            <textarea value={descripcionManual} onChange={e => setDescripcionManual(e.target.value)} rows={5} placeholder="Escribe o pega la descripción" className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)] resize-y" />
+                                        ) : descripcionElegida === 'ia' ? (
+                                            <div className="space-y-2">
+                                                <button type="button" onClick={generarDescripcionIA} disabled={generandoDescripcion} className="w-full h-11 px-3 text-sm font-bold text-[var(--accent)] border border-[var(--accent)]/40 rounded-xl hover:bg-[var(--accent)]/10 disabled:opacity-50">
+                                                    {generandoDescripcion ? 'Generando…' : 'Generar con IA (usar mi perfil)'}
+                                                </button>
+                                                {descripcionIA && <p className="text-sm text-[var(--text-muted)] break-words whitespace-pre-wrap rounded-xl border border-[var(--border)] p-3 bg-[var(--bg)] max-h-40 overflow-y-auto">{descripcionIA}</p>}
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-[var(--text-muted)] break-words whitespace-pre-wrap rounded-xl border border-[var(--border)] p-3 bg-[var(--bg)] max-h-40 overflow-y-auto">
+                                                {descripcionElegida === 'catalogo' ? descripcion.catalogo : descripcionElegida === 'ficha' ? descripcion.ficha : descripcion.actual}
+                                            </p>
+                                        )}
+                                    </section>
 
                                     {/* Características */}
                                     {caracteristicas.length > 0 && (
-                                        <div className="border border-[var(--border)] rounded-lg p-3 space-y-1.5">
-                                            <p className="text-xs font-bold text-[var(--text)]">Características <span className="font-normal text-[var(--text-faint)]">(* = requerida)</span></p>
-                                            <div className="max-h-56 overflow-y-auto space-y-1.5">
-                                                {caracteristicas.map(c => (
-                                                    <div key={c.id} className="flex items-center gap-2">
-                                                        <span className="w-44 shrink-0 text-[10px] font-bold uppercase text-[var(--text-faint)] truncate" title={`${c.id}${c.required ? ' (requerido)' : ''}`}>{c.name || c.id}{c.required ? ' *' : ''}</span>
-                                                        {c.type === 'list' && c.values.length > 0 ? (
-                                                            <select value={carValores[c.id] ?? ''} onChange={e => setCarValores(v => ({ ...v, [c.id]: e.target.value }))} className="flex-1 px-2 py-1 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)]">
-                                                                <option value="">(vacío)</option>
-                                                                {c.values.map((vv: any) => <option key={vv.id} value={vv.name}>{vv.name}</option>)}
-                                                            </select>
-                                                        ) : (
-                                                            <input value={carValores[c.id] ?? ''} onChange={e => setCarValores(v => ({ ...v, [c.id]: e.target.value }))} className="flex-1 px-2.5 py-1 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)]" />
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
+                                        <section className="space-y-3">
+                                            <h4 className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-faint)]">Características</h4>
+                                            {caracteristicas.filter(c => c.required).length > 0 && (
+                                                <div className="space-y-2">
+                                                    <p className="text-[10px] font-bold uppercase text-[var(--warn)]">Primarias (requeridas)</p>
+                                                    {caracteristicas.filter(c => c.required).map(c => (
+                                                        <div key={c.id}>
+                                                            <label className="text-xs font-semibold text-[var(--text)]">{c.name || c.id}</label>
+                                                            {c.values.length > 0 ? (
+                                                                <select value={carValores[c.id] ?? ''} onChange={e => setCarValores(v => ({ ...v, [c.id]: e.target.value }))} className="w-full mt-1 h-11 px-3 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)]">
+                                                                    <option value="">(sin especificar)</option>
+                                                                    {c.values.map((vv: any) => <option key={vv.id} value={vv.name}>{vv.name}</option>)}
+                                                                </select>
+                                                            ) : (
+                                                                <div className="relative mt-1">
+                                                                    <input value={carValores[c.id] ?? ''} onChange={e => setCarValores(v => ({ ...v, [c.id]: e.target.value }))} className="w-full h-11 px-3 pr-12 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)]" />
+                                                                    {c.unit && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-faint)]">{c.unit}</span>}
+                                                                </div>
+                                                            )}
+                                                            {c.hint && <p className="mt-0.5 text-[11px] text-[var(--text-faint)]">{c.hint}</p>}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {caracteristicas.filter(c => !c.required).length > 0 && (
+                                                <div className="space-y-2">
+                                                    <p className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Secundarias (opcionales)</p>
+                                                    {caracteristicas.filter(c => !c.required).map(c => (
+                                                        <div key={c.id}>
+                                                            <label className="text-xs font-semibold text-[var(--text)]">{c.name || c.id}</label>
+                                                            {c.values.length > 0 ? (
+                                                                <select value={carValores[c.id] ?? ''} onChange={e => setCarValores(v => ({ ...v, [c.id]: e.target.value }))} className="w-full mt-1 h-11 px-3 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)]">
+                                                                    <option value="">(sin especificar)</option>
+                                                                    {c.values.map((vv: any) => <option key={vv.id} value={vv.name}>{vv.name}</option>)}
+                                                                </select>
+                                                            ) : (
+                                                                <div className="relative mt-1">
+                                                                    <input value={carValores[c.id] ?? ''} onChange={e => setCarValores(v => ({ ...v, [c.id]: e.target.value }))} className="w-full h-11 px-3 pr-12 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)]" />
+                                                                    {c.unit && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-faint)]">{c.unit}</span>}
+                                                                </div>
+                                                            )}
+                                                            {c.hint && <p className="mt-0.5 text-[11px] text-[var(--text-faint)]">{c.hint}</p>}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </section>
                                     )}
 
                                     {/* Imágenes */}
-                                    <div className="border border-[var(--border)] rounded-lg p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[var(--text)]">Imágenes</p>
+                                    <section className="space-y-2">
+                                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-faint)]">Imágenes</h4>
                                         {imagenes.length > 0 && (
-                                            <div className="flex flex-wrap gap-2">
+                                            <div className="grid grid-cols-3 gap-2">
                                                 {imagenes.map((u, i) => (
-                                                    <div key={i} className="relative w-14 h-14 rounded border border-[var(--border)] overflow-hidden group">
+                                                    <div key={i} className="relative aspect-square rounded-xl border border-[var(--border)] overflow-hidden">
                                                         <img src={u} alt="" className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} />
-                                                        <button type="button" onClick={() => setImagenes(imagenes.filter((_, j) => j !== i))} className="absolute top-0 right-0 bg-[var(--err)]/80 text-white p-0.5"><X className="w-3 h-3" /></button>
+                                                        <button type="button" onClick={() => setImagenes(imagenes.filter((_, j) => j !== i))} className="absolute top-1 right-1 bg-[var(--err)]/80 text-white p-1 rounded-full"><X className="w-3 h-3" /></button>
                                                     </div>
                                                 ))}
                                             </div>
                                         )}
                                         {imgSugeridas.length > 0 && (
                                             <div>
-                                                <p className="text-[10px] font-bold uppercase text-[var(--text-faint)] mb-1">Sugeridas (clic para agregar)</p>
-                                                <div className="flex flex-wrap gap-2">
+                                                <p className="text-[10px] font-bold uppercase text-[var(--text-faint)] mb-1">Sugeridas (toca para agregar)</p>
+                                                <div className="grid grid-cols-4 gap-2">
                                                     {imgSugeridas.map((s, i) => (
-                                                        <button key={i} type="button" onClick={() => { if (!imagenes.includes(s.url)) setImagenes([...imagenes, s.url]); }} className="relative w-14 h-14 rounded border border-dashed border-[var(--border)] overflow-hidden" title={s.fuente}>
+                                                        <button key={i} type="button" onClick={() => { if (!imagenes.includes(s.url)) setImagenes([...imagenes, s.url]); }} className="relative aspect-square rounded-xl border border-dashed border-[var(--border)] overflow-hidden" title={s.fuente}>
                                                             <img src={s.url} alt="" className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} />
                                                         </button>
                                                     ))}
@@ -1425,27 +1466,27 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                             </div>
                                         )}
                                         <div className="flex gap-2">
-                                            <input value={nuevaImgUrl} onChange={e => setNuevaImgUrl(e.target.value)} placeholder="https://… URL de imagen" className="flex-1 px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)]" />
-                                            <button type="button" onClick={() => { const u = nuevaImgUrl.trim(); if (u && !imagenes.includes(u)) { setImagenes([...imagenes, u]); setNuevaImgUrl(''); } }} className="px-3 py-1.5 text-xs font-bold bg-[var(--surface-2)] border border-[var(--border)] rounded-lg">Agregar</button>
+                                            <input value={nuevaImgUrl} onChange={e => setNuevaImgUrl(e.target.value)} placeholder="URL de imagen" className="flex-1 h-11 px-3 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)]" />
+                                            <button type="button" onClick={() => { const u = nuevaImgUrl.trim(); if (u && !imagenes.includes(u)) { setImagenes([...imagenes, u]); setNuevaImgUrl(''); } }} className="h-11 px-4 text-sm font-bold bg-[var(--surface-2)] border border-[var(--border)] rounded-xl">Agregar</button>
                                         </div>
                                         <div className="flex gap-2">
-                                            <input value={extractUrl} onChange={e => setExtractUrl(e.target.value)} placeholder="Página web (extrae varias imágenes)…" className="flex-1 px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)]" />
-                                            <button type="button" onClick={extractImagesFromUrl} disabled={extracting} className="px-3 py-1.5 text-xs font-bold bg-[var(--surface-2)] border border-[var(--border)] rounded-lg disabled:opacity-50">{extracting ? 'Extrayendo…' : 'Extraer'}</button>
+                                            <input value={extractUrl} onChange={e => setExtractUrl(e.target.value)} placeholder="Web para extraer imágenes" className="flex-1 h-11 px-3 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)]" />
+                                            <button type="button" onClick={extractImagesFromUrl} disabled={extracting} className="h-11 px-4 text-sm font-bold bg-[var(--surface-2)] border border-[var(--border)] rounded-xl disabled:opacity-50">{extracting ? '…' : 'Extraer'}</button>
                                         </div>
-                                        <label className="flex items-center gap-2 text-xs font-bold text-[var(--text-muted)] cursor-pointer w-fit">
+                                        <label className="flex items-center justify-center gap-2 h-11 px-3 text-sm font-bold text-[var(--text)] border border-[var(--border)] rounded-xl bg-[var(--surface-2)] cursor-pointer">
                                             <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadImagenFile(f); e.target.value = ''; }} />
-                                            <span className="px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--surface-2)] hover:bg-[var(--bg)]">Subir archivo…</span>
+                                            Subir archivo
                                         </label>
-                                    </div>
-
-                                    <div className="flex items-center justify-end gap-2 pt-1">
-                                        <button onClick={() => setShowImproveModal(false)} className="px-3 py-2 text-xs font-bold text-[var(--text-muted)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)]">Cancelar</button>
-                                        <button onClick={aplicarMejoras} disabled={improveLoading} className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:opacity-90 disabled:opacity-50">
-                                            <Zap className="w-3.5 h-3.5" /> Aplicar aprobados
-                                        </button>
-                                    </div>
+                                    </section>
                                 </>
                             )}
+                        </div>
+                        {/* footer sticky */}
+                        <div className="border-t border-[var(--border)] p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex gap-2">
+                            <button onClick={() => setShowImproveModal(false)} className="flex-1 h-11 text-sm font-bold text-[var(--text-muted)] border border-[var(--border)] rounded-xl">Cancelar</button>
+                            <button onClick={aplicarMejoras} disabled={improveLoading} className="flex-1 h-11 text-sm font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-xl disabled:opacity-50">
+                                Aplicar {cambiosCount > 0 ? `${cambiosCount} cambio${cambiosCount !== 1 ? 's' : ''}` : ''}
+                            </button>
                         </div>
                     </div>
                 </div>
