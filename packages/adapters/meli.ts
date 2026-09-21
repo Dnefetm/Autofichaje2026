@@ -215,6 +215,32 @@ export class MeliAdapter implements MarketplaceAdapter {
         }
     }
 
+    // V130: escaneo reanudable de ítems MeLi. Devuelve hasta `pages` páginas del scroll
+    // (search_type=scan) y el scroll_id para continuar. El accessToken y el userId se
+    // resuelven en el handler para no repetir /users/me en cada chunk.
+    async getAccountItemsPage(accountId: string, accessToken: string, userId: number, scrollId: string | null, pages: number): Promise<{ itemIds: string[]; scrollId: string | null; done: boolean }> {
+        const itemIds: string[] = [];
+        let currentScrollId = scrollId;
+        let done = false;
+        const searchUrl = `https://api.mercadolibre.com/users/${userId}/items/search`;
+
+        for (let i = 0; i < pages; i++) {
+            await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
+            const params: any = { limit: 100, search_type: 'scan' };
+            if (currentScrollId) params.scroll_id = currentScrollId;
+            const response = await axios.get(searchUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params
+            });
+            const results = response.data.results || [];
+            const newScrollId = response.data.scroll_id || null;
+            if (newScrollId) currentScrollId = newScrollId;
+            if (results.length > 0) itemIds.push(...results);
+            if (results.length === 0 || !newScrollId) { done = true; break; }
+        }
+        return { itemIds, scrollId: currentScrollId, done };
+    }
+
     async getStock(accountId: string, itemId: string, variationId?: string): Promise<number> {
         const accessToken = await this.getAccessToken(accountId);
 
@@ -541,7 +567,9 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     // --- VERSIÓN OPTIMIZADA: recibe token, multiGETs en paralelo ---
-    async syncCatalogBatchFast(accountId: string, accessToken: string, itemIds: string[]): Promise<number> {
+    async syncCatalogBatchFast(accountId: string, accessToken: string, itemIds: string[], offset: number = 0, limit?: number): Promise<number> {
+        // V130: soporte de reanudación — procesar solo el slice [offset, offset+limit)
+        itemIds = itemIds.slice(offset, limit ? offset + limit : itemIds.length);
         if (itemIds.length === 0) return 0;
 
         try {
@@ -944,7 +972,7 @@ export class MeliAdapter implements MarketplaceAdapter {
     //
     // Costo: 1 request por cada 20 items con status activo en BD. Negligible.
     // -------------------------------------------------------------------------
-    async reconcileClosedItems(accountId: string): Promise<{
+    async reconcileClosedItems(accountId: string, offset: number = 0, limit?: number): Promise<{
         checked: number;
         updated: number;
         details: Array<{ item_id: string; old_status: string; new_status: string }>;
@@ -962,8 +990,12 @@ export class MeliAdapter implements MarketplaceAdapter {
             return { checked: 0, updated: 0, details: [] };
         }
 
-        const itemIds = bdActivos.map((r: any) => r.external_item_id);
-        const bdStatusMap = new Map(bdActivos.map((r: any) => [r.external_item_id, r.status_externo]));
+        const sliced = limit ? bdActivos.slice(offset, offset + limit) : bdActivos.slice(offset);
+        if (sliced.length === 0) {
+            return { checked: 0, updated: 0, details: [] };
+        }
+        const itemIds = sliced.map((r: any) => r.external_item_id);
+        const bdStatusMap = new Map(sliced.map((r: any) => [r.external_item_id, r.status_externo]));
         const details: Array<{ item_id: string; old_status: string; new_status: string }> = [];
         let updated = 0;
 

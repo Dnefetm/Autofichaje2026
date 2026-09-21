@@ -17,6 +17,10 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Vercel Hobby permite hasta 60s
 
 const BATCH_SIZE = 10;
+// V130 (jobs resumibles): tamaños de chunk por fase del catálogo.
+const CATALOG_SCAN_PAGES = 20;        // páginas por invocación en la fase scan
+const CATALOG_UPSERT_CHUNK = 1000;    // ítems por invocación en la fase upsert
+const CATALOG_RECONCILE_CHUNK = 1000; // ítems por invocación en la fase reconcile
 
 export async function GET(req: NextRequest) {
 const authHeader = req.headers.get('authorization');
@@ -96,8 +100,22 @@ const doneIds = new Set<string>();
 for (const job of batch) {
 if (Date.now() - startTimeMs > 25000) break;
 try {
-await processOneJob(job, meliAdapter);
+const result = await processOneJob(job, meliAdapter);
+if (result.done) {
 results.jobResults.push({ id: job.id, type: job.type, status: 'ok' });
+} else {
+// Continuación (V130): re-encolar con checkpoint, sin cobrar intento si hubo progreso.
+const before = JSON.stringify(job.checkpoint ?? null);
+const after = JSON.stringify(result.checkpoint ?? null);
+const madeProgress = after !== before;
+await supabaseAdmin.from('jobs').update({
+status: 'pending',
+checkpoint: result.checkpoint ?? null,
+scheduled_at: new Date().toISOString(),
+attempts: madeProgress ? 0 : (job.attempts || 0) + 1,
+}).eq('id', job.id);
+results.jobResults.push({ id: job.id, type: job.type, status: 'resumed' });
+}
 } catch (err: any) {
 results.jobResults.push({ id: job.id, type: job.type, status: 'error', error: err.message });
 }
@@ -183,7 +201,7 @@ results.errors.push(`Fatal: ${err.message}`);
     return NextResponse.json(results);
 }
 
-async function processOneJob(job: any, meli: MeliAdapter) {
+async function processOneJob(job: any, meli: MeliAdapter): Promise<{ done: boolean; checkpoint?: any }> {
 const maxAttempts = job.max_attempts || 3;
 if ((job.attempts || 0) >= maxAttempts) {
 // Preservar el error real del intento anterior (no pisarlo con "Zombie killed").
@@ -191,10 +209,11 @@ const errorLog = (job.error_log && !String(job.error_log).startsWith('Zombie kil
 ? job.error_log
 : `Agotados ${maxAttempts} intentos sin error registrado`;
 await supabaseAdmin.from('jobs').update({ status: 'failed', error_log: errorLog }).eq('id', job.id);
-return;
+return { done: true };
 }
 
 try {
+let resume: { done: boolean; checkpoint?: any } = { done: true };
 switch (job.type) {
 case 'sync_stock':
 await handleSyncStock(job, meli);
@@ -220,25 +239,9 @@ break;
 case 'recalc_pricing_bundle':
 await handleRecalcPricingBundle(job);
 break;
-case 'sync_account_catalog': {
-const accountId = job.payload.marketplace_id;
-// Sync (scan + upsert): best-effort. Si MeLi falla (400/rate limit), NO debe
-// impedir la reconciliación de vitrinas cerradas/borradas.
-try {
-const itemIds = await meli.getAccountItems(accountId);
-console.log(`[sync_account_catalog] Syncing ${itemIds.length} items for account ${accountId} via multiGET batch`);
-const accessToken = await (meli as any).getAccessToken(accountId);
-await meli.syncCatalogBatchFast(accountId, accessToken, itemIds);
-} catch (syncErr: any) {
-logger.warn({ accountId, error: syncErr.message }, 'sync_account_catalog: sync parcial falló, continúa reconciliación');
-}
-// Reconciliación: siempre, independiente del scan.
-const reconcile = await meli.reconcileClosedItems(accountId);
-if (reconcile.updated > 0) {
-console.log(`[sync_account_catalog] reconcileClosedItems: ${reconcile.checked} chequeados, ${reconcile.updated} actualizados`);
-}
+case 'sync_account_catalog':
+resume = await handleSyncAccountCatalog(job, meli);
 break;
-}
 case 'process_sale':
 await handleProcessSale(job, meli);
 break;
@@ -249,20 +252,23 @@ default:
 throw new Error(`Tipo de job no soportado: ${job.type}`);
 }
 
+if (resume.done) {
 await supabaseAdmin.from('jobs').update({ status: 'completed', processed_at: new Date().toISOString() }).eq('id', job.id);
+}
+return resume;
 } catch (error: any) {
 const errMessage = (error.message || JSON.stringify(error)).toLowerCase();
 
 const isAuthError = errMessage.includes('403') || errMessage.includes('forbidden') || errMessage.includes('not authorized') || errMessage.includes('token expirado') || errMessage.includes('no se pudo renovar');
 if (isAuthError) {
 await supabaseAdmin.from('jobs').update({ status: 'failed', attempts: (job.attempts || 0) + 1, processed_at: new Date().toISOString(), error_log: `AUTH ERROR (requiere re-autenticación en /settings): ${error.message}` }).eq('id', job.id);
-return;
+return { done: true };
 }
 
 const isNotModifiable = errMessage.includes('not_modifiable') || errMessage.includes('not modifiable');
 if (isNotModifiable) {
 await supabaseAdmin.from('jobs').update({ status: 'failed', attempts: (job.attempts || 0) + 1, processed_at: new Date().toISOString(), error_log: `ITEM NO MODIFICABLE (fulfillment/catálogo): ${error.message}` }).eq('id', job.id);
-return;
+return { done: true };
 }
 
 const isRateLimit = errMessage.includes('rate limit') || errMessage.includes('too_many_requests') || errMessage.includes('429') || errMessage.includes('too many requests');
@@ -271,11 +277,11 @@ const attempts = (job.attempts || 0) + 1;
 const maxRateLimitRetries = 10;
 if (attempts >= maxRateLimitRetries) {
 await supabaseAdmin.from('jobs').update({ status: 'failed', attempts, processed_at: new Date().toISOString(), error_log: `Rate Limit persistente tras ${attempts} intentos. Abortado.` }).eq('id', job.id);
-return;
+return { done: true };
 }
 const backoffMs = Math.min(attempts * 2 * 60 * 1000, 15 * 60 * 1000);
 await supabaseAdmin.from('jobs').update({ status: 'pending', attempts, processed_at: new Date().toISOString(), scheduled_at: new Date(Date.now() + backoffMs).toISOString(), error_log: `Rate Limit. Reintento ${attempts}/${maxRateLimitRetries} en ${Math.round(backoffMs/60000)}min.` }).eq('id', job.id);
-return;
+return { done: true };
 }
 
 const nextAttempt = (job.attempts || 0) + 1;
@@ -289,6 +295,50 @@ await supabaseAdmin.from('system_alerts').insert({ level: 'warning', type: 'job_
 }
 throw error;
 }
+}
+
+// V130: máquina de fases resumible para sync_account_catalog.
+// Cada invocación procesa un chunk acotado y guarda su posición en job.checkpoint.
+async function handleSyncAccountCatalog(job: any, meli: MeliAdapter): Promise<{ done: boolean; checkpoint?: any }> {
+    const accountId = job.payload.marketplace_id;
+    const cp = (job.checkpoint && typeof job.checkpoint === 'object') ? job.checkpoint : { phase: 'scan', userId: null, scrollId: null, itemIds: [], offset: 0 };
+
+    if (cp.phase === 'scan') {
+        const accessToken = await (meli as any).getAccessToken(accountId);
+        let userId = cp.userId;
+        if (!userId) {
+            const meResp = await axios.get('https://api.mercadolibre.com/users/me', { headers: { Authorization: `Bearer ${accessToken}` } });
+            userId = meResp.data.id;
+        }
+        const scan = await meli.getAccountItemsPage(accountId, accessToken, userId, cp.scrollId, CATALOG_SCAN_PAGES);
+        const itemIds = (cp.itemIds || []).concat(scan.itemIds);
+        if (scan.done) {
+            return { done: false, checkpoint: { phase: 'upsert', itemIds, offset: 0 } };
+        }
+        return { done: false, checkpoint: { phase: 'scan', userId, scrollId: scan.scrollId, itemIds } };
+    }
+
+    if (cp.phase === 'upsert') {
+        const accessToken = await (meli as any).getAccessToken(accountId);
+        const sliceSize = Math.min(CATALOG_UPSERT_CHUNK, cp.itemIds.length - cp.offset);
+        await meli.syncCatalogBatchFast(accountId, accessToken, cp.itemIds, cp.offset, sliceSize);
+        const newOffset = cp.offset + sliceSize;
+        if (newOffset >= cp.itemIds.length) {
+            return { done: false, checkpoint: { phase: 'reconcile', offset: 0 } };
+        }
+        return { done: false, checkpoint: { phase: 'upsert', itemIds: cp.itemIds, offset: newOffset } };
+    }
+
+    if (cp.phase === 'reconcile') {
+        const reconcile = await meli.reconcileClosedItems(accountId, cp.offset || 0, CATALOG_RECONCILE_CHUNK);
+        const newOffset = (cp.offset || 0) + reconcile.checked;
+        if (reconcile.checked < CATALOG_RECONCILE_CHUNK) {
+            return { done: true };
+        }
+        return { done: false, checkpoint: { phase: 'reconcile', offset: newOffset } };
+    }
+
+    return { done: true };
 }
 
 // ========================================
