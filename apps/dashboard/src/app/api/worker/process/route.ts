@@ -84,7 +84,7 @@ let totalProcessed = 0;
 // Drenar la cola en lotes dentro de UNA invocación, hasta vaciarla o acercarnos
 // a maxDuration=60 (margen para devolver y responder). Reemplaza el esquema
 // "1 lote + re-dispatch" que no daba abasto.
-while (Date.now() - startTimeMs < 45000) {
+while (Date.now() - startTimeMs < 25000) {
 const { data: batch, error: claimErr } = await supabaseAdmin.rpc('claim_jobs', { batch_size_limit: BATCH_SIZE });
 if (claimErr) {
 results.errors.push(`claim_jobs RPC error: ${claimErr.message}`);
@@ -94,7 +94,7 @@ if (!batch || batch.length === 0) break;
 
 const doneIds = new Set<string>();
 for (const job of batch) {
-if (Date.now() - startTimeMs > 45000) break;
+if (Date.now() - startTimeMs > 25000) break;
 try {
 await processOneJob(job, meliAdapter);
 results.jobResults.push({ id: job.id, type: job.type, status: 'ok' });
@@ -184,7 +184,7 @@ results.errors.push(`Fatal: ${err.message}`);
 }
 
 async function processOneJob(job: any, meli: MeliAdapter) {
-const maxAttempts = job.max_attempts || 10;
+const maxAttempts = job.max_attempts || 3;
 if ((job.attempts || 0) >= maxAttempts) {
 // Preservar el error real del intento anterior (no pisarlo con "Zombie killed").
 const errorLog = (job.error_log && !String(job.error_log).startsWith('Zombie killed'))

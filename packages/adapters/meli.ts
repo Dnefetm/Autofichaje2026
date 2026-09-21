@@ -340,9 +340,14 @@ export class MeliAdapter implements MarketplaceAdapter {
             const isFree = pub.free_shipping === true;
             const queryParam = isFree ? '&free_shipping=true' : '';
             const path = `/users/${sellerId}/shipping_options/free?item_id=${itemId}${queryParam}`;
+            const accessToken = await this.getAccessToken(accountId);
             const shipResp = await axios.get(
-                `https://autofichaje2026-dashboard-1img.vercel.app/api/admin/debug-meli?account_id=${accountId}&path=${encodeURIComponent(path)}`
+                `https://api.mercadolibre.com${path}`,
+                { headers: { Authorization: `Bearer ${accessToken}` }, validateStatus: () => true }
             );
+            if (shipResp.status === 403) {
+                logger.error({ accountId, itemId, status: shipResp.status, body: shipResp.data }, 'V32: ML bloqueó la petición de envíos (403 PolicyAgent)');
+            }
             const listCost = shipResp.data?.coverage?.all_country?.list_cost;
             if (listCost == null) return;
 
@@ -1172,7 +1177,8 @@ export class MeliAdapter implements MarketplaceAdapter {
                             const queryParam = isFree ? '&free_shipping=true' : '';
                             const path = `/users/${sellerId}/shipping_options/free?item_id=${itemId}${queryParam}`;
                             const shipResp = await axios.get(
-                                `https://autofichaje2026-dashboard-1img.vercel.app/api/admin/debug-meli?account_id=${accountId}&path=${encodeURIComponent(path)}`
+                                `https://api.mercadolibre.com${path}`,
+                                { headers: { Authorization: `Bearer ${accessToken}` }, validateStatus: () => true }
                             );
                             const listCost = shipResp.data?.coverage?.all_country?.list_cost;
                             if (listCost != null) {
@@ -1193,10 +1199,10 @@ export class MeliAdapter implements MarketplaceAdapter {
                                         logger.warn({ accountId, itemId, pubId, error: recalcErr?.message }, 'V31: fallo al recalcular precio tras actualizar envío');
                                     }
                                 }
-                            } else if (shipResp.data?.status === 403) {
-                                logger.error({ accountId, itemId, error: shipResp.data }, 'V31: ML bloqueó la petición de envíos (403 PolicyAgent)');
+                            } else if (shipResp.status === 403) {
+                                logger.error({ accountId, itemId, status: shipResp.status, error: shipResp.data }, 'V31: ML bloqueó la petición de envíos (403 PolicyAgent)');
                             } else if (shipResp.data?.error) {
-                                logger.error({ accountId, itemId, error: shipResp.data.error }, 'V31: Error reportado por el proxy');
+                                logger.error({ accountId, itemId, error: shipResp.data.error }, 'V31: Error reportado por la API');
                             }
                         } catch (err: any) {
                             logger.error({ accountId, itemId, error: err.message }, 'V31: Fallo al obtener shipping_options/free');
