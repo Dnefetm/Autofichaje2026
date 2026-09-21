@@ -225,9 +225,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // Cualquier campo que no sea título/descripción/SKU se trata como atributo
         // (permite editar características primarias y secundarias libremente).
         const NO_ATTR = new Set(['titulo', 'descripcion', 'SELLER_SKU']);
+        const atributosIds: Record<string, string> = body.atributos_ids || {};
         const attributes = Object.entries(camposAceptados)
             .filter(([campo, valor]) => !NO_ATTR.has(campo) && valor)
-            .map(([campo, valor]) => ({ id: campo, value_name: String(valor) }));
+            .map(([campo, valor]) => {
+                const value_id = atributosIds[campo];
+                return value_id ? { id: campo, value_id, value_name: String(valor) } : { id: campo, value_name: String(valor) };
+            });
 
         const seller = await (meli as any).detectSellerModel(pub.marketplace_id);
         const isLegacy = seller.model !== 'up';
@@ -264,7 +268,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             } catch { /* cae al 500 */ }
         }
         if (isMeliValidation) {
-            return NextResponse.json({ ok: false, error: 'MeLi rechazó la mejora (validation_error)', meli_error: meliError }, { status: 422 });
+            const errores = (Array.isArray(meliError?.cause) ? meliError.cause : [])
+                .filter((c: any) => c && (c.code || c.message))
+                .map((c: any) => `[${c.code || 'error'}] ${c.message || ''}${Array.isArray(c.references) && c.references.length ? ' — ' + c.references.join(', ') : ''}`);
+            return NextResponse.json({ ok: false, error: 'MeLi rechazó la mejora (validation_error)', meli_error: meliError, errores }, { status: 422 });
         }
         return NextResponse.json({ ok: false, error: errMsg }, { status: 500 });
     }

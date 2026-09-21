@@ -313,6 +313,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [generandoDescripcion, setGenerandoDescripcion] = useState(false);
     const [caracteristicas, setCaracteristicas] = useState<any[]>([]);
     const [carValores, setCarValores] = useState<Record<string, string>>({});
+    const [carValoresId, setCarValoresId] = useState<Record<string, string>>({});
     const [imagenes, setImagenes] = useState<string[]>([]);
     const [imgSugeridas, setImgSugeridas] = useState<any[]>([]);
     const [nuevaImgUrl, setNuevaImgUrl] = useState('');
@@ -440,8 +441,10 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             setDescripcionElegida('actual');
             setCaracteristicas(data.caracteristicas || []);
             const cv: Record<string, string> = {};
-            for (const c of (data.caracteristicas || [])) cv[c.id] = c.value_name || '';
+            const cvId: Record<string, string> = {};
+            for (const c of (data.caracteristicas || [])) { cv[c.id] = c.value_name || ''; cvId[c.id] = c.value_id || ''; }
             setCarValores(cv);
+            setCarValoresId(cvId);
             setImgSugeridas(data.imagenes_sugeridas || []);
             setImagenes(data.imagenes_actuales || []);
             setTituloRestringido(!!data.titulo_restringido);
@@ -529,9 +532,13 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         else if (descripcionElegida === 'ia' && descripcionIA.trim()) camposAceptados.descripcion = descripcionIA;
         else if (descripcionElegida === 'manual' && descripcionManual.trim()) camposAceptados.descripcion = descripcionManual.trim();
         // Características editadas.
+        const atributosIds: Record<string, string> = {};
         for (const c of caracteristicas) {
             const v = (carValores[c.id] ?? '').trim();
-            if (v && v !== (c.value_name ?? '').trim()) camposAceptados[c.id] = v;
+            if (v && v !== (c.value_name ?? '').trim()) {
+                camposAceptados[c.id] = v;
+                if (carValoresId[c.id]) atributosIds[c.id] = carValoresId[c.id];
+            }
         }
         if (Object.keys(camposAceptados).length === 0 && imagenes.length === 0) {
             toast.error('No has aprobado ningún cambio');
@@ -542,10 +549,13 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             const res = await fetch(`/api/catalog/external/${id}/improve`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ dry_run: false, campos_aceptados: camposAceptados, imagenes }),
+                body: JSON.stringify({ dry_run: false, campos_aceptados: camposAceptados, atributos_ids: atributosIds, imagenes }),
             });
             const data = await res.json();
-            if (!res.ok || !data.ok) throw new Error(data.error || 'Error al aplicar');
+            if (!res.ok || !data.ok) {
+                const detalle = Array.isArray(data.errores) && data.errores.length ? '\n• ' + data.errores.join('\n• ') : '';
+                throw new Error((data.error || 'Error al aplicar') + detalle);
+            }
             setShowImproveModal(false);
             loadAll(true);
             toast.success(`Mejora aplicada (${data.aplicados ?? 'ok'})`);
@@ -1400,7 +1410,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                         <div key={c.id}>
                                                             <label className="text-xs font-semibold text-[var(--text)]">{c.name || c.id}</label>
                                                             {c.values.length > 0 ? (
-                                                                <select value={carValores[c.id] ?? ''} onChange={e => setCarValores(v => ({ ...v, [c.id]: e.target.value }))} className="w-full mt-1 h-11 px-3 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)]">
+                                                                <select value={carValores[c.id] ?? ''} onChange={e => { const name = e.target.value; const vv = c.values.find((x: any) => x.name === name); setCarValores(v => ({ ...v, [c.id]: name })); setCarValoresId(v => ({ ...v, [c.id]: vv?.id ?? '' })); }} className="w-full mt-1 h-11 px-3 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)]">
                                                                     <option value="">(sin especificar)</option>
                                                                     {c.values.map((vv: any) => <option key={vv.id} value={vv.name}>{vv.name}</option>)}
                                                                 </select>
@@ -1422,7 +1432,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                         <div key={c.id}>
                                                             <label className="text-xs font-semibold text-[var(--text)]">{c.name || c.id}</label>
                                                             {c.values.length > 0 ? (
-                                                                <select value={carValores[c.id] ?? ''} onChange={e => setCarValores(v => ({ ...v, [c.id]: e.target.value }))} className="w-full mt-1 h-11 px-3 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)]">
+                                                                <select value={carValores[c.id] ?? ''} onChange={e => { const name = e.target.value; const vv = c.values.find((x: any) => x.name === name); setCarValores(v => ({ ...v, [c.id]: name })); setCarValoresId(v => ({ ...v, [c.id]: vv?.id ?? '' })); }} className="w-full mt-1 h-11 px-3 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)]">
                                                                     <option value="">(sin especificar)</option>
                                                                     {c.values.map((vv: any) => <option key={vv.id} value={vv.name}>{vv.name}</option>)}
                                                                 </select>
