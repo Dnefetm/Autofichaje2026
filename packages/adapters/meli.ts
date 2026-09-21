@@ -1055,7 +1055,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 .in('external_item_id', itemIds)
                 .in('external_variation_id', ['0']); // solo filas padre
 
-            const commissionCache = new Map<string, { pct: number | null; amount: number | null }>();
+            const commissionCache = new Map<string, { pct: number | null; amount: number | null; fixed_fee: number | null }>();
 
             // Extraer combinaciones únicas para minimizar llamadas a MeLi
             const uniqueCombos = [...new Map((rows || []).map((r: any) => {
@@ -1072,7 +1072,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                     const cacheKey = `${row.category_id}|${row.listing_type_id}|${row.logistic_type}|${priceBucket}`;
                     if (commissionCache.has(cacheKey)) return;
                     if (!row.category_id || !row.listing_type_id || !row.precio_venta) {
-                        commissionCache.set(cacheKey, { pct: null, amount: null });
+                        commissionCache.set(cacheKey, { pct: null, amount: null, fixed_fee: null });
                         return;
                     }
                     try {
@@ -1089,12 +1089,14 @@ export class MeliAdapter implements MarketplaceAdapter {
                         );
                         const raw = feeResp.data;
                         const feeData = Array.isArray(raw) ? raw[0] : raw;
+                        const feeDetails = feeData?.sale_fee_details || {};
                         commissionCache.set(cacheKey, {
-                            pct:    feeData?.sale_fee_details?.percentage_fee ?? null,
-                            amount: feeData?.sale_fee_amount ?? null,
+                            pct:       feeDetails.percentage_fee ?? null,
+                            amount:    feeData?.sale_fee_amount ?? null,
+                            fixed_fee: feeDetails.fixed_fee ?? null,
                         });
                     } catch {
-                        commissionCache.set(cacheKey, { pct: null, amount: null });
+                        commissionCache.set(cacheKey, { pct: null, amount: null, fixed_fee: null });
                     }
                 }));
             }
@@ -1104,10 +1106,10 @@ export class MeliAdapter implements MarketplaceAdapter {
                 const priceBucket = Math.round((row.precio_venta || 0) / 100) * 100;
                 const cacheKey = `${row.category_id}|${row.listing_type_id}|${row.logistic_type}|${priceBucket}`;
                 const fee = commissionCache.get(cacheKey);
-                if (fee && (fee.pct != null || fee.amount != null)) {
+                if (fee && (fee.pct != null || fee.amount != null || fee.fixed_fee != null)) {
                     await supabase
                         .from('publicaciones_externas')
-                        .update({ comision_porcentaje: fee.pct, comision_monto: fee.amount })
+                        .update({ comision_porcentaje: fee.pct, comision_monto: fee.amount, comision_fijo: fee.fixed_fee })
                         .eq('marketplace_id', accountId)
                         .eq('external_item_id', row.external_item_id)
                         .eq('external_variation_id', '0');

@@ -69,23 +69,37 @@ export async function POST(request: NextRequest) {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     const response = await res.json();
+
+                    // Costo fijo por tipo de publicación: price=100 (< $299) para que MeLi reporte el fijo
+                    let fixedByType = new Map<string, number>();
+                    try {
+                        const resFijo = await fetch(`https://api.mercadolibre.com/sites/MLM/listing_prices?price=100&category_id=${categoryId}`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        const responseFijo = await resFijo.json();
+                        for (const f of (responseFijo || [])) {
+                            const ff = f?.sale_fee_details?.fixed_fee;
+                            if (f?.listing_type_id && ff != null) {
+                                fixedByType.set(f.listing_type_id, Number(ff));
+                            }
+                        }
+                    } catch (_) { /* si el fijo falla, seguimos solo con el porcentaje */ }
                     
                     const rowsToInsert = [];
                     for (const priceObj of response || []) {
                         if (priceObj.listing_type_id === 'gold_pro' || priceObj.listing_type_id === 'gold_special') {
                             
-                            // API de MercadoLibre moderna devuelve sale_fee_amount
-                            const feeAmount = priceObj.sale_fee_amount;
+                            // Porcentaje puro (campo correcto de la API)
+                            const pct = priceObj?.sale_fee_details?.percentage_fee;
                             
-                            if (feeAmount != null) {
-                                // price=10000, entonces fee=1250 significa 12.5%
-                                const pct = feeAmount / 100;
+                            if (pct != null) {
                                 rowsToInsert.push({
                                     category_id: categoryId,
                                     listing_type_id: priceObj.listing_type_id,
                                     commission_percentage: pct,
                                     commission_real: pct,
                                     commission_estimated: pct,
+                                    fixed_fee: fixedByType.get(priceObj.listing_type_id) ?? 0,
                                     withholding_real: null,
                                     withholding_estimated: 10.0,
                                     is_current: true

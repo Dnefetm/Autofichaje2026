@@ -380,13 +380,13 @@ export async function POST(req: NextRequest) {
 
             const staleIds = (linkedPubs || [])
                 .filter((m: any) => ['active', 'paused', 'under_review'].includes(m.publicaciones_externas?.status_externo))
-                .map((m: any) => m.publicaciones_externas?.external_item_id)
+                .map((m: any) => (m.publicaciones_externas as any)?.external_item_id)
                 .filter(Boolean);
 
             // external_item_id -> publicacion_id (para el fallback de desligue si el UPDATE falla)
             const pubIdByItemId = new Map<string, string>();
             for (const m of (linkedPubs || [])) {
-                const extId: string | undefined = m.publicaciones_externas?.external_item_id;
+                const extId: string | undefined = (m.publicaciones_externas as any)?.external_item_id;
                 if (extId && m.publicacion_id) pubIdByItemId.set(extId, m.publicacion_id);
             }
 
