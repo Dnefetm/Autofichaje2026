@@ -332,7 +332,7 @@ setSuggestionsLoading(false);
 }
 useEffect(() => {
 const debounce = setTimeout(() => {
-if (searchTerm.length >= 2) { searchPhysicalCatalog(); } else { setSearchResults([]); }
+if (searchTerm.length >= 3) { searchPhysicalCatalog(); } else { setSearchResults([]); }
 }, 300);
 return () => clearTimeout(debounce);
 }, [searchTerm]);
