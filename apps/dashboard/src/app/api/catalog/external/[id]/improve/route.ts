@@ -82,6 +82,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 case 'GTIN': return pick(articulo?.codigo_universal, 'catalogo') ?? pick(ficha?.codigo_universal, 'ficha') ?? pick(catAttr('GTIN') || catAttr('EAN') || catAttr('UPC'), 'catalogo_meli');
                 case 'BRAND': return pick(articulo?.marca, 'catalogo') ?? pick(ficha?.marca, 'ficha') ?? pick(catAttr('BRAND'), 'catalogo_meli');
                 case 'MODEL': return pick(articulo?.modelo, 'catalogo') ?? pick(ficha?.modelo, 'ficha') ?? pick(catAttr('MODEL'), 'catalogo_meli');
+                case 'SELLER_SKU': return pick(articulo?.modelo, 'catalogo') ?? pick(item?.seller_custom_field, 'catalogo_meli');
                 case 'MATERIAL': return pick(articulo?.materiales, 'catalogo') ?? pick(ficha?.materiales, 'ficha') ?? pick(catAttr('MATERIAL'), 'catalogo_meli');
                 case 'SELLER_PACKAGE_WEIGHT': {
                     const a = articulo?.peso_kg != null ? `${Math.round(articulo.peso_kg * 1000)} g` : null;
@@ -118,41 +119,54 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         const FUENTE_LABEL = { catalogo: 'Mi catálogo', ficha: 'Ficha técnica', catalogo_meli: 'Catálogo MeLi' } as const;
-        const FUENTE_CONF = { catalogo: 3, ficha: 2, catalogo_meli: 1 } as const;
 
-        const DEFS: Array<{ campo: string; label: string; actual: string | null; sintetizable: boolean; restringido: boolean }> = [
-            { campo: 'GTIN', label: 'Código universal (GTIN)', actual: itemAttr('GTIN') || itemAttr('EAN') || itemAttr('UPC'), sintetizable: false, restringido: false },
-            { campo: 'BRAND', label: 'Marca', actual: itemAttr('BRAND'), sintetizable: false, restringido: false },
-            { campo: 'MODEL', label: 'Modelo', actual: itemAttr('MODEL'), sintetizable: false, restringido: false },
-            { campo: 'MATERIAL', label: 'Material', actual: itemAttr('MATERIAL'), sintetizable: false, restringido: false },
-            { campo: 'SELLER_PACKAGE_WEIGHT', label: 'Peso', actual: itemAttr('SELLER_PACKAGE_WEIGHT'), sintetizable: false, restringido: false },
-            { campo: 'SELLER_PACKAGE_LENGTH', label: 'Largo', actual: itemAttr('SELLER_PACKAGE_LENGTH'), sintetizable: false, restringido: false },
-            { campo: 'SELLER_PACKAGE_WIDTH', label: 'Ancho', actual: itemAttr('SELLER_PACKAGE_WIDTH'), sintetizable: false, restringido: false },
-            { campo: 'SELLER_PACKAGE_HEIGHT', label: 'Alto', actual: itemAttr('SELLER_PACKAGE_HEIGHT'), sintetizable: false, restringido: false },
-            { campo: 'descripcion', label: 'Descripción', actual: itemDesc || null, sintetizable: true, restringido: false },
-            { campo: 'titulo', label: 'Título', actual: item.family_name || item.title || null, sintetizable: false, restringido: tieneVentas },
+        // --- Identificación (campos editables con sugerencia) ---
+        const IDENTIFICACION: Array<{ campo: string; label: string }> = [
+            { campo: 'GTIN', label: 'Código universal (GTIN)' },
+            { campo: 'BRAND', label: 'Marca' },
+            { campo: 'MODEL', label: 'Modelo' },
+            { campo: 'SELLER_SKU', label: 'SKU' },
+            { campo: 'titulo', label: 'Título' },
         ];
-
-        const propuestas: any[] = [];
-        for (const d of DEFS) {
+        const identificacion = IDENTIFICACION.map(d => {
+            const actual = d.campo === 'titulo'
+                ? (item.family_name || item.title || '')
+                : (d.campo === 'SELLER_SKU' ? (item.seller_custom_field || '') : (itemAttr(d.campo) || ''));
             const mejor = mejorValor(d.campo);
-            if (!mejor) continue; // ninguna fuente tiene dato
-            const actualNorm = d.actual ? String(d.actual).trim() : '';
-            const nuevoNorm = String(mejor.valor).trim();
-            if (!nuevoNorm) continue;
-            const accion = actualNorm === '' ? 'agregar' : (actualNorm !== nuevoNorm ? 'conflicto' : 'sin_cambio');
-            if (accion === 'sin_cambio') continue;
-            propuestas.push({
+            return {
                 campo: d.campo,
                 label: d.label,
-                accion,
-                valor_actual: d.actual,
-                valor_nuevo: mejor.valor,
-                fuente: mejor.fuente,
-                fuente_label: FUENTE_LABEL[mejor.fuente],
-                confianza: FUENTE_CONF[mejor.fuente],
-                sintetizable: d.sintetizable,
-                restringido: d.restringido,
+                actual: actual || '',
+                sugerido: mejor?.valor ?? null,
+                fuente_label: mejor ? FUENTE_LABEL[mejor.fuente] : null,
+                restringido: d.campo === 'titulo' && tieneVentas,
+            };
+        });
+
+        // --- Descripción (fuentes disponibles) ---
+        const descripcion = {
+            actual: itemDesc || '',
+            catalogo: articulo?.descripcion || '',
+            ficha: (ficha?.descripcion_larga || ficha?.descripcion) || '',
+        };
+
+        // --- Características (atributos de categoría, primarias y secundarias) ---
+        const IDENT_IDS = new Set(['GTIN', 'EAN', 'UPC', 'BRAND', 'MODEL', 'SELLER_SKU', 'SELLER_CUSTOM_FIELD', 'ITEM_CONDITION']);
+        let caracteristicas: any[] = [];
+        if (pub.category_id) {
+            const catAttrs = await (meli as any).getCategoryAttributes(pub.marketplace_id, pub.category_id).catch(() => null);
+            const itemAttrMap: Map<string, any> = new Map((item.attributes || []).map((a: any) => [a.id, a]));
+            caracteristicas = (catAttrs?.raw || []).filter((a: any) => a.id && !IDENT_IDS.has(a.id)).map((a: any) => {
+                const cur = itemAttrMap.get(a.id);
+                return {
+                    id: a.id,
+                    name: a.name || a.id,
+                    type: a.value_type || a.type || 'string',
+                    values: Array.isArray(a.values) ? a.values.map((v: any) => ({ id: v.id, name: v.name })) : [],
+                    required: !!(a.tags || {}).required,
+                    value_name: cur?.value_name ?? '',
+                    value_id: cur?.value_id ?? null,
+                };
             });
         }
 
@@ -182,26 +196,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             return NextResponse.json({ ok: true, descripcion_mejorada: ai.description || baseDesc, perfiles: ai.profiles ?? null });
         }
 
-        // Atributos editables (características primarias/secundarias): todos los
-        // del ítem, salvo los ya propuestos arriba y los de sistema.
-        const ATTR_FIJOS = new Set(['GTIN', 'EAN', 'UPC', 'BRAND', 'MODEL', 'MATERIAL', 'SELLER_PACKAGE_WEIGHT', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_HEIGHT', 'ITEM_CONDITION']);
-        const atributosEditables = (item.attributes || []).map((a: any) => ({
-            id: a.id,
-            name: a.name || a.id,
-            value_name: a.value_name ?? '',
-            value_id: a.value_id ?? null,
-        })).filter((a: any) => a.id && !ATTR_FIJOS.has(a.id));
-
-        // 4. DRY RUN: devolver propuestas
+        // 4. DRY RUN: devolver todo
         if (dry_run) {
             return NextResponse.json({
                 ok: true,
                 dry_run: true,
-                propuestas,
+                identificacion,
+                descripcion,
+                caracteristicas,
                 titulo_restringido: tieneVentas,
                 imagenes_actuales: itemPictures,
                 imagenes_sugeridas: imagenesSugeridas,
-                atributos: atributosEditables,
             });
         }
 

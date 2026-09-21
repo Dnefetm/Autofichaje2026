@@ -304,19 +304,21 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     // Mejorar publicación existente
     const [showImproveModal, setShowImproveModal] = useState(false);
     const [improveLoading, setImproveLoading] = useState(false);
-    const [propuestas, setPropuestas] = useState<any[]>([]);
-    const [seleccion, setSeleccion] = useState<Record<string, string>>({});
-    const [combinados, setCombinados] = useState<Record<string, string>>({});
+    const [identificacion, setIdentificacion] = useState<any[]>([]);
+    const [identValores, setIdentValores] = useState<Record<string, string>>({});
+    const [descripcion, setDescripcion] = useState<{ actual: string; catalogo: string; ficha: string }>({ actual: '', catalogo: '', ficha: '' });
+    const [descripcionElegida, setDescripcionElegida] = useState<string>('actual');
+    const [descripcionIA, setDescripcionIA] = useState('');
+    const [descripcionManual, setDescripcionManual] = useState('');
+    const [generandoDescripcion, setGenerandoDescripcion] = useState(false);
+    const [caracteristicas, setCaracteristicas] = useState<any[]>([]);
+    const [carValores, setCarValores] = useState<Record<string, string>>({});
     const [imagenes, setImagenes] = useState<string[]>([]);
     const [imgSugeridas, setImgSugeridas] = useState<any[]>([]);
     const [nuevaImgUrl, setNuevaImgUrl] = useState('');
     const [extractUrl, setExtractUrl] = useState('');
     const [extracting, setExtracting] = useState(false);
-    const [descripcionManual, setDescripcionManual] = useState('');
-    const [atributosEditables, setAtributosEditables] = useState<any[]>([]);
-    const [attrValores, setAttrValores] = useState<Record<string, string>>({});
     const [tituloRestringido, setTituloRestringido] = useState(false);
-    const [combinandoCampo, setCombinandoCampo] = useState<string | null>(null);
     // Fase 3: datos enriquecidos lazy (health actions, costs, visits)
     const [enrichData, setEnrichData] = useState<{ health: any; costs: any; visits: any } | null>(null);
     const [enrichLoading, setEnrichLoading] = useState(false);
@@ -415,11 +417,13 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         loadAll(true);
     }
 
-    // Mejorar publicación: calcula propuestas (dry_run) y las preselecciona.
+    // Mejorar publicación: analiza el ítem y carga todo el modal (dry_run).
     async function cargarPropuestas() {
         setImproveLoading(true);
-        setCombinados({});
         setNuevaImgUrl('');
+        setExtractUrl('');
+        setDescripcionManual('');
+        setDescripcionIA('');
         try {
             const res = await fetch(`/api/catalog/external/${id}/improve`, {
                 method: 'POST',
@@ -428,22 +432,19 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             });
             const data = await res.json();
             if (!res.ok || !data.ok) throw new Error(data.error || 'Error al analizar la publicación');
-            setPropuestas(data.propuestas || []);
+            setIdentificacion(data.identificacion || []);
+            const iv: Record<string, string> = {};
+            for (const f of (data.identificacion || [])) iv[f.campo] = f.actual || '';
+            setIdentValores(iv);
+            setDescripcion(data.descripcion || { actual: '', catalogo: '', ficha: '' });
+            setDescripcionElegida('actual');
+            setCaracteristicas(data.caracteristicas || []);
+            const cv: Record<string, string> = {};
+            for (const c of (data.caracteristicas || [])) cv[c.id] = c.value_name || '';
+            setCarValores(cv);
             setImgSugeridas(data.imagenes_sugeridas || []);
             setImagenes(data.imagenes_actuales || []);
-            setAtributosEditables(data.atributos || []);
-            const av: Record<string, string> = {};
-            for (const a of (data.atributos || [])) av[a.id] = a.value_name || '';
-            setAttrValores(av);
-            setDescripcionManual('');
             setTituloRestringido(!!data.titulo_restringido);
-            const sel: Record<string, string> = {};
-            for (const p of (data.propuestas || [])) {
-                if (p.restringido) { sel[p.campo] = 'actual'; continue; }
-                // Preselección: agregar → nuevo; conflicto → nuevo si la fuente tiene confianza alta (catálogo/ficha), si no mantener.
-                sel[p.campo] = p.accion === 'agregar' ? 'nuevo' : (p.confianza >= 2 ? 'nuevo' : 'actual');
-            }
-            setSeleccion(sel);
         } catch (err: any) {
             toast.error(err.message || 'Error al analizar la publicación');
         } finally {
@@ -451,9 +452,9 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         }
     }
 
-    // Mejorar descripción con IA (prompt de voz de marca) — botón por campo.
-    async function combinarDescripcion(p: any) {
-        setCombinandoCampo(p.campo);
+    // Generar descripción con IA usando el perfil de voz de marca.
+    async function generarDescripcionIA() {
+        setGenerandoDescripcion(true);
         try {
             const res = await fetch(`/api/catalog/external/${id}/improve`, {
                 method: 'POST',
@@ -461,13 +462,13 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 body: JSON.stringify({ combinar_descripcion: true }),
             });
             const data = await res.json();
-            if (!res.ok || !data.ok) throw new Error(data.error || 'Error al mejorar la descripción');
-            setCombinados(c => ({ ...c, [p.campo]: data.descripcion_mejorada || '' }));
-            setSeleccion(s => ({ ...s, [p.campo]: 'combinar' }));
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Error al generar la descripción');
+            setDescripcionIA(data.descripcion_mejorada || '');
+            setDescripcionElegida('ia');
         } catch (err: any) {
-            toast.error(err.message || 'Error al mejorar la descripción');
+            toast.error(err.message || 'Error al generar la descripción');
         } finally {
-            setCombinandoCampo(null);
+            setGenerandoDescripcion(false);
         }
     }
 
@@ -514,20 +515,23 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         }
     }
 
-    // Aplicar solo lo que el usuario aprobó.
+    // Aplicar solo lo que el usuario editó/aprobó.
     async function aplicarMejoras() {
         const camposAceptados: Record<string, string> = {};
-        for (const p of propuestas) {
-            const sel = seleccion[p.campo];
-            if (sel === 'nuevo') camposAceptados[p.campo] = p.valor_nuevo;
-            else if (sel === 'combinar') camposAceptados[p.campo] = combinados[p.campo] ?? p.valor_nuevo;
+        // Identificación editada.
+        for (const f of identificacion) {
+            const v = (identValores[f.campo] ?? '').trim();
+            if (v && v !== (f.actual ?? '').trim()) camposAceptados[f.campo] = v;
         }
-        // Descripción manual (sobreescribe cualquier propuesta de descripción).
-        if (descripcionManual.trim()) camposAceptados.descripcion = descripcionManual.trim();
-        // Atributos (características) editados manualmente.
-        for (const a of atributosEditables) {
-            const v = (attrValores[a.id] ?? '').trim();
-            if (v && v !== (a.value_name ?? '').trim()) camposAceptados[a.id] = v;
+        // Descripción elegida.
+        if (descripcionElegida === 'catalogo' && descripcion.catalogo.trim()) camposAceptados.descripcion = descripcion.catalogo;
+        else if (descripcionElegida === 'ficha' && descripcion.ficha.trim()) camposAceptados.descripcion = descripcion.ficha;
+        else if (descripcionElegida === 'ia' && descripcionIA.trim()) camposAceptados.descripcion = descripcionIA;
+        else if (descripcionElegida === 'manual' && descripcionManual.trim()) camposAceptados.descripcion = descripcionManual.trim();
+        // Características editadas.
+        for (const c of caracteristicas) {
+            const v = (carValores[c.id] ?? '').trim();
+            if (v && v !== (c.value_name ?? '').trim()) camposAceptados[c.id] = v;
         }
         if (Object.keys(camposAceptados).length === 0 && imagenes.length === 0) {
             toast.error('No has aprobado ningún cambio');
@@ -734,7 +738,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 Copiar a otra cuenta
                             </button>
                             <button
-                                onClick={() => { setPropuestas([]); setSeleccion({}); setShowImproveModal(true); cargarPropuestas(); }}
+                                onClick={() => { setShowImproveModal(true); cargarPropuestas(); }}
                                 disabled={improveLoading}
                                 className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text)] text-sm font-bold rounded-[var(--radius)] transition-colors disabled:opacity-50"
                             >
@@ -1323,59 +1327,77 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 <div className="flex items-center justify-center py-10">
                                     <RefreshCw className="w-6 h-6 animate-spin text-[var(--accent)]" />
                                 </div>
-                            ) : propuestas.length === 0 ? (
-                                <p className="text-sm text-[var(--text-muted)]">La publicación ya está completa: no hay datos que mejorar desde las fuentes.</p>
                             ) : (
                                 <>
-                                    <p className="text-xs text-[var(--text-muted)]">
-                                        {propuestas.length} propuesta(s) para revisar. Nada se aplica hasta que apruebes cada campo.
-                                    </p>
+                                    <p className="text-xs text-[var(--text-muted)]">Revisa y edita. Nada se aplica hasta que pulses "Aplicar".</p>
 
-                                    {propuestas.map(p => (
-                                        <div key={p.campo} className="border border-[var(--border)] rounded-lg p-3 space-y-2">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <p className="text-xs font-bold text-[var(--text)]">{p.label}</p>
-                                                {p.restringido && (
-                                                    <span className="text-[10px] text-[var(--warn)] bg-[var(--warn)]/10 border border-[var(--warn)]/30 px-1.5 py-0.5 rounded">Restringido: tiene ventas</span>
+                                    {/* Identificación */}
+                                    <div className="border border-[var(--border)] rounded-lg p-3 space-y-2">
+                                        <p className="text-xs font-bold text-[var(--text)]">Identificación</p>
+                                        {identificacion.map(f => (
+                                            <div key={f.campo}>
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)]">{f.label}</label>
+                                                    {f.restringido && <span className="text-[10px] text-[var(--warn)] bg-[var(--warn)]/10 border border-[var(--warn)]/30 px-1.5 py-0.5 rounded">Restringido: tiene ventas</span>}
+                                                </div>
+                                                <input
+                                                    value={identValores[f.campo] ?? ''}
+                                                    onChange={e => setIdentValores(v => ({ ...v, [f.campo]: e.target.value }))}
+                                                    disabled={f.restringido}
+                                                    className="w-full px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] disabled:opacity-50"
+                                                />
+                                                {f.sugerido != null && String(f.sugerido) !== String(f.actual ?? '') && !f.restringido && (
+                                                    <button type="button" onClick={() => setIdentValores(v => ({ ...v, [f.campo]: String(f.sugerido) }))} className="text-[10px] text-[var(--accent)] hover:underline mt-1 block">
+                                                        Sugerido ({f.fuente_label}): {String(f.sugerido)}
+                                                    </button>
                                                 )}
                                             </div>
-                                            {p.restringido ? (
-                                                <p className="text-xs text-[var(--text-muted)]">No se puede modificar (MeLi restringe el título con ventas). Actual: {p.valor_actual || '(vacío)'}</p>
-                                            ) : (
-                                                <div className="space-y-1.5">
-                                                    <button type="button" onClick={() => setSeleccion(s => ({ ...s, [p.campo]: 'actual' }))}
-                                                        className={`w-full p-2.5 rounded-lg text-left border transition-colors ${seleccion[p.campo] === 'actual' ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]' : 'border-[var(--border)] hover:bg-[var(--bg)]'}`}>
-                                                        <p className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Mantener actual</p>
-                                                        <p className="text-xs text-[var(--text-muted)] break-words">{p.valor_actual || '(vacío)'}</p>
-                                                    </button>
-                                                    <button type="button" onClick={() => setSeleccion(s => ({ ...s, [p.campo]: 'nuevo' }))}
-                                                        className={`w-full p-2.5 rounded-lg text-left border transition-colors ${seleccion[p.campo] === 'nuevo' ? 'border-[var(--ok)]/60 bg-[var(--ok)]/10 ring-1 ring-[var(--ok)]' : 'border-[var(--border)] hover:bg-[var(--bg)]'}`}>
-                                                        <div className="flex items-center justify-between gap-2">
-                                                            <p className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Usar nuevo</p>
-                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${fuenteBadgeColor(p.fuente)}`}>{p.fuente_label}</span>
-                                                        </div>
-                                                        <p className="text-xs text-[var(--text-muted)] break-words font-mono">{p.valor_nuevo}</p>
-                                                    </button>
-                                                    {p.sintetizable && (
-                                                        <div className={`rounded-lg border p-2.5 ${seleccion[p.campo] === 'combinar' ? 'border-[var(--accent)]/60 bg-[var(--accent)]/10' : 'border-[var(--border)]'}`}>
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                <p className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Mejorar con IA (prompt)</p>
-                                                                <button type="button" onClick={() => combinarDescripcion(p)} disabled={combinandoCampo === p.campo} className="text-[10px] font-bold text-[var(--accent)] hover:underline disabled:opacity-50">
-                                                                    {combinandoCampo === p.campo ? 'Generando…' : 'Generar'}
-                                                                </button>
-                                                            </div>
-                                                            {combinados[p.campo] && (
-                                                                <button type="button" onClick={() => setSeleccion(s => ({ ...s, [p.campo]: 'combinar' }))} className="mt-1.5 text-left">
-                                                                    <p className="text-[10px] text-[var(--accent)] font-semibold">Resultado (clic para elegir):</p>
-                                                                    <p className="text-xs text-[var(--text-muted)] break-words">{combinados[p.campo]}</p>
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
+                                        ))}
+                                    </div>
+
+                                    {/* Descripción */}
+                                    <div className="border border-[var(--border)] rounded-lg p-3 space-y-2">
+                                        <p className="text-xs font-bold text-[var(--text)]">Descripción</p>
+                                        {[{ k: 'actual', label: 'Vidriera (actual)', val: descripcion.actual }, { k: 'catalogo', label: 'Mi catálogo', val: descripcion.catalogo }, { k: 'ficha', label: 'Ficha técnica', val: descripcion.ficha }].filter(o => o.val).map(o => (
+                                            <button key={o.k} type="button" onClick={() => setDescripcionElegida(o.k)} className={`w-full p-2.5 rounded-lg text-left border transition-colors ${descripcionElegida === o.k ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]' : 'border-[var(--border)] hover:bg-[var(--bg)]'}`}>
+                                                <p className="text-[10px] font-bold uppercase text-[var(--text-faint)]">{o.label}</p>
+                                                <p className="text-xs text-[var(--text-muted)] break-words whitespace-pre-wrap max-h-24 overflow-y-auto">{o.val}</p>
+                                            </button>
+                                        ))}
+                                        <div className="flex items-center justify-between gap-2 pt-1">
+                                            <button type="button" onClick={generarDescripcionIA} disabled={generandoDescripcion} className="text-xs font-bold text-[var(--accent)] hover:underline disabled:opacity-50">
+                                                {generandoDescripcion ? 'Generando…' : 'Generar con IA (usar mi perfil de descripción)'}
+                                            </button>
+                                            {descripcionIA && descripcionElegida === 'ia' && <span className="text-[10px] font-bold text-[var(--accent)]">✓ IA seleccionada</span>}
                                         </div>
-                                    ))}
+                                        {descripcionIA && descripcionElegida === 'ia' && <p className="text-xs text-[var(--text-muted)] break-words whitespace-pre-wrap max-h-24 overflow-y-auto">{descripcionIA}</p>}
+                                        <div>
+                                            <button type="button" onClick={() => setDescripcionElegida('manual')} className={`text-[10px] font-bold uppercase ${descripcionElegida === 'manual' ? 'text-[var(--accent)]' : 'text-[var(--text-faint)]'}`}>Manual</button>
+                                            <textarea value={descripcionManual} onChange={e => { setDescripcionManual(e.target.value); setDescripcionElegida('manual'); }} rows={4} placeholder="Escribe o pega la descripción" className="w-full px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] resize-y mt-1" />
+                                        </div>
+                                    </div>
+
+                                    {/* Características */}
+                                    {caracteristicas.length > 0 && (
+                                        <div className="border border-[var(--border)] rounded-lg p-3 space-y-1.5">
+                                            <p className="text-xs font-bold text-[var(--text)]">Características <span className="font-normal text-[var(--text-faint)]">(* = requerida)</span></p>
+                                            <div className="max-h-56 overflow-y-auto space-y-1.5">
+                                                {caracteristicas.map(c => (
+                                                    <div key={c.id} className="flex items-center gap-2">
+                                                        <span className="w-44 shrink-0 text-[10px] font-bold uppercase text-[var(--text-faint)] truncate" title={`${c.id}${c.required ? ' (requerido)' : ''}`}>{c.name || c.id}{c.required ? ' *' : ''}</span>
+                                                        {c.type === 'list' && c.values.length > 0 ? (
+                                                            <select value={carValores[c.id] ?? ''} onChange={e => setCarValores(v => ({ ...v, [c.id]: e.target.value }))} className="flex-1 px-2 py-1 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)]">
+                                                                <option value="">(vacío)</option>
+                                                                {c.values.map((vv: any) => <option key={vv.id} value={vv.name}>{vv.name}</option>)}
+                                                            </select>
+                                                        ) : (
+                                                            <input value={carValores[c.id] ?? ''} onChange={e => setCarValores(v => ({ ...v, [c.id]: e.target.value }))} className="flex-1 px-2.5 py-1 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)]" />
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Imágenes */}
                                     <div className="border border-[var(--border)] rounded-lg p-3 space-y-2">
@@ -1415,27 +1437,6 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                             <span className="px-3 py-1.5 border border-[var(--border)] rounded-lg bg-[var(--surface-2)] hover:bg-[var(--bg)]">Subir archivo…</span>
                                         </label>
                                     </div>
-
-                                    {/* Descripción manual */}
-                                    <div className="border border-[var(--border)] rounded-lg p-3 space-y-1.5">
-                                        <p className="text-xs font-bold text-[var(--text)]">Descripción (edición manual)</p>
-                                        <textarea value={descripcionManual} onChange={e => setDescripcionManual(e.target.value)} rows={4} placeholder="Escribe o pega la descripción. Si la dejas vacía, se usan las propuestas de arriba." className="w-full px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] resize-y" />
-                                    </div>
-
-                                    {/* Características (atributos) */}
-                                    {atributosEditables.length > 0 && (
-                                        <div className="border border-[var(--border)] rounded-lg p-3 space-y-1.5">
-                                            <p className="text-xs font-bold text-[var(--text)]">Características</p>
-                                            <div className="max-h-48 overflow-y-auto space-y-1.5">
-                                                {atributosEditables.map(a => (
-                                                    <div key={a.id} className="flex items-center gap-2">
-                                                        <span className="w-40 shrink-0 text-[10px] font-bold uppercase text-[var(--text-faint)] truncate" title={a.id}>{a.name || a.id}</span>
-                                                        <input value={attrValores[a.id] ?? ''} onChange={e => setAttrValores(v => ({ ...v, [a.id]: e.target.value }))} className="flex-1 px-2.5 py-1 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)]" />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
 
                                     <div className="flex items-center justify-end gap-2 pt-1">
                                         <button onClick={() => setShowImproveModal(false)} className="px-3 py-2 text-xs font-bold text-[var(--text-muted)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)]">Cancelar</button>
