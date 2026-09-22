@@ -251,7 +251,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             aplicados++;
         }
         if (camposAceptados.descripcion) {
-            await (meli as any).addDescription(pub.marketplace_id, pub.external_item_id, camposAceptados.descripcion);
+            if (itemDesc) {
+                await (meli as any).updateDescription(pub.marketplace_id, pub.external_item_id, camposAceptados.descripcion);
+            } else {
+                await (meli as any).addDescription(pub.marketplace_id, pub.external_item_id, camposAceptados.descripcion);
+            }
             aplicados++;
         }
 

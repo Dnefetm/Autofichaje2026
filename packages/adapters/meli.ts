@@ -1776,6 +1776,39 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
+     * updateDescription — Actualiza la descripción EXISTENTE de un item.
+     * PUT /items/{id}/description. MeLi exige PUT cuando ya hay descripción
+     * (POST devuelve item.description.invalid "use PUT instead").
+     */
+    async updateDescription(accountId: string, itemId: string, plainText: string): Promise<{
+        item_id: string;
+        ok: boolean;
+        raw: any;
+    }> {
+        const accessToken = await this.getAccessToken(accountId);
+        const text = plainText.trim().slice(0, 50000); // límite de MeLi
+
+        let respData: any;
+        try {
+            const resp = await axios.put(
+                `https://api.mercadolibre.com/items/${itemId}/description`,
+                { plain_text: text },
+                { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+            );
+            respData = resp.data;
+        } catch (err: any) {
+            const meliError = err.response?.data;
+            logger.error({ accountId, itemId, meliError }, 'updateDescription: MeLi rechazó el PUT description');
+            throw new Error(
+                `MeLi PUT /items/${itemId}/description falló [${err.response?.status}]: ${JSON.stringify(meliError)}`
+            );
+        }
+
+        logger.info({ accountId, itemId }, 'updateDescription: descripción actualizada');
+        return { item_id: itemId, ok: true, raw: respData };
+    }
+
+    /**
      * searchCatalog — Busca productos en el catálogo de MeLi (catalog_product_id)
      * por GTIN/EAN o texto libre. Devuelve los resultados del product search.
      */
