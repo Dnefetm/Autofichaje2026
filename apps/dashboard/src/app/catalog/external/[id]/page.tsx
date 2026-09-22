@@ -555,8 +555,10 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             });
             const data = await res.json();
             if (!res.ok || !data.ok) {
-                const detalle = Array.isArray(data.errores) && data.errores.length ? '\n• ' + data.errores.join('\n• ') : '';
-                throw new Error((data.error || 'Error al aplicar') + detalle);
+                const partes: string[] = [data.error || 'Error al aplicar'];
+                if (Array.isArray(data.errores) && data.errores.length) partes.push('• ' + data.errores.join('\n• '));
+                if (data.meli_error) partes.push(JSON.stringify(data.meli_error, null, 2));
+                throw new Error(partes.join('\n\n'));
             }
             setShowImproveModal(false);
             loadAll(true);
