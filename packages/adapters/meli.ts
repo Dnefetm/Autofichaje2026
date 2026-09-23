@@ -983,19 +983,17 @@ export class MeliAdapter implements MarketplaceAdapter {
             .select('external_item_id, status_externo')
             .eq('marketplace_id', accountId)
             .eq('external_variation_id', '0')
-            .in('status_externo', ['active', 'paused', 'under_review']);
+            .in('status_externo', ['active', 'paused', 'under_review'])
+            .order('external_item_id')
+            .range(offset, offset + (limit ?? 1000) - 1);
 
         if (!bdActivos || bdActivos.length === 0) {
             logger.info({ accountId }, 'reconcileClosedItems: sin items activos en BD, nada que verificar');
             return { checked: 0, updated: 0, details: [] };
         }
 
-        const sliced = limit ? bdActivos.slice(offset, offset + limit) : bdActivos.slice(offset);
-        if (sliced.length === 0) {
-            return { checked: 0, updated: 0, details: [] };
-        }
-        const itemIds = sliced.map((r: any) => r.external_item_id);
-        const bdStatusMap = new Map(sliced.map((r: any) => [r.external_item_id, r.status_externo]));
+        const itemIds = bdActivos.map((r: any) => r.external_item_id);
+        const bdStatusMap = new Map(bdActivos.map((r: any) => [r.external_item_id, r.status_externo]));
         const details: Array<{ item_id: string; old_status: string; new_status: string }> = [];
         let updated = 0;
 
