@@ -1243,6 +1243,19 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                             over ? "border-[var(--err)] focus:ring-[var(--err)] text-[var(--err)]" : "border-[var(--border)] focus:ring-[var(--accent)]")}
                                                     />
                                                     {over && <p className="text-[10px] text-[var(--err)] mt-1">El título supera 60 caracteres. Recórtalo.</p>}
+                                                    {t?.paso_9_titulo?.candidatos && (
+                                                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                            {[
+                                                                { k: 'catalogo', label: 'Catálogo', val: t.paso_9_titulo.candidatos.catalogo },
+                                                                { k: 'mi_catalogo', label: 'Mi catálogo', val: t.paso_9_titulo.candidatos.mi_catalogo },
+                                                                { k: 'ia', label: 'IA', val: t.paso_9_titulo.candidatos.ia },
+                                                            ].filter(o => o.val).map(o => (
+                                                                <button key={o.k} type="button" onClick={() => setFamilyNameOverride(String(o.val).slice(0, 60))} className="px-2 py-1 text-[10px] font-bold rounded border border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--accent)] text-left">
+                                                                    {o.label}: <span className="font-normal text-[var(--text-muted)]">{String(o.val).slice(0, 45)}{String(o.val).length > 45 ? '…' : ''}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })()}

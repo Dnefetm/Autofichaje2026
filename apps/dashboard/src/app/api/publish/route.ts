@@ -908,6 +908,18 @@ export async function POST(req: NextRequest) {
             || (sourceData?.catalog_listing ? sourceData.catalog_product_id : null);
         const effectiveCatalogListing: boolean = catalog_listing || !!(sourceData?.catalog_listing && sourceData?.catalog_product_id);
 
+        // Ficha del catálogo (una sola lectura): sirve para el filtro dinámico de
+        // atributos y para exponer el título del catálogo como candidato.
+        let catalogoFicha: any = null;
+        if (effectiveCatalogListing && effectiveCatalogProductId) {
+            catalogoFicha = await (meli as any).getCatalogProduct(marketplace_id, effectiveCatalogProductId);
+            trace.paso_9_catalogo_ficha = {
+                tiene_ficha: !!catalogoFicha,
+                nombre: catalogoFicha?.name ?? null,
+                atributos_definidos: (catalogoFicha?.attributes || []).length,
+            };
+        }
+
         // Construir descripción enriquecida con bullets (máx 2000 chars)
         const bulletsText = resolved.bullet_points.length > 0
             ? '\n\n' + resolved.bullet_points.map((b: string) => `• ${b}`).join('\n')
@@ -929,6 +941,13 @@ export async function POST(req: NextRequest) {
             aiResult.title ||
             [resolved.marca, resolved.modelo, resolved.nombre].filter(Boolean).join(' ')
         ), 60);
+
+        // Candidatos de título para la tradicional (el panel elige; la de catálogo usa el suyo).
+        const tituloCatalogo = catalogoFicha?.name || null;
+        const tituloMiCatalogo = isLegacy
+            ? [resolved.marca, resolved.modelo, resolved.nombre].filter(Boolean).join(' ')
+            : resolved.nombre;
+        const tituloIA = isLegacy ? (aiResult.title || null) : (aiResult.family_name || null);
 
         // Garantía: heredar de la vidriera origen si existe, si no el default.
         const srcWarrantyType = sourceData?.sale_terms?.find((s: any) => s.id === 'WARRANTY_TYPE')?.value_name;
@@ -965,10 +984,6 @@ export async function POST(req: NextRequest) {
             attributes: allAttributes,
             // legacy: MeLi exige title; UP: family_name.
             ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
-            // Asociar la tradicional al producto de catálogo para que MeLi NO la pause
-            // al nacer en categorías con catálogo obligatorio. Sin catalog_listing: true
-            // sigue siendo tradicional; el vínculo nativo lo crea el optin posterior.
-            ...(effectiveCatalogListing && effectiveCatalogProductId ? { catalog_product_id: effectiveCatalogProductId } : {}),
         };
 
         trace.paso_9_titulo = {
@@ -976,6 +991,11 @@ export async function POST(req: NextRequest) {
             title_legacy: isLegacy ? titleLegacy : null,
             family_name_up: isLegacy ? null : familyNameFinal,
             fuente: family_name_override ? 'override_manual' : aiResult.ai_used ? 'gpt_4o_mini' : 'compuesto',
+            candidatos: {
+                catalogo: tituloCatalogo,
+                mi_catalogo: tituloMiCatalogo,
+                ia: tituloIA,
+            },
             price_source: priceSource,
             price_final: price,
         };
