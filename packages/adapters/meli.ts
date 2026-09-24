@@ -394,6 +394,55 @@ export class MeliAdapter implements MarketplaceAdapter {
         }
     }
 
+    // V35: cotiza el costo de envío ANTES de publicar (sin item_id), usando
+    // dimensiones + contexto. Fuente: GET /users/{seller}/shipping_options/free
+    // con `dimensions`. MeLi exige el peso en gramos enteros y además
+    // item_price + listing_type_id + logistic_type + free_shipping para no
+    // devolver list_cost=0 (doc: "Mercado Envíos - Costos y cotizaciones").
+    async cotizarEnvioCosto(
+        accountId: string,
+        p: {
+            largo_cm: number;
+            ancho_cm: number;
+            alto_cm: number;
+            peso_gramos: number;
+            item_price: number;
+            listing_type_id: string;
+            mode: string;
+            free_shipping: boolean;
+        }
+    ): Promise<{ list_cost: number | null; status: number; raw: any }> {
+        try {
+            const { data: mkp } = await supabase
+                .from('marketplace_configs')
+                .select('settings')
+                .eq('id', accountId)
+                .single();
+            const sellerId = mkp?.settings?.seller_id;
+            if (!sellerId) return { list_cost: null, status: 0, raw: { error: 'no seller_id' } };
+
+            const accessToken = await this.getAccessToken(accountId);
+            const dims = `${p.largo_cm}x${p.ancho_cm}x${p.alto_cm},${p.peso_gramos}`;
+            const qs = new URLSearchParams({
+                dimensions: dims,
+                item_price: String(p.item_price),
+                listing_type_id: p.listing_type_id,
+                mode: p.mode,
+            });
+            if (p.free_shipping) qs.set('free_shipping', 'true');
+            const url = `https://api.mercadolibre.com/users/${sellerId}/shipping_options/free?${qs.toString()}`;
+            const resp = await axios.get(url, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                validateStatus: () => true,
+            });
+            const listCost = resp.data?.coverage?.all_country?.list_cost ?? null;
+            return { list_cost: listCost, status: resp.status, raw: resp.data };
+        } catch (err: any) {
+            logger.warn({ accountId, error: err?.message }, 'V35: fallo al cotizar envío pre-publicación');
+            return { list_cost: null, status: 0, raw: { error: err?.message } };
+        }
+    }
+
     // V33 (T1 Logística Full): sincroniza el stock disponible en el depósito Full
     // de MeLi para cada inventory_id del accountId, guardándolo en stock_full.
     async syncFullStock(accountId: string): Promise<{ updated: number; errors: number }> {

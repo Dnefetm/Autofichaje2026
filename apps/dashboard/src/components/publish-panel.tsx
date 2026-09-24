@@ -230,6 +230,11 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     // Dimensiones del paquete editables
     const [dimOverrides, setDimOverrides] = useState<Record<string, string>>({});
 
+    // Cotización de envío pre-publicación (list_cost de MeLi por dimensiones)
+    const [cotizacionEnvio, setCotizacionEnvio] = useState<{ list_cost: number; status: number } | null>(null);
+    const [cotizando, setCotizando] = useState(false);
+    const [cotizacionError, setCotizacionError] = useState<string | null>(null);
+
     // Panel abierto/cerrado
     const [panelOpen, setPanelOpen] = useState(false);
 
@@ -667,6 +672,71 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         }
     }
 
+    // -- Cotizar envío antes de publicar (dimensiones -> list_cost MeLi) ------
+    function parseDimNum(v: string | null | undefined): number | null {
+        if (v == null) return null;
+        const m = String(v).match(/-?\d+(\.\d+)?/);
+        return m ? parseFloat(m[0]) : null;
+    }
+
+    async function handleCotizarEnvio() {
+        if (!primaryAccount) { setCotizacionError('Selecciona una cuenta MeLi primero'); return; }
+        setCotizando(true);
+        setCotizacionError(null);
+        setCotizacionEnvio(null);
+        try {
+            const trace = previewResult?.data?.trace || {};
+            const dims = trace.paso_7_package_dimensions || {};
+            const largo = parseDimNum(dimOverrides.SELLER_PACKAGE_LENGTH ?? dims.SELLER_PACKAGE_LENGTH) ?? articleData?.largo_cm ?? 0;
+            const ancho = parseDimNum(dimOverrides.SELLER_PACKAGE_WIDTH ?? dims.SELLER_PACKAGE_WIDTH) ?? articleData?.ancho_cm ?? 0;
+            const alto = parseDimNum(dimOverrides.SELLER_PACKAGE_HEIGHT ?? dims.SELLER_PACKAGE_HEIGHT) ?? articleData?.alto_cm ?? 0;
+            const pesoG = parseDimNum(dimOverrides.SELLER_PACKAGE_WEIGHT ?? dims.SELLER_PACKAGE_WEIGHT)
+                ?? (articleData?.peso_kg != null ? Math.round(Number(articleData.peso_kg) * 1000) : 0);
+            const precio = Number(priceOverride || (trace.paso_9_titulo?.price_final ?? trace.paso_3_precio?.sale_price ?? 0));
+
+            const res = await fetch('/api/cotizar-envio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    marketplace_id: primaryAccount,
+                    largo_cm: largo,
+                    ancho_cm: ancho,
+                    alto_cm: alto,
+                    peso_gramos: pesoG,
+                    item_price: precio,
+                    listing_type_id: listingType,
+                    mode: shippingMode,
+                    free_shipping: freeShipping,
+                }),
+            });
+            const data = await res.json();
+            if (data.ok && data.list_cost != null) {
+                const listCost = Number(data.list_cost);
+                setCotizacionEnvio({ list_cost: listCost, status: data.status });
+                // Recalcular el precio final incluyendo el envío cotizado,
+                // usando los insumos que ya resolvió fn_calcular_precio_prepublicacion.
+                const rpc = trace.paso_5_1_precio_prepublicacion;
+                const base = Number(rpc?.base_price);
+                if (base > 0) {
+                    const margen = Number(rpc?.margen_pct ?? 0);
+                    const comision = Number(rpc?.comision_pct ?? 0);
+                    const retenciones = Number(rpc?.retenciones_pct ?? 0);
+                    const denom = 1 - (comision + retenciones) / 100;
+                    if (denom > 0) {
+                        const final = (base * (1 + margen / 100) + listCost) / denom;
+                        setPriceOverride(String(Math.round(final * 100) / 100));
+                    }
+                }
+            } else {
+                setCotizacionError(data.error || 'MeLi no devolvió costo de envío (verifica dimensiones y precio)');
+            }
+        } catch (e: any) {
+            setCotizacionError(e.message || 'Error de red al cotizar envío');
+        } finally {
+            setCotizando(false);
+        }
+    }
+
     function resetPanel() {
         setStage('config');
         setPreviewResult(null);
@@ -688,6 +758,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setCatSearch('');
         setCatSearchResults([]);
         setCatSelectedPath('');
+        setCotizacionEnvio(null);
+        setCotizacionError(null);
     }
 
     const accountName = selectedAccounts
@@ -742,8 +814,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                         </div>
                     )}
 
-                    {/* -- ETAPA 1: CONFIGURACIÓN ------------------------ */}
-                    {stage === 'config' && (
+                    {/* -- CONFIGURACIÓN (siempre visible: cuentas, tipo, identificación) -- */}
+                    {(stage === 'config' || stage === 'preview') && (
                         <>
                             {/* Identificación del producto — editable (en catálogo se bloquean marca/modelo/GTIN) */}
                             <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2">
@@ -759,16 +831,6 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                     </p>
                                 )}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <label className="block sm:col-span-2">
-                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">Título (family name)</span>
-                                        <input
-                                            type="text"
-                                            value={familyNameOverride}
-                                            onChange={e => setFamilyNameOverride(e.target.value)}
-                                            placeholder={nombreArticulo || 'Lo genera la IA'}
-                                            className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                                        />
-                                    </label>
                                     <label className="block">
                                         <span className="text-[10px] font-semibold text-[var(--text-muted)]">SKU</span>
                                         <input
@@ -872,19 +934,21 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 </div>
                             )}
 
-                            {/* CTA — Preview */}
-                            <button
-                                id="publish-preview-btn"
-                                onClick={handlePreview}
-                                disabled={loading || selectedAccounts.length === 0}
-                                className="w-full flex items-center justify-center gap-2 py-3 bg-[var(--accent)] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--accent-ink)] font-bold rounded-xl transition-all shadow-sm"
-                            >
-                                {loading
-                                    ? <Loader2 className="w-4 h-4 animate-spin" />
-                                    : <Eye className="w-4 h-4" />
-                                }
-                                {loading ? 'Procesando...' : 'Ver preview antes de publicar'}
-                            </button>
+                            {/* CTA — Preview (solo en etapa config) */}
+                            {stage === 'config' && (
+                                <button
+                                    id="publish-preview-btn"
+                                    onClick={handlePreview}
+                                    disabled={loading || selectedAccounts.length === 0}
+                                    className="w-full flex items-center justify-center gap-2 py-3 bg-[var(--accent)] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--accent-ink)] font-bold rounded-xl transition-all shadow-sm"
+                                >
+                                    {loading
+                                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                                        : <Eye className="w-4 h-4" />
+                                    }
+                                    {loading ? 'Procesando...' : 'Ver preview antes de publicar'}
+                                </button>
+                            )}
                         </>
                     )}
 
@@ -1259,22 +1323,6 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 </div>
                                             );
                                         })()}
-                                        {/* Precio */}
-                                        <div>
-                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Precio de venta (MXN)</label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                value={priceOverride !== '' ? priceOverride : (t?.paso_9_titulo?.price_final ?? t?.paso_3_precio?.sale_price ?? '')}
-                                                onChange={e => setPriceOverride(e.target.value)}
-                                                placeholder="Sin precio — escribe uno manual"
-                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
-                                            />
-                                            {(t?.paso_9_titulo?.price_final ?? t?.paso_3_precio?.sale_price ?? 0) <= 0 && (
-                                                <p className="text-[10px] text-[var(--warn)] mt-1">Sin precio configurado: escribe el precio manual para poder publicar.</p>
-                                            )}
-                                        </div>
                                         {/* Stock */}
                                         <div>
                                             <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Stock a publicar</label>
@@ -1443,6 +1491,45 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         {/* Stepper transparente + trace técnico colapsado */}
                                         <PublishStepper trace={t || {}} />
                                         <TraceBlock trace={t || {}} />
+
+                                        {/* Precio final + cotización de envío */}
+                                        <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2">
+                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block">Precio de venta (MXN)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={priceOverride !== '' ? priceOverride : (t?.paso_9_titulo?.price_final ?? t?.paso_3_precio?.sale_price ?? '')}
+                                                onChange={e => setPriceOverride(e.target.value)}
+                                                placeholder="Sin precio — escribe uno manual"
+                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
+                                            />
+                                            {(t?.paso_9_titulo?.price_final ?? t?.paso_3_precio?.sale_price ?? 0) <= 0 && !priceOverride && (
+                                                <p className="text-[10px] text-[var(--warn)]">Sin precio configurado: escribe el precio manual para poder publicar.</p>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={handleCotizarEnvio}
+                                                disabled={cotizando || loading}
+                                                className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-lg hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-50"
+                                            >
+                                                {cotizando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
+                                                {cotizando ? 'Cotizando…' : 'Calcular costo de envío'}
+                                            </button>
+
+                                            {cotizacionEnvio && (
+                                                <div className="flex items-center justify-between p-2 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-lg">
+                                                    <span className="text-xs font-semibold text-[var(--ok)]">Envío MeLi:</span>
+                                                    <span className="text-sm font-bold text-[var(--ok)] tabular-nums">
+                                                        {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(cotizacionEnvio.list_cost)}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {cotizacionError && (
+                                                <p className="text-[10px] text-[var(--warn)]">{cotizacionError}</p>
+                                            )}
+                                        </div>
 
                                         {/* Publicar similar (duplicado independiente) */}
                                         <label className="flex items-start gap-2 text-xs text-[var(--text)] cursor-pointer p-2 rounded border border-[var(--border)] bg-[var(--surface-2)]">
