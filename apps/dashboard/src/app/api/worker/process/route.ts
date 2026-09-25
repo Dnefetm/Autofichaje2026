@@ -411,6 +411,18 @@ if (!mappings || mappings.length === 0) return;
 const fuentesStock = mappings.filter((m: any) => m.publicaciones_externas && m.sincronizar_stock !== false);
 if (fuentesStock.length === 0) return;
 
+// Fase 1 (N+1 fix): traer todos los componentes de todas las publicaciones en UNA sola query
+const pubIds = fuentesStock.map((m: any) => m.publicaciones_externas.id);
+const { data: allMapeoRows } = await supabaseAdmin
+  .from('mapeo_publicacion_articulo')
+  .select('publicacion_id, articulo_id, cantidad_requerida, sincronizar_stock')
+  .in('publicacion_id', pubIds);
+const componentsByPub = new Map<string, any[]>();
+for (const row of (allMapeoRows || [])) {
+  if (!componentsByPub.has(row.publicacion_id)) componentsByPub.set(row.publicacion_id, []);
+  componentsByPub.get(row.publicacion_id)!.push(row);
+}
+
 const failedVitrinas: string[] = [];
 let successCount = 0;
 
@@ -420,10 +432,7 @@ try {
 if (pub.sync_disabled === true) { successCount++; continue; }
 if (pub.logistic_type === 'fulfillment') { successCount++; continue; }
 
-const { data: allComponents } = await supabaseAdmin
-.from('mapeo_publicacion_articulo')
-.select('articulo_id, cantidad_requerida, sincronizar_stock')
-.eq('publicacion_id', pub.id);
+const allComponents = componentsByPub.get(pub.id) || [];
 
 const syncOnComponents = (allComponents || []).filter((c: any) => c.sincronizar_stock !== false);
 if (syncOnComponents.length === 0) { successCount++; continue; }
