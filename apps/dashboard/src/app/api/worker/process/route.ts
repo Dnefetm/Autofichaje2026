@@ -849,6 +849,3 @@ finished_at: new Date().toISOString()
 .eq('id', confirmJobId);
 throw err;
 }
-}
-/ /   t r i g g e r   v e r c e l   b u i l d  
- 
