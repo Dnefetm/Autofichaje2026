@@ -51,7 +51,7 @@ const { count } = await supabaseAdmin
 
 const isMaintenanceWindow = (currentMinute % 5 === 0);
 const isReconciliationHour = (currentHour % 6 === 0 && currentMinute < 2);
-const isCatalogHour = (currentHour % 8 === 0 && currentMinute < 2);
+const isCatalogHour = (currentHour % 12 === 0 && currentMinute < 2);
 
 if (count === 0 && !isMaintenanceWindow && !isReconciliationHour && !isCatalogHour) {
 return NextResponse.json({ ...results, skipped: true, reason: 'no_jobs', ms: Date.now() - now.getTime() });
@@ -121,7 +121,7 @@ results.jobResults.push({ id: job.id, type: job.type, status: 'error', error: er
 }
 doneIds.add(job.id);
 totalProcessed++;
-await new Promise(r => setTimeout(r, 1000));
+await new Promise(r => setTimeout(r, 400));
 }
 
 // Devolver a 'pending' los jobs de este lote que no alcanzamos a procesar,
