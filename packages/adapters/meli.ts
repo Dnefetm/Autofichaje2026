@@ -637,7 +637,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 const resp = await Promise.all(
                     tanda.map(chunk => {
                         const idsParam = chunk.join(',');
-                        return axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}&include_attributes=all`, {
+                        return axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}&attributes=id,title,price,available_quantity,status,sub_status,listing_type_id,shipping,category_id,domain_id,condition,attributes,channels,date_created,last_updated,currency_id,inventory_id,base_price,buying_mode,catalog_product_id,catalog_listing,parent_item_id,seller_custom_field,variations,thumbnail,permalink,sold_quantity,health,tags`, {
                             headers: { Authorization: `Bearer ${accessToken}` }
                         });
                     })
@@ -1021,6 +1021,38 @@ export class MeliAdapter implements MarketplaceAdapter {
     //
     // Costo: 1 request por cada 20 items con status activo en BD. Negligible.
     // -------------------------------------------------------------------------
+    // V131: enriquecimiento decorativo bajo demanda (Ruta B).
+    // La Ruta A (syncCatalogBatchFast) ya NO trae pictures/video_id/deal_ids/warranty/
+    // initial_quantity/original_price/automatic_relist para aligerar el multiGET frecuente.
+    // Esta función trae SOLO esos campos para un único ítem, cuando la UI abre la ficha.
+    async enrichDecorativeFields(accountId: string, itemId: string): Promise<Record<string, any>> {
+        const accessToken = await this.getAccessToken(accountId);
+        const resp = await axios.get(
+            `https://api.mercadolibre.com/items/${itemId}?attributes=id,original_price,automatic_relist,shipping,warranty,deal_ids,pictures,video_id,initial_quantity`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const item = resp.data;
+        const updates: Record<string, any> = {
+            original_price: item.original_price ?? null,
+            automatic_relist: item.automatic_relist ?? false,
+            local_pick_up: item.shipping?.local_pick_up ?? false,
+            shipping_tags: item.shipping?.tags || [],
+            shipping_dimensions: item.shipping?.dimensions || null,
+            warranty: item.warranty || null,
+            deal_ids: item.deal_ids || [],
+            pictures_count: item.pictures?.length || 0,
+            video_id: item.video_id || null,
+            initial_quantity: item.initial_quantity ?? null,
+        };
+        await supabase
+            .from('publicaciones_externas')
+            .update(updates)
+            .eq('marketplace_id', accountId)
+            .eq('external_item_id', itemId)
+            .eq('external_variation_id', '0');
+        return updates;
+    }
+
     async reconcileClosedItems(accountId: string, offset: number = 0, limit?: number): Promise<{
         checked: number;
         updated: number;

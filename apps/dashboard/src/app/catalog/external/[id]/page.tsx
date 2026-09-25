@@ -346,6 +346,19 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 shipping_tags: pubData.shipping_tags ?? [],
             } : null);
 
+            // Ruta B: enriquecer campos decorativos bajo demanda (un solo ítem, al abrir la ficha)
+            if (pubData?.external_item_id && pubData?.marketplace_id) {
+                fetch(`/api/catalog/external/${id}/enrich`, { method: 'POST' })
+                    .then(r => r.json())
+                    .then((d: any) => {
+                        if (d?.ok) {
+                            const { ok, error, ...fields } = d;
+                            setPub((prev: any) => prev ? { ...prev, ...fields } : prev);
+                        }
+                    })
+                    .catch(() => { /* silencioso */ });
+            }
+
             if (pubData) {
                 const { data: mapeosData } = await supabase
                     .from('mapeo_publicacion_articulo')
