@@ -7,12 +7,13 @@ export const dynamic = 'force-dynamic';
 // Ruta B (enriquecimiento decorativo bajo demanda): la UI llama a este endpoint
 // al abrir la ficha para rellenar los campos decorativos que la Ruta A ya no sincroniza
 // en el multiGET frecuente (fotos, campañas, dimensiones, garantía, etc.).
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
     try {
         const { data: pub } = await supabaseAdmin
             .from('publicaciones_externas')
             .select('marketplace_id, external_item_id')
-            .eq('id', params.id)
+            .eq('id', id)
             .single();
 
         if (!pub || !pub.external_item_id || !pub.marketplace_id) {
