@@ -849,3 +849,4 @@ finished_at: new Date().toISOString()
 .eq('id', confirmJobId);
 throw err;
 }
+}
