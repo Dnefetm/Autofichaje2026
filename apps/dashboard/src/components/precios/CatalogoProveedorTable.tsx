@@ -17,6 +17,7 @@ export interface HubItem {
     marca: string;
     descripcion: string;
     tiers: Record<string, number | null>; // tipo_costo normalizado -> valor vigente
+    extra: Record<string, string>;        // columnas extra del Excel (columnas_a_guardar)
     articulo_id_vinculado: string | null;
 }
 
@@ -24,10 +25,12 @@ export function CatalogoProveedorTable({
     proveedor,
     items = [],
     tiers = [],
+    extraCols = [],
 }: {
     proveedor: string;
     items: HubItem[];
     tiers: TierCol[];
+    extraCols: string[];
 }) {
     const [selectedItem, setSelectedItem] = useState<HubItem | null>(null);
     const [localVinculados, setLocalVinculados] = useState<Set<string>>(new Set());
@@ -104,6 +107,13 @@ export function CatalogoProveedorTable({
                                         </div>
                                     ))}
                                 </div>
+                                {extraCols.length > 0 && (
+                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--text-muted)]">
+                                        {extraCols.map(col => item.extra[col] && (
+                                            <span key={col}>{col}: <span className="font-semibold text-[var(--text)]">{item.extra[col]}</span></span>
+                                        ))}
+                                    </div>
+                                )}
                                 <button
                                     onClick={() => openVincular(item)}
                                     className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center justify-center gap-1 ${vinculado ? 'bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
@@ -126,6 +136,9 @@ export function CatalogoProveedorTable({
                             {tiers.map(t => (
                                 <th key={t.key} className="py-3.5 px-4 text-right whitespace-nowrap">{t.label}</th>
                             ))}
+                            {extraCols.map(col => (
+                                <th key={col} className="py-3.5 px-4 text-left whitespace-nowrap">{col}</th>
+                            ))}
                             <th className="py-3.5 px-4 text-center">Estado Catálogo</th>
                             <th className="py-3.5 px-4 text-right">Acción</th>
                         </tr>
@@ -133,7 +146,7 @@ export function CatalogoProveedorTable({
                     <tbody className="divide-y divide-[var(--border)] text-xs">
                         {paginatedItems.length === 0 ? (
                             <tr>
-                                <td colSpan={4 + tiers.length} className="py-12 text-center text-[var(--text-faint)] text-sm">
+                                <td colSpan={4 + tiers.length + extraCols.length} className="py-12 text-center text-[var(--text-faint)] text-sm">
                                     No hay productos para mostrar.
                                 </td>
                             </tr>
@@ -163,6 +176,11 @@ export function CatalogoProveedorTable({
                                         {tiers.map(t => (
                                             <td key={t.key} className="py-3.5 px-4 text-right align-top font-bold text-[var(--text)]">
                                                 {fmt(item.tiers[t.key])}
+                                            </td>
+                                        ))}
+                                        {extraCols.map(col => (
+                                            <td key={col} className="py-3.5 px-4 align-top text-[var(--text-muted)]">
+                                                {item.extra[col] || '—'}
                                             </td>
                                         ))}
                                         <td className="py-3.5 px-4 text-center align-top">

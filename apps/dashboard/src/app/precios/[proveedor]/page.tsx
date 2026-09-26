@@ -17,7 +17,7 @@ async function fetchPrecios(importacionId: string, q: string): Promise<any[]> {
     while (true) {
         let query = supabaseAdmin
             .from('precios_proveedor')
-            .select('sku_proveedor, marca, descripcion, tipo_costo, valor')
+            .select('sku_proveedor, marca, descripcion, tipo_costo, valor, columnas')
             .eq('importacion_id', importacionId)
             .eq('vigente', true);
         if (q) {
@@ -81,10 +81,18 @@ export default async function HubProveedorPage(props: {
     }
     const mapeoOrder = (mapeo?.precios || []).map((pr: any) => normalizeTier(pr.tipo_costo)).filter(Boolean);
 
+    // Columnas extra a mostrar: las que el usuario eligió guardar (columnas_a_guardar),
+    // menos las ya mostradas como columnas semánticas (modelo, código, marca, descripción, precios).
+    const semanticCols = new Set<string>(
+        [mapeo?.columna_modelo, mapeo?.columna_codigo, mapeo?.columna_marca, mapeo?.columna_descripcion,
+         ...(mapeo?.precios || []).map((p: any) => p.columna)].filter(Boolean)
+    );
+    const extraCols: string[] = (mapeo?.columnas_a_guardar || []).filter((c: string) => !semanticCols.has(c));
+
     // 3. Precios vigentes desde la tabla canónica (precios_proveedor), agrupados por SKU
     const precios = importacionId ? await fetchPrecios(importacionId, q) : [];
 
-    const grouped = new Map<string, { sku: string; marca: string; descripcion: string; tiers: Record<string, number | null> }>();
+    const grouped = new Map<string, { sku: string; marca: string; descripcion: string; tiers: Record<string, number | null>; columnas: Record<string, string> | null }>();
     const tierLabels = new Map<string, string>();
 
     for (const r of precios) {
@@ -92,7 +100,13 @@ export default async function HubProveedorPage(props: {
         if (!sku) continue;
         let g = grouped.get(sku);
         if (!g) {
-            g = { sku, marca: r.marca || '', descripcion: r.descripcion || '', tiers: {} };
+            g = {
+                sku,
+                marca: r.marca || '',
+                descripcion: r.descripcion || '',
+                tiers: {},
+                columnas: (r.columnas && typeof r.columnas === 'object') ? r.columnas : null,
+            };
             grouped.set(sku, g);
         }
         const k = normalizeTier(r.tipo_costo);
@@ -124,9 +138,16 @@ export default async function HubProveedorPage(props: {
         if (aliasChunk.length < 1000) break;
     }
 
-    // 5. Construir items con tiers dinámicos
+    // 5. Construir items con tiers dinámicos + columnas extra elegidas en el mapeo
     let items: HubItem[] = [...grouped.values()].map(g => {
         const ean = aliasEanMap.get(g.sku) || '';
+        const extra: Record<string, string> = {};
+        if (g.columnas) {
+            for (const col of extraCols) {
+                const v = g.columnas[col];
+                if (v != null && String(v).trim() !== '') extra[col] = String(v);
+            }
+        }
         return {
             id: g.sku,
             sku: g.sku,
@@ -134,6 +155,7 @@ export default async function HubProveedorPage(props: {
             marca: g.marca,
             descripcion: g.descripcion,
             tiers: g.tiers,
+            extra,
             articulo_id_vinculado:
                 aliasMap.get(`model:${g.sku}`) ||
                 (ean ? aliasMap.get(`code:${ean}`) : null) ||
@@ -223,6 +245,7 @@ export default async function HubProveedorPage(props: {
                         proveedor={proveedorDecoded}
                         items={paginated}
                         tiers={tierOrder}
+                        extraCols={extraCols}
                     />
                 </div>
 
