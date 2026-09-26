@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
     Search, RefreshCw, AlertCircle, CheckCircle2, Link2,
@@ -683,6 +683,9 @@ export default function VirtualCatalogPage() {
     const [totalCount, setTotalCount] = useState(0);
     const PAGE_SIZE = 100;
 
+    // Guardia anti-race: solo la request más reciente puede escribir el estado.
+    const requestSeq = useRef(0);
+
     // Sync log
     const [syncing, setSyncing] = useState(false);
     const [debugLogs, setDebugLogs] = useState<string[]>([]);
@@ -746,6 +749,7 @@ export default function VirtualCatalogPage() {
     }
 
     async function loadListings() {
+        const seq = ++requestSeq.current;
         setLoading(true);
         try {
             const from = page * PAGE_SIZE;
@@ -762,6 +766,7 @@ export default function VirtualCatalogPage() {
                     p_offset:         from,
                 });
                 if (searchErr) throw searchErr;
+                if (seq !== requestSeq.current) return; // respuesta obsoleta: ignorar
                 const rows = (searchData as any[]) || [];
                 setListings(rows);
                 setTotalCount(rows[0]?.total_count ? Number(rows[0].total_count) : rows.length);
@@ -846,12 +851,13 @@ export default function VirtualCatalogPage() {
 
             const { data, error, count } = await query;
             if (error) throw error;
+            if (seq !== requestSeq.current) return; // respuesta obsoleta: ignorar
             setListings(data || []);
             setTotalCount(count || 0);
         } catch (error) {
-            console.error('Error fetching listings:', error);
+            if (seq === requestSeq.current) console.error('Error fetching listings:', error);
         } finally {
-            setLoading(false);
+            if (seq === requestSeq.current) setLoading(false);
         }
     }
 
