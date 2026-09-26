@@ -1,11 +1,37 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
 import { ArrowLeft, History } from 'lucide-react';
-import { CatalogoProveedorTable } from '@/components/precios/CatalogoProveedorTable';
+import { CatalogoProveedorTable, HubItem, TierCol } from '@/components/precios/CatalogoProveedorTable';
 import { CatalogoProveedorSearch } from '@/components/precios/CatalogoProveedorSearch';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const normalizeTier = (s: string) => (s || '').toLowerCase().trim();
+
+// Lee los precios vigentes del lote (paginado) desde la tabla canónica.
+// Si hay búsqueda, filtra del lado del servidor (SKU, marca o descripción).
+async function fetchPrecios(importacionId: string, q: string): Promise<any[]> {
+    const rows: any[] = [];
+    let from = 0;
+    while (true) {
+        let query = supabaseAdmin
+            .from('precios_proveedor')
+            .select('sku_proveedor, marca, descripcion, tipo_costo, valor')
+            .eq('importacion_id', importacionId)
+            .eq('vigente', true);
+        if (q) {
+            const like = `%${q}%`;
+            query = query.or(`sku_proveedor.ilike.${like},marca.ilike.${like},descripcion.ilike.${like}`);
+        }
+        const { data } = await query.range(from, from + 999);
+        if (!data || data.length === 0) break;
+        rows.push(...data);
+        if (data.length < 1000) break;
+        from += 1000;
+    }
+    return rows;
+}
 
 export default async function HubProveedorPage(props: {
     params: Promise<{ proveedor: string }>;
@@ -19,7 +45,7 @@ export default async function HubProveedorPage(props: {
     const page = parseInt(searchParams.page || '0', 10);
     const pageSize = 200;
 
-    // 1. Obtener última lista vigente o más reciente
+    // 1. Última lista vigente o más reciente
     const { data: activeLpp } = await supa
         .from('listas_precios_proveedor')
         .select('importacion_id, total_filas, creado_el')
@@ -29,7 +55,6 @@ export default async function HubProveedorPage(props: {
         .limit(1);
 
     let importacionId = activeLpp?.[0]?.importacion_id;
-    let totalFilas = activeLpp?.[0]?.total_filas;
     let fechaAct = activeLpp?.[0]?.creado_el;
     const estaVigente = !!activeLpp?.[0];
 
@@ -41,11 +66,10 @@ export default async function HubProveedorPage(props: {
             .order('creado_el', { ascending: false })
             .limit(1);
         importacionId = ultImp?.[0]?.id;
-        totalFilas = ultImp?.[0]?.total_filas;
         fechaAct = ultImp?.[0]?.creado_el;
     }
 
-    // 1.5. Leer el mapeo de columnas (respeta lo que el operador seleccionó en "Mapear Columnas").
+    // 2. Mapeo de columnas → orden de los tipos de costo (columnas de precio dinámicas)
     let mapeo: any = null;
     if (importacionId) {
         const { data: impMapeo } = await supa
@@ -55,46 +79,31 @@ export default async function HubProveedorPage(props: {
             .single();
         mapeo = impMapeo?.mapeo_columnas || null;
     }
-    const colModelo = mapeo?.columna_modelo || 'CLAVE';
-    const colCodigo = mapeo?.columna_codigo || 'CÓDIGO DE BARRA SIN CERO';
-    const colMarca = mapeo?.columna_marca || 'MARCA';
-    const colDescripcion = mapeo?.columna_descripcion || 'DESCRIPCIÓN LARGA';
+    const mapeoOrder = (mapeo?.precios || []).map((pr: any) => normalizeTier(pr.tipo_costo)).filter(Boolean);
 
-    // Precios según el mapeo del operador (no columnas fijas de Urrea)
-    const preciosCol: Record<string, string> = {};
-    (mapeo?.precios || []).forEach((pr: any) => {
-        const t = (pr.tipo_costo || '').toLowerCase();
-        if (t.includes('subdistribuidor')) preciosCol.subdistribuidor = pr.columna;
-        else if (t.includes('distribuidor')) preciosCol.distribuidor = pr.columna;
-        else if (t.includes('mayoreo')) preciosCol.mayoreo = pr.columna;
-        else if (t.includes('menudeo')) preciosCol.menudeo = pr.columna;
-    });
+    // 3. Precios vigentes desde la tabla canónica (precios_proveedor), agrupados por SKU
+    const precios = importacionId ? await fetchPrecios(importacionId, q) : [];
 
-    // 2. Traer filas del catálogo con búsqueda en BD
-    let listado: any[] = [];
-    let totalEncontrados = 0;
+    const grouped = new Map<string, { sku: string; marca: string; descripcion: string; tiers: Record<string, number | null> }>();
+    const tierLabels = new Map<string, string>();
 
-    if (importacionId) {
-        let baseQuery = supa
-            .from('listas_precios_raw')
-            .select('id, fila_num, payload', { count: 'exact' })
-            .eq('importacion_id', importacionId);
-
-        if (q) {
-            // Búsqueda en campos del JSONB directamente en PostgreSQL
-            baseQuery = (baseQuery as any).textSearch('payload', q, { type: 'plain', config: 'spanish' });
+    for (const r of precios) {
+        const sku = r.sku_proveedor;
+        if (!sku) continue;
+        let g = grouped.get(sku);
+        if (!g) {
+            g = { sku, marca: r.marca || '', descripcion: r.descripcion || '', tiers: {} };
+            grouped.set(sku, g);
         }
-
-        const { data: rawRows, count } = await baseQuery
-            .order('fila_num', { ascending: true })
-            .range(page * pageSize, page * pageSize + pageSize - 1);
-
-        listado = rawRows || [];
-        totalEncontrados = count || 0;
+        const k = normalizeTier(r.tipo_costo);
+        if (!k) continue;
+        if (r.valor != null) g.tiers[k] = Number(r.valor);
+        if (!tierLabels.has(k)) tierLabels.set(k, r.tipo_costo || k);
     }
 
-    // 3. Traer alias existentes (paginado: PostgREST corta en 1000 filas, y hay >2000)
-    const aliasMap = new Map<string, string>();
+    // 4. Alias existentes (paginado) → vinculación + EAN por SKU
+    const aliasMap = new Map<string, string>();   // model:<sku> -> articulo_id ; code:<ean> -> articulo_id
+    const aliasEanMap = new Map<string, string>(); // <sku> -> ean (codigo_excel)
     let aliasOffset = 0;
     while (true) {
         const { data: aliasChunk } = await supa
@@ -105,35 +114,51 @@ export default async function HubProveedorPage(props: {
             .range(aliasOffset, aliasOffset + 999);
         if (!aliasChunk || aliasChunk.length === 0) break;
         aliasChunk.forEach(a => {
+            if (a.modelo_excel) {
+                aliasMap.set(`model:${a.modelo_excel}`, a.articulo_id);
+                aliasEanMap.set(a.modelo_excel, a.codigo_excel || '');
+            }
             if (a.codigo_excel) aliasMap.set(`code:${a.codigo_excel}`, a.articulo_id);
-            if (a.modelo_excel) aliasMap.set(`model:${a.modelo_excel}`, a.articulo_id);
         });
         aliasOffset += 1000;
         if (aliasChunk.length < 1000) break;
     }
 
-    const itemsProcesados = listado.map(r => {
-        const p = r.payload || {};
-        const modelo = p[colModelo] || '';
-        const codigo = p[colCodigo] || '';
-        const articuloId = aliasMap.get(`code:${codigo}`) || aliasMap.get(`model:${modelo}`) || null;
-
+    // 5. Construir items con tiers dinámicos
+    let items: HubItem[] = [...grouped.values()].map(g => {
+        const ean = aliasEanMap.get(g.sku) || '';
         return {
-            id: r.id,
-            fila_num: r.fila_num,
-            modelo,
-            codigo,
-            marca: p[colMarca] || '',
-            descripcion: p[colDescripcion] || '',
-            precio_distribuidor: preciosCol.distribuidor ? p[preciosCol.distribuidor] || null : null,
-            precio_subdistribuidor: preciosCol.subdistribuidor ? p[preciosCol.subdistribuidor] || null : null,
-            precio_mayoreo: preciosCol.mayoreo ? p[preciosCol.mayoreo] || null : null,
-            precio_menudeo: preciosCol.menudeo ? p[preciosCol.menudeo] || null : null,
-            articulo_id_vinculado: articuloId
+            id: g.sku,
+            sku: g.sku,
+            codigo: ean,
+            marca: g.marca,
+            descripcion: g.descripcion,
+            tiers: g.tiers,
+            articulo_id_vinculado:
+                aliasMap.get(`model:${g.sku}`) ||
+                (ean ? aliasMap.get(`code:${ean}`) : null) ||
+                null,
         };
     });
 
-    const totalPaginas = Math.ceil((totalEncontrados || totalFilas || 0) / pageSize);
+    // 6. Orden estable por SKU (la búsqueda ya se aplicó del lado del servidor)
+    items.sort((a, b) => a.sku.localeCompare(b.sku, 'es', { numeric: true }));
+
+    const totalSkus = items.length;
+
+    // 8. Columnas de precio dinámicas (orden del mapeo + resto ordenado)
+    const tierOrder: TierCol[] = [];
+    for (const k of mapeoOrder) {
+        if (tierLabels.has(k) && !tierOrder.some(t => t.key === k)) {
+            tierOrder.push({ key: k, label: tierLabels.get(k)! });
+        }
+    }
+    for (const k of [...tierLabels.keys()].sort()) {
+        if (!tierOrder.some(t => t.key === k)) tierOrder.push({ key: k, label: tierLabels.get(k)! });
+    }
+
+    const paginated = items.slice(page * pageSize, page * pageSize + pageSize);
+    const totalPaginas = Math.ceil(totalSkus / pageSize);
 
     return (
         <div className="flex flex-col h-full bg-[var(--surface)] relative">
@@ -154,7 +179,7 @@ export default async function HubProveedorPage(props: {
                         <div className="min-w-0">
                             <h1 className="text-base font-bold text-[var(--text)] leading-tight truncate">{proveedorDecoded}</h1>
                             <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">
-                                {(totalFilas || 0).toLocaleString()} SKUs
+                                {totalSkus.toLocaleString()} SKUs
                                 {' · '}Última act. {fechaAct ? new Date(fechaAct).toLocaleDateString('es-MX') : '—'}
                                 {' · '}
                                 {estaVigente
@@ -182,13 +207,13 @@ export default async function HubProveedorPage(props: {
             </header>
 
             <div className="flex-1 overflow-hidden flex flex-col bg-[var(--bg)]">
-                {/* Buscador (automático e inmediato: búsqueda por debounce sin recarga) */}
+                {/* Buscador (automático e inmediato) */}
                 <div className="p-4 bg-[var(--surface)] border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
                     <div className="flex-1">
                         <CatalogoProveedorSearch proveedor={proveedorDecoded} initialQ={q} />
                     </div>
                     <span className="text-sm text-[var(--text-faint)] shrink-0">
-                        {q ? `${totalEncontrados.toLocaleString()} resultados` : `${(totalFilas || 0).toLocaleString()} productos · Página ${page + 1} de ${totalPaginas}`}
+                        {q ? `${totalSkus.toLocaleString()} resultados` : `${totalSkus.toLocaleString()} productos · Página ${page + 1} de ${totalPaginas}`}
                     </span>
                 </div>
 
@@ -196,7 +221,8 @@ export default async function HubProveedorPage(props: {
                 <div className="flex-1 overflow-auto p-6">
                     <CatalogoProveedorTable
                         proveedor={proveedorDecoded}
-                        items={itemsProcesados}
+                        items={paginated}
+                        tiers={tierOrder}
                     />
                 </div>
 
@@ -204,7 +230,7 @@ export default async function HubProveedorPage(props: {
                 {!q && totalPaginas > 1 && (
                     <div className="shrink-0 px-6 py-4 bg-[var(--surface)] border-t border-[var(--border)] flex items-center justify-between text-sm">
                         <span className="text-[var(--text-muted)]">
-                            Mostrando {page * pageSize + 1}–{Math.min((page + 1) * pageSize, totalFilas || 0)} de {(totalFilas || 0).toLocaleString()}
+                            Mostrando {page * pageSize + 1}–{Math.min((page + 1) * pageSize, totalSkus)} de {totalSkus.toLocaleString()}
                         </span>
                         <div className="flex items-center gap-2">
                             {page > 0 && (
