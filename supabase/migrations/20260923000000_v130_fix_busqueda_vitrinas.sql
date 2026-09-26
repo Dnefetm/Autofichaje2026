@@ -2,14 +2,14 @@
 -- ---------------------------------------------------------------------------
 -- Bugs corregidos en la RPC:
 --   1. Las vitrinas de catálogo con par_item_id estaban EXCLUIDAS de la búsqueda,
---      así que buscar su número/SKU/modelo no las encontraba. Se quita ese filtro
---      (solo quedaba en la LISTA, no debe estar en la BÚSQUEDA).
+--      así que buscar su número/SKU/modelo no las encontraba. Se quita ese filtro.
 --   2. El número de publicación "parcial" (ej. sin prefijo MLM) matcheaba en el
 --      WHERE pero el CASE de scoring no tenía la rama "contiene" → score 0 → filtrado.
 --   3. EAN/GTIN/UPC no se buscaban. Se agregan al WHERE y al CASE.
 --
--- Índices: GIN pg_trgm sobre lower(col) para que ILIKE '%term%' use índice
--- (los índices trigram previos están sobre columna cruda y no aceleran ILIKE).
+-- Índices: GIN pg_trgm sobre columna cruda para acelerar ILIKE '%term%'.
+-- (Solo en las 6 columnas que faltaban; titulo, seller_sku y seller_custom_field
+-- ya tienen índice trigram desde v23.)
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
@@ -125,23 +125,21 @@ AS $$
   OFFSET p_offset;
 $$;
 
--- Índices trigram en lower(col) para acelerar ILIKE '%term%'.
--- (Los índices previos están sobre columna cruda; no aceleran ILIKE.)
-CREATE INDEX IF NOT EXISTS idx_pe_titulo_trgm_lower
-  ON publicaciones_externas USING gin (lower(titulo) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_pe_external_item_id_trgm_lower
-  ON publicaciones_externas USING gin (lower(external_item_id) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_pe_seller_sku_trgm_lower
-  ON publicaciones_externas USING gin (lower(seller_sku) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_pe_seller_custom_field_trgm_lower
-  ON publicaciones_externas USING gin (lower(seller_custom_field) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_pe_brand_trgm_lower
-  ON publicaciones_externas USING gin (lower(brand) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_pe_model_trgm_lower
-  ON publicaciones_externas USING gin (lower(model) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_pe_gtin_trgm_lower
-  ON publicaciones_externas USING gin (lower(gtin) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_pe_ean_trgm_lower
-  ON publicaciones_externas USING gin (lower(ean) gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_pe_upc_trgm_lower
-  ON publicaciones_externas USING gin (lower(upc) gin_trgm_ops);
+-- Índices trigram en columna cruda para acelerar ILIKE '%term%'.
+CREATE INDEX IF NOT EXISTS idx_pe_external_item_id_trgm
+  ON publicaciones_externas USING gin (external_item_id gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_pe_brand_trgm
+  ON publicaciones_externas USING gin (brand gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_pe_model_trgm
+  ON publicaciones_externas USING gin (model gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_pe_gtin_trgm
+  ON publicaciones_externas USING gin (gtin gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_pe_ean_trgm
+  ON publicaciones_externas USING gin (ean gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_pe_upc_trgm
+  ON publicaciones_externas USING gin (upc gin_trgm_ops);

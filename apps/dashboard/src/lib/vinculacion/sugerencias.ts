@@ -342,7 +342,7 @@ async function sugerirFuzzy(pub: PublicacionSugerible): Promise<Sugerencia[]> {
 
   scored.sort((x, y) => y.score - x.score);
   return scored
-    .filter((s) => s.score >= 30)
+    .filter((s) => s.score >= 50)
     .slice(0, 5)
     .map((s) => toSugerencia(s.a, Math.round(s.score), 'fuzzy', 'Similitud de texto'));
 }
@@ -544,7 +544,7 @@ export async function sugerirPublicaciones(art: ArticuloSugerible): Promise<Publ
         return { p, score };
       });
       scored.sort((x, y) => y.score - x.score);
-      for (const s of scored.filter((s) => s.score >= 30).slice(0, 5)) {
+      for (const s of scored.filter((s) => s.score >= 50).slice(0, 5)) {
         push(s.p, s.score, 'fuzzy', 'Similitud de texto');
       }
     }
@@ -703,3 +703,4 @@ export async function sugerirExactoEnLote(
 
   return result;
 }
+

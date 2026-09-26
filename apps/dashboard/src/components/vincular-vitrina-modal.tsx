@@ -86,6 +86,9 @@ export default function VincularVitrinaModal({
   const [costOk, setCostOk] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Guardia anti-race: solo la búsqueda más reciente escribe resultados.
+  const requestSeq = React.useRef(0);
+
   const artCodigo = articulo.codigo_universal || '';
 
   useEffect(() => {
@@ -189,6 +192,7 @@ export default function VincularVitrinaModal({
   }, [searchTerm]);
 
   async function buscar(q: string) {
+    const seq = ++requestSeq.current;
     try {
       const { data } = await supabase
         .from('publicaciones_externas')
@@ -196,10 +200,10 @@ export default function VincularVitrinaModal({
         .or(`titulo.ilike.%${q}%,external_item_id.ilike.%${q}%,seller_sku.ilike.%${q}%,brand.ilike.%${q}%,model.ilike.%${q}%,ean.ilike.%${q}%,gtin.ilike.%${q}%`)
         .eq('external_variation_id', '0')
         .limit(20);
-      setSearchResults(data || []);
+      if (seq === requestSeq.current) setSearchResults(data || []);
     } catch (e) {
       console.error(e);
-      setSearchResults([]);
+      if (seq === requestSeq.current) setSearchResults([]);
     }
   }
 

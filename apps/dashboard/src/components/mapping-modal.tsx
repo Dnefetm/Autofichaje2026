@@ -406,10 +406,12 @@ const { data: mapeosPrevios } = await supabase
 .select('publicacion_id, articulo_id, cantidad_requerida')
 .eq('publicacion_id', listing.id);
 try {
-const { error: delError } = await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', listing.id);
-if (delError) throw delError;
+
 if (selectedSkus.length === 0) {
-await supabase.from('publicaciones_externas').update({ esta_mapeado: false }).eq('id', listing.id);
+// Desvincular todo: borrar TODOS los mapeos (listing + hermanas) y marcar desmapeado.
+const relacionados = [listing.id, ...siblings.filter(s => s.id !== listing.id).map(s => s.id)];
+await supabase.from('mapeo_publicacion_articulo').delete().in('publicacion_id', relacionados);
+await supabase.from('publicaciones_externas').update({ esta_mapeado: false }).in('id', relacionados);
 onSuccess();
 onClose();
 return;
@@ -417,8 +419,13 @@ return;
 const snapshotUpserts = selectedSkus.map(s => ({ sku: s.sku, physical_stock: 0, updated_at: new Date().toISOString() }));
 await supabase.from('inventory_snapshot').upsert(snapshotUpserts, { onConflict: 'sku', ignoreDuplicates: true });
 const inserts = selectedSkus.map(s => ({ publicacion_id: listing.id, articulo_id: s.sku, cantidad_requerida: s.quantity, sincronizar_stock: sincronizarStock }));
-const { error: insError } = await supabase.from('mapeo_publicacion_articulo').insert(inserts);
-if (insError) throw insError;
+      const { error: insError } = await supabase.from('mapeo_publicacion_articulo').upsert(inserts, { onConflict: 'publicacion_id,articulo_id' });
+      if (insError) throw insError;
+      const keepSkus = selectedSkus.map(s => s.sku);
+      const toRemove = (mapeosPrevios || []).map(m => m.articulo_id).filter(sku => !keepSkus.includes(sku));
+      if (toRemove.length > 0) {
+        await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', listing.id).in('articulo_id', toRemove);
+      }
 await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', listing.id);
 await supabase
 .from('publicaciones_externas')
@@ -436,9 +443,14 @@ await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publi
 }
 const propagableSimlings = siblings.filter(s => s.id !== listing.id);
 for (const sib of propagableSimlings) {
-await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', sib.id);
+
 const sibInserts = selectedSkus.map(s => ({ publicacion_id: sib.id, articulo_id: s.sku, cantidad_requerida: s.quantity, sincronizar_stock: sincronizarStock }));
-await supabase.from('mapeo_publicacion_articulo').insert(sibInserts);
+        await supabase.from('mapeo_publicacion_articulo').upsert(sibInserts, { onConflict: 'publicacion_id,articulo_id' });
+        const { data: sibMapeos } = await supabase.from('mapeo_publicacion_articulo').select('articulo_id').eq('publicacion_id', sib.id);
+        const sibToRemove = (sibMapeos || []).map(m => m.articulo_id).filter(sku => !keepSkus.includes(sku));
+        if (sibToRemove.length > 0) {
+          await supabase.from('mapeo_publicacion_articulo').delete().eq('publicacion_id', sib.id).in('articulo_id', sibToRemove);
+        }
 await supabase.from('publicaciones_externas').update({ esta_mapeado: true }).eq('id', sib.id);
 await supabase
 .from('publicaciones_externas')
@@ -769,3 +781,4 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
         </div>
     );
 }
+
