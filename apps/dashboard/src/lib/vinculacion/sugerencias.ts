@@ -251,7 +251,7 @@ async function sugerirExacto(pub: PublicacionSugerible): Promise<Sugerencia[]> {
   // 3. SKU exacto
   const skus = [norm(pub.seller_sku), norm(pub.seller_custom_field)].filter(Boolean);
   if (skus.length) {
-    const parts = skus.flatMap((s) => [`articulo_id.eq.${s}`, `modelo.eq.${s}`]);
+    const parts = skus.flatMap((s) => [`articulo_id.ilike.${s}`, `modelo.ilike.${s}`]);
     const { data } = await supabaseAdmin
       .from('articulos')
       .select(ARTICULO_COLS)
@@ -264,7 +264,7 @@ async function sugerirExacto(pub: PublicacionSugerible): Promise<Sugerencia[]> {
   // 4. Código de barras exacto
   const codigos = [normalizeCode(pub.ean), normalizeCode(pub.gtin), normalizeCode(pub.upc)].filter(Boolean);
   if (codigos.length) {
-    const parts = codigos.map((c) => `codigo_universal.eq.${c}`);
+    const parts = codigos.map((c) => `codigo_universal.ilike.${c}`);
     const { data } = await supabaseAdmin
       .from('articulos')
       .select(ARTICULO_COLS)
@@ -280,7 +280,7 @@ async function sugerirExacto(pub: PublicacionSugerible): Promise<Sugerencia[]> {
       .from('articulos')
       .select(ARTICULO_COLS)
       .not('nombre', 'like', '%PLACEHOLDER%')
-      .eq('modelo', pub.model)
+      .ilike('modelo', pub.model!)
       .limit(30);
     const matches = (data || []).filter((a) => norm(a.marca) === norm(pub.brand));
     for (const a of matches) push(a, 95, 'marca_modelo', 'Marca y modelo coinciden exactamente');
@@ -354,10 +354,10 @@ async function sugerirFuzzy(pub: PublicacionSugerible): Promise<Sugerencia[]> {
 export async function sugerirArticulos(pub: PublicacionSugerible): Promise<Sugerencia[]> {
   const cantidad = multiplicadorDePublicacion(pub);
   const [porHermana, porAlias, exacto, fuzzy] = await Promise.all([
-    sugerirPorHermana(pub).catch(() => [] as Sugerencia[]),
-    sugerirPorAlias(pub).catch(() => [] as Sugerencia[]),
-    sugerirExacto(pub).catch(() => [] as Sugerencia[]),
-    sugerirFuzzy(pub).catch(() => [] as Sugerencia[]),
+    sugerirPorHermana(pub).catch((e) => { console.error('[sugerirArticulos] porHermana falló:', e?.message || e); return [] as Sugerencia[]; }),
+    sugerirPorAlias(pub).catch((e) => { console.error('[sugerirArticulos] porAlias falló:', e?.message || e); return [] as Sugerencia[]; }),
+    sugerirExacto(pub).catch((e) => { console.error('[sugerirArticulos] exacto falló:', e?.message || e); return [] as Sugerencia[]; }),
+    sugerirFuzzy(pub).catch((e) => { console.error('[sugerirArticulos] fuzzy falló:', e?.message || e); return [] as Sugerencia[]; }),
   ]);
 
   const map = new Map<string, Sugerencia>();
@@ -464,14 +464,14 @@ export async function sugerirPublicaciones(art: ArticuloSugerible): Promise<Publ
 
   // 1. SKU exacto
   if (skus.length) {
-    const parts = skus.flatMap((s) => [`seller_sku.eq.${s}`, `seller_custom_field.eq.${s}`]);
+    const parts = skus.flatMap((s) => [`seller_sku.ilike.${s}`, `seller_custom_field.ilike.${s}`]);
     const { data } = await publicacionesCandidatas(parts, 20);
     for (const p of data || []) push(p, 100, 'sku_exacto', 'SKU coincide exactamente');
   }
 
   // 2. Código de barras exacto
   if (codigo) {
-    const parts = [`ean.eq.${codigo}`, `gtin.eq.${codigo}`, `upc.eq.${codigo}`];
+    const parts = [`ean.ilike.${codigo}`, `gtin.ilike.${codigo}`, `upc.ilike.${codigo}`];
     const { data } = await publicacionesCandidatas(parts, 20);
     for (const p of data || []) push(p, 100, 'codigo_exacto', 'Código de barras coincide exactamente');
   }
@@ -482,7 +482,7 @@ export async function sugerirPublicaciones(art: ArticuloSugerible): Promise<Publ
       .from('publicaciones_externas')
       .select(PUB_COLS)
       .eq('external_variation_id', '0')
-      .eq('model', art.modelo)
+      .ilike('model', art.modelo!)
       .limit(30);
     for (const p of data || []) {
       if (marca && norm(p.brand) === marca) push(p, 95, 'marca_modelo', 'Marca y modelo coinciden exactamente');
@@ -501,11 +501,11 @@ export async function sugerirPublicaciones(art: ArticuloSugerible): Promise<Publ
     const cods = Array.from(new Set((alias || []).map((a: any) => normalizeCode(a.codigo_excel)).filter(Boolean)));
     if (cods.length) {
       const parts = cods.flatMap((c) => [
-        `seller_sku.eq.${c}`,
-        `seller_custom_field.eq.${c}`,
-        `ean.eq.${c}`,
-        `gtin.eq.${c}`,
-        `upc.eq.${c}`,
+        `seller_sku.ilike.${c}`,
+        `seller_custom_field.ilike.${c}`,
+        `ean.ilike.${c}`,
+        `gtin.ilike.${c}`,
+        `upc.ilike.${c}`,
       ]);
       const { data } = await publicacionesCandidatas(parts, 20);
       for (const p of data || []) push(p, 97, 'alias', 'Alias confirmado previamente en listas de precios');
@@ -625,7 +625,7 @@ export async function sugerirExactoEnLote(
   const modeloArts = new Map<string, any>();
 
   if (allSkus.size) {
-    const parts = Array.from(allSkus).flatMap((s) => [`articulo_id.eq.${s}`, `modelo.eq.${s}`]);
+    const parts = Array.from(allSkus).flatMap((s) => [`articulo_id.ilike.${s}`, `modelo.ilike.${s}`]);
     const { data } = await supabaseAdmin
       .from('articulos')
       .select(ARTICULO_COLS)
@@ -638,7 +638,7 @@ export async function sugerirExactoEnLote(
     }
   }
   if (allCodigos.size) {
-    const parts = Array.from(allCodigos).map((c) => `codigo_universal.eq.${c}`);
+    const parts = Array.from(allCodigos).map((c) => `codigo_universal.ilike.${c}`);
     const { data } = await supabaseAdmin
       .from('articulos')
       .select(ARTICULO_COLS)
@@ -648,7 +648,7 @@ export async function sugerirExactoEnLote(
     for (const a of data || []) codigoArts.set(normalizeCode(a.codigo_universal), a);
   }
   if (allModelos.size) {
-    const parts = Array.from(allModelos).map((m) => `modelo.eq.${m}`);
+    const parts = Array.from(allModelos).map((m) => `modelo.ilike.${m}`);
     const { data } = await supabaseAdmin
       .from('articulos')
       .select(ARTICULO_COLS)

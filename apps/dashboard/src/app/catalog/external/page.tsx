@@ -693,6 +693,7 @@ export default function VirtualCatalogPage() {
     // Facets
     const [facets, setFacets] = useState<{ brands: any[]; domains: any[] }>({ brands: [], domains: [] });
     const [marketplaces, setMarketplaces] = useState<{ id: string; account_name: string; count?: number }[]>([]);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const addLog = (msg: string) => {
         const time = new Date().toLocaleTimeString();
@@ -767,6 +768,7 @@ export default function VirtualCatalogPage() {
                 });
                 if (searchErr) throw searchErr;
                 if (seq !== requestSeq.current) return; // respuesta obsoleta: ignorar
+                setLoadError(null);
                 const rows = (searchData as any[]) || [];
                 setListings(rows);
                 setTotalCount(rows[0]?.total_count ? Number(rows[0].total_count) : rows.length);
@@ -775,7 +777,7 @@ export default function VirtualCatalogPage() {
 
             let query = supabase
                 .from('publicaciones_externas')
-                .select(`*, par_item_id, es_bundle, catalog_count, associated_count, marketplace:marketplace_configs(account_name)`, { count: 'exact' })
+                .select(`*, par_item_id, es_bundle, catalog_count, associated_count`, { count: 'exact' })
                 .order(filters.sortBy, { ascending: filters.sortDir === 'asc' })
                 .order('external_item_id', { ascending: true })
                 .order('external_variation_id', { ascending: true })
@@ -852,10 +854,14 @@ export default function VirtualCatalogPage() {
             const { data, error, count } = await query;
             if (error) throw error;
             if (seq !== requestSeq.current) return; // respuesta obsoleta: ignorar
+            setLoadError(null);
             setListings(data || []);
             setTotalCount(count || 0);
-        } catch (error) {
-            if (seq === requestSeq.current) console.error('Error fetching listings:', error);
+        } catch (error: any) {
+            if (seq === requestSeq.current) {
+                console.error('Error fetching listings:', error);
+                setLoadError(error?.message || 'Error al cargar las publicaciones');
+            }
         } finally {
             if (seq === requestSeq.current) setLoading(false);
         }
@@ -1006,7 +1012,11 @@ export default function VirtualCatalogPage() {
                                         ) : grouped.length === 0 ? (
                                             <tr>
                                                 <td colSpan={7} className="px-6 py-12 text-center text-[var(--text-faint)]">
-                                                    No se encontraron publicaciones con estos filtros.
+                                                    {loadError ? (
+                                                        <span className="text-[var(--err)]">⚠️ {loadError}</span>
+                                                    ) : (
+                                                        'No se encontraron publicaciones con estos filtros.'
+                                                    )}
                                                 </td>
                                             </tr>
                                         ) : (
@@ -1031,7 +1041,11 @@ export default function VirtualCatalogPage() {
                                     </div>
                                 ) : grouped.length === 0 ? (
                                     <div className="px-6 py-12 text-center text-[var(--text-faint)]">
-                                        No se encontraron publicaciones con estos filtros.
+                                        {loadError ? (
+                                            <span className="text-[var(--err)]">⚠️ {loadError}</span>
+                                        ) : (
+                                            'No se encontraron publicaciones con estos filtros.'
+                                        )}
                                     </div>
                                 ) : (
                                     grouped.map(group => {
