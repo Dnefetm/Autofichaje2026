@@ -127,7 +127,6 @@ return () => { cancelled = true; };
 
 // Solo bloquear si de verdad hay una hermana tradicional que mapear.
 const bloqueado = isBlockedCatalog && hermana !== null;
-const [verComparacion, setVerComparacion] = useState(false);
 
 useEffect(() => {
 if (listing && !bloqueado) {
@@ -579,18 +578,13 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     )}
                 </div>
 
-                {/* COMPARACIÓN A TODO LO ANCHO (vitrina / sugerido) — colapsable */}
-                {topSugerencia && !searchTerm && (
+                {/* COMPARACIÓN A TODO LO ANCHO (vitrina / sugerido) — siempre visible */}
+                {topSugerencia && (
                     <div className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
                         <div className="px-4 py-2 flex items-center justify-between gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setVerComparacion(v => !v)}
-                                className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-[var(--ok)] hover:brightness-110"
-                            >
+                            <p className="text-sm font-bold uppercase tracking-wider text-[var(--ok)]">
                                 Coincidencia {topSugerencia.score}% · {topSugerencia.motivo}
-                                <span className="font-semibold normal-case text-[var(--text-faint)]">{verComparacion ? '▲ Ocultar' : '▼ Ver comparación'}</span>
-                            </button>
+                            </p>
                             <div className="flex items-center gap-2 shrink-0">
                                 {(() => {
                                     const s = selectedSkus.find(x => x.sku === topSugerencia.articulo_id);
@@ -609,11 +603,9 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                 })()}
                             </div>
                         </div>
-                        {verComparacion && (
-                            <div className="px-4 pb-3 max-h-[35dvh] overflow-y-auto">
-                                <SugerenciaComparacion pub={{ titulo: pubTitle, brand: pubBrand, model: pubModel, sku: pubSku, codigo: pubGtin || pubEan || pubUpc }} sug={topSugerencia} />
-                            </div>
-                        )}
+                        <div className="px-4 pb-3 max-h-[180px] overflow-y-auto">
+                            <SugerenciaComparacion pub={{ titulo: pubTitle, brand: pubBrand, model: pubModel, sku: pubSku, codigo: pubGtin || pubEan || pubUpc }} sug={topSugerencia} />
+                        </div>
                     </div>
                 )}
 
