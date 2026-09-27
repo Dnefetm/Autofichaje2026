@@ -777,10 +777,9 @@ export default function VirtualCatalogPage() {
 
             let query = supabase
                 .from('publicaciones_externas')
-                .select(`*, par_item_id, es_bundle, catalog_count, associated_count`, { count: 'exact' })
+                // count 'estimated' (no COUNT(*) escaneo completo) para no reventar el statement_timeout
+                .select(`*, par_item_id, es_bundle, catalog_count, associated_count`, { count: 'estimated' })
                 .order(filters.sortBy, { ascending: filters.sortDir === 'asc' })
-                .order('external_item_id', { ascending: true })
-                .order('external_variation_id', { ascending: true })
                 .range(from, to);
 
             // --- Exclusión server-side de catálogos con par --------------------------
