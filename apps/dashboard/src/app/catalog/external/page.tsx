@@ -759,7 +759,7 @@ export default function VirtualCatalogPage() {
             // --- Búsqueda universal: usa RPC cuando hay término de búsqueda ------------------
             // La RPC busca en TODAS las pubs (incluidos catálogos ocultos) y devuelve
             // resultados con score de relevancia (SKU exacto > prefijo > título).
-            if (debouncedSearch.trim().length >= 2) {
+            if (debouncedSearch.trim().length >= 3) {
                 const { data: searchData, error: searchErr } = await supabase.rpc('buscar_publicaciones', {
                     p_term:           debouncedSearch.trim(),
                     p_marketplace_id: filters.marketplace_id || null,
