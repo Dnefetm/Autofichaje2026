@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { dispatchWorker } from '@/lib/dispatch-worker';
 import { X, Search, Package, Save, RefreshCw, Plus, Trash2, Tag, Barcode, Info } from 'lucide-react';
 import SugerenciaComparacion from './sugerencia-comparacion';
+import Link from 'next/link';
 interface MappingModalProps {
 listing: any;
 onClose: () => void;
@@ -105,17 +106,39 @@ const pubVariante = listing?.variation_attributes || null;
 const pubAccount = listing?.marketplace_configs?.account_name || listing?.account_name || '';
 const pubCodigo = [pubEan, pubGtin, pubUpc].filter(Boolean).join(' / ');
 const isBlockedCatalog = listing?.tipo_publicacion === 'catalogo' && !!listing?.par_item_id;
+// Hermana tradicional: si es catálogo con par_item_id, buscamos la hermana.
+// undefined = resolviendo; null = no hay hermana; {id} = hay hermana.
+const [hermana, setHermana] = useState<{ id: string; external_item_id: string } | null | undefined>(undefined);
+
 useEffect(() => {
-if (listing && !isBlockedCatalog) {
+if (!listing || !isBlockedCatalog) { setHermana(null); return; }
+let cancelled = false;
+(async () => {
+    const { data } = await supabase
+        .from('publicaciones_externas')
+        .select('id, external_item_id, tipo_publicacion')
+        .eq('external_item_id', listing.par_item_id)
+        .eq('external_variation_id', '0')
+        .limit(1);
+    if (!cancelled) setHermana(data?.[0] ? { id: data[0].id, external_item_id: data[0].external_item_id } : null);
+})().catch(() => { if (!cancelled) setHermana(null); });
+return () => { cancelled = true; };
+}, [listing?.id, isBlockedCatalog]);
+
+// Solo bloquear si de verdad hay una hermana tradicional que mapear.
+const bloqueado = isBlockedCatalog && hermana !== null;
+
+useEffect(() => {
+if (listing && !bloqueado) {
 loadExistingMappings();
 loadSmartSuggestions();
 loadSiblings();
 }
-}, [listing]);
+}, [listing, bloqueado]);
 
 // Sugerencia automática server-side (motor de vinculación centralizado)
 useEffect(() => {
-if (!listing?.id || isBlockedCatalog) return;
+if (!listing?.id || bloqueado) return;
 let cancelled = false;
 fetch(`/api/vinculacion/sugerencias?publicacion_id=${listing.id}`)
 .then((r) => r.json())
@@ -126,7 +149,7 @@ if (top && top.score >= 80) setTopSugerencia(top);
 })
 .catch(() => {});
 return () => { cancelled = true; };
-}, [listing?.id]);
+}, [listing?.id, bloqueado]);
 async function loadExistingMappings() {
 setLoading(true);
 try {
@@ -532,15 +555,20 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     </div>
                     
                     {/* Alertas debajo del banner si existen */}
-                    {(isBlockedCatalog || siblings.length > 0) && (
+                    {(bloqueado || siblings.length > 0) && (
                         <div className="px-6 py-2 bg-[var(--surface-2)] flex flex-col gap-2 border-t border-[var(--border)]">
-                            {isBlockedCatalog && (
+                            {bloqueado && hermana && (
                                 <div className="text-[var(--warn)] text-xs flex items-center gap-1.5">
                                     <Info size={14} className="shrink-0" />
-                                    <span><strong>Catálogo bloqueado (hereda stock).</strong> Mapea la publicación hermana {listing.par_item_id ? `(${listing.par_item_id})` : ''} para sincronizar stock correctamente.</span>
+                                    <span>
+                                        <strong>Catálogo (hereda stock).</strong> Mapea la publicación tradicional hermana:{' '}
+                                        <Link href={`/catalog/external/${hermana.id}`} className="font-bold underline text-[var(--accent)] hover:brightness-110">
+                                            {hermana.external_item_id} ↗
+                                        </Link>
+                                    </span>
                                 </div>
                             )}
-                            {!isBlockedCatalog && siblings.length > 0 && (
+                            {!bloqueado && siblings.length > 0 && (
                                 <div className="text-[var(--accent)] text-xs flex items-center gap-1.5">
                                     <Info size={14} className="shrink-0" />
                                     <span>Al guardar, propagarás a <strong>{siblings.length}</strong> publicación hermana(s).</span>
