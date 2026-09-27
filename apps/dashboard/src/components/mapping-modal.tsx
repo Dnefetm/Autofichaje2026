@@ -509,7 +509,7 @@ finally { setSaving(false); }
 const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel => sel.sku === s.articulo_id));
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-6xl h-[85dvh] max-h-[850px] overflow-hidden flex flex-col">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-6xl h-[90dvh] max-h-[900px] overflow-hidden flex flex-col">
                 
                 {/* Header del Modal */}
                 <div className="flex items-center justify-between px-4 py-1.5 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0">
@@ -558,14 +558,14 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     {(bloqueado || siblings.length > 0) && (
                         <div className="px-6 py-2 bg-[var(--surface-2)] flex flex-col gap-2 border-t border-[var(--border)]">
                             {bloqueado && hermana && (
-                                <div className="text-[var(--warn)] text-xs flex items-center gap-1.5">
-                                    <Info size={14} className="shrink-0" />
-                                    <span>
-                                        <strong>Catálogo (hereda stock).</strong> Mapea la publicación tradicional hermana:{' '}
-                                        <Link href={`/catalog/external/${hermana.id}`} className="font-bold underline text-[var(--accent)] hover:brightness-110">
-                                            {hermana.external_item_id} ↗
-                                        </Link>
-                                    </span>
+                                <div className="flex items-center gap-3 rounded-lg bg-[var(--warn)]/15 border border-[var(--warn)]/40 px-3 py-2">
+                                    <Info size={16} className="shrink-0 text-[var(--warn)]" />
+                                    <div className="text-sm text-[var(--warn)] font-medium">
+                                        <strong>Catálogo (hereda stock).</strong> Mapea la publicación tradicional hermana.
+                                    </div>
+                                    <Link href={`/catalog/external/${hermana.id}`} className="ml-auto shrink-0 px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-bold rounded-lg hover:brightness-110 whitespace-nowrap">
+                                        Ver hermana →
+                                    </Link>
                                 </div>
                             )}
                             {!bloqueado && siblings.length > 0 && (
@@ -577,6 +577,37 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                         </div>
                     )}
                 </div>
+
+                {/* COMPARACIÓN A TODO LO ANCHO (vitrina / sugerido) */}
+                {topSugerencia && !searchTerm && (
+                    <div className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0 max-h-[40dvh] overflow-y-auto">
+                        <div className="px-4 py-2 flex items-center justify-between gap-3">
+                            <p className="text-sm font-bold uppercase tracking-wider text-[var(--ok)]">
+                                Coincidencia {topSugerencia.score}% · {topSugerencia.motivo}
+                            </p>
+                            <div className="flex items-center gap-2 shrink-0">
+                                {(() => {
+                                    const s = selectedSkus.find(x => x.sku === topSugerencia.articulo_id);
+                                    return s ? (
+                                        <>
+                                            <span className="text-xs text-[var(--text-muted)]">Cantidad:</span>
+                                            <div className="flex items-center border border-[var(--border)] bg-[var(--surface-2)] rounded-lg overflow-hidden h-9">
+                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface)]">-</button>
+                                                <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, Math.max(1, parseInt(e.target.value) || 1))} className="w-12 h-full text-center text-sm font-bold bg-transparent border-none p-0 focus:ring-0 text-[var(--text)]" />
+                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface)]">+</button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <button onClick={() => handleAddSku(topSugerencia)} className="px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-semibold rounded-lg hover:brightness-110">Añadir</button>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                        <div className="px-4 pb-3">
+                            <SugerenciaComparacion pub={{ titulo: pubTitle, brand: pubBrand, model: pubModel, sku: pubSku, codigo: pubGtin || pubEan || pubUpc }} sug={topSugerencia} />
+                        </div>
+                    </div>
+                )}
 
                 {/* T-LAYOUT BODY: 2-Column Grid */}
                 <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden bg-[var(--surface)]">
@@ -598,50 +629,6 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                 />
                             </div>
                         </div>
-
-                        {/* Sugerencia automática (server-side): comparación alineada */}
-                        {topSugerencia && !searchTerm && (
-                            <div className="px-4 py-2 border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
-                                <div className="flex items-center justify-between gap-3 mb-2">
-                                    <p className="text-xs font-bold uppercase tracking-wider text-[var(--ok)]">
-                                        Coincidencia {topSugerencia.score}% · {topSugerencia.motivo}
-                                    </p>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        {(() => {
-                                            const s = selectedSkus.find(x => x.sku === topSugerencia.articulo_id);
-                                            return s ? (
-                                                <>
-                                                    <span className="text-xs text-[var(--text-muted)]">Cantidad:</span>
-                                                    <div className="flex items-center border border-[var(--border)] bg-[var(--surface-2)] rounded-lg overflow-hidden h-9">
-                                                        <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface)]">-</button>
-                                                        <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, Math.max(1, parseInt(e.target.value) || 1))} className="w-12 h-full text-center text-sm font-bold bg-transparent border-none p-0 focus:ring-0 text-[var(--text)]" />
-                                                        <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface)]">+</button>
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <button
-                                                    onClick={() => handleAddSku(topSugerencia)}
-                                                    className="px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-semibold rounded-lg hover:brightness-110"
-                                                >
-                                                    Añadir
-                                                </button>
-                                            );
-                                        })()}
-                                    </div>
-                                </div>
-
-                                <SugerenciaComparacion
-                                    pub={{
-                                        titulo: pubTitle,
-                                        brand: pubBrand,
-                                        model: pubModel,
-                                        sku: pubSku,
-                                        codigo: pubGtin || pubEan || pubUpc,
-                                    }}
-                                    sug={topSugerencia}
-                                />
-                            </div>
-                        )}
 
                         {/* Suggestions / Results (Scrollable Area) */}
                         <div className="flex-1 overflow-y-auto p-5 bg-[var(--surface)] space-y-4 max-h-[45vh] md:max-h-none">
