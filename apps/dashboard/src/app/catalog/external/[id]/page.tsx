@@ -324,6 +324,8 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     // Fase 3: datos enriquecidos lazy (health actions, costs, visits)
     const [enrichData, setEnrichData] = useState<{ health: any; costs: any; visits: any } | null>(null);
     const [enrichLoading, setEnrichLoading] = useState(false);
+    // Indica que el mapeo de esta publicación se está guardando en background.
+    const [mappingInProgress, setMappingInProgress] = useState(false);
 
     useEffect(() => { loadAll(false); }, [id]);
 
@@ -664,7 +666,11 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                         {(listingTypeConfig[pub.listing_type_id]?.label ?? pub.listing_type_id)}
                                     </span>
                                 )}
-                                {pub.esta_mapeado ? (
+                                {mappingInProgress ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--info)]/10 border text-[var(--info)]">
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Mapeando…
+                                    </span>
+                                ) : pub.esta_mapeado ? (
                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--ok)]/10 border  text-[var(--ok)]">
                                         <CheckCircle2 className="w-3.5 h-3.5" /> Mapeado
                                     </span>
@@ -1303,6 +1309,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                     listing={pub}
                     onClose={() => setShowMappingModal(false)}
                     onSuccess={() => { loadAll(); }}
+                    onMappingChange={(id, inProgress) => setMappingInProgress(inProgress)}
                 />
             )}
 

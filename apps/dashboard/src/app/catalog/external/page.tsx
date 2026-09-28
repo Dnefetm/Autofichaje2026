@@ -319,7 +319,7 @@ function ListingRow({
 }
 
 // --- Fila de grupo con variantes ------------------------------------------------
-function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMapear: (l: any) => void }) {
+function GroupedListingRows({ group, onMapear, mappingIds }: { group: GroupedListing; onMapear: (l: any) => void; mappingIds: Set<string> }) {
     const [expanded, setExpanded] = useState(false);
     // Lazy-load unificado de catálogos hijos + asociadas en una sola operación
     const [relatedExpanded, setRelatedExpanded] = useState(false);
@@ -400,7 +400,11 @@ function GroupedListingRows({ group, onMapear }: { group: GroupedListing; onMape
                         <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[parent.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
                             {statusLabels[parent.status_externo] || parent.status_externo}
                         </span>
-                        {parent.esta_mapeado ? (
+                        {mappingIds.has(parent.id) ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-[var(--info)] font-semibold">
+                                <RefreshCw className="w-3 h-3 animate-spin" /> Mapeando…
+                            </span>
+                        ) : parent.esta_mapeado ? (
                             <span className="inline-flex items-center gap-1 text-[10px] text-[var(--ok)] font-medium">
                                 <CheckCircle2 className="w-3 h-3" /> Mapeado
                             </span>
@@ -677,6 +681,15 @@ export default function VirtualCatalogPage() {
     const [selectedListing, setSelectedListing] = useState<any | null>(null);
     const [filters, setFilters] = useState<FilterState>(defaultFilters);
     const [showFilters, setShowFilters] = useState(false);
+    // Publicaciones cuyo mapeo se está guardando en background.
+    const [mappingIds, setMappingIds] = useState<Set<string>>(new Set());
+    const toggleMapping = (id: string, inProgress: boolean) => {
+        setMappingIds(prev => {
+            const next = new Set(prev);
+            if (inProgress) next.add(id); else next.delete(id);
+            return next;
+        });
+    };
 
     // Paginación
     const [page, setPage] = useState(0);
@@ -1024,6 +1037,7 @@ export default function VirtualCatalogPage() {
                                                     key={group.parent.id}
                                                     group={group}
                                                     onMapear={setSelectedListing}
+                                                    mappingIds={mappingIds}
                                                 />
                                             ))
                                         )}
@@ -1071,7 +1085,9 @@ export default function VirtualCatalogPage() {
                                                             <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[p.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
                                                                 {statusLabels[p.status_externo] || p.status_externo}
                                                             </span>
-                                                            {p.esta_mapeado ? (
+                                                            {mappingIds.has(p.id) ? (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] text-[var(--info)] font-semibold"><RefreshCw className="w-3 h-3 animate-spin" /> Mapeando…</span>
+                                                            ) : p.esta_mapeado ? (
                                                                 <span className="inline-flex items-center gap-1 text-[10px] text-[var(--ok)] font-medium"><CheckCircle2 className="w-3 h-3" /> Mapeado</span>
                                                             ) : (
                                                                 <span className="inline-flex items-center gap-1 text-[10px] text-[var(--err)] font-medium"><AlertCircle className="w-3 h-3" /> Sin mapear</span>
@@ -1154,6 +1170,7 @@ export default function VirtualCatalogPage() {
                     listing={selectedListing}
                     onClose={() => setSelectedListing(null)}
                     onSuccess={() => { loadListings(); }}
+                    onMappingChange={toggleMapping}
                 />
             )}
         </div>

@@ -53,6 +53,16 @@ export default function PendientesPage() {
   const [sugerenciaInicial, setSugerenciaInicial] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkVinculando, setBulkVinculando] = useState(false);
+  // Publicaciones cuyo mapeo se está guardando en background.
+  const [mappingIds, setMappingIds] = useState<Set<string>>(new Set());
+  const toggleMapping = (id: string, inProgress: boolean) => {
+    setMappingIds((prev) => {
+      const next = new Set(prev);
+      if (inProgress) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -250,20 +260,28 @@ export default function PendientesPage() {
 
             {/* Acciones */}
             <div className="flex flex-wrap gap-2 mt-3">
-              {r._sugerencia && (
-                <button
-                  onClick={() => { setSugerenciaInicial(r._sugerencia); setSelected(r); }}
-                  className="px-3 py-1.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg text-sm font-semibold"
-                >
-                  Mapear con sugerido
-                </button>
+              {mappingIds.has(r.id) ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--info)]/10 border border-[var(--info)]/30 text-[var(--info)] rounded-lg text-sm font-semibold">
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Mapeando…
+                </span>
+              ) : (
+                <>
+                  {r._sugerencia && (
+                    <button
+                      onClick={() => { setSugerenciaInicial(r._sugerencia); setSelected(r); }}
+                      className="px-3 py-1.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg text-sm font-semibold"
+                    >
+                      Mapear con sugerido
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setSugerenciaInicial(null); setSelected(r); }}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium ${r._sugerencia ? 'bg-[var(--surface-2)] hover:brightness-110 text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
+                  >
+                    Mapear
+                  </button>
+                </>
               )}
-              <button
-                onClick={() => { setSugerenciaInicial(null); setSelected(r); }}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium ${r._sugerencia ? 'bg-[var(--surface-2)] hover:brightness-110 text-[var(--text-muted)]' : 'bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)]'}`}
-              >
-                Mapear
-              </button>
               <Link
                 href={`/catalog/external/${r.id}`}
                 className="inline-flex items-center gap-1 px-2 py-1.5 bg-[var(--surface-2)] hover:brightness-110 text-[var(--text-muted)] rounded-lg text-sm"
@@ -328,6 +346,7 @@ export default function PendientesPage() {
           listing={selected}
           sugerenciaInicial={sugerenciaInicial}
           onClose={() => { setSelected(null); setSugerenciaInicial(null); }}
+          onMappingChange={toggleMapping}
           onSuccess={() => {
             const id = selected?.id;
             // Desaparece de inmediato (optimista). Sin recarga: sigues con la siguiente.

@@ -11,6 +11,7 @@ listing: any;
 onClose: () => void;
 onSuccess: () => void;
 sugerenciaInicial?: any;
+onMappingChange?: (publicacionId: string, inProgress: boolean) => void;
 }
 function stringSimilarity(a: string, b: string): number {
 if (!a || !b) return 0;
@@ -62,7 +63,7 @@ function TipoBadge({ tipo }: { tipo?: string | null }) {
 const info = tipoInfo(tipo);
 return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${info.className}`}>{info.label}</span>;
 }
-export default function MappingModal({ listing, onClose, onSuccess, sugerenciaInicial }: MappingModalProps) {
+export default function MappingModal({ listing, onClose, onSuccess, sugerenciaInicial, onMappingChange }: MappingModalProps) {
 const [searchTerm, setSearchTerm] = useState('');
 const [searchResults, setSearchResults] = useState<any[]>([]);
 const [selectedSkus, setSelectedSkus] = useState<any[]>(() => {
@@ -425,7 +426,7 @@ async function handleSave() {
 setSaving(true);
 // Cerrar de inmediato (optimista): el guardado corre en background.
 onClose();
-toast.info('Guardando mapeo en segundo plano…');
+onMappingChange?.(listing.id, true);
 let mapeosPrevios: any[] | null = null;
 try {
 // Compensación: snapshot de los mapeos actuales para restaurar si falla a mitad.
@@ -507,7 +508,10 @@ await supabase.from('mapeo_publicacion_articulo')
 }
 toast.error('Ocurrio un error al guardar el mapeo. Se restauraron los mapeos anteriores.');
 }
-finally { setSaving(false); }
+finally {
+setSaving(false);
+onMappingChange?.(listing.id, false);
+}
 }
 const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel => sel.sku === s.articulo_id));
     return (
