@@ -146,7 +146,7 @@ fetch(`/api/vinculacion/sugerencias?publicacion_id=${listing.id}`)
 .then((d) => {
 if (cancelled || !d?.ok) return;
 const top = d.sugerencias?.[0];
-if (top && top.score >= 80) setTopSugerencia(top);
+if (top) setTopSugerencia(top);
 })
 .catch(() => {});
 return () => { cancelled = true; };
@@ -514,6 +514,20 @@ onMappingChange?.(listing.id, false);
 }
 }
 const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel => sel.sku === s.articulo_id));
+// Artículo del catálogo a comparar contra la vitrina (H6: Catálogo arriba / Vitrina abajo).
+// Prioridad: sugerencia del servidor; si no hay (p. ej. al editar un mapeo ya existente),
+// se usa el primer artículo ya seleccionado para que la comparación SIEMPRE esté visible.
+const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
+    articulo_id: selectedSkus[0].sku,
+    nombre: selectedSkus[0].name,
+    marca: selectedSkus[0].marca,
+    modelo: selectedSkus[0].modelo,
+    variante: selectedSkus[0].variante,
+    codigo_universal: selectedSkus[0].codigo_universal,
+    caja_madre: selectedSkus[0].caja_madre,
+    score: null,
+    motivo: null,
+} : null);
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4">
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-6xl h-[90dvh] max-h-[900px] overflow-hidden flex flex-col">
@@ -585,16 +599,18 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     )}
                 </div>
 
-                {/* COMPARACIÓN A TODO LO ANCHO (vitrina / sugerido) — siempre visible */}
-                {topSugerencia && (
+                {/* COMPARACIÓN (H6: Catálogo arriba / Vitrina abajo) — visible siempre que hay candidato */}
+                {comparisonArticle && (
                     <div className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
                         <div className="px-4 py-2 flex items-center justify-between gap-3">
                             <p className="text-sm font-bold uppercase tracking-wider text-[var(--ok)]">
-                                Coincidencia {topSugerencia.score}% · {topSugerencia.motivo}
+                                {comparisonArticle.score != null
+                                    ? `Coincidencia ${comparisonArticle.score}% · ${comparisonArticle.motivo}`
+                                    : 'Mapeo actual'}
                             </p>
                             <div className="flex items-center gap-2 shrink-0">
                                 {(() => {
-                                    const s = selectedSkus.find(x => x.sku === topSugerencia.articulo_id);
+                                    const s = selectedSkus.find(x => x.sku === comparisonArticle.articulo_id);
                                     return s ? (
                                         <>
                                             <span className="text-xs text-[var(--text-muted)]">Cantidad:</span>
@@ -605,13 +621,13 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                                             </div>
                                         </>
                                     ) : (
-                                        <button onClick={() => handleAddSku(topSugerencia)} className="px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-semibold rounded-lg hover:brightness-110">Añadir</button>
+                                        <button onClick={() => handleAddSku(comparisonArticle)} className="px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-semibold rounded-lg hover:brightness-110">Añadir</button>
                                     );
                                 })()}
                             </div>
                         </div>
                         <div className="px-4 pb-3 max-h-40 overflow-y-auto">
-                            <SugerenciaComparacion pub={{ titulo: pubTitle, brand: pubBrand, model: pubModel, sku: pubSku, codigo: pubGtin || pubEan || pubUpc }} sug={topSugerencia} />
+                            <SugerenciaComparacion pub={{ titulo: pubTitle, brand: pubBrand, model: pubModel, sku: pubSku, codigo: pubGtin || pubEan || pubUpc }} sug={comparisonArticle} />
                         </div>
                     </div>
                 )}
