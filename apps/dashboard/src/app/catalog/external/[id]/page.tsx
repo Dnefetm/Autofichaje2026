@@ -1302,7 +1302,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 <MappingModal
                     listing={pub}
                     onClose={() => setShowMappingModal(false)}
-                    onSuccess={() => { setShowMappingModal(false); loadAll(); }}
+                    onSuccess={() => { loadAll(); }}
                 />
             )}
 

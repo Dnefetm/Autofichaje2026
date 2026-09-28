@@ -1153,7 +1153,7 @@ export default function VirtualCatalogPage() {
                 <MappingModal
                     listing={selectedListing}
                     onClose={() => setSelectedListing(null)}
-                    onSuccess={() => { setSelectedListing(null); loadListings(); }}
+                    onSuccess={() => { loadListings(); }}
                 />
             )}
         </div>

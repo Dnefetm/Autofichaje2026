@@ -330,8 +330,6 @@ export default function PendientesPage() {
           onClose={() => { setSelected(null); setSugerenciaInicial(null); }}
           onSuccess={() => {
             const id = selected?.id;
-            setSelected(null);
-            setSugerenciaInicial(null);
             // Desaparece de inmediato (optimista). Sin recarga: sigues con la siguiente.
             if (id) setRows((prev) => prev.filter((r) => r.id !== id));
           }}
