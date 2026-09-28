@@ -116,12 +116,7 @@ export default function MapearColumnasPage() {
         try {
             await guardarMapeo();
 
-            // Iniciar parser
-            const rParse = await fetch(`/api/precios/importar/${importacionId}/iniciar-parser`, { method: 'POST' });
-            if (!rParse.ok) {
-                const jParse = await rParse.json().catch(() => ({}));
-                throw new Error(jParse.error || 'Error al iniciar procesamiento.');
-            }
+            // (El parseo del Excel ya se hizo en el navegador durante la subida.)
 
             // Extraer los valores distintos de la columna de marca para aprobar cuáles son reales
             if (colMarca) {

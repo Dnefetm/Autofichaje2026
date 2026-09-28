@@ -67,7 +67,55 @@ export default function SubirPaso1() {
             const importacionId = j3.importacion_id || j3.importacion_activa?.id;
             if (!importacionId) throw new Error("No se recibió ID de importación del servidor");
 
-            // 4) Ir a MAPEAR columnas (el usuario confirma; el parser se dispara DESPUÉS)
+            // 4) Parsear el Excel EN EL NAVEGADOR (CPU libre) y mandar chunks a Postgres.
+            //    Evita los límites de CPU (2s) de las Edge Functions de Supabase.
+            const XLSX = await import('xlsx');
+            const buf = await file.arrayBuffer();
+            const wb = XLSX.read(buf, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
+            const headers: string[] = (rows[0] || []).map((h: any) => String(h ?? '').trim());
+
+            const CHUNK = 1000;
+            let chunk: any[] = [];
+            let filaNum = 0;
+
+            for (let i = 1; i < rows.length; i++) {
+                const vals = rows[i] || [];
+                const payload: Record<string, string> = {};
+                const colsUsadas: string[] = [];
+                let nonEmpty = 0;
+                for (let c = 0; c < headers.length; c++) {
+                    const h = headers[c];
+                    if (!h) continue;
+                    const valStr = String(vals[c] ?? '').trim();
+                    payload[h] = valStr;
+                    colsUsadas.push(h);
+                    if (valStr !== '') nonEmpty++;
+                }
+                if (nonEmpty < 3) continue;
+                filaNum++;
+                chunk.push({ fila_num: filaNum, payload, columnas_guardadas: colsUsadas });
+                if (chunk.length >= CHUNK) {
+                    const { error: rpcErr } = await supabase.rpc('fn_insertar_raw_lote', {
+                        p_importacion_id: importacionId,
+                        p_proveedor: proveedor,
+                        p_filas: chunk,
+                    });
+                    if (rpcErr) throw new Error(`Error al insertar lote: ${rpcErr.message}`);
+                    chunk = [];
+                }
+            }
+            if (chunk.length > 0) {
+                const { error: rpcErr } = await supabase.rpc('fn_insertar_raw_lote', {
+                    p_importacion_id: importacionId,
+                    p_proveedor: proveedor,
+                    p_filas: chunk,
+                });
+                if (rpcErr) throw new Error(`Error al insertar lote final: ${rpcErr.message}`);
+            }
+
+            // 5) Ir a MAPEAR columnas (el parseo ya quedó hecho en el navegador)
             router.push(`/precios/${encodeURIComponent(proveedor)}/mapear?importacion_id=${importacionId}`);
         } catch (e: any) {
             setError(e.message);
