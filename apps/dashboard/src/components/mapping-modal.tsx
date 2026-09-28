@@ -667,7 +667,7 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
                         </div>
 
                         {/* Suggestions / Results (Scrollable Area) */}
-                        <div className="flex-1 min-h-0 overflow-y-auto p-5 bg-[var(--surface)] space-y-4 max-h-[45vh] md:max-h-none">
+                        <div className="flex-1 min-h-0 overflow-y-auto p-5 bg-[var(--surface)] space-y-4 max-h-[26vh] md:max-h-none">
                             {searchResults.length > 0 ? (
                                 <div className="space-y-2">
                                     <h4 className="text-xs font-bold text-[var(--text)] mb-2">Resultados de búsqueda</h4>
@@ -763,7 +763,7 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
                             <p className="text-xs text-[var(--text-muted)] mt-1">Estos productos se descontarán por cada venta.</p>
                         </div>
 
-                        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-3 relative max-h-[45vh] md:max-h-none">
+                        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-3 relative max-h-[34vh] md:max-h-none">
                             {loading ? (
                                 <div className="text-center py-10 text-[var(--text-faint)]">
                                     <RefreshCw size={24} className="mx-auto mb-3 animate-spin opacity-50" />
