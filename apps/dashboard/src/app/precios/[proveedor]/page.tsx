@@ -9,28 +9,26 @@ export const revalidate = 0;
 
 const normalizeTier = (s: string) => (s || '').toLowerCase().trim();
 
-// Lee los precios vigentes del lote (paginado) desde la tabla canónica.
-// Si hay búsqueda, filtra del lado del servidor (SKU, marca o descripción).
-async function fetchPrecios(importacionId: string, q: string): Promise<any[]> {
-    const rows: any[] = [];
-    let from = 0;
-    while (true) {
-        let query = supabaseAdmin
-            .from('precios_proveedor')
-            .select('sku_proveedor, marca, descripcion, tipo_costo, valor, columnas')
-            .eq('importacion_id', importacionId)
-            .eq('vigente', true);
-        if (q) {
-            const like = `%${q}%`;
-            query = query.or(`sku_proveedor.ilike.${like},marca.ilike.${like},descripcion.ilike.${like}`);
-        }
-        const { data } = await query.range(from, from + 999);
-        if (!data || data.length === 0) break;
-        rows.push(...data);
-        if (data.length < 1000) break;
-        from += 1000;
+// Lee los SKUs vigentes desde un RPC que agrupa/filtra/ordena/pagina en SQL.
+// Sin búsqueda: devuelve la página actual (paginación determinística por SKU).
+// Con búsqueda: devuelve todos los resultados coincidentes (filtro server-side).
+async function fetchSkus(
+    importacionId: string,
+    q: string,
+    page: number,
+    pageSize: number
+): Promise<{ rows: any[]; total: number }> {
+    const { data, error } = await supabaseAdmin.rpc('fn_hub_precios_proveedor', {
+        p_importacion_id: importacionId,
+        p_busqueda: q || null,
+        p_offset: q ? 0 : page * pageSize,
+        p_limit: q ? 100000 : pageSize,
+    });
+    if (error) {
+        console.error('fn_hub_precios_proveedor', error);
+        return { rows: [], total: 0 };
     }
-    return rows;
+    return { rows: (data?.rows || []) as any[], total: data?.total || 0 };
 }
 
 export default async function HubProveedorPage(props: {
@@ -79,8 +77,6 @@ export default async function HubProveedorPage(props: {
             .single();
         mapeo = impMapeo?.mapeo_columnas || null;
     }
-    const mapeoOrder = (mapeo?.precios || []).map((pr: any) => normalizeTier(pr.tipo_costo)).filter(Boolean);
-
     // Columnas extra a mostrar: las que el usuario eligió guardar (columnas_a_guardar),
     // menos las ya mostradas como columnas semánticas (modelo, código, marca, descripción, precios).
     const semanticCols = new Set<string>(
@@ -89,98 +85,80 @@ export default async function HubProveedorPage(props: {
     );
     const extraCols: string[] = (mapeo?.columnas_a_guardar || []).filter((c: string) => !semanticCols.has(c));
 
-    // 3. Precios vigentes desde la tabla canónica (precios_proveedor), agrupados por SKU
-    const precios = importacionId ? await fetchPrecios(importacionId, q) : [];
+    // 3. SKUs vigentes desde la vista agrupada (1 consulta + count, server-side)
+    const { rows: skuRows, total: totalSkus } = importacionId
+        ? await fetchSkus(importacionId, q, page, pageSize)
+        : { rows: [], total: 0 };
 
-    const grouped = new Map<string, { sku: string; marca: string; descripcion: string; tiers: Record<string, number | null>; columnas: Record<string, string> | null }>();
-    const tierLabels = new Map<string, string>();
-
-    for (const r of precios) {
-        const sku = r.sku_proveedor;
-        if (!sku) continue;
-        let g = grouped.get(sku);
-        if (!g) {
-            g = {
-                sku,
-                marca: r.marca || '',
-                descripcion: r.descripcion || '',
-                tiers: {},
-                columnas: (r.columnas && typeof r.columnas === 'object') ? r.columnas : null,
-            };
-            grouped.set(sku, g);
-        }
-        const k = normalizeTier(r.tipo_costo);
-        if (!k) continue;
-        if (r.valor != null) g.tiers[k] = Number(r.valor);
-        if (!tierLabels.has(k)) tierLabels.set(k, r.tipo_costo || k);
-    }
-
-    // 4. Alias existentes (paginado) → vinculación + EAN por SKU
+    // 4. Alias de los SKUs visibles → vinculación + EAN por SKU (IN por lotes, sin paginar todo)
+    const skus = skuRows.map(r => r.sku_proveedor).filter(Boolean);
     const aliasMap = new Map<string, string>();   // model:<sku> -> articulo_id ; code:<ean> -> articulo_id
     const aliasEanMap = new Map<string, string>(); // <sku> -> ean (codigo_excel)
-    let aliasOffset = 0;
-    while (true) {
-        const { data: aliasChunk } = await supa
-            .from('proveedor_articulos_alias')
-            .select('codigo_excel, modelo_excel, articulo_id')
-            .eq('proveedor', proveedorDecoded)
-            .order('id', { ascending: true })
-            .range(aliasOffset, aliasOffset + 999);
-        if (!aliasChunk || aliasChunk.length === 0) break;
-        aliasChunk.forEach(a => {
-            if (a.modelo_excel) {
-                aliasMap.set(`model:${a.modelo_excel}`, a.articulo_id);
-                aliasEanMap.set(a.modelo_excel, a.codigo_excel || '');
-            }
-            if (a.codigo_excel) aliasMap.set(`code:${a.codigo_excel}`, a.articulo_id);
-        });
-        aliasOffset += 1000;
-        if (aliasChunk.length < 1000) break;
+
+    if (skus.length > 0) {
+        for (let i = 0; i < skus.length; i += 500) {
+            const batch = skus.slice(i, i + 500);
+            const { data: chunk } = await supa
+                .from('proveedor_articulos_alias')
+                .select('codigo_excel, modelo_excel, articulo_id')
+                .eq('proveedor', proveedorDecoded)
+                .in('modelo_excel', batch);
+            chunk?.forEach(a => {
+                if (a.modelo_excel) {
+                    aliasMap.set(`model:${a.modelo_excel}`, a.articulo_id);
+                    aliasEanMap.set(a.modelo_excel, a.codigo_excel || '');
+                }
+                if (a.codigo_excel) aliasMap.set(`code:${a.codigo_excel}`, a.articulo_id);
+            });
+        }
+        const eans = [...new Set([...aliasEanMap.values()].filter(Boolean))];
+        for (let i = 0; i < eans.length; i += 500) {
+            const batch = eans.slice(i, i + 500);
+            const { data: chunk } = await supa
+                .from('proveedor_articulos_alias')
+                .select('codigo_excel, articulo_id')
+                .eq('proveedor', proveedorDecoded)
+                .in('codigo_excel', batch);
+            chunk?.forEach(a => {
+                if (a.codigo_excel) aliasMap.set(`code:${a.codigo_excel}`, a.articulo_id);
+            });
+        }
     }
 
-    // 5. Construir items con tiers dinámicos + columnas extra elegidas en el mapeo
-    let items: HubItem[] = [...grouped.values()].map(g => {
-        const ean = aliasEanMap.get(g.sku) || '';
+    // 5. Construir items desde la vista (tiers y columnas ya vienen en JSONB)
+    const items: HubItem[] = skuRows.map(r => {
+        const ean = aliasEanMap.get(r.sku_proveedor) || '';
         const extra: Record<string, string> = {};
-        if (g.columnas) {
+        const columnas = (r.columnas && typeof r.columnas === 'object') ? r.columnas as Record<string, unknown> : null;
+        if (columnas) {
             for (const col of extraCols) {
-                const v = g.columnas[col];
+                const v = columnas[col];
                 if (v != null && String(v).trim() !== '') extra[col] = String(v);
             }
         }
         return {
-            id: g.sku,
-            sku: g.sku,
+            id: r.sku_proveedor,
+            sku: r.sku_proveedor,
             codigo: ean,
-            marca: g.marca,
-            descripcion: g.descripcion,
-            tiers: g.tiers,
+            marca: r.marca || '',
+            descripcion: r.descripcion || '',
+            tiers: (r.tiers && typeof r.tiers === 'object') ? r.tiers as Record<string, number | null> : {},
             extra,
             articulo_id_vinculado:
-                aliasMap.get(`model:${g.sku}`) ||
+                aliasMap.get(`model:${r.sku_proveedor}`) ||
                 (ean ? aliasMap.get(`code:${ean}`) : null) ||
                 null,
         };
     });
 
-    // 6. Orden estable por SKU (la búsqueda ya se aplicó del lado del servidor)
-    items.sort((a, b) => a.sku.localeCompare(b.sku, 'es', { numeric: true }));
+    // 6. Columnas de precio dinámicas desde el mapeo (orden del operador)
+    const tierOrder: TierCol[] = (mapeo?.precios || [])
+        .map((pr: any) => ({ key: normalizeTier(pr.tipo_costo), label: pr.tipo_costo }))
+        .filter((t: TierCol) => !!t.key);
 
-    const totalSkus = items.length;
-
-    // 8. Columnas de precio dinámicas (orden del mapeo + resto ordenado)
-    const tierOrder: TierCol[] = [];
-    for (const k of mapeoOrder) {
-        if (tierLabels.has(k) && !tierOrder.some(t => t.key === k)) {
-            tierOrder.push({ key: k, label: tierLabels.get(k)! });
-        }
-    }
-    for (const k of [...tierLabels.keys()].sort()) {
-        if (!tierOrder.some(t => t.key === k)) tierOrder.push({ key: k, label: tierLabels.get(k)! });
-    }
-
-    const paginated = items.slice(page * pageSize, page * pageSize + pageSize);
-    const totalPaginas = Math.ceil(totalSkus / pageSize);
+    // La paginación ya se hizo del lado del servidor.
+    const paginated = items;
+    const totalPaginas = q ? 1 : Math.ceil(totalSkus / pageSize);
 
     return (
         <div className="flex flex-col h-full bg-[var(--surface)] relative">
