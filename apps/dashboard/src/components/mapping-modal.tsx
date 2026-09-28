@@ -378,7 +378,7 @@ setSearchResults(scored);
 }
 function handleAddSku(product: any) {
         if (selectedSkus.find(s => s.sku === product.articulo_id)) return;
-        setSelectedSkus([{
+        setSelectedSkus(prev => [{
             sku: product.articulo_id,
             name: product.nombre || 'Sin nombre',
             marca: product.marca || '',
@@ -387,7 +387,7 @@ function handleAddSku(product: any) {
             codigo_universal: product.codigo_universal || '',
             caja_madre: product.caja_madre || '',
             quantity: 1
-        }, ...selectedSkus]);
+        }, ...prev]);
         setSearchTerm('');
     }
 function handleRemoveSku(sku: string) { setSelectedSkus(selectedSkus.filter(s => s.sku !== sku)); }
@@ -423,12 +423,17 @@ setSiblingsLoading(false);
 }
 async function handleSave() {
 setSaving(true);
+// Cerrar de inmediato (optimista): el guardado corre en background.
+onClose();
+toast.info('Guardando mapeo en segundo plano…');
+let mapeosPrevios: any[] | null = null;
+try {
 // Compensación: snapshot de los mapeos actuales para restaurar si falla a mitad.
-const { data: mapeosPrevios } = await supabase
+const { data: mapeosSnap } = await supabase
 .from('mapeo_publicacion_articulo')
 .select('publicacion_id, articulo_id, cantidad_requerida')
 .eq('publicacion_id', listing.id);
-try {
+mapeosPrevios = mapeosSnap || null;
 
 if (selectedSkus.length === 0) {
 // Desvincular todo: borrar TODOS los mapeos (listing + hermanas) y marcar desmapeado.
@@ -436,7 +441,6 @@ const relacionados = [listing.id, ...siblings.filter(s => s.id !== listing.id).m
 await supabase.from('mapeo_publicacion_articulo').delete().in('publicacion_id', relacionados);
 await supabase.from('publicaciones_externas').update({ esta_mapeado: false }).in('id', relacionados);
 onSuccess();
-onClose();
 return;
 }
 const snapshotUpserts = selectedSkus.map(s => ({ sku: s.sku, physical_stock: 0, updated_at: new Date().toISOString() }));
@@ -493,7 +497,6 @@ await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publi
 // El worker se dispara sin bloquear el cierre del modal.
 dispatchWorker();
 onSuccess();
-onClose();
 } catch (error) {
 console.error('Error guardando el mapeo:', error);
 // Rollback de compensación: restaura los mapeos previos del listing.
@@ -610,10 +613,10 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                 )}
 
                 {/* T-LAYOUT BODY: 2-Column Grid */}
-                <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden bg-[var(--surface)]">
+                <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden bg-[var(--surface)]">
                     
                     {/* LEFT COLUMN: Search & Catalog (60%) */}
-                    <div className="w-full md:w-[60%] shrink-0 flex flex-col md:border-r border-[var(--border)] overflow-hidden">
+                    <div className="w-full md:w-[60%] shrink-0 min-h-0 flex flex-col md:border-r border-[var(--border)] overflow-hidden">
                         
                         {/* Search Input (Sticky Top of Column) */}
                         <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-sm relative z-10">
@@ -715,7 +718,7 @@ const filteredSuggestions = smartSuggestions.filter(s => !selectedSkus.find(sel 
                     </div>
 
                     {/* RIGHT COLUMN: Cart / Selected (40%) */}
-                    <div className="w-full md:w-[40%] shrink-0 flex flex-col bg-[var(--surface-2)]/30 border-t md:border-t-0 md:border-l border-[var(--border)]">
+                    <div className="w-full md:w-[40%] shrink-0 min-h-0 flex flex-col bg-[var(--surface-2)]/30 border-t md:border-t-0 md:border-l border-[var(--border)]">
                         <div className="p-5 border-b border-[var(--border)] bg-[var(--surface-2)] shrink-0 shadow-sm relative z-10">
                             <h4 className="text-sm font-bold text-[var(--text)] flex items-center gap-2">
                                 <Package size={16} className="text-[var(--accent)]" /> 
