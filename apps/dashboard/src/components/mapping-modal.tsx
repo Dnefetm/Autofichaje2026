@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dispatchWorker } from '@/lib/dispatch-worker';
 import { X, Search, Package, Save, RefreshCw, Plus, Trash2, Tag, Barcode, Info } from 'lucide-react';
-import SugerenciaComparacion from './sugerencia-comparacion';
 import Link from 'next/link';
 interface MappingModalProps {
 listing: any;
@@ -599,35 +598,49 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
                     )}
                 </div>
 
-                {/* COMPARACIÓN (H6: Catálogo arriba / Vitrina abajo) — visible siempre que hay candidato */}
+                {/* SUGERENCIA COMPACTA: 2 líneas (Catálogo/Vitrina) para no robar espacio a búsqueda ni ensamble */}
                 {comparisonArticle && (
-                    <div className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0">
-                        <div className="px-4 py-2 flex items-center justify-between gap-3">
-                            <p className="text-sm font-bold uppercase tracking-wider text-[var(--ok)]">
+                    <div className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 shrink-0 px-4 py-2 space-y-1.5">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs font-bold text-[var(--ok)] shrink-0 min-w-0 truncate">
                                 {comparisonArticle.score != null
-                                    ? `Coincidencia ${comparisonArticle.score}% · ${comparisonArticle.motivo}`
-                                    : 'Mapeo actual'}
+                                    ? `✔ ${comparisonArticle.score}% · ${comparisonArticle.motivo}`
+                                    : '✔ Mapeo actual'}
                             </p>
                             <div className="flex items-center gap-2 shrink-0">
                                 {(() => {
                                     const s = selectedSkus.find(x => x.sku === comparisonArticle.articulo_id);
                                     return s ? (
-                                        <>
-                                            <span className="text-xs text-[var(--text-muted)]">Cantidad:</span>
-                                            <div className="flex items-center border border-[var(--border)] bg-[var(--surface-2)] rounded-lg overflow-hidden h-9">
-                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface)]">-</button>
-                                                <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, Math.max(1, parseInt(e.target.value) || 1))} className="w-12 h-full text-center text-sm font-bold bg-transparent border-none p-0 focus:ring-0 text-[var(--text)]" />
-                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface)]">+</button>
-                                            </div>
-                                        </>
+                                        <div className="flex items-center border border-[var(--border)] bg-[var(--surface)] rounded-md overflow-hidden h-7">
+                                            <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="w-7 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface-2)]">-</button>
+                                            <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, Math.max(1, parseInt(e.target.value) || 1))} className="w-10 h-full text-center text-xs font-bold bg-transparent border-none p-0 focus:ring-0 text-[var(--text)]" />
+                                            <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="w-7 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface-2)]">+</button>
+                                        </div>
                                     ) : (
-                                        <button onClick={() => handleAddSku(comparisonArticle)} className="px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-semibold rounded-lg hover:brightness-110">Añadir</button>
+                                        <button onClick={() => handleAddSku(comparisonArticle)} className="px-3 py-1 bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-semibold rounded-md hover:brightness-110">Añadir</button>
                                     );
                                 })()}
                             </div>
                         </div>
-                        <div className="px-4 pb-3 max-h-40 overflow-y-auto">
-                            <SugerenciaComparacion pub={{ titulo: pubTitle, brand: pubBrand, model: pubModel, sku: pubSku, codigo: pubGtin || pubEan || pubUpc }} sug={comparisonArticle} />
+
+                        <div className="text-xs flex items-start gap-2">
+                            <span className="shrink-0 w-16 text-[10px] font-bold uppercase tracking-wider text-[var(--text-faint)] pt-0.5">Catálogo</span>
+                            <span className="font-semibold text-[var(--text)] min-w-0 break-words">
+                                {comparisonArticle.nombre}
+                                {comparisonArticle.marca && <span className="text-[var(--text-muted)] font-normal"> · {comparisonArticle.marca}</span>}
+                                {comparisonArticle.modelo && <span className="font-mono"> · {comparisonArticle.modelo}</span>}
+                                {comparisonArticle.codigo_universal && <span className="font-mono text-[var(--text-muted)]"> · {comparisonArticle.codigo_universal}</span>}
+                                {comparisonArticle.caja_madre && <span className="text-[var(--warn)] font-semibold"> · 📍{comparisonArticle.caja_madre}</span>}
+                            </span>
+                        </div>
+                        <div className="text-xs flex items-start gap-2">
+                            <span className="shrink-0 w-16 text-[10px] font-bold uppercase tracking-wider text-[var(--text-faint)] pt-0.5">Vitrina</span>
+                            <span className="text-[var(--text-muted)] min-w-0 break-words">
+                                {pubTitle}
+                                {pubBrand && <span> · {pubBrand}</span>}
+                                {(pubModel || pubSku) && <span className="font-mono"> · {pubModel || pubSku}</span>}
+                                {pubCodigo && <span className="font-mono"> · {pubCodigo}</span>}
+                            </span>
                         </div>
                     </div>
                 )}
