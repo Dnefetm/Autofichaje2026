@@ -71,9 +71,10 @@ export default function SubirPaso1() {
             //    Evita los límites de CPU (2s) de las Edge Functions de Supabase.
             const XLSX = await import('xlsx');
             const buf = await file.arrayBuffer();
-            const wb = XLSX.read(buf, { type: 'array' });
+            // dense:true + omitir estilos/fórmulas = igual que el flujo original (lee las 15k filas)
+            const wb = XLSX.read(new Uint8Array(buf), { type: 'array', dense: true, cellFormula: false, cellHTML: false, cellStyles: false, cellText: false });
             const ws = wb.Sheets[wb.SheetNames[0]];
-            const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
+            const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
             const headers: string[] = (rows[0] || []).map((h: any) => String(h ?? '').trim());
 
             const CHUNK = 1000;
