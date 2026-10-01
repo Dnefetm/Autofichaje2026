@@ -341,6 +341,22 @@ export class MeliAdapter implements MarketplaceAdapter {
         await this.syncShippingCost(accountId, itemId);
     }
 
+    // Devuelve los ids de todas las cuentas (marketplace_configs) que apuntan al mismo
+    // vendedor de MeLi (seller_id). El item puede estar duplicado entre cuentas (varias
+    // cuentas con el mismo seller_id); el sync de envío debe actualizar TODAS las filas
+    // hermanas, no solo la cuenta que recibió el webhook.
+    private async siblingMarketplaceIds(sellerId: string, accountId: string): Promise<string[]> {
+        const { data } = await supabase
+            .from('marketplace_configs')
+            .select('id')
+            .eq('settings->>seller_id', sellerId);
+        const ids = new Set<string>([accountId]);
+        for (const c of (data || []) as any[]) {
+            if (c?.id) ids.add(c.id);
+        }
+        return Array.from(ids);
+    }
+
     // V32: sincroniza el costo de envío efectivo que MeLi cobra por un ítem.
     // Se invoca desde syncCatalogItem (flujo automático webhook → sync_item), para que
     // el envío se actualice sin depender del botón manual "Forzar Sync MeLi".
@@ -377,17 +393,27 @@ export class MeliAdapter implements MarketplaceAdapter {
             const listCost = shipResp.data?.coverage?.all_country?.list_cost;
             if (listCost == null) return;
 
+            const siblingIds = await this.siblingMarketplaceIds(sellerId, accountId);
+
             await supabase
                 .from('publicaciones_externas')
                 .update({ shipping_cost_monto: listCost })
-                .eq('marketplace_id', accountId)
-                .eq('external_item_id', itemId);
+                .eq('external_item_id', itemId)
+                .in('marketplace_id', siblingIds);
 
-            // Recalcular el precio para que el draft refleje el envío actualizado.
-            try {
-                await supabase.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id: pub.id });
-            } catch (recalcErr: any) {
-                logger.warn({ accountId, itemId, pubId: pub.id, error: recalcErr?.message }, 'V32: fallo al recalcular precio tras sincronizar envío');
+            // Recalcular el precio de las filas padre (variación '0') de TODAS las cuentas hermanas.
+            const { data: affectedParents } = await supabase
+                .from('publicaciones_externas')
+                .select('id')
+                .eq('external_item_id', itemId)
+                .eq('external_variation_id', '0')
+                .in('marketplace_id', siblingIds);
+            for (const p of (affectedParents || []) as any[]) {
+                try {
+                    await supabase.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id: p.id });
+                } catch (recalcErr: any) {
+                    logger.warn({ accountId, itemId, pubId: p.id, error: recalcErr?.message }, 'V32: fallo al recalcular precio tras sincronizar envío');
+                }
             }
         } catch (err: any) {
             logger.warn({ accountId, itemId, error: err?.message }, 'V32: fallo al sincronizar costo de envío');
@@ -1266,6 +1292,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             const sellerId = mkp?.settings?.seller_id;
             
             if (sellerId) {
+                const siblingIds = await this.siblingMarketplaceIds(sellerId, accountId);
                 const { data: pubRows } = await supabase
                     .from('publicaciones_externas')
                     .select('id, external_item_id, free_shipping')
@@ -1296,18 +1323,21 @@ export class MeliAdapter implements MarketplaceAdapter {
                                 await supabase
                                     .from('publicaciones_externas')
                                     .update({ shipping_cost_monto: listCost })
-                                    .eq('marketplace_id', accountId)
-                                    .eq('external_item_id', itemId);
+                                    .eq('external_item_id', itemId)
+                                    .in('marketplace_id', siblingIds);
 
-                                // Recalcular el precio para que el draft refleje el envío actualizado.
-                                // Antes este recálculo no se disparaba tras el sync de envío, por lo que
-                                // "Envío Real MeLi" quedaba en $0 en el draft (bug reportado).
-                                const pubId = pubIdMap.get(itemId);
-                                if (pubId) {
+                                // Recalcular el precio de las filas padre de TODAS las cuentas hermanas.
+                                const { data: affectedParents } = await supabase
+                                    .from('publicaciones_externas')
+                                    .select('id')
+                                    .eq('external_item_id', itemId)
+                                    .eq('external_variation_id', '0')
+                                    .in('marketplace_id', siblingIds);
+                                for (const p of (affectedParents || []) as any[]) {
                                     try {
-                                        await supabase.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id: pubId });
+                                        await supabase.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id: p.id });
                                     } catch (recalcErr: any) {
-                                        logger.warn({ accountId, itemId, pubId, error: recalcErr?.message }, 'V31: fallo al recalcular precio tras actualizar envío');
+                                        logger.warn({ accountId, itemId, pubId: p.id, error: recalcErr?.message }, 'V31: fallo al recalcular precio tras actualizar envío');
                                     }
                                 }
                             } else if (shipResp.status === 403) {
