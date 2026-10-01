@@ -344,7 +344,7 @@ export class MeliAdapter implements MarketplaceAdapter {
     // V32: sincroniza el costo de envío efectivo que MeLi cobra por un ítem.
     // Se invoca desde syncCatalogItem (flujo automático webhook → sync_item), para que
     // el envío se actualice sin depender del botón manual "Forzar Sync MeLi".
-    private async syncShippingCost(accountId: string, itemId: string): Promise<void> {
+    async syncShippingCost(accountId: string, itemId: string): Promise<void> {
         try {
             const { data: mkp } = await supabase
                 .from('marketplace_configs')

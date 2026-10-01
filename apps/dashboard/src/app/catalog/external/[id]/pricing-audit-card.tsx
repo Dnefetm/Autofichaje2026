@@ -206,6 +206,9 @@ export default function PricingAuditCard({
     const handleForceRecalculate = async () => {
         setRecalculating(true);
         try {
+            // 1. Refrescar el envío real desde MeLi (igual que el publicador cotiza envío)
+            await fetch(`/api/catalog/external/${publicacionId}/refresh-shipping`, { method: 'POST' });
+            // 2. Recalcular el precio con el envío ya actualizado
             const res = await fetch(`/api/catalog/external/${publicacionId}/pricing`, { method: 'PUT' });
             if (!res.ok) {
                 const data = await res.json();
