@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-08-26T18:28:32.942Z",
+  "generated_at": "2026-08-29T20:23:43.807Z",
   "source_db": {
     "host": "aws-1-us-east-2.pooler.supabase.com",
     "project_ref": "ryxdqnzyvnrwalylqyvm",
     "expected_project_ref": "ryxdqnzyvnrwalylqyvm",
     "verified": true
   },
-  "schema_hash": "fd46f53787edef769bb9f68db1e024e959b3a3a3d6b55add9649ab265b6e1ab0",
-  "processes_hash": "923ac89448290b1dc22fdfd880114abc315a5f6e4eb6fd2cb2e08d136539b85e",
+  "schema_hash": "e01439e720050417c2512aa1c43873cf376094f6604ce1ad2f67fe692a36a005",
+  "processes_hash": "bbc8d11a3b038d53e72c1e2b46d696a05c5cfb1972a10a5e5e9bfb2c501210c4",
   "roles": {
     "anon": [
       "statement_timeout=3s"
@@ -665,7 +665,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 119.134876217111,
+      "avg_time_ms": 117.292934468708,
       "p95_time_ms": 4992.243662,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -727,7 +727,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 268.347411666667,
+      "avg_time_ms": 244.646573941176,
       "p95_time_ms": 2515.995797,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -1167,20 +1167,6 @@
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
     },
-    "public.fn_resolver_regla_pricing": {
-      "source_sql": "\nDECLARE v_pub RECORD; v_costo NUMERIC; v_rule pricing_rule_v3;\nBEGIN\n  SELECT pe.id, pe.marketplace_id, pe.category_id,\n         (SELECT m.articulo_id FROM mapeo_publicacion_articulo m WHERE m.publicacion_id = pe.id LIMIT 1) AS articulo_id,\n         (SELECT a.marca FROM articulos a WHERE a.id = (SELECT m.articulo_id FROM mapeo_publicacion_articulo m WHERE m.publicacion_id = pe.id LIMIT 1)) AS marca\n    INTO v_pub FROM publicaciones_externas pe WHERE pe.id = p_publicacion_id;\n\n  IF v_pub.marca IS NULL THEN\n      SELECT marca_excel INTO v_pub.marca FROM proveedor_articulos_alias WHERE articulo_id = v_pub.articulo_id AND locked = true LIMIT 1;\n  END IF;\n\n  SELECT c.valor INTO v_costo FROM costos_articulo c WHERE c.articulo_id = v_pub.articulo_id AND c.vigente = true AND lower(c.tipo_costo) = 'menudeo' ORDER BY c.creado_el DESC LIMIT 1;\n\n  SELECT * INTO v_rule FROM pricing_rule_v3 r\n  WHERE r.is_active = true\n    AND (r.marketplace_id IS NULL OR r.marketplace_id = v_pub.marketplace_id)\n    AND (r.marca IS NULL OR r.marca = '' OR v_pub.marca ILIKE ANY (string_to_array(r.marca, ', ')))\n    AND (r.category_id IS NULL OR r.category_id = '' OR r.category_id = v_pub.category_id)\n    AND (r.precio_min IS NULL OR v_costo >= r.precio_min)\n    AND (r.precio_max IS NULL OR v_costo <= r.precio_max)\n  ORDER BY\n    (CASE WHEN r.articulo_id IS NOT NULL AND r.articulo_id != '' THEN 1 ELSE 0 END\n   + CASE WHEN r.category_id IS NOT NULL AND r.category_id != '' THEN 1 ELSE 0 END\n   + CASE WHEN r.marca IS NOT NULL AND r.marca != '' THEN 1 ELSE 0 END\n   + CASE WHEN r.marketplace_id IS NOT NULL THEN 1 ELSE 0 END) DESC,\n    r.priority ASC LIMIT 1;\n\n  RETURN v_rule;\nEND ",
-      "statement_timeout_override": null,
-      "security": "INVOKER",
-      "calls_tables": [],
-      "calls_functions": [],
-      "triggers_on_tables": [],
-      "triggers_cascade": [],
-      "dynamic_sql": false,
-      "avg_time_ms": 42.142315,
-      "p95_time_ms": 42.142315,
-      "timing_source": "pg_stat_statements",
-      "is_async_architectural_boundary": false
-    },
     "public.fn_parse_precio": {
       "source_sql": "\nDECLARE\n    v_clean text;\nBEGIN\n    IF p_text IS NULL OR trim(p_text) = '' THEN\n        RETURN NULL;\n    END IF;\n    -- Quitar espacios, comas y signos de dólar\n    v_clean := regexp_replace(p_text, '[$\\s,]', '', 'g');\n    -- Manejar paréntesis para negativos ej: (10.50) -> -10.50\n    IF v_clean LIKE '(%)' THEN\n        v_clean := '-' || substring(v_clean from 2 for length(v_clean) - 2);\n    END IF;\n    RETURN v_clean::numeric;\nEXCEPTION WHEN OTHERS THEN\n    RETURN NULL;\nEND;\n",
       "statement_timeout_override": null,
@@ -1454,9 +1440,9 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 25,
-      "p95_time_ms": null,
-      "timing_source": "ast_estimator",
+      "avg_time_ms": 8.804176,
+      "p95_time_ms": 8.804176,
+      "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
     },
     "public.recalcular_par_item_id": {
@@ -1481,7 +1467,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 12.4515014603635,
+      "avg_time_ms": 12.3071208319727,
       "p95_time_ms": 962.825994,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -1508,8 +1494,8 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 5.47611304780814,
-      "p95_time_ms": 242.971555,
+      "avg_time_ms": 5.61676540304602,
+      "p95_time_ms": 359.232105,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
     },
@@ -1535,8 +1521,8 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 3.35418567466016,
-      "p95_time_ms": 164.751721,
+      "avg_time_ms": 3.45510930625759,
+      "p95_time_ms": 459.353716,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
     },
@@ -2218,7 +2204,7 @@
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 9.72770298670306,
+      "avg_time_ms": 9.54272526789429,
       "p95_time_ms": 2135.343701,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -2272,7 +2258,7 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 20.0548653308061,
+      "avg_time_ms": 20.008943095712,
       "p95_time_ms": 1136.663906,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -2531,8 +2517,8 @@
         }
       ],
       "dynamic_sql": false,
-      "avg_time_ms": 15.195096,
-      "p95_time_ms": 21.423345,
+      "avg_time_ms": 748.504173,
+      "p95_time_ms": 748.504173,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
     },
@@ -2559,7 +2545,7 @@
       "is_async_architectural_boundary": false
     },
     "public.fn_recalcular_precio_publicacion": {
-      "source_sql": "\nDECLARE\n  v_pub RECORD; v_rule pricing_rule_v3; v_override RECORD; v_costo_base NUMERIC(12,2);\n  v_commission_pct NUMERIC(5,2); v_withholding_pct NUMERIC(5,2); v_precio_final NUMERIC(12,2); v_status TEXT := 'valid'; v_reason TEXT;\nBEGIN\n  SELECT * INTO v_pub FROM publicaciones_externas WHERE id = p_publicacion_id;\n  IF v_pub IS NULL THEN RETURN; END IF;\n\n  v_rule := fn_resolver_regla_pricing(p_publicacion_id);\n  IF v_rule IS NULL THEN RETURN; END IF;\n\n  WITH costo_unico AS (\n    SELECT DISTINCT ON (c.articulo_id) c.articulo_id, c.valor FROM costos_articulo c\n    WHERE c.vigente = true AND c.valor > 0 AND lower(c.tipo_costo) = lower(v_rule.cost_basis)\n    ORDER BY c.articulo_id, c.creado_el DESC\n  )\n  SELECT SUM(cu.valor * m.cantidad_requerida) INTO v_costo_base FROM mapeo_publicacion_articulo m JOIN costo_unico cu ON cu.articulo_id = m.articulo_id WHERE m.publicacion_id = p_publicacion_id;\n\n  SELECT commission_effective, withholding_effective INTO v_commission_pct, v_withholding_pct FROM v_category_pricing_params WHERE category_id = v_pub.category_id;\n  IF v_commission_pct IS NULL THEN v_commission_pct := 15.0; v_withholding_pct := 8.96; END IF;\n\n  v_reason := 'Regla ' || v_rule.name;\n  v_precio_final := (v_costo_base * (1 + v_rule.margen_objetivo / 100.0) + COALESCE(v_rule.envio_fijo, 0)) / (1.0 - (v_commission_pct + v_withholding_pct) / 100.0);\n\n  INSERT INTO publication_pricing_drafts (publicacion_id, draft_cost, draft_price, pricing_status, pricing_review_status, details, updated_at) \n  VALUES (p_publicacion_id, v_costo_base, v_precio_final, v_status, 'pending', jsonb_build_object('comision_pct', v_commission_pct, 'comision_fee', 0, 'margen_pct', v_rule.margen_objetivo, 'reason', v_reason), now())\n  ON CONFLICT (publicacion_id) DO UPDATE SET draft_cost = EXCLUDED.draft_cost, draft_price = EXCLUDED.draft_price, pricing_status = EXCLUDED.pricing_status, pricing_review_status = 'pending', details = EXCLUDED.details, updated_at = now();\nEND ",
+      "source_sql": "\nDECLARE\n  v_pub RECORD; \n  v_rule pricing_rule_v3; \n  v_override publication_pricing_overrides%ROWTYPE;\n  v_costo_base NUMERIC(12,2);\n  v_commission_pct NUMERIC(5,2); \n  v_commission_src TEXT;\n  v_withholding_pct NUMERIC(5,2); \n  v_withholding_src TEXT;\n  \n  v_aplicar_margen BOOLEAN;\n  v_margen_pct NUMERIC(5,2);\n  v_aplicar_comision BOOLEAN;\n  v_comision_pct_efectiva NUMERIC(5,2);\n  v_aplicar_envio BOOLEAN;\n  v_envio_monto NUMERIC(12,2);\n  v_aplicar_retenciones BOOLEAN;\n  v_retenciones_pct_efectiva NUMERIC(5,2);\n  v_aplicar_redondeo BOOLEAN;\n  v_redondeo_target_pct NUMERIC(5,2);\n  v_redondeo_min_pct NUMERIC(5,2);\n  v_redondeo_max_pct NUMERIC(5,2);\n  v_redondeo_modo TEXT;\n  \n  v_denominador NUMERIC(8,4); \n  v_numerador NUMERIC(12,2);\n  v_subtotal NUMERIC(12,2);\n  v_precio_final NUMERIC(12,2);\n  v_status TEXT := 'valid'; \n  v_reason TEXT := 'OK';\nBEGIN\n  SELECT * INTO v_pub FROM publicaciones_externas WHERE id = p_publicacion_id;\n  IF v_pub IS NULL THEN RETURN; END IF;\n\n  v_rule := fn_resolver_regla_pricing(p_publicacion_id);\n  IF v_rule IS NULL THEN\n    INSERT INTO publication_pricing_drafts (publicacion_id, draft_cost, draft_price, pricing_status, pricing_review_status, details, updated_at) \n    VALUES (p_publicacion_id, 0, 0, 'no_rule', 'pending', '{}'::jsonb, now())\n    ON CONFLICT (publicacion_id) DO UPDATE SET pricing_status='no_rule', updated_at = now();\n    RETURN;\n  END IF;\n\n  SELECT * INTO v_override\n  FROM publication_pricing_overrides\n  WHERE publicacion_id = p_publicacion_id\n    AND (valido_hasta IS NULL OR valido_hasta > now());\n\n  WITH costo_unico AS (\n    SELECT DISTINCT ON (c.articulo_id) c.articulo_id, c.valor\n    FROM costos_articulo c\n    WHERE c.vigente = true AND c.valor > 0\n      AND lower(c.tipo_costo) = lower(v_rule.cost_basis)\n    ORDER BY c.articulo_id, c.creado_el DESC\n  )\n  SELECT SUM(cu.valor * m.cantidad_requerida) INTO v_costo_base\n  FROM mapeo_publicacion_articulo m\n  JOIN costo_unico cu ON cu.articulo_id = m.articulo_id\n  WHERE m.publicacion_id = p_publicacion_id;\n\n  IF v_costo_base IS NULL OR v_costo_base <= 0 THEN\n    INSERT INTO publication_pricing_drafts (publicacion_id, draft_cost, draft_price, pricing_status, pricing_review_status, details, updated_at) \n    VALUES (p_publicacion_id, 0, 0, 'missing_cost', 'pending', '{}'::jsonb, now())\n    ON CONFLICT (publicacion_id) DO UPDATE SET pricing_status='missing_cost', updated_at = now();\n    RETURN;\n  END IF;\n\n  SELECT commission_effective, commission_source\n    INTO v_commission_pct, v_commission_src\n  FROM v_category_pricing_params\n  WHERE category_id = v_pub.category_id;\n\n  IF v_commission_pct IS NULL THEN\n    v_commission_pct := 15.0; \n    v_commission_src := 'fallback_global';\n    v_status := 'estimated_params';\n  END IF;\n\n  SELECT COALESCE((settings->>'withholding_tax_pct')::numeric, 9.0)\n    INTO v_withholding_pct\n  FROM marketplace_configs\n  WHERE id = v_pub.marketplace_id;\n\n  v_withholding_src := 'configuracion_global';\n\n  v_aplicar_margen       := COALESCE((v_override.modifiers_override->>'aplicar_margen')::boolean, v_rule.aplicar_margen, true);\n  v_margen_pct           := COALESCE((v_override.modifiers_override->>'margen_pct')::numeric, v_rule.margen_objetivo, 0.0);\n  \n  v_aplicar_comision     := COALESCE((v_override.modifiers_override->>'aplicar_comision')::boolean, v_rule.aplicar_comision, true);\n  v_comision_pct_efectiva:= CASE WHEN v_aplicar_comision THEN v_commission_pct ELSE 0.0 END;\n  \n  v_aplicar_envio        := COALESCE((v_override.modifiers_override->>'aplicar_envio')::boolean, v_rule.aplicar_envio, true);\n  v_envio_monto          := CASE WHEN v_aplicar_envio THEN (COALESCE(v_pub.shipping_cost_monto, 0) + COALESCE(v_rule.envio_fijo, 0)) ELSE 0.0 END;\n  \n  v_aplicar_retenciones  := COALESCE((v_override.modifiers_override->>'aplicar_retenciones')::boolean, v_rule.aplicar_retenciones, true);\n  v_retenciones_pct_efectiva := CASE WHEN v_aplicar_retenciones THEN v_withholding_pct ELSE 0.0 END;\n  \n  v_aplicar_redondeo     := COALESCE((v_override.modifiers_override->>'aplicar_redondeo_magico')::boolean, v_rule.aplicar_redondeo_magico, true);\n  v_redondeo_target_pct  := COALESCE((v_override.modifiers_override->>'redondeo_target_pct')::numeric, v_rule.redondeo_target_pct, -10.0);\n  v_redondeo_min_pct     := COALESCE((v_override.modifiers_override->>'redondeo_min_pct')::numeric, v_rule.redondeo_min_pct, 9.0);\n  v_redondeo_max_pct     := COALESCE((v_override.modifiers_override->>'redondeo_max_pct')::numeric, v_rule.redondeo_max_pct, 14.0);\n  v_redondeo_modo        := COALESCE(v_rule.redondeo, 'magic');\n\n  IF v_override.override_type = 'fixed_price' THEN\n    v_precio_final := v_override.value;\n    v_subtotal     := v_override.value;\n    v_reason       := 'override_fixed_price';\n    v_status       := 'override_active';\n  ELSIF v_override.override_type = 'custom_margin' THEN\n    v_margen_pct   := v_override.value;\n    v_aplicar_margen := true;\n    v_reason       := 'override_margin';\n  END IF;\n\n  IF v_status != 'override_active' THEN\n    v_reason := 'Regla ' || v_rule.name;\n    \n    v_numerador   := (v_costo_base * (1.0 + (CASE WHEN v_aplicar_margen THEN v_margen_pct ELSE 0 END) / 100.0)) + v_envio_monto;\n    v_denominador := 1.0 - (v_comision_pct_efectiva + v_retenciones_pct_efectiva) / 100.0;\n\n    IF v_denominador <= 0 THEN\n      INSERT INTO publication_pricing_drafts (publicacion_id, draft_cost, draft_price, pricing_status, pricing_review_status, details, updated_at) \n      VALUES (p_publicacion_id, v_costo_base, 0, 'invalid_strategy', 'pending', '{}'::jsonb, now())\n      ON CONFLICT (publicacion_id) DO UPDATE SET pricing_status='invalid_strategy', updated_at = now();\n      RETURN;\n    END IF;\n\n    v_subtotal := ROUND(v_numerador / v_denominador, 2);\n\n    -- Si aplicar redondeo magico esta activo, aplica la funcion de redondeo magico\n    IF v_aplicar_redondeo THEN\n      v_precio_final := fn_apply_magic_rounding(v_subtotal, v_redondeo_target_pct, v_redondeo_min_pct, v_redondeo_max_pct);\n    ELSIF v_redondeo_modo = '99' THEN\n      v_precio_final := FLOOR(v_subtotal / 10) * 10 + 9;\n    ELSIF v_redondeo_modo = '00' THEN\n      v_precio_final := ROUND(v_subtotal / 10) * 10;\n    ELSIF v_redondeo_modo = '5' THEN\n      v_precio_final := ROUND(v_subtotal / 5) * 5;\n    ELSE\n      v_precio_final := v_subtotal;\n    END IF;\n  END IF;\n\n  INSERT INTO publication_pricing_drafts (\n    publicacion_id, draft_cost, draft_price, pricing_status, pricing_review_status, details, updated_at\n  ) VALUES (\n    p_publicacion_id, v_costo_base, v_precio_final, v_status, 'pending',\n    jsonb_build_object(\n      'costo_base', v_costo_base,\n      'cost_basis', v_rule.cost_basis,\n      'subtotal', v_subtotal,\n      'precio_final', v_precio_final,\n      'reason', v_reason,\n      'rule_id', v_rule.id,\n      'rule_name', v_rule.name,\n      'override_aplicado', (v_override.publicacion_id IS NOT NULL),\n      'modifiers', jsonb_build_object(\n        'aplicar_margen', v_aplicar_margen,\n        'margen_pct', v_margen_pct,\n        'margen_monto', ROUND(v_costo_base * (v_margen_pct / 100.0), 2),\n        'aplicar_comision', v_aplicar_comision,\n        'comision_pct', v_commission_pct,\n        'comision_fee', ROUND(v_subtotal * (v_comision_pct_efectiva / 100.0), 2),\n        'aplicar_envio', v_aplicar_envio,\n        'shipping_cost_monto', COALESCE(v_pub.shipping_cost_monto, 0),\n        'shipping_cost_final', v_envio_monto,\n        'aplicar_retenciones', v_aplicar_retenciones,\n        'retenciones_pct', v_withholding_pct,\n        'withholding_fee', ROUND(v_subtotal * (v_retenciones_pct_efectiva / 100.0), 2),\n        'aplicar_redondeo_magico', v_aplicar_redondeo,\n        'redondeo_target_pct', v_redondeo_target_pct,\n        'redondeo_range', jsonb_build_object('min', v_redondeo_min_pct, 'max', v_redondeo_max_pct),\n        'subtotal_sin_redondeo', v_subtotal,\n        'redondeo_ajuste', ROUND(v_precio_final - v_subtotal, 2),\n        'precio_final', v_precio_final\n      ),\n      'formula_humana', '(($' || v_costo_base::TEXT || ' × ' || (1.0 + (CASE WHEN v_aplicar_margen THEN v_margen_pct ELSE 0 END) / 100.0)::TEXT || ') + $' || v_envio_monto::TEXT || ') / (1 - ' || ((v_comision_pct_efectiva + v_retenciones_pct_efectiva)/100.0)::TEXT || ') = $' || v_subtotal::TEXT || ' ➔ Final: $' || v_precio_final::TEXT\n    ), \n    now()\n  )\n  ON CONFLICT (publicacion_id) DO UPDATE \n  SET draft_cost = EXCLUDED.draft_cost, \n      draft_price = EXCLUDED.draft_price, \n      pricing_status = EXCLUDED.pricing_status, \n      pricing_review_status = 'pending', \n      details = EXCLUDED.details, \n      updated_at = now();\n\nEND ",
       "statement_timeout_override": null,
       "security": "DEFINER",
       "calls_tables": [
@@ -2567,12 +2553,13 @@
         "public.SET"
       ],
       "calls_functions": [
-        "public.fn_resolver_regla_pricing"
+        "public.fn_resolver_regla_pricing",
+        "public.fn_apply_magic_rounding"
       ],
       "triggers_on_tables": [],
       "triggers_cascade": [],
       "dynamic_sql": false,
-      "avg_time_ms": 39.3249538856264,
+      "avg_time_ms": 40.7873755291586,
       "p95_time_ms": 1441.114825,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
@@ -2588,6 +2575,34 @@
       "dynamic_sql": false,
       "avg_time_ms": 31.425264,
       "p95_time_ms": 31.425264,
+      "timing_source": "pg_stat_statements",
+      "is_async_architectural_boundary": false
+    },
+    "public.fn_apply_magic_rounding": {
+      "source_sql": "\nDECLARE\n    v_ideal_dec NUMERIC;\n    v_min_dec NUMERIC;\n    v_max_dec NUMERIC;\n    v_target_val INT;\n    v_min_val INT;\n    v_max_val INT;\n    v_best_num INT;\n    v_best_score NUMERIC := -1.0;\n    v_best_dist NUMERIC := 999999999;\n    v_digit_scores INT[] := ARRAY[4, 10, 7, 6, 8, 5, 3, 9, 1, 2]; -- '0'..'9' mapped to index 1..10\n    v_i INT;\n    v_s TEXT;\n    v_len INT;\n    v_c INT;\n    v_sum_score NUMERIC;\n    v_avg_score NUMERIC;\n    v_dist NUMERIC;\n    v_digit_val INT;\nBEGIN\n    IF p_subtotal IS NULL OR p_subtotal <= 1 THEN\n        RETURN COALESCE(p_subtotal, 0);\n    END IF;\n\n    v_ideal_dec := 1.0 + (p_target_pct / 100.0);\n    v_min_dec   := 1.0 - (p_max_pct / 100.0);\n    v_max_dec   := 1.0 - (p_min_pct / 100.0);\n\n    v_target_val := ROUND(p_subtotal * v_ideal_dec)::INT;\n    v_min_val    := ROUND(p_subtotal * v_min_dec)::INT;\n    v_max_val    := ROUND(p_subtotal * v_max_dec)::INT;\n\n    v_best_num   := v_target_val;\n\n    FOR v_i IN v_min_val..v_max_val LOOP\n        v_s := ABS(v_i)::TEXT;\n        v_len := LENGTH(v_s);\n        v_sum_score := 0;\n\n        FOR v_c IN 1..v_len LOOP\n            v_digit_val := SUBSTRING(v_s FROM v_c FOR 1)::INT;\n            v_sum_score := v_sum_score + v_digit_scores[v_digit_val + 1];\n        END LOOP;\n\n        v_avg_score := v_sum_score / v_len::NUMERIC;\n        v_dist := ABS(v_i - v_target_val);\n\n        IF v_avg_score > v_best_score OR (v_avg_score = v_best_score AND v_dist < v_best_dist) THEN\n            v_best_score := v_avg_score;\n            v_best_num := v_i;\n            v_best_dist := v_dist;\n        END IF;\n    END LOOP;\n\n    RETURN v_best_num::NUMERIC;\nEND;\n",
+      "statement_timeout_override": null,
+      "security": "INVOKER",
+      "calls_tables": [],
+      "calls_functions": [],
+      "triggers_on_tables": [],
+      "triggers_cascade": [],
+      "dynamic_sql": false,
+      "avg_time_ms": 26.446051,
+      "p95_time_ms": 26.446051,
+      "timing_source": "pg_stat_statements",
+      "is_async_architectural_boundary": false
+    },
+    "public.fn_resolver_regla_pricing": {
+      "source_sql": "\nDECLARE v_pub RECORD; v_costo NUMERIC; v_rule pricing_rule_v3; v_marca TEXT;\nBEGIN\n  -- 1) Datos de la publicacion + marca y articulo principal\n  SELECT pe.id, pe.marketplace_id, pe.category_id,\n         (SELECT m.articulo_id FROM mapeo_publicacion_articulo m\n            WHERE m.publicacion_id = pe.id LIMIT 1) AS articulo_id,\n         (SELECT a.marca FROM articulos a\n            WHERE a.articulo_id = (SELECT m.articulo_id FROM mapeo_publicacion_articulo m\n                          WHERE m.publicacion_id = pe.id LIMIT 1)\n         ) AS marca\n    INTO v_pub\n  FROM publicaciones_externas pe\n  WHERE pe.id = p_publicacion_id;\n\n  -- Intentar recuperar marca desde los alias si no esta en articulo (autofichaje normal)\n  IF v_pub.marca IS NULL THEN\n      SELECT marca_excel INTO v_pub.marca FROM proveedor_articulos_alias \n      WHERE articulo_id = v_pub.articulo_id AND locked = true LIMIT 1;\n  END IF;\n\n  -- 2) Costo base de referencia (para evaluar criterios de rango)\n  SELECT c.valor INTO v_costo\n  FROM costos_articulo c\n  WHERE c.articulo_id = v_pub.articulo_id\n    AND c.vigente = true\n    AND lower(c.tipo_costo) = 'menudeo'\n  ORDER BY c.creado_el DESC LIMIT 1;\n\n  -- 3) Seleccion por especificidad\n  SELECT * INTO v_rule\n  FROM pricing_rule_v3 r\n  WHERE r.is_active = true\n    AND (r.marketplace_id IS NULL OR r.marketplace_id = v_pub.marketplace_id)\n    AND (r.marca IS NULL OR r.marca = '' OR v_pub.marca ILIKE ANY (string_to_array(r.marca, ', ')))\n    AND (r.category_id   IS NULL OR r.category_id = '' OR r.category_id = v_pub.category_id)\n    AND (r.articulo_id   IS NULL OR r.articulo_id = '' OR r.articulo_id = v_pub.articulo_id)\n    AND (r.precio_min    IS NULL OR v_costo >= r.precio_min)\n    AND (r.precio_max    IS NULL OR v_costo <= r.precio_max)\n  ORDER BY\n    (CASE WHEN r.articulo_id   IS NOT NULL AND r.articulo_id != '' THEN 1 ELSE 0 END\n   + CASE WHEN r.category_id   IS NOT NULL AND r.category_id != '' THEN 1 ELSE 0 END\n   + CASE WHEN r.marca         IS NOT NULL AND r.marca != '' THEN 1 ELSE 0 END\n   + CASE WHEN r.marketplace_id IS NOT NULL THEN 1 ELSE 0 END\n   + CASE WHEN r.precio_min    IS NOT NULL THEN 1 ELSE 0 END\n   + CASE WHEN r.precio_max    IS NOT NULL THEN 1 ELSE 0 END) DESC,\n    r.priority ASC\n  LIMIT 1;\n\n  RETURN v_rule;\nEND ",
+      "statement_timeout_override": null,
+      "security": "INVOKER",
+      "calls_tables": [],
+      "calls_functions": [],
+      "triggers_on_tables": [],
+      "triggers_cascade": [],
+      "dynamic_sql": false,
+      "avg_time_ms": 145.202443,
+      "p95_time_ms": 145.202443,
       "timing_source": "pg_stat_statements",
       "is_async_architectural_boundary": false
     }
@@ -5730,6 +5745,11 @@
           "column": "sample_size",
           "type": "integer",
           "notnull": false
+        },
+        {
+          "column": "listing_type_id",
+          "type": "text",
+          "notnull": false
         }
       ]
     },
@@ -6500,6 +6520,51 @@
           "column": "notes",
           "type": "text",
           "notnull": false
+        },
+        {
+          "column": "listing_type_id",
+          "type": "text",
+          "notnull": false
+        },
+        {
+          "column": "aplicar_margen",
+          "type": "boolean",
+          "notnull": false
+        },
+        {
+          "column": "aplicar_comision",
+          "type": "boolean",
+          "notnull": false
+        },
+        {
+          "column": "aplicar_envio",
+          "type": "boolean",
+          "notnull": false
+        },
+        {
+          "column": "aplicar_retenciones",
+          "type": "boolean",
+          "notnull": false
+        },
+        {
+          "column": "aplicar_redondeo_magico",
+          "type": "boolean",
+          "notnull": false
+        },
+        {
+          "column": "redondeo_target_pct",
+          "type": "numeric(5,2)",
+          "notnull": false
+        },
+        {
+          "column": "redondeo_min_pct",
+          "type": "numeric(5,2)",
+          "notnull": false
+        },
+        {
+          "column": "redondeo_max_pct",
+          "type": "numeric(5,2)",
+          "notnull": false
         }
       ]
     },
@@ -7035,6 +7100,11 @@
           "column": "last_calc_at",
           "type": "timestamp with time zone",
           "notnull": false
+        },
+        {
+          "column": "shipping_cost_monto",
+          "type": "numeric(10,2)",
+          "notnull": false
         }
       ]
     },
@@ -7169,6 +7239,11 @@
         {
           "column": "force_rule_id",
           "type": "uuid",
+          "notnull": false
+        },
+        {
+          "column": "modifiers_override",
+          "type": "jsonb",
           "notnull": false
         }
       ]
@@ -7538,6 +7613,11 @@
       "columns": [
         {
           "column": "category_id",
+          "type": "text",
+          "notnull": false
+        },
+        {
+          "column": "listing_type_id",
           "type": "text",
           "notnull": false
         },
@@ -8570,12 +8650,12 @@
       "type": "sync_stock_mapped",
       "status_counts": {
         "failed": 6,
-        "completed": 218
+        "completed": 266
       },
-      "total": 224,
+      "total": 272,
       "pending": 0,
       "failed": 6,
-      "failed_24h": 3,
+      "failed_24h": 0,
       "producers": [
         "public.fn_encolar_sync_stock"
       ]
@@ -8583,9 +8663,9 @@
     "recalc_pricing_bundle": {
       "type": "recalc_pricing_bundle",
       "status_counts": {
-        "completed": 53
+        "completed": 12
       },
-      "total": 53,
+      "total": 12,
       "pending": 0,
       "failed": 0,
       "failed_24h": 0,
@@ -8596,17 +8676,32 @@
         "public.fn_drain_costos_pendientes_sin_match"
       ]
     },
+    "sync_price": {
+      "type": "sync_price",
+      "status_counts": {
+        "completed": 1
+      },
+      "total": 1,
+      "pending": 0,
+      "failed": 0,
+      "failed_24h": 0,
+      "producers": [
+        "public.fn_encolar_sync_price",
+        "public.fn_encolar_sync_price_marketplace",
+        "public.fn_aprobar_precios_draft"
+      ]
+    },
     "process_sale": {
       "type": "process_sale",
       "status_counts": {
-        "failed": 2,
-        "pending": 14,
-        "completed": 2089
+        "failed": 10,
+        "pending": 8,
+        "completed": 2176
       },
-      "total": 2105,
-      "pending": 14,
-      "failed": 2,
-      "failed_24h": 0,
+      "total": 2194,
+      "pending": 8,
+      "failed": 10,
+      "failed_24h": 6,
       "producers": [
         "public.fn_encolar_sync_price",
         "public.fn_encolar_sync_price_marketplace",
@@ -8621,13 +8716,13 @@
     "sync_account_catalog": {
       "type": "sync_account_catalog",
       "status_counts": {
-        "completed": 13,
-        "failed": 13
+        "completed": 19,
+        "failed": 16
       },
-      "total": 26,
+      "total": 35,
       "pending": 0,
-      "failed": 13,
-      "failed_24h": 1,
+      "failed": 16,
+      "failed_24h": 2,
       "producers": [
         "public.fn_encolar_sync_price",
         "public.fn_encolar_sync_price_marketplace",
@@ -8662,14 +8757,14 @@
     "sync_item": {
       "type": "sync_item",
       "status_counts": {
-        "completed": 7925,
-        "pending": 46,
-        "failed": 19
+        "completed": 7066,
+        "pending": 29,
+        "failed": 43
       },
-      "total": 7990,
-      "pending": 46,
-      "failed": 19,
-      "failed_24h": 0,
+      "total": 7138,
+      "pending": 29,
+      "failed": 43,
+      "failed_24h": 13,
       "producers": [
         "public.fn_encolar_sync_price",
         "public.fn_encolar_sync_price_marketplace",
@@ -8860,10 +8955,6 @@
       "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/auth/meli/callback/route.ts",
       "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts"
     ],
-    "recalc_pricing_bundle": [
-      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/catalog/external/[id]/pricing/route.ts",
-      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/components/mapping-modal.tsx"
-    ],
     "confirm_matching_batch": [
       "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/matching/confirm-batch/route.ts"
     ],
@@ -8882,6 +8973,9 @@
     "orders_sync": [
       "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts"
     ],
+    "recalc_pricing_bundle": [
+      "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/components/mapping-modal.tsx"
+    ],
     "sync_stock_mapped": [
       "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/components/mapping-modal.tsx"
     ],
@@ -8892,41 +8986,5 @@
       "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/lib/dashboard-service.ts"
     ]
   },
-  "diagnostics": [
-    {
-      "scope": "processes.importacion_precios.downstream",
-      "severity": "info",
-      "code": "QUEUE_NO_RUNTIME",
-      "message": "cola 'sync_price' sin filas observadas en public.jobs",
-      "hint": "La cola es valida pero aun no tiene trafico observado.",
-      "evidence": {
-        "runtime": false,
-        "handler": [
-          "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts"
-        ],
-        "producer": [
-          "app-code",
-          "recalc_pricing_bundle"
-        ],
-        "yaml": true
-      }
-    },
-    {
-      "scope": "processes.pricing_publicacion_v3.downstream",
-      "severity": "info",
-      "code": "QUEUE_NO_RUNTIME",
-      "message": "cola 'sync_price' sin filas observadas en public.jobs",
-      "hint": "La cola es valida pero aun no tiene trafico observado.",
-      "evidence": {
-        "runtime": false,
-        "handler": [
-          "/home/runner/work/Autofichaje2026/Autofichaje2026/apps/dashboard/src/app/api/worker/process/route.ts"
-        ],
-        "producer": [
-          "app-code"
-        ],
-        "yaml": true
-      }
-    }
-  ]
+  "diagnostics": []
 }
