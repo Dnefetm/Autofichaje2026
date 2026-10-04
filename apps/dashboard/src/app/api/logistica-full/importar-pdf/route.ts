@@ -30,7 +30,7 @@ export async function POST(req: Request) {
         };
 
         // --- Generar salidas (misma lógica que /importar) ---
-        const CAMPOS = 'egreso_id, articulo_id, cantidad, tipo_egreso, importacion_full_id, guia, transportista, operador_id, notas, fecha, largo, ancho, alto, peso, salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado';
+        const CAMPOS = 'egreso_id, articulo_id, cantidad, tipo_egreso, importacion_full_id, guia, transportista, operador_id, notas, fecha, largo, ancho, alto, peso, salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado, objetivo';
         const { data: existentes } = await supabaseAdmin
             .from('egresos')
             .select(CAMPOS)
@@ -73,6 +73,7 @@ export async function POST(req: Request) {
         const cambios = new Set<string>();
         const procesados = new Set<string>();
         const tareas: any[] = [];
+        const sinMapeo: any[] = [];
 
         // Construir la lista de salidas (sin IO) y luego escribir en lotes concurrentes.
         for (const it of items) {
@@ -91,16 +92,22 @@ export async function POST(req: Request) {
                     tareas.push({ guia, codigo_ml: cod, articulo_id: m.articulo_id, objetivo: unidades * Number(m.cantidad_requerida || 1), codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo });
                 }
             } else {
-                // Fallback (poco frecuente): artículo con el código en codigos_marketplace.
-                const { data: arts } = await supabaseAdmin
+                // Artículo con el código en codigos_marketplace (vinculación 1:1).
+                const artsResp = await supabaseAdmin
                     .from('articulos')
                     .select('articulo_id')
                     .contains('codigos_marketplace', [cod]);
-                for (const a of (arts || [])) {
-                    const egresoId = `${guia}-${cod}-${a.articulo_id}`;
-                    if (procesados.has(egresoId)) continue;
-                    procesados.add(egresoId);
-                    tareas.push({ guia, codigo_ml: cod, articulo_id: a.articulo_id, objetivo: null, codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo });
+                const arts = artsResp.data || [];
+                if (arts.length > 0) {
+                    for (const a of arts) {
+                        const egresoId = `${guia}-${cod}-${a.articulo_id}`;
+                        if (procesados.has(egresoId)) continue;
+                        procesados.add(egresoId);
+                        tareas.push({ guia, codigo_ml: cod, articulo_id: a.articulo_id, objetivo: unidades, codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo });
+                    }
+                } else {
+                    // Sin ninguna vinculación: se reporta para mapear a mano (no se crea egreso).
+                    sinMapeo.push({ codigo_ml: cod, titulo: it.titulo, sku: it.sku, unidades, tiene_vidriera: (pubPorCodigo.get(cod) || []).length > 0 });
                 }
             }
         }
@@ -133,6 +140,7 @@ export async function POST(req: Request) {
             nuevas: creados.size,
             quitadas: quitados.length,
             con_cambio: cambios.size,
+            sin_mapeo: sinMapeo,
             quitados,
             avisos,
         });
@@ -197,14 +205,19 @@ async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, codigo_uni
     const prev = porEgresoId.get(egresoId);
     vistos.add(egresoId);
 
-    // Detectar cambio de objetivo (el PDF cambió la cantidad esperada)
-    if (prev && objetivo != null) {
-        const m = String(prev.notas || '').match(/Objetivo:\s*(\d+)/);
-        const oldObjetivo = m ? parseInt(m[1], 10) : null;
-        if (oldObjetivo != null && oldObjetivo !== objetivo) cambios.add(egresoId);
-    }
+    // Detectar cambio de objetivo (el PDF cambió la cantidad esperada).
+    if (prev && objetivo != null && prev.objetivo != null && prev.objetivo !== objetivo) cambios.add(egresoId);
 
-    const notas = objetivo != null ? `Objetivo: ${objetivo} piezas` : `Sin mapeo (código ${codigo_ml}): cantidad manual`;
+    // Las notas son del operario: se conservan al re-importar, limpiando los mensajes
+    // de sistema que antes se guardaban ahí ("Objetivo: N piezas" / "Sin mapeo…").
+    const notasLimpias = prev?.notas
+        ? String(prev.notas)
+            .replace(/Objetivo:\s*\d+\s*piezas\s*/i, '')
+            .replace(/Sin mapeo\s*\(c[óo]digo [^)]*\):\s*cantidad manual\s*/i, '')
+            .trim()
+        : '';
+    const notas = notasLimpias || null;
+
     const { error } = await supabaseAdmin.rpc('web_upsert_egreso', {
         p_egreso_id: egresoId,
         p_articulo_id: articulo_id,
@@ -225,12 +238,13 @@ async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, codigo_uni
     });
     if (!error) creados.add(egresoId);
 
-    // UPC / SKU / título — el RPC no los maneja; se actualizan directo.
-    const extras: Record<string, string> = {};
-    if (codigo_universal) extras.codigo_universal = codigo_universal;
-    if (sku) extras.sku_ml = sku;
-    if (titulo) extras.titulo_ml = titulo;
-    if (Object.keys(extras).length) {
-        await supabaseAdmin.from('egresos').update(extras).eq('egreso_id', egresoId);
-    }
+    // UPC / SKU / título / objetivo — el RPC no los maneja; se actualizan directo
+    // (siempre se escriben, incluso null, para que el PDF sea la fuente de verdad).
+    const extras: Record<string, any> = {
+        objetivo: objetivo ?? null,
+        codigo_universal: codigo_universal ?? null,
+        sku_ml: sku ?? null,
+        titulo_ml: titulo ?? null,
+    };
+    await supabaseAdmin.from('egresos').update(extras).eq('egreso_id', egresoId);
 }

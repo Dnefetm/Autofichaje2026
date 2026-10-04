@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const CAMPOS_EGRESO = 'id, egreso_id, articulo_id, cantidad, tipo_egreso, importacion_full_id, guia, transportista, operador_id, notas, fecha, largo, ancho, alto, peso, salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado, fecha_cerrado, avisos, imagenes, codigo_universal, sku_ml, titulo_ml';
+const CAMPOS_EGRESO = 'id, egreso_id, articulo_id, cantidad, tipo_egreso, importacion_full_id, guia, transportista, operador_id, notas, fecha, largo, ancho, alto, peso, salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado, fecha_cerrado, avisos, imagenes, codigo_universal, sku_ml, titulo_ml, objetivo';
 
 // GET /api/logistica-full/envio?guia=X — detalle de un envío Full (egresos + nombre de artículo).
 export async function GET(req: Request) {
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
         const chunk = ids.slice(i, i + 100);
         const { data: arts } = await supabaseAdmin
             .from('articulos')
-            .select('articulo_id, nombre, marca, modelo, caja_madre, peso_kg, largo_cm, ancho_cm, alto_cm, atributos_especificos')
+            .select('articulo_id, nombre, marca, modelo, caja_madre, peso_kg, largo_cm, ancho_cm, alto_cm, atributos_especificos, codigo_universal')
             .in('articulo_id', chunk);
         (arts || []).forEach(a => infoArticulo.set(a.articulo_id, a));
     }
@@ -60,6 +60,8 @@ export async function GET(req: Request) {
                 modelo: art?.modelo || null,
                 titulo_ml: e.titulo_ml || pub?.titulo || null,
                 sku_ml: e.sku_ml || pub?.seller_sku || null,
+                codigo_universal_catalogo: art?.codigo_universal || null,
+                objetivo: e.objetivo ?? null,
                 ubicacion: art?.caja_madre || null,
                 peso_kg: art?.peso_kg ?? null,
                 largo_cm: art?.largo_cm ?? null,

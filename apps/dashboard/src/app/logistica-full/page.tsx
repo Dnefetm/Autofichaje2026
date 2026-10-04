@@ -64,6 +64,7 @@ export default function LogisticaFullPage() {
     const [planGuardando, setPlanGuardando] = useState(false);
     const [nuevoCodigo, setNuevoCodigo] = useState('');
     const [nuevoCantidad, setNuevoCantidad] = useState('');
+    const [sinMapeo, setSinMapeo] = useState<any[] | null>(null);
 
     const importarPdf = async (ev: React.ChangeEvent<HTMLInputElement>) => {
         const file = ev.target.files?.[0];
@@ -84,7 +85,9 @@ export default function LogisticaFullPage() {
             });
             const j = await r.json();
             if (j.success) {
-                toast.success(`PDF ${j.guia} importado: ${j.salidas_generadas} salidas (${j.nuevas} nuevas)`);
+                setSinMapeo((j.sin_mapeo || []).length ? j.sin_mapeo : null);
+                const sm = (j.sin_mapeo || []).length;
+                toast.success(`PDF ${j.guia} importado: ${j.salidas_generadas} salidas${sm ? ` · ${sm} sin mapeo` : ''}`);
                 await loadEnvios();
             } else {
                 toast.error(j.error || 'Error importando PDF');
@@ -449,6 +452,29 @@ export default function LogisticaFullPage() {
                     </div>
                 </Card>
             </div>
+
+            {/* Productos sin mapeo (tras importar un PDF) */}
+            {sinMapeo && sinMapeo.length > 0 && (
+                <Card title={`${sinMapeo.length} producto(s) sin mapeo a catálogo`}>
+                    <div className="px-4 py-3 space-y-2">
+                        <p className="text-xs text-[var(--text-muted)]">
+                            Estos códigos del PDF no tienen vidriera mapeada a un artículo, así que no generaron salida. Mápalos en{' '}
+                            <a href="/catalog/external" className="text-[var(--accent)] underline">Vitrinas MeLi</a> y vuelve a importar el PDF.
+                        </p>
+                        <ul className="divide-y divide-[var(--border)]">
+                            {sinMapeo.map((p, i) => (
+                                <li key={i} className="py-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs items-center">
+                                    <span className="font-mono text-[var(--text)]">{p.codigo_ml}</span>
+                                    <span className="text-[var(--text-muted)]">{p.titulo || '—'}</span>
+                                    {p.sku && <span className="text-[var(--text-faint)]">SKU {p.sku}</span>}
+                                    <span className="text-[var(--text-faint)]">×{p.unidades}</span>
+                                    {!p.tiene_vidriera && <Badge tone="warning">sin vidriera</Badge>}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </Card>
+            )}
 
             {/* Controles */}
             <div className="flex flex-wrap items-end gap-3">

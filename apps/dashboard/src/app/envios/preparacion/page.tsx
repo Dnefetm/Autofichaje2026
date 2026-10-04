@@ -37,6 +37,8 @@ interface Salida {
     sku_ml: string | null;
     modelo: string | null;
     marca: string | null;
+    codigo_universal_catalogo: string | null;
+    objetivo: number | null;
 }
 
 export default function PreparacionPage() {
@@ -186,10 +188,7 @@ export default function PreparacionPage() {
         const total = salidas.length;
         const hechos = salidas.filter(s => s.edo_reunido === 'Reunido' || s.edo_reunido === 'Preparado').length;
         const totalUnidadesML = (salidas[0] as any)?.avisos?.total_unidades ?? null;
-        const totalPiezasObjetivo = salidas.reduce((s, x) => {
-            const m = String((x as any).notas || '').match(/Objetivo:\s*(\d+)/);
-            return s + (m ? parseInt(m[1], 10) : 0);
-        }, 0);
+        const totalPiezasObjetivo = salidas.reduce((s, x) => s + (x.objetivo || 0), 0);
 
         return (
             <Page>
@@ -236,18 +235,26 @@ export default function PreparacionPage() {
                                                         <Package className="w-6 h-6 text-[var(--text-faint)]" />
                                                     </div>
                                                 )}
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="text-sm font-semibold text-[var(--text)] leading-tight">{s.nombre || s.articulo_id}</p>
-                                                    {s.titulo_ml && s.titulo_ml !== s.nombre && <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">ML: {s.titulo_ml}</p>}
-                                                    <p className="text-xs text-[var(--text-faint)] font-mono mt-0.5">{s.codigo_ml || '—'}{s.sku_ml ? ` · SKU ${s.sku_ml}` : ''}{s.modelo ? ` · ${s.modelo}` : ''}</p>
-                                                    {s.ubicacion && <p className="text-xs text-[var(--text-muted)] mt-0.5">📍 {s.ubicacion}</p>}
+                                                <div className="min-w-0 flex-1 space-y-0.5">
+                                                    {/* Título PDF arriba de título catálogo */}
+                                                    {s.titulo_ml && <p className="text-xs text-[var(--text)] leading-snug break-words"><span className="font-bold text-[var(--accent)]">Título PDF</span> {s.titulo_ml}</p>}
+                                                    <p className="text-sm font-semibold text-[var(--text)] leading-tight break-words"><span className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Título catálogo</span> {s.nombre || s.articulo_id}</p>
+                                                    {/* SKU PDF arriba de Modelo */}
+                                                    {s.sku_ml && <p className="text-xs text-[var(--text)] leading-snug"><span className="font-bold text-[var(--accent)]">SKU PDF</span> {s.sku_ml}</p>}
+                                                    {s.modelo && <p className="text-xs text-[var(--text-muted)] leading-snug"><span className="font-bold">Modelo catálogo</span> {s.modelo}</p>}
+                                                    {/* Código universal PDF arriba de código universal catálogo */}
+                                                    {s.codigo_universal && <p className="text-xs text-[var(--text)] leading-snug"><span className="font-bold text-[var(--accent)]">Código universal PDF</span> {s.codigo_universal}</p>}
+                                                    {s.codigo_universal_catalogo && <p className="text-xs text-[var(--text-muted)] leading-snug"><span className="font-bold">Código universal catálogo</span> {s.codigo_universal_catalogo}</p>}
+                                                    <p className="text-xs text-[var(--text-faint)] font-mono">{s.codigo_ml || '—'}</p>
+                                                    {s.ubicacion && <p className="text-xs text-[var(--text-muted)]">📍 {s.ubicacion}</p>}
                                                     {(s.peso_kg != null || s.largo_cm != null) && (
-                                                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                                                        <p className="text-xs text-[var(--text-muted)]">
                                                             {s.peso_kg != null ? `⚖️ ${s.peso_kg} kg` : ''}
                                                             {(s.largo_cm != null || s.ancho_cm != null || s.alto_cm != null) ? ` · 📐 ${s.largo_cm ?? '?'}×${s.ancho_cm ?? '?'}×${s.alto_cm ?? '?'} cm` : ''}
                                                         </p>
                                                     )}
-                                                    {s.notas && <p className="text-xs text-[var(--info)] mt-0.5 break-words">{s.notas}</p>}
+                                                    {s.objetivo != null && <p className="text-xs font-semibold text-[var(--info)]">🎯 Objetivo: {s.objetivo} unidades</p>}
+                                                    {s.notas && <p className="text-xs text-[var(--info)] break-words">📝 {s.notas}</p>}
                                                 </div>
                                             </div>
 
@@ -310,17 +317,22 @@ export default function PreparacionPage() {
                     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60" onClick={() => setFicha(null)}>
                         <div className="w-full max-w-md bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-start justify-between">
-                                <div>
-                                    <h3 className="font-semibold text-[var(--text)]">{ficha.nombre || ficha.articulo_id}</h3>
-                                    {ficha.titulo_ml && ficha.titulo_ml !== ficha.nombre && <p className="text-xs text-[var(--text-muted)] mt-0.5">ML: {ficha.titulo_ml}</p>}
-                                    <p className="text-xs text-[var(--text-faint)] font-mono">{ficha.codigo_ml || '—'}{ficha.sku_ml ? ` · SKU ${ficha.sku_ml}` : ''}{ficha.modelo ? ` · ${ficha.modelo}` : ''}</p>
-                                    {ficha.ubicacion && <p className="text-xs text-[var(--text-muted)] mt-0.5">📍 {ficha.ubicacion}</p>}
+                                <div className="min-w-0 space-y-0.5">
+                                    {ficha.titulo_ml && <p className="text-xs text-[var(--text)] leading-snug break-words"><span className="font-bold text-[var(--accent)]">Título PDF</span> {ficha.titulo_ml}</p>}
+                                    <h3 className="font-semibold text-[var(--text)] leading-tight break-words"><span className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Título catálogo</span> {ficha.nombre || ficha.articulo_id}</h3>
+                                    {ficha.sku_ml && <p className="text-xs text-[var(--text)] leading-snug"><span className="font-bold text-[var(--accent)]">SKU PDF</span> {ficha.sku_ml}</p>}
+                                    {ficha.modelo && <p className="text-xs text-[var(--text-muted)] leading-snug"><span className="font-bold">Modelo catálogo</span> {ficha.modelo}</p>}
+                                    {ficha.codigo_universal && <p className="text-xs text-[var(--text)] leading-snug"><span className="font-bold text-[var(--accent)]">Código universal PDF</span> {ficha.codigo_universal}</p>}
+                                    {ficha.codigo_universal_catalogo && <p className="text-xs text-[var(--text-muted)] leading-snug"><span className="font-bold">Código universal catálogo</span> {ficha.codigo_universal_catalogo}</p>}
+                                    <p className="text-xs text-[var(--text-faint)] font-mono">{ficha.codigo_ml || '—'}</p>
+                                    {ficha.ubicacion && <p className="text-xs text-[var(--text-muted)]">📍 {ficha.ubicacion}</p>}
                                     {(ficha.peso_kg != null || ficha.largo_cm != null) && (
-                                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                                        <p className="text-xs text-[var(--text-muted)]">
                                             {ficha.peso_kg != null ? `⚖️ ${ficha.peso_kg} kg` : ''}
                                             {(ficha.largo_cm != null || ficha.ancho_cm != null || ficha.alto_cm != null) ? ` · 📐 ${ficha.largo_cm ?? '?'}×${ficha.ancho_cm ?? '?'}×${ficha.alto_cm ?? '?'} cm` : ''}
                                         </p>
                                     )}
+                                    {ficha.objetivo != null && <p className="text-xs font-semibold text-[var(--info)]">🎯 Objetivo: {ficha.objetivo} unidades</p>}
                                 </div>
                                 <Btn size="sm" variant="ghost" onClick={() => setFicha(null)}>✕</Btn>
                             </div>
