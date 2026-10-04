@@ -1,10 +1,10 @@
 "use client";
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Page } from '@/components/ui/Page';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { Btn } from '@/components/ui/Btn';
-import { ArrowLeft, Package } from 'lucide-react';
+import { ArrowLeft, Package, ScanLine } from 'lucide-react';
 
 interface Envio {
     guia: string;
@@ -24,6 +24,8 @@ interface Salida {
     cantidad: number;
     edo_reunido: string | null;
     notas: string | null;
+    avisos: any | null;
+    codigo_universal: string | null;
 }
 
 export default function PreparacionPage() {
@@ -35,6 +37,11 @@ export default function PreparacionPage() {
     const [ficha, setFicha] = useState<Salida | null>(null);
     const [notaTexto, setNotaTexto] = useState('');
 
+    // Escáner de código de barras (P6b)
+    const [escanerAbierto, setEscanerAbierto] = useState(false);
+    const [escanerEncontrado, setEscanerEncontrado] = useState<string | null>(null);
+    const escanerRef = useRef<any>(null);
+
     const loadEnvios = useCallback(async () => {
         const r = await fetch('/api/logistica-full/lotes');
         const j = await r.json();
@@ -42,6 +49,34 @@ export default function PreparacionPage() {
     }, []);
 
     useEffect(() => { loadEnvios(); }, [loadEnvios]);
+
+    // PWA: registrar service worker (offline).
+    useEffect(() => {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+        }
+    }, []);
+
+    // P6b: escáner — inicia la cámara al abrir el modal.
+    useEffect(() => {
+        if (!escanerAbierto) return;
+        let scanner: any = null;
+        (async () => {
+            try {
+                const mod = await import('html5-qrcode');
+                scanner = new mod.Html5Qrcode('escaner-reader');
+                const onScan = (text: string) => {
+                    const match = salidas.find((s: any) => String(s.codigo_universal || '').trim() !== '' && String(s.codigo_universal).trim() === String(text).trim());
+                    if (match) {
+                        setEscanerEncontrado(match.egreso_id);
+                        setEscanerAbierto(false);
+                    }
+                };
+                await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 240, height: 240 } }, onScan, () => {});
+            } catch (e) { console.error(e); }
+        })();
+        return () => { if (scanner) { scanner.stop().catch(() => {}); } };
+    }, [escanerAbierto, salidas]);
 
     const abrirEnvio = async (guia: string) => {
         setSeleccionado(guia);
@@ -92,16 +127,16 @@ export default function PreparacionPage() {
         if (!file || !ficha) return;
         const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result));
+            reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
             reader.onerror = reject;
             reader.readAsDataURL(file);
         });
-        const actuales = (ficha as any).imagenes || [];
         await fetch('/api/logistica-full/envio', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ egreso_id: ficha.egreso_id, imagenes: [...actuales, base64] }),
+            body: JSON.stringify({ egreso_id: ficha.egreso_id, nueva_imagen: { base64, mime: file.type || 'image/jpeg' } }),
         });
+        setFicha(null);
         if (seleccionado) await abrirEnvio(seleccionado);
     };
 
@@ -127,6 +162,11 @@ export default function PreparacionPage() {
                 <PageHeader
                     title={`Envío ${seleccionado}`}
                     description={`${hechos} / ${total} productos listos`}
+                    actions={
+                        <Btn variant="outline" size="sm" onClick={() => { setEscanerEncontrado(null); setEscanerAbierto(true); }} icon={<ScanLine className="w-4 h-4" />}>
+                            Escanear
+                        </Btn>
+                    }
                 />
 
                 {/* Barra de progreso */}
@@ -147,7 +187,7 @@ export default function PreparacionPage() {
                                     const estado = s.edo_reunido === 'Preparado' ? 'Preparado' : s.edo_reunido === 'Reunido' ? 'Reunido' : 'Pendiente';
                                     const completo = estado === 'Preparado';
                                     return (
-                                        <div key={s.egreso_id} className={`bg-[var(--surface)] border rounded-xl p-3 ${completo ? 'border-[var(--ok)]/40 opacity-70' : 'border-[var(--border)]'}`}>
+                                        <div key={s.egreso_id} className={`bg-[var(--surface)] border rounded-xl p-3 ${escanerEncontrado === s.egreso_id ? 'border-[var(--accent)] ring-2 ring-[var(--accent)]' : completo ? 'border-[var(--ok)]/40 opacity-70' : 'border-[var(--border)]'}`}>
                                             <div className="flex gap-3">
                                                 {s.foto ? (
                                                     <img src={s.foto} alt="" className="w-16 h-16 rounded-lg object-contain bg-white shrink-0" />
@@ -201,6 +241,20 @@ export default function PreparacionPage() {
                     ))
                 )}
 
+                {/* Modal escáner */}
+                {escanerAbierto && (
+                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70" onClick={() => setEscanerAbierto(false)}>
+                        <div className="w-full max-w-md bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-semibold text-[var(--text)]">Escanear código de barras</h3>
+                                <Btn size="sm" variant="ghost" onClick={() => setEscanerAbierto(false)}>✕</Btn>
+                            </div>
+                            <div id="escaner-reader" className="mt-3 rounded-lg overflow-hidden" />
+                            <p className="text-xs text-[var(--text-faint)] mt-2">Apunta al código de barras del producto (código universal).</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Ficha de la salida (notas + fotos) */}
                 {ficha && (
                     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60" onClick={() => setFicha(null)}>
@@ -214,6 +268,15 @@ export default function PreparacionPage() {
                             </div>
 
                             <p className="text-xs text-[var(--info)] mt-2 break-words">{ficha.notas}</p>
+
+                            {ficha.avisos && (ficha.avisos.etiquetado || ficha.avisos.fragil || ficha.avisos.vencimiento || ficha.avisos.peso_medidas) && (
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {ficha.avisos.etiquetado && <Badge tone="warning">🏷️ Etiquetar</Badge>}
+                                    {ficha.avisos.fragil && <Badge tone="warning">📦 Frágil (burbuja)</Badge>}
+                                    {ficha.avisos.vencimiento && <Badge tone="warning">📅 Vencimiento</Badge>}
+                                    {ficha.avisos.peso_medidas && <Badge tone="warning">⚖️ Peso/Medidas</Badge>}
+                                </div>
+                            )}
 
                             <label className="block mt-3 text-xs text-[var(--text-muted)]">
                                 Nota

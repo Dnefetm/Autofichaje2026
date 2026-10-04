@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const CAMPOS_EGRESO = 'id, egreso_id, articulo_id, cantidad, tipo_egreso, importacion_full_id, guia, transportista, operador_id, notas, fecha, largo, ancho, alto, peso, salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado';
+const CAMPOS_EGRESO = 'id, egreso_id, articulo_id, cantidad, tipo_egreso, importacion_full_id, guia, transportista, operador_id, notas, fecha, largo, ancho, alto, peso, salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado, fecha_cerrado, avisos, imagenes, codigo_universal';
 
 // GET /api/logistica-full/envio?guia=X — detalle de un envío Full (egresos + nombre de artículo).
 export async function GET(req: Request) {
@@ -121,7 +121,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
     try {
         const body = await req.json();
-        const { egreso_id, cantidad, accion, notas, imagenes } = body;
+        const { egreso_id, cantidad, accion, notas, imagenes, nueva_imagen } = body;
         if (!egreso_id) return NextResponse.json({ error: 'egreso_id requerido' }, { status: 400 });
 
         const { data: eg, error } = await supabaseAdmin
@@ -142,6 +142,7 @@ export async function PATCH(req: Request) {
         let edo = eg.edo_reunido;
         let fReunido = eg.fecha_reunido;
         let fPreparado = eg.fecha_preparado;
+        let fCerrado = eg.fecha_cerrado;
         const now = new Date().toISOString();
         const log: string[] = [];
 
@@ -152,6 +153,8 @@ export async function PATCH(req: Request) {
         } else if (accion === 'quitar') {
             if (edo === 'Preparado') { edo = 'Reunido'; fPreparado = null; log.push('quitado preparado'); }
             else if (edo === 'Reunido') { edo = null; fReunido = null; log.push('quitado reunido'); }
+        } else if (accion === 'cerrar') {
+            edo = 'Cerrado'; fCerrado = now; log.push('cerrado');
         }
 
         const original = Number(eg.cantidad || 0);
@@ -194,6 +197,30 @@ export async function PATCH(req: Request) {
         // Fotos (imagenes) — el RPC no las maneja; se actualizan directo.
         if (Array.isArray(imagenes)) {
             await supabaseAdmin.from('egresos').update({ imagenes }).eq('egreso_id', eg.egreso_id);
+        }
+
+        // P5: subir nueva imagen a Storage (URL en vez de base64).
+        if (nueva_imagen?.base64) {
+            try {
+                const b64 = String(nueva_imagen.base64);
+                const mime = nueva_imagen.mime || 'image/jpeg';
+                const ext = mime.split('/')[1] || 'jpg';
+                const path = `${eg.egreso_id}/${Date.now()}.${ext}`;
+                const buf = Buffer.from(b64, 'base64');
+                const { error: upErr } = await supabaseAdmin.storage
+                    .from('fotos-egresos')
+                    .upload(path, buf, { contentType: mime });
+                if (!upErr) {
+                    const { data: pub } = supabaseAdmin.storage.from('fotos-egresos').getPublicUrl(path);
+                    const actuales = Array.isArray(eg.imagenes) ? eg.imagenes : [];
+                    await supabaseAdmin.from('egresos').update({ imagenes: [...actuales, pub.publicUrl] }).eq('egreso_id', eg.egreso_id);
+                }
+            } catch (_) { /* falla de subida: no romper el flujo */ }
+        }
+
+        // fecha_cerrado — el RPC no la maneja; se actualiza directo.
+        if (accion === 'cerrar') {
+            await supabaseAdmin.from('egresos').update({ fecha_cerrado: fCerrado }).eq('egreso_id', eg.egreso_id);
         }
 
         return NextResponse.json({ success: true, edo, notas: notasFinal });

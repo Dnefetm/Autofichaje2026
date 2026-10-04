@@ -58,6 +58,13 @@ export default function LogisticaFullPage() {
     const [importando, setImportando] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
 
+    // --- Envíos planificados (decisión del operario) ---
+    const [planes, setPlanes] = useState<any[]>([]);
+    const [planAbierto, setPlanAbierto] = useState<{ id: string; estado: string; notas: string; items: any[] } | null>(null);
+    const [planGuardando, setPlanGuardando] = useState(false);
+    const [nuevoCodigo, setNuevoCodigo] = useState('');
+    const [nuevoCantidad, setNuevoCantidad] = useState('');
+
     const importarPdf = async (ev: React.ChangeEvent<HTMLInputElement>) => {
         const file = ev.target.files?.[0];
         ev.target.value = '';
@@ -213,6 +220,88 @@ export default function LogisticaFullPage() {
         }
     };
 
+    const loadPlanes = useCallback(async () => {
+        try {
+            const r = await fetch('/api/logistica-full/planificar');
+            const j = await r.json();
+            if (j.success) setPlanes(j.envios || []);
+        } catch (e) { console.error(e); }
+    }, []);
+
+    const crearPlan = async () => {
+        if (!data?.propuesta?.length) return;
+        setPlanGuardando(true);
+        try {
+            const items = data.propuesta
+                .filter((p: any) => (p.sugerido || 0) > 0)
+                .map((p: any) => ({ inventory_id: p.inventory_id, nombre: p.nombre, cantidad: p.sugerido, objetivo: p.sugerido }));
+            const r = await fetch('/api/logistica-full/planificar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items }),
+            });
+            const j = await r.json();
+            if (j.success) {
+                toast.success('Envío planificado creado');
+                setPlanAbierto({ id: j.id, estado: 'borrador', notas: '', items });
+                await loadPlanes();
+            } else toast.error(j.error || 'Error creando plan');
+        } catch (e: any) { toast.error(e.message); } finally { setPlanGuardando(false); }
+    };
+
+    const abrirPlan = async (id: string) => {
+        const r = await fetch(`/api/logistica-full/planificar?id=${id}`);
+        const j = await r.json();
+        if (j.success) setPlanAbierto({ id: j.envio.id, estado: j.envio.estado, notas: j.envio.notas || '', items: j.items || [] });
+    };
+
+    const guardarPlan = async (accion?: 'confirmar' | 'cerrar') => {
+        if (!planAbierto) return;
+        setPlanGuardando(true);
+        try {
+            const items = planAbierto.items.map((it: any) => ({ inventory_id: it.inventory_id, nombre: it.nombre, cantidad: it.cantidad, objetivo: it.objetivo }));
+            const r = await fetch('/api/logistica-full/planificar', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: planAbierto.id, accion: accion || 'guardar', items }),
+            });
+            const j = await r.json();
+            if (j.success) {
+                toast.success(accion === 'confirmar' ? 'Envío confirmado' : accion === 'cerrar' ? 'Envío cerrado' : 'Guardado');
+                await loadPlanes();
+                if (accion) setPlanAbierto(null);
+            } else toast.error(j.error || 'Error');
+        } catch (e: any) { toast.error(e.message); } finally { setPlanGuardando(false); }
+    };
+
+    const eliminarPlan = async (id: string) => {
+        const r = await fetch(`/api/logistica-full/planificar?id=${id}`, { method: 'DELETE' });
+        const j = await r.json();
+        if (j.success) { toast.success('Plan descartado'); await loadPlanes(); }
+    };
+
+    const ajustarItem = (idx: number, cantidad: number) => {
+        if (!planAbierto) return;
+        const items = [...planAbierto.items];
+        items[idx] = { ...items[idx], cantidad: Math.max(0, cantidad) };
+        setPlanAbierto({ ...planAbierto, items });
+    };
+
+    const quitarItem = (idx: number) => {
+        if (!planAbierto) return;
+        setPlanAbierto({ ...planAbierto, items: planAbierto.items.filter((_, i) => i !== idx) });
+    };
+
+    const agregarItem = () => {
+        const cod = nuevoCodigo.trim();
+        const cant = parseInt(nuevoCantidad, 10);
+        if (!cod || !Number.isFinite(cant) || cant < 0 || !planAbierto) return;
+        setPlanAbierto({ ...planAbierto, items: [...planAbierto.items, { inventory_id: cod, nombre: null, cantidad: cant, objetivo: null }] });
+        setNuevoCodigo(''); setNuevoCantidad('');
+    };
+
+    useEffect(() => { loadPlanes(); }, [loadPlanes]);
+
     const columns: Column<PropItem>[] = [
         {
             key: 'nombre',
@@ -316,6 +405,9 @@ export default function LogisticaFullPage() {
                 description="Stock en el depósito Full de MeLi y propuesta de reposición."
                 actions={
                     <>
+                        <Btn variant="primary" onClick={crearPlan} loading={planGuardando && !planAbierto} icon={<Boxes className="w-4 h-4" />}>
+                            Planificar envío
+                        </Btn>
                         <Btn variant="outline" onClick={exportarCSV} icon={<Download className="w-4 h-4" />}>
                             Exportar CSV
                         </Btn>
@@ -419,6 +511,26 @@ export default function LogisticaFullPage() {
                 />
             </Card>
 
+            {/* Envíos planificados (decisión del operario) */}
+            <Card title="Envíos planificados">
+                {planes.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-[var(--text-faint)]">Sin envíos planificados. Usa «Planificar envío» para decidir qué y cuánto enviar.</p>
+                ) : (
+                    <div className="divide-y divide-[var(--border)]">
+                        {planes.map((p: any) => (
+                            <div key={p.id} className="px-4 py-2.5 flex flex-wrap items-center gap-3">
+                                <Badge tone={p.estado === 'confirmado' ? 'info' : p.estado === 'cerrado' ? 'success' : 'neutral'}>{p.estado}</Badge>
+                                <span className="text-sm text-[var(--text)] font-mono">{p.guia || '(sin guía)'}</span>
+                                <span className="text-xs text-[var(--text-faint)]">{p.fecha_creacion ? new Date(p.fecha_creacion).toLocaleDateString('es-MX') : ''}</span>
+                                <div className="flex-1" />
+                                <Btn size="sm" variant="outline" onClick={() => abrirPlan(p.id)}>Abrir</Btn>
+                                {p.estado !== 'cerrado' && <Btn size="sm" variant="ghost" onClick={() => eliminarPlan(p.id)}>Descartar</Btn>}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </Card>
+
             {/* Workflow de envíos */}
             <Card title="Envíos Full (pendiente → reunido → preparado)">
                 <DataTable<Envio>
@@ -501,6 +613,59 @@ export default function LogisticaFullPage() {
                 </Card>
                 );
             })()}
+
+            {/* Modal de envío planificado */}
+            {planAbierto && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60" onClick={() => setPlanAbierto(null)}>
+                    <div className="w-full max-w-2xl max-h-[85vh] overflow-auto bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between">
+                            <h3 className="font-semibold text-[var(--text)] flex items-center gap-2">
+                                Envío planificado
+                                <Badge tone={planAbierto.estado === 'confirmado' ? 'info' : planAbierto.estado === 'cerrado' ? 'success' : 'neutral'}>{planAbierto.estado}</Badge>
+                            </h3>
+                            <Btn size="sm" variant="ghost" onClick={() => setPlanAbierto(null)}>✕</Btn>
+                        </div>
+
+                        {planAbierto.items.length === 0 ? (
+                            <p className="py-6 text-center text-sm text-[var(--text-faint)]">Sin productos. Agrega un código ML abajo.</p>
+                        ) : (
+                            <div className="divide-y divide-[var(--border)] mt-2">
+                                {planAbierto.items.map((it: any, i: number) => (
+                                    <div key={i} className="py-2 flex items-center gap-3">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm text-[var(--text)] truncate">{it.nombre || it.inventory_id}</p>
+                                            <p className="text-xs text-[var(--text-faint)] font-mono">{it.inventory_id}{it.objetivo != null ? ` · sugerido ${it.objetivo}` : ''}</p>
+                                        </div>
+                                        <input
+                                            type="number" min={0} value={it.cantidad}
+                                            onChange={(e) => ajustarItem(i, Number(e.target.value) || 0)}
+                                            className="w-20 px-2 py-1 bg-[var(--surface)] border border-[var(--border)] rounded text-sm text-[var(--text)] font-mono text-right"
+                                        />
+                                        <Btn size="sm" variant="ghost" onClick={() => quitarItem(i)}>✕</Btn>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-2 mt-3 items-center">
+                            <input value={nuevoCodigo} onChange={(e) => setNuevoCodigo(e.target.value)} placeholder="Código ML" className="flex-1 min-w-40 px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded text-sm text-[var(--text)] font-mono" />
+                            <input type="number" min={0} value={nuevoCantidad} onChange={(e) => setNuevoCantidad(e.target.value)} placeholder="Cant." className="w-20 px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded text-sm text-[var(--text)] font-mono" />
+                            <Btn size="sm" variant="outline" onClick={agregarItem}>Agregar</Btn>
+                        </div>
+
+                        <div className="flex flex-wrap justify-end gap-2 mt-4">
+                            <Btn size="sm" variant="ghost" onClick={() => setPlanAbierto(null)}>Cerrar</Btn>
+                            <Btn size="sm" variant="outline" loading={planGuardando} onClick={() => guardarPlan()}>Guardar</Btn>
+                            {planAbierto.estado === 'borrador' && (
+                                <Btn size="sm" variant="primary" loading={planGuardando} onClick={() => guardarPlan('confirmar')}>Confirmar envío</Btn>
+                            )}
+                            {planAbierto.estado === 'confirmado' && (
+                                <Btn size="sm" variant="primary" loading={planGuardando} onClick={() => guardarPlan('cerrar')}>Cerrar envío</Btn>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </Page>
     );
 }

@@ -19,6 +19,14 @@ export async function POST(req: Request) {
 
         const { guia, items } = parseado;
 
+        // P4: avisos de ML (etiquetar, frágil, vencimiento, peso/medidas) — a nivel de envío.
+        const avisos = {
+            etiquetado: /etiquet/i.test(text),
+            fragil: /burbuja|fr[áa]gil/i.test(text),
+            vencimiento: /vencimiento/i.test(text),
+            peso_medidas: /peso|medida|dimensi/i.test(text),
+        };
+
         // --- Generar salidas (misma lógica que /importar) ---
         const CAMPOS = 'egreso_id, articulo_id, cantidad, tipo_egreso, importacion_full_id, guia, transportista, operador_id, notas, fecha, largo, ancho, alto, peso, salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado';
         const { data: existentes } = await supabaseAdmin
@@ -31,6 +39,8 @@ export async function POST(req: Request) {
 
         let totalSalidas = 0;
         const creados = new Set<string>();
+        const vistos = new Set<string>();
+        const cambios = new Set<string>();
 
         for (const it of items) {
             const cod = String(it.codigo_ml).trim();
@@ -55,7 +65,7 @@ export async function POST(req: Request) {
             if (mapeos.length > 0) {
                 for (const m of mapeos) {
                     const objetivo = unidades * Number(m.cantidad_requerida || 1);
-                    await upsertSalida({ guia, codigo_ml: cod, articulo_id: m.articulo_id, objetivo, porEgresoId, creados });
+                    await upsertSalida({ guia, codigo_ml: cod, articulo_id: m.articulo_id, objetivo, codigo_universal: it.codigo_universal, porEgresoId, creados, vistos, cambios });
                     totalSalidas++;
                 }
             } else {
@@ -64,22 +74,42 @@ export async function POST(req: Request) {
                     .select('articulo_id')
                     .contains('codigos_marketplace', [cod]);
                 for (const a of (arts || [])) {
-                    await upsertSalida({ guia, codigo_ml: cod, articulo_id: a.articulo_id, objetivo: null, porEgresoId, creados });
+                    await upsertSalida({ guia, codigo_ml: cod, articulo_id: a.articulo_id, objetivo: null, codigo_universal: it.codigo_universal, porEgresoId, creados, vistos, cambios });
                     totalSalidas++;
                 }
             }
         }
 
-        return NextResponse.json({ success: true, guia, items: items.length, salidas_generadas: totalSalidas, nuevas: creados.size });
+        // P3: detección de cambios (quitados = existentes que ya no vienen en el PDF)
+        const quitados: string[] = [];
+        for (const egresoId of porEgresoId.keys()) {
+            if (!vistos.has(egresoId)) quitados.push(egresoId);
+        }
+
+        // P4: guardar avisos en todos los egresos del envío
+        await supabaseAdmin.from('egresos').update({ avisos }).eq('tipo_egreso', 'envio_full').eq('guia', String(guia));
+
+        return NextResponse.json({
+            success: true,
+            guia,
+            items: items.length,
+            salidas_generadas: totalSalidas,
+            nuevas: creados.size,
+            quitadas: quitados.length,
+            con_cambio: cambios.size,
+            quitados,
+            avisos,
+        });
     } catch (err: any) {
         return NextResponse.json({ error: err.message || 'Error importando PDF' }, { status: 500 });
     }
 }
 
-function parsearPdf(text: string): { guia: string; items: { codigo_ml: string; unidades: number }[] } | null {
+function parsearPdf(text: string): { guia: string; items: { codigo_ml: string; unidades: number; codigo_universal: string | null }[] } | null {
     const guia = (text.match(/Envío #(\d+)/) || [])[1];
     if (!guia) return null;
     const codigos = [...text.matchAll(/Código ML:\s*(\S+)/g)].map(m => m[1]);
+    const universales = [...text.matchAll(/Código universal:\s*(\S+)/g)].map(m => m[1]);
     const unidades: number[] = [];
     const pages = text.split(/--\s*\d+\s+of\s+\d+\s*--/);
     for (const page of pages) {
@@ -96,7 +126,7 @@ function parsearPdf(text: string): { guia: string; items: { codigo_ml: string; u
     if (codigos.length === 0) return null;
     const items = [];
     for (let i = 0; i < codigos.length; i++) {
-        items.push({ codigo_ml: codigos[i], unidades: unidades[i] ?? 0 });
+        items.push({ codigo_ml: codigos[i], unidades: unidades[i] ?? 0, codigo_universal: universales[i] || null });
     }
     return { guia, items };
 }
@@ -114,9 +144,18 @@ function extraerTextoPdf(base64: string): string {
     return chunks.join('\n');
 }
 
-async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, porEgresoId, creados }: any) {
+async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, codigo_universal, porEgresoId, creados, vistos, cambios }: any) {
     const egresoId = `${guia}-${codigo_ml}-${articulo_id}`;
     const prev = porEgresoId.get(egresoId);
+    vistos.add(egresoId);
+
+    // Detectar cambio de objetivo (el PDF cambió la cantidad esperada)
+    if (prev && objetivo != null) {
+        const m = String(prev.notas || '').match(/Objetivo:\s*(\d+)/);
+        const oldObjetivo = m ? parseInt(m[1], 10) : null;
+        if (oldObjetivo != null && oldObjetivo !== objetivo) cambios.add(egresoId);
+    }
+
     const notas = objetivo != null ? `Objetivo: ${objetivo} piezas` : `Sin mapeo (código ${codigo_ml}): cantidad manual`;
     const { error } = await supabaseAdmin.rpc('web_upsert_egreso', {
         p_egreso_id: egresoId,
@@ -137,4 +176,9 @@ async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, porEgresoI
         p_fecha_preparado: prev?.fecha_preparado ?? null,
     });
     if (!error) creados.add(egresoId);
+
+    // código universal (UPC) — el RPC no lo maneja; se actualiza directo.
+    if (codigo_universal) {
+        await supabaseAdmin.from('egresos').update({ codigo_universal }).eq('egreso_id', egresoId);
+    }
 }
