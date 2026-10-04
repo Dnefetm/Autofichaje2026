@@ -22,14 +22,17 @@ export async function checkRateLimit(accountId: string, limit: number, duration:
     const key = `ratelimit:${accountId}`;
 
     try {
-        // Pipeline atómico: incr + expire SIEMPRE (no solo cuando current === 0)
-        // Esto evita keys huérfanas sin TTL por race conditions
-        const pipeline = redis.pipeline();
-        pipeline.incr(key);
-        pipeline.expire(key, duration);
-        const results = await pipeline.exec();
-
-        const count = results[0] as number;
+        // Ventana fija ATOMICA (Lua): INCR + EXPIRE solo en el PRIMER incremento.
+        // Antes se hacía `incr` + `expire` en CADA llamada, lo que reiniciaba el TTL
+        // en cada request y el contador nunca expiraba durante ráfagas (bug → bloqueo permanente).
+        const SCRIPT = `
+          local c = redis.call('INCR', KEYS[1])
+          if c == 1 then
+            redis.call('EXPIRE', KEYS[1], ARGV[1])
+          end
+          return c
+        `;
+        const count = (await redis.eval(SCRIPT, [key], [String(duration)])) as number;
 
         if (count > limit) {
             logger.warn({ accountId, key, count, limit }, 'Rate limit alcanzado');

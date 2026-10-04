@@ -906,7 +906,12 @@ export class MeliAdapter implements MarketplaceAdapter {
                     await Promise.all(chunk.map(async (row: any) => {
                         try {
                             const canProceed = await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
-                            if (!canProceed) return;
+                            if (!canProceed) {
+                                // No descartar en silencio: registrar para trazabilidad y permitir
+                                // re-proceso futuro (el chunk más pequeño reduce la probabilidad).
+                                logger.warn({ accountId, itemId: row.external_item_id, inventoryId: row.inventory_id }, 'stock_full: ítem diferido por rate limit');
+                                return;
+                            }
                             const invResp = await axios.get(
                                 `https://api.mercadolibre.com/inventories/${row.inventory_id}/stock/fulfillment`,
                                 { headers: { Authorization: `Bearer ${accessToken}` } }

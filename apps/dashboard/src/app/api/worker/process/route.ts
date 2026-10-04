@@ -19,7 +19,7 @@ export const maxDuration = 60; // Vercel Hobby permite hasta 60s
 const BATCH_SIZE = 10;
 // V130 (jobs resumibles): tamaños de chunk por fase del catálogo.
 const CATALOG_SCAN_PAGES = 20;        // páginas por invocación en la fase scan
-const CATALOG_UPSERT_CHUNK = 1000;    // ítems por invocación en la fase upsert
+const CATALOG_UPSERT_CHUNK = 500;     // ítems por invocación en la fase upsert (bajado de 1000 → 500 para no pasarse de 60s y evitar el 504)
 const CATALOG_RECONCILE_CHUNK = 1000; // ítems por invocación en la fase reconcile
 
 export async function GET(req: NextRequest) {
