@@ -17,14 +17,16 @@ export async function POST(req: Request) {
         const parseado = parsearPdf(text);
         if (!parseado) return NextResponse.json({ error: 'No se pudo interpretar el PDF' }, { status: 422 });
 
-        const { guia, items } = parseado;
+        const { guia, items, total_productos, total_unidades } = parseado;
 
-        // P4: avisos de ML (etiquetar, frágil, vencimiento, peso/medidas) — a nivel de envío.
+        // P4: avisos de ML + totales del envío (para distinguir unidades ML vs piezas).
         const avisos = {
             etiquetado: /etiquet/i.test(text),
             fragil: /burbuja|fr[áa]gil/i.test(text),
             vencimiento: /vencimiento/i.test(text),
             peso_medidas: /peso|medida|dimensi/i.test(text),
+            total_productos,
+            total_unidades,
         };
 
         // --- Generar salidas (misma lógica que /importar) ---
@@ -65,7 +67,7 @@ export async function POST(req: Request) {
             if (mapeos.length > 0) {
                 for (const m of mapeos) {
                     const objetivo = unidades * Number(m.cantidad_requerida || 1);
-                    await upsertSalida({ guia, codigo_ml: cod, articulo_id: m.articulo_id, objetivo, codigo_universal: it.codigo_universal, porEgresoId, creados, vistos, cambios });
+                    await upsertSalida({ guia, codigo_ml: cod, articulo_id: m.articulo_id, objetivo, codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo, porEgresoId, creados, vistos, cambios });
                     totalSalidas++;
                 }
             } else {
@@ -74,7 +76,7 @@ export async function POST(req: Request) {
                     .select('articulo_id')
                     .contains('codigos_marketplace', [cod]);
                 for (const a of (arts || [])) {
-                    await upsertSalida({ guia, codigo_ml: cod, articulo_id: a.articulo_id, objetivo: null, codigo_universal: it.codigo_universal, porEgresoId, creados, vistos, cambios });
+                    await upsertSalida({ guia, codigo_ml: cod, articulo_id: a.articulo_id, objetivo: null, codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo, porEgresoId, creados, vistos, cambios });
                     totalSalidas++;
                 }
             }
@@ -105,11 +107,26 @@ export async function POST(req: Request) {
     }
 }
 
-function parsearPdf(text: string): { guia: string; items: { codigo_ml: string; unidades: number; codigo_universal: string | null }[] } | null {
+function parsearPdf(text: string): { guia: string; total_productos: number | null; total_unidades: number | null; items: { codigo_ml: string; unidades: number; codigo_universal: string | null; sku: string | null; titulo: string | null }[] } | null {
     const guia = (text.match(/Envío #(\d+)/) || [])[1];
     if (!guia) return null;
+    const tot = (text.match(/Productos del envío:\s*(\d+)\s*\|\s*Total de unidades:\s*(\d+)/) || []);
     const codigos = [...text.matchAll(/Código ML:\s*(\S+)/g)].map(m => m[1]);
     const universales = [...text.matchAll(/Código universal:\s*(\S+)/g)].map(m => m[1]);
+    const skus = [...text.matchAll(/SKU:\s*([^\n]+)/g)].map(m => m[1].trim());
+
+    // Título del envío: texto entre la línea "SKU:" y "Etiquetado" en cada bloque.
+    const titulos: string[] = [];
+    const bloques = text.split(/Código ML:/);
+    for (let i = 1; i < bloques.length; i++) {
+        const b = bloques[i];
+        const skuIdx = b.indexOf('SKU:');
+        const etiqIdx = b.indexOf('Etiquetado');
+        if (skuIdx === -1 || etiqIdx === -1) { titulos.push(''); continue; }
+        const finLineaSku = b.indexOf('\n', skuIdx);
+        const seccion = finLineaSku !== -1 ? b.slice(finLineaSku + 1, etiqIdx) : '';
+        titulos.push(seccion.replace(/\s+/g, ' ').trim());
+    }
     const unidades: number[] = [];
     const pages = text.split(/--\s*\d+\s+of\s+\d+\s*--/);
     for (const page of pages) {
@@ -126,9 +143,9 @@ function parsearPdf(text: string): { guia: string; items: { codigo_ml: string; u
     if (codigos.length === 0) return null;
     const items = [];
     for (let i = 0; i < codigos.length; i++) {
-        items.push({ codigo_ml: codigos[i], unidades: unidades[i] ?? 0, codigo_universal: universales[i] || null });
+        items.push({ codigo_ml: codigos[i], unidades: unidades[i] ?? 0, codigo_universal: universales[i] || null, sku: skus[i] || null, titulo: titulos[i] || null });
     }
-    return { guia, items };
+    return { guia, total_productos: tot[1] ? parseInt(tot[1], 10) : null, total_unidades: tot[2] ? parseInt(tot[2], 10) : null, items };
 }
 
 // Extrae texto plano de un PDF (content streams) sin dependencias externas.
@@ -144,7 +161,7 @@ function extraerTextoPdf(base64: string): string {
     return chunks.join('\n');
 }
 
-async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, codigo_universal, porEgresoId, creados, vistos, cambios }: any) {
+async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, codigo_universal, sku, titulo, porEgresoId, creados, vistos, cambios }: any) {
     const egresoId = `${guia}-${codigo_ml}-${articulo_id}`;
     const prev = porEgresoId.get(egresoId);
     vistos.add(egresoId);
@@ -177,8 +194,12 @@ async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, codigo_uni
     });
     if (!error) creados.add(egresoId);
 
-    // código universal (UPC) — el RPC no lo maneja; se actualiza directo.
-    if (codigo_universal) {
-        await supabaseAdmin.from('egresos').update({ codigo_universal }).eq('egreso_id', egresoId);
+    // UPC / SKU / título — el RPC no los maneja; se actualizan directo.
+    const extras: Record<string, string> = {};
+    if (codigo_universal) extras.codigo_universal = codigo_universal;
+    if (sku) extras.sku_ml = sku;
+    if (titulo) extras.titulo_ml = titulo;
+    if (Object.keys(extras).length) {
+        await supabaseAdmin.from('egresos').update(extras).eq('egreso_id', egresoId);
     }
 }

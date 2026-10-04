@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const CAMPOS_EGRESO = 'id, egreso_id, articulo_id, cantidad, tipo_egreso, importacion_full_id, guia, transportista, operador_id, notas, fecha, largo, ancho, alto, peso, salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado, fecha_cerrado, avisos, imagenes, codigo_universal';
+const CAMPOS_EGRESO = 'id, egreso_id, articulo_id, cantidad, tipo_egreso, importacion_full_id, guia, transportista, operador_id, notas, fecha, largo, ancho, alto, peso, salidas_periodo, codigo_ml, edo_reunido, fecha_reunido, fecha_preparado, fecha_cerrado, avisos, imagenes, codigo_universal, sku_ml, titulo_ml';
 
 // GET /api/logistica-full/envio?guia=X — detalle de un envío Full (egresos + nombre de artículo).
 export async function GET(req: Request) {
@@ -21,29 +21,29 @@ export async function GET(req: Request) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Nombres + ubicación de artículos (no hay FK egresos→articulos; se resuelve aparte).
+    // Nombres, ubicación, peso, medidas y atributos de artículos.
     const infoArticulo = new Map<string, any>();
     const ids = [...new Set((egresos || []).map(e => e.articulo_id))];
     for (let i = 0; i < ids.length; i += 100) {
         const chunk = ids.slice(i, i + 100);
         const { data: arts } = await supabaseAdmin
             .from('articulos')
-            .select('articulo_id, nombre, caja_madre')
+            .select('articulo_id, nombre, marca, modelo, caja_madre, peso_kg, largo_cm, ancho_cm, alto_cm, atributos_especificos')
             .in('articulo_id', chunk);
         (arts || []).forEach(a => infoArticulo.set(a.articulo_id, a));
     }
 
-    // Foto de la vitrina (por código ML → inventory_id en publicaciones_externas).
-    const fotoPorCodigo = new Map<string, string>();
+    // Foto + stock + urgencia de la vitrina (por código ML → inventory_id).
+    const infoPublicacion = new Map<string, any>();
     const codigos = [...new Set((egresos || []).map(e => e.codigo_ml).filter(Boolean))];
     for (let i = 0; i < codigos.length; i += 100) {
         const chunk = codigos.slice(i, i + 100);
         const { data: pubs } = await supabaseAdmin
             .from('publicaciones_externas')
-            .select('inventory_id, url_imagen')
+            .select('inventory_id, url_imagen, titulo, seller_sku, stock_full, replenishment_suggested')
             .in('inventory_id', chunk)
             .eq('external_variation_id', '0');
-        (pubs || []).forEach(p => { if (p.url_imagen) fotoPorCodigo.set(p.inventory_id, p.url_imagen); });
+        (pubs || []).forEach(p => { if (!infoPublicacion.has(p.inventory_id)) infoPublicacion.set(p.inventory_id, p); });
     }
 
     return NextResponse.json({
@@ -52,11 +52,23 @@ export async function GET(req: Request) {
         count: (egresos || []).length,
         egresos: (egresos || []).map(e => {
             const art = infoArticulo.get(e.articulo_id);
+            const pub = infoPublicacion.get(e.codigo_ml);
             return {
                 ...e,
                 nombre: art?.nombre || null,
+                marca: art?.marca || null,
+                modelo: art?.modelo || null,
+                titulo_ml: e.titulo_ml || pub?.titulo || null,
+                sku_ml: e.sku_ml || pub?.seller_sku || null,
                 ubicacion: art?.caja_madre || null,
-                foto: fotoPorCodigo.get(e.codigo_ml) || null,
+                peso_kg: art?.peso_kg ?? null,
+                largo_cm: art?.largo_cm ?? null,
+                ancho_cm: art?.ancho_cm ?? null,
+                alto_cm: art?.alto_cm ?? null,
+                atributos: art?.atributos_especificos ?? null,
+                foto: pub?.url_imagen || null,
+                stock_full: pub?.stock_full ?? null,
+                sugerencia_ml: pub?.replenishment_suggested ?? null,
             };
         }),
     });
