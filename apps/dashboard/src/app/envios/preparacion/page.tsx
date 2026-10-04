@@ -26,6 +26,17 @@ interface Salida {
     notas: string | null;
     avisos: any | null;
     codigo_universal: string | null;
+    peso_kg: number | null;
+    largo_cm: number | null;
+    ancho_cm: number | null;
+    alto_cm: number | null;
+    atributos: any | null;
+    stock_full: number | null;
+    sugerencia_ml: number | null;
+    titulo_ml: string | null;
+    sku_ml: string | null;
+    modelo: string | null;
+    marca: string | null;
 }
 
 export default function PreparacionPage() {
@@ -40,6 +51,8 @@ export default function PreparacionPage() {
     // Escáner de código de barras (P6b)
     const [escanerAbierto, setEscanerAbierto] = useState(false);
     const [escanerEncontrado, setEscanerEncontrado] = useState<string | null>(null);
+    const [escanerError, setEscanerError] = useState<string | null>(null);
+    const [escanerNoMatch, setEscanerNoMatch] = useState<string | null>(null);
     const escanerRef = useRef<any>(null);
 
     const loadEnvios = useCallback(async () => {
@@ -61,21 +74,43 @@ export default function PreparacionPage() {
     useEffect(() => {
         if (!escanerAbierto) return;
         let scanner: any = null;
+        let cancelado = false;
         (async () => {
             try {
                 const mod = await import('html5-qrcode');
+                if (cancelado) return;
                 scanner = new mod.Html5Qrcode('escaner-reader');
+                const normalizar = (s: any) => String(s ?? '').trim();
                 const onScan = (text: string) => {
-                    const match = salidas.find((s: any) => String(s.codigo_universal || '').trim() !== '' && String(s.codigo_universal).trim() === String(text).trim());
+                    const t = normalizar(text);
+                    if (!t) return;
+                    const match = salidas.find((s: any) =>
+                        normalizar(s.codigo_universal) === t ||
+                        normalizar(s.codigo_ml) === t ||
+                        normalizar(s.sku_ml) === t
+                    );
                     if (match) {
+                        setEscanerNoMatch(null);
                         setEscanerEncontrado(match.egreso_id);
                         setEscanerAbierto(false);
+                    } else {
+                        setEscanerNoMatch(t);
                     }
                 };
-                await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 240, height: 240 } }, onScan, () => {});
-            } catch (e) { console.error(e); }
+                await scanner.start(
+                    { facingMode: 'environment' },
+                    { fps: 10, qrbox: (vw: number, vh: number) => ({ width: Math.floor(vw * 0.9), height: Math.floor(vh * 0.4) }) },
+                    onScan,
+                    () => {},
+                );
+            } catch (e: any) {
+                if (!cancelado) setEscanerError(e?.message || 'No se pudo iniciar la cámara');
+            }
         })();
-        return () => { if (scanner) { scanner.stop().catch(() => {}); } };
+        return () => {
+            cancelado = true;
+            if (scanner) { scanner.stop().catch(() => {}); }
+        };
     }, [escanerAbierto, salidas]);
 
     const abrirEnvio = async (guia: string) => {
@@ -150,6 +185,11 @@ export default function PreparacionPage() {
         }
         const total = salidas.length;
         const hechos = salidas.filter(s => s.edo_reunido === 'Reunido' || s.edo_reunido === 'Preparado').length;
+        const totalUnidadesML = (salidas[0] as any)?.avisos?.total_unidades ?? null;
+        const totalPiezasObjetivo = salidas.reduce((s, x) => {
+            const m = String((x as any).notas || '').match(/Objetivo:\s*(\d+)/);
+            return s + (m ? parseInt(m[1], 10) : 0);
+        }, 0);
 
         return (
             <Page>
@@ -161,9 +201,9 @@ export default function PreparacionPage() {
 
                 <PageHeader
                     title={`Envío ${seleccionado}`}
-                    description={`${hechos} / ${total} productos listos`}
+                    description={`${hechos} / ${total} productos listos · Unidades ML: ${totalUnidadesML ?? '—'} · Piezas a tomar: ${totalPiezasObjetivo}`}
                     actions={
-                        <Btn variant="outline" size="sm" onClick={() => { setEscanerEncontrado(null); setEscanerAbierto(true); }} icon={<ScanLine className="w-4 h-4" />}>
+                        <Btn variant="outline" size="sm" onClick={() => { setEscanerEncontrado(null); setEscanerError(null); setEscanerNoMatch(null); setEscanerAbierto(true); }} icon={<ScanLine className="w-4 h-4" />}>
                             Escanear
                         </Btn>
                     }
@@ -198,7 +238,15 @@ export default function PreparacionPage() {
                                                 )}
                                                 <div className="min-w-0 flex-1">
                                                     <p className="text-sm font-semibold text-[var(--text)] leading-tight">{s.nombre || s.articulo_id}</p>
-                                                    <p className="text-xs text-[var(--text-faint)] font-mono mt-0.5">{s.codigo_ml || '—'}</p>
+                                                    {s.titulo_ml && s.titulo_ml !== s.nombre && <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">ML: {s.titulo_ml}</p>}
+                                                    <p className="text-xs text-[var(--text-faint)] font-mono mt-0.5">{s.codigo_ml || '—'}{s.sku_ml ? ` · SKU ${s.sku_ml}` : ''}{s.modelo ? ` · ${s.modelo}` : ''}</p>
+                                                    {s.ubicacion && <p className="text-xs text-[var(--text-muted)] mt-0.5">📍 {s.ubicacion}</p>}
+                                                    {(s.peso_kg != null || s.largo_cm != null) && (
+                                                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                                                            {s.peso_kg != null ? `⚖️ ${s.peso_kg} kg` : ''}
+                                                            {(s.largo_cm != null || s.ancho_cm != null || s.alto_cm != null) ? ` · 📐 ${s.largo_cm ?? '?'}×${s.ancho_cm ?? '?'}×${s.alto_cm ?? '?'} cm` : ''}
+                                                        </p>
+                                                    )}
                                                     {s.notas && <p className="text-xs text-[var(--info)] mt-0.5 break-words">{s.notas}</p>}
                                                 </div>
                                             </div>
@@ -250,7 +298,9 @@ export default function PreparacionPage() {
                                 <Btn size="sm" variant="ghost" onClick={() => setEscanerAbierto(false)}>✕</Btn>
                             </div>
                             <div id="escaner-reader" className="mt-3 rounded-lg overflow-hidden" />
-                            <p className="text-xs text-[var(--text-faint)] mt-2">Apunta al código de barras del producto (código universal).</p>
+                            {escanerError && <p className="text-xs text-[var(--err)] mt-2">⚠️ {escanerError}</p>}
+                            {!escanerError && escanerNoMatch && <p className="text-xs text-[var(--warn)] mt-2">Código no encontrado: {escanerNoMatch}</p>}
+                            <p className="text-xs text-[var(--text-faint)] mt-2">Apunta al código de barras (código universal) o a la etiqueta ML del producto.</p>
                         </div>
                     </div>
                 )}
@@ -262,7 +312,15 @@ export default function PreparacionPage() {
                             <div className="flex items-start justify-between">
                                 <div>
                                     <h3 className="font-semibold text-[var(--text)]">{ficha.nombre || ficha.articulo_id}</h3>
-                                    <p className="text-xs text-[var(--text-faint)] font-mono">{ficha.codigo_ml || '—'}</p>
+                                    {ficha.titulo_ml && ficha.titulo_ml !== ficha.nombre && <p className="text-xs text-[var(--text-muted)] mt-0.5">ML: {ficha.titulo_ml}</p>}
+                                    <p className="text-xs text-[var(--text-faint)] font-mono">{ficha.codigo_ml || '—'}{ficha.sku_ml ? ` · SKU ${ficha.sku_ml}` : ''}{ficha.modelo ? ` · ${ficha.modelo}` : ''}</p>
+                                    {ficha.ubicacion && <p className="text-xs text-[var(--text-muted)] mt-0.5">📍 {ficha.ubicacion}</p>}
+                                    {(ficha.peso_kg != null || ficha.largo_cm != null) && (
+                                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                                            {ficha.peso_kg != null ? `⚖️ ${ficha.peso_kg} kg` : ''}
+                                            {(ficha.largo_cm != null || ficha.ancho_cm != null || ficha.alto_cm != null) ? ` · 📐 ${ficha.largo_cm ?? '?'}×${ficha.ancho_cm ?? '?'}×${ficha.alto_cm ?? '?'} cm` : ''}
+                                        </p>
+                                    )}
                                 </div>
                                 <Btn size="sm" variant="ghost" onClick={() => setFicha(null)}>✕</Btn>
                             </div>

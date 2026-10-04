@@ -12,8 +12,8 @@ export async function POST(req: Request) {
         const { pdfBase64 } = body;
         if (!pdfBase64) return NextResponse.json({ error: 'pdfBase64 requerido' }, { status: 400 });
 
-        // Extraer texto del PDF (sin dependencia externa: el PDF de MeLi es texto plano en content streams).
-        const text = extraerTextoPdf(pdfBase64);
+        // Extraer texto del PDF (FlateDecode: requiere descompresión real, no lectura cruda).
+        const text = await extraerTextoPdf(pdfBase64);
         const parseado = parsearPdf(text);
         if (!parseado) return NextResponse.json({ error: 'No se pudo interpretar el PDF' }, { status: 422 });
 
@@ -112,7 +112,7 @@ function parsearPdf(text: string): { guia: string; total_productos: number | nul
     if (!guia) return null;
     const tot = (text.match(/Productos del envío:\s*(\d+)\s*\|\s*Total de unidades:\s*(\d+)/) || []);
     const codigos = [...text.matchAll(/Código ML:\s*(\S+)/g)].map(m => m[1]);
-    const universales = [...text.matchAll(/Código universal:\s*(\S+)/g)].map(m => m[1]);
+    const universales = [...text.matchAll(/Código universal:\s*(\S+)/g)].map(m => m[1] === 'N/A' ? null : m[1]);
     const skus = [...text.matchAll(/SKU:\s*([^\n]+)/g)].map(m => m[1].trim());
 
     // Título del envío: texto entre la línea "SKU:" y "Etiquetado" en cada bloque.
@@ -148,17 +148,14 @@ function parsearPdf(text: string): { guia: string; total_productos: number | nul
     return { guia, total_productos: tot[1] ? parseInt(tot[1], 10) : null, total_unidades: tot[2] ? parseInt(tot[2], 10) : null, items };
 }
 
-// Extrae texto plano de un PDF (content streams) sin dependencias externas.
-function extraerTextoPdf(base64: string): string {
-    const buf = Buffer.from(base64, 'base64');
-    const chunks: string[] = [];
-    const data = buf.toString('latin1');
-    const streamRe = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
-    let m: RegExpExecArray | null;
-    while ((m = streamRe.exec(data)) !== null) {
-        chunks.push(m[1]);
-    }
-    return chunks.join('\n');
+// Extrae texto plano de un PDF usando pdf-parse (descomprime FlateDecode y
+// decodifica las fuentes). El PDF de MeLi está comprimido; la lectura cruda no sirve.
+async function extraerTextoPdf(base64: string): Promise<string> {
+    const mod: any = await import('pdf-parse');
+    const PDFParse = mod.PDFParse || mod.default?.PDFParse;
+    const parser = new PDFParse({ data: Buffer.from(base64, 'base64') });
+    const result = await parser.getText();
+    return result.text || '';
 }
 
 async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, codigo_universal, sku, titulo, porEgresoId, creados, vistos, cambios }: any) {
