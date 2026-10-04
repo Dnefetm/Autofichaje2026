@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // Recibe un PDF de envío Full en base64, lo parsea y genera las salidas.
 // body: { pdfBase64 } → devuelve { guia, items, resumen }.
@@ -39,48 +39,82 @@ export async function POST(req: Request) {
         const porEgresoId = new Map<string, any>();
         (existentes || []).forEach((e: any) => porEgresoId.set(e.egreso_id, e));
 
-        let totalSalidas = 0;
+        // Precarga (1 consulta por tabla en lotes de 100, en vez de 1 por producto):
+        // la importación con 255 productos hacía ~1000 round-trips y reventaba el timeout.
+        const codigos = items.map(it => String(it.codigo_ml).trim()).filter(Boolean);
+        const pubPorCodigo = new Map<string, string[]>();
+        for (let i = 0; i < codigos.length; i += 100) {
+            const chunk = codigos.slice(i, i + 100);
+            const { data: pubs } = await supabaseAdmin
+                .from('publicaciones_externas')
+                .select('id, inventory_id')
+                .in('inventory_id', chunk);
+            for (const p of (pubs || [])) {
+                if (!pubPorCodigo.has(p.inventory_id)) pubPorCodigo.set(p.inventory_id, []);
+                pubPorCodigo.get(p.inventory_id)!.push(p.id);
+            }
+        }
+        const todosPubIds = [...new Set([...pubPorCodigo.values()].flat())];
+        const mapeoPorPublicacion = new Map<string, any[]>();
+        for (let i = 0; i < todosPubIds.length; i += 100) {
+            const chunk = todosPubIds.slice(i, i + 100);
+            const { data: m } = await supabaseAdmin
+                .from('mapeo_publicacion_articulo')
+                .select('publicacion_id, articulo_id, cantidad_requerida')
+                .in('publicacion_id', chunk);
+            for (const r of (m || [])) {
+                if (!mapeoPorPublicacion.has(r.publicacion_id)) mapeoPorPublicacion.set(r.publicacion_id, []);
+                mapeoPorPublicacion.get(r.publicacion_id)!.push(r);
+            }
+        }
+
         const creados = new Set<string>();
         const vistos = new Set<string>();
         const cambios = new Set<string>();
+        const procesados = new Set<string>();
+        const tareas: any[] = [];
 
+        // Construir la lista de salidas (sin IO) y luego escribir en lotes concurrentes.
         for (const it of items) {
             const cod = String(it.codigo_ml).trim();
             const unidades = parseInt(String(it.unidades), 10);
             if (!cod || !Number.isFinite(unidades)) continue;
 
-            const { data: pubs } = await supabaseAdmin
-                .from('publicaciones_externas')
-                .select('id')
-                .eq('inventory_id', cod);
-            const pubIds = (pubs || []).map((p: any) => p.id);
-
             let mapeos: any[] = [];
-            if (pubIds.length > 0) {
-                const { data: m } = await supabaseAdmin
-                    .from('mapeo_publicacion_articulo')
-                    .select('articulo_id, cantidad_requerida')
-                    .in('publicacion_id', pubIds);
-                mapeos = m || [];
-            }
+            for (const pid of (pubPorCodigo.get(cod) || [])) mapeos.push(...(mapeoPorPublicacion.get(pid) || []));
 
             if (mapeos.length > 0) {
                 for (const m of mapeos) {
-                    const objetivo = unidades * Number(m.cantidad_requerida || 1);
-                    await upsertSalida({ guia, codigo_ml: cod, articulo_id: m.articulo_id, objetivo, codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo, porEgresoId, creados, vistos, cambios });
-                    totalSalidas++;
+                    const egresoId = `${guia}-${cod}-${m.articulo_id}`;
+                    if (procesados.has(egresoId)) continue;
+                    procesados.add(egresoId);
+                    tareas.push({ guia, codigo_ml: cod, articulo_id: m.articulo_id, objetivo: unidades * Number(m.cantidad_requerida || 1), codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo });
                 }
             } else {
+                // Fallback (poco frecuente): artículo con el código en codigos_marketplace.
                 const { data: arts } = await supabaseAdmin
                     .from('articulos')
                     .select('articulo_id')
                     .contains('codigos_marketplace', [cod]);
                 for (const a of (arts || [])) {
-                    await upsertSalida({ guia, codigo_ml: cod, articulo_id: a.articulo_id, objetivo: null, codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo, porEgresoId, creados, vistos, cambios });
-                    totalSalidas++;
+                    const egresoId = `${guia}-${cod}-${a.articulo_id}`;
+                    if (procesados.has(egresoId)) continue;
+                    procesados.add(egresoId);
+                    tareas.push({ guia, codigo_ml: cod, articulo_id: a.articulo_id, objetivo: null, codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo });
                 }
             }
         }
+
+        let totalSalidas = tareas.length;
+        const CONCURRENCIA = 8;
+        let cursor = 0;
+        async function worker() {
+            while (cursor < tareas.length) {
+                const t = tareas[cursor++];
+                await upsertSalida({ ...t, porEgresoId, creados, vistos, cambios });
+            }
+        }
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCIA, tareas.length) }, () => worker()));
 
         // P3: detección de cambios (quitados = existentes que ya no vienen en el PDF)
         const quitados: string[] = [];
