@@ -333,7 +333,7 @@ async function handleBulkUpdatePrice(job: any) {
         if (operation === 'fixed') {
             newPrice = value;
         } else if (operation === 'percentage') {
-            const currentRecord = currentPrices?.find(p => p.articulo_id === sku);
+            const currentRecord = currentPrices?.find((p: any) => p.articulo_id === sku);
             // Si no tenía precio registrado antes, asumimos 0 (o podríamos fallar/omitir).
             // Usaremos 0 como punto de quiebre seguro.
             const basePrice = currentRecord?.sale_price || 0;

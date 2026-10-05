@@ -1,19 +1,23 @@
 // =============================================================================
 // procesar-importacion — parsea el Excel FUERA de Vercel (en Supabase Edge).
-// Espeja exactamente el comportamiento del route `iniciar-parser` (el flujo
-// vigente que hoy corre en Vercel), pero aquí el CPU del parseo NO cuenta
-// contra Vercel.
+// REFACTOR: usa exceljs en modo STREAM (WorkbookReader) para no cargar todo el
+// archivo en memoria. Un .xlsx de 4.65 MB se descomprime a ~100-150 MB de XML;
+// con SheetJS (carga total) reventaba el límite de 256 MB de la Edge Function.
+// Con streaming, la memoria se mantiene plana (solo el chunk actual en RAM).
 //
-// Flujo (idéntico al route actual):
+// Flujo:
 //   1. Valida estado 'pendiente_mapeo' y lo pasa a 'mapeando'.
-//   2. Descarga el Excel de Storage y lo parsea (SheetJS dense).
-//   3. Escribe filas limpias a listas_precios_raw (chunks de 2000).
+//   2. Descarga el Excel de Storage.
+//   3. Lee el Excel en streaming (exceljs WorkbookReader) y escribe a raw en
+//      chunks de 2000 filas, filtrando por columnas_a_guardar.
 //   4. Aplica vigencia en listas_precios_proveedor.
 //   5. Setea total_filas/filas_procesadas y estado 'pendiente_mapeo'.
 // =============================================================================
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import * as XLSX from 'npm:xlsx@0.18.5';
+import { Readable } from 'node:stream';
+import { Buffer } from 'node:buffer';
+import ExcelJS from 'npm:exceljs@4.4.0';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -67,19 +71,14 @@ serve(async (req: Request) => {
     const { data: file } = await sb.storage.from(bucket).download(path);
     if (!file) throw new Error('No se pudo descargar el Excel asociado a la importación');
 
-    await logEvento(id, 'DESCARGADO', 'Excel descargado. Iniciando parseo ligero en memoria.');
+    await logEvento(id, 'DESCARGADO', 'Excel descargado. Iniciando parseo en streaming (exceljs).');
 
-    // 3. Parsear (mismo SheetJS; dense para ahorrar memoria)
-    const buf = new Uint8Array(await file.arrayBuffer());
-    const wb = XLSX.read(buf, { type: 'buffer', dense: true, cellFormula: false, cellHTML: false, cellStyles: false, cellText: false });
-    const sheetName = wb.SheetNames[0];
-    const sheet = wb.Sheets[sheetName];
-    if (!sheet) throw new Error('No se encontró la hoja 1 en el Excel');
-
-    const allRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
-    if (allRows.length === 0) throw new Error('El Excel parece estar vacío');
-
-    const headers: string[] = (allRows[0] || []).map(String);
+    // 3. Parsear en STREAMING (exceljs WorkbookReader) — memoria plana.
+    //    Convertimos el archivo a un stream Node (un solo chunk) sin depender de
+    //    Readable.fromWeb; exceljs lo lee incrementalmente por dentro.
+    const buf = Buffer.from(await file.arrayBuffer());
+    const stream = Readable.from([buf]);
+    const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(stream);
 
     // Limpieza idempotente
     await sb.from('listas_precios_raw').delete().eq('importacion_id', id);
@@ -91,35 +90,56 @@ serve(async (req: Request) => {
     let chunk: any[] = [];
     let totalProcesadas = 0;
 
-    for (let i = 1; i < allRows.length; i++) {
-      const vals = allRows[i] || [];
-      if (vals.filter((s: any) => s !== undefined && s !== null && String(s).trim() !== '').length < 3) continue;
+    for await (const worksheet of workbookReader) {
+      const headers: string[] = [];
+      let filaNum = 0;
 
-      const payload: Record<string, string> = {};
-      const colsUsadas: string[] = [];
-      headers.forEach((h, idx) => {
-        const valStr = String(vals[idx] ?? '').trim();
-        if (usaTodas || colGuardarSet.has(h)) {
-          payload[h] = valStr;
-          colsUsadas.push(h);
+      for await (const row of worksheet) {
+        const values: any[] = (row as any).values || [];
+
+        // Primera fila = encabezados
+        if (headers.length === 0) {
+          for (let c = 1; c < values.length; c++) {
+            headers.push(String(values[c] ?? '').trim());
+          }
+          continue;
         }
-      });
 
-      chunk.push({
-        importacion_id: id,
-        proveedor,
-        fila_num: i,
-        payload,
-        columnas_guardadas: colsUsadas,
-      });
-      totalProcesadas++;
+        // Fila de datos: construir payload solo con las columnas a guardar
+        const payload: Record<string, string> = {};
+        const colsUsadas: string[] = [];
+        let nonEmpty = 0;
+        for (let c = 0; c < headers.length; c++) {
+          const h = headers[c];
+          const valStr = String(values[c + 1] ?? '').trim();
+          if (usaTodas || colGuardarSet.has(h)) {
+            payload[h] = valStr;
+            colsUsadas.push(h);
+            if (valStr !== '') nonEmpty++;
+          }
+        }
 
-      if (chunk.length >= CHUNK_SIZE) {
-        const { error } = await sb.from('listas_precios_raw').insert(chunk);
-        if (error) throw new Error(`Fallo insertando a raw: ${error.message}`);
-        chunk = [];
-        await new Promise((r) => setTimeout(r, 5));
+        // Saltar filas casi vacías (misma heurística que el flujo original)
+        if (nonEmpty < 3) continue;
+
+        filaNum++;
+        totalProcesadas++;
+        chunk.push({
+          importacion_id: id,
+          proveedor,
+          fila_num: filaNum,
+          payload,
+          columnas_guardadas: colsUsadas,
+        });
+
+        if (chunk.length >= CHUNK_SIZE) {
+          const { error } = await sb.from('listas_precios_raw').insert(chunk);
+          if (error) throw new Error(`Fallo insertando a raw: ${error.message}`);
+          chunk = [];
+          await new Promise((r) => setTimeout(r, 5));
+        }
       }
+      break; // solo la primera hoja
     }
 
     if (chunk.length > 0) {
