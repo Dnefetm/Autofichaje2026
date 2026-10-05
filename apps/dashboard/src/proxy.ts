@@ -1,7 +1,7 @@
-﻿import { createServerClient } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Middleware de sesiÃ³n Supabase: refresca la cookie y protege rutas de admin.
+// Middleware de sesión Supabase: refresca la cookie y protege rutas de admin.
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -27,7 +27,7 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
-  // Rutas de administraciÃ³n: solo rol 'admin'.
+  // Rutas de administración: solo rol 'admin'.
   if (pathname.startsWith('/admin')) {
     if (!user) {
       const url = request.nextUrl.clone()

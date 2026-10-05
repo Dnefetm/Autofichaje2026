@@ -1,4 +1,4 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 import { MarketplaceAdapter, MarketplaceCapabilities } from './interface';
 import { SKU } from '@gestor/shared';
 import { supabase } from '@gestor/shared/lib/supabase';
@@ -7,7 +7,7 @@ import logger from '@gestor/shared/lib/logger';
 import { decrypt, encrypt } from '@gestor/shared';
 
 /**
- * Clasifica el tipo de publicaciÃ³n de MeLi a partir de los datos de la API.
+ * Clasifica el tipo de publicación de MeLi a partir de los datos de la API.
  * Tipos: 'tradicional' | 'catalogo' | 'tradicional_derivada' | 'catalogo_derivada'
  */
 function clasificarPublicacion(item: any): {
@@ -28,18 +28,18 @@ function clasificarPublicacion(item: any): {
     } else if (hasParent) {
         tipo_publicacion = 'tradicional_derivada';
     }
-    // else: 'tradicional' (padre) â€” default
+    // else: 'tradicional' (padre) — default
 
     return {
         tipo_publicacion,
         id_publicacion_padre: item.parent_item_id || null,
-        es_fuente_stock: tipo_publicacion === 'tradicional' || tipo_publicacion === 'catalogo', // Tradicional + CatÃ¡logo directo (sin padre)
+        es_fuente_stock: tipo_publicacion === 'tradicional' || tipo_publicacion === 'catalogo', // Tradicional + Catálogo directo (sin padre)
         id_producto_catalogo: item.catalog_product_id || null,
     };
 }
 
 // A2: Detecta SKUs que son articulo_id UUID legacy (exactamente 8 chars hexadecimales).
-// Mismo patrÃ³n que esSkuBasura en fix-sku/route.ts
+// Mismo patrón que esSkuBasura en fix-sku/route.ts
 const SKU_BASURA_RE = /^[0-9a-f]{8}$/i;
 function isSkuGarbage(sku: string | null | undefined): boolean {
     if (!sku) return false;
@@ -51,7 +51,7 @@ export class MeliAdapter implements MarketplaceAdapter {
         supportsBulkStock: false,
         supportsBulkPrice: false,
         supportsWebhooks: true,
-        maxStockUpdateRate: 50, // 50 req / 5 seg â€” MeLi permite mÃ¡s, el bottleneck real es su API response time
+        maxStockUpdateRate: 50, // 50 req / 5 seg — MeLi permite más, el bottleneck real es su API response time
     };
 
     private async getAccessToken(accountId: string): Promise<string> {
@@ -70,7 +70,7 @@ export class MeliAdapter implements MarketplaceAdapter {
         const marginMs = 5 * 60 * 1000; // 5 minutos de seguridad
 
         if (now >= expiresAt - marginMs) {
-            logger.info({ accountId }, 'El token de MeLi ha expirado (o estÃ¡ a punto). Ejecutando auto-refresh...');
+            logger.info({ accountId }, 'El token de MeLi ha expirado (o está a punto). Ejecutando auto-refresh...');
             try {
                 await this.refreshToken(accountId);
 
@@ -84,7 +84,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 if (newError || !newData) throw newError;
                 return decrypt(newData.access_token);
             } catch (err) {
-                logger.error({ accountId, err }, 'Fallo crÃ­tico al intentar renovar el token automÃ¡ticamente');
+                logger.error({ accountId, err }, 'Fallo crítico al intentar renovar el token automáticamente');
                 throw new Error(`Token expirado y no se pudo renovar: ${accountId}`);
             }
         }
@@ -180,13 +180,13 @@ export class MeliAdapter implements MarketplaceAdapter {
             });
             const userId = meResponse.data.id;
 
-            // BÃºsqueda de items del usuario con iteraciÃ³n (Scan / scroll_id).
-            // MeLi exige search_type=scan en TODAS las peticiones para paginar mÃ¡s
-            // de 1000 Ã­tems; el offset tradicional devuelve 400.
+            // Búsqueda de items del usuario con iteración (Scan / scroll_id).
+            // MeLi exige search_type=scan en TODAS las peticiones para paginar más
+            // de 1000 ítems; el offset tradicional devuelve 400.
             const searchUrl = `https://api.mercadolibre.com/users/${userId}/items/search`;
 
             while (hasMore) {
-                // Respetar Rate Limits antes de cada pÃ¡gina
+                // Respetar Rate Limits antes de cada página
                 await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
 
                 const params: any = { limit, search_type: 'scan' };
@@ -203,11 +203,11 @@ export class MeliAdapter implements MarketplaceAdapter {
                 if (newScrollId) scrollId = newScrollId;
                 if (results.length > 0) itemIds = itemIds.concat(results);
 
-                // Sin resultados â†’ fin del scroll.
+                // Sin resultados → fin del scroll.
                 if (results.length === 0) hasMore = false;
             }
 
-            logger.info({ accountId, itemCount: itemIds.length }, 'Finalizada extracciÃ³n paginada de items MeLi');
+            logger.info({ accountId, itemCount: itemIds.length }, 'Finalizada extracción paginada de items MeLi');
             return itemIds;
         } catch (error: any) {
             logger.error({ accountId, error: error.response?.data || error.message }, 'Error al obtener items de la cuenta MeLi');
@@ -215,7 +215,7 @@ export class MeliAdapter implements MarketplaceAdapter {
         }
     }
 
-    // V130: escaneo reanudable de Ã­tems MeLi. Devuelve hasta `pages` pÃ¡ginas del scroll
+    // V130: escaneo reanudable de ítems MeLi. Devuelve hasta `pages` páginas del scroll
     // (search_type=scan) y el scroll_id para continuar. El accessToken y el userId se
     // resuelven en el handler para no repetir /users/me en cada chunk.
     async getAccountItemsPage(accountId: string, accessToken: string, userId: number, scrollId: string | null, pages: number): Promise<{ itemIds: string[]; scrollId: string | null; done: boolean }> {
@@ -260,10 +260,10 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * getStockBatch â€” multiGET de stock para hasta N items.
-     * Hace chunks de 20 IDs (lÃ­mite de MeLi multiGET).
+     * getStockBatch — multiGET de stock para hasta N items.
+     * Hace chunks de 20 IDs (límite de MeLi multiGET).
      * Retorna Map<external_item_id, available_quantity>.
-     * Usado por reconciliation.ts para evitar 1 GET individual por publicaciÃ³n.
+     * Usado por reconciliation.ts para evitar 1 GET individual por publicación.
      */
     async getStockBatch(accountId: string, itemIds: string[]): Promise<Map<string, number>> {
         const result = new Map<string, number>();
@@ -283,14 +283,14 @@ export class MeliAdapter implements MarketplaceAdapter {
                     if (res.code === 200 && res.body) {
                         result.set(res.body.id, res.body.available_quantity ?? 0);
                     } else {
-                        // Item con error (deleted, paused sin datos, etc.) â€” no bloquear la reconciliaciÃ³n
+                        // Item con error (deleted, paused sin datos, etc.) — no bloquear la reconciliación
                         logger.warn({ itemId: res.body?.id ?? '?', code: res.code }, 'getStockBatch: item con error en multiGET');
                     }
                 }
             } catch (err: any) {
                 logger.error({ accountId, chunk, error: err.message }, 'getStockBatch: error en chunk multiGET');
-                // No lanzar â€” los items de este chunk quedarÃ¡n sin entrada en el Map
-                // y la reconciliaciÃ³n los saltearÃ¡ (no crearÃ¡ discrepancia falsa positiva)
+                // No lanzar — los items de este chunk quedarán sin entrada en el Map
+                // y la reconciliación los salteará (no creará discrepancia falsa positiva)
             }
         }
         return result;
@@ -335,15 +335,15 @@ export class MeliAdapter implements MarketplaceAdapter {
             logger.info({ accountId, itemId }, 'Iniciando syncCatalogItem (enrutado a syncCatalogBatchFast)');
             await this.syncCatalogBatchFast(accountId, accessToken, [itemId]);
         } catch (error: any) {
-            logger.error({ itemId, error: error.response?.data || error.message }, 'Error al sincronizar publicaciÃ³n individual de MeLi');
+            logger.error({ itemId, error: error.response?.data || error.message }, 'Error al sincronizar publicación individual de MeLi');
         }
-        // V32: traer tambiÃ©n el costo de envÃ­o efectivo de MeLi (automÃ¡tico, sin botÃ³n manual).
+        // V32: traer también el costo de envío efectivo de MeLi (automático, sin botón manual).
         await this.syncShippingCost(accountId, itemId);
     }
 
-    // V32: sincroniza el costo de envÃ­o efectivo que MeLi cobra por un Ã­tem.
-    // Se invoca desde syncCatalogItem (flujo automÃ¡tico webhook â†’ sync_item), para que
-    // el envÃ­o se actualice sin depender del botÃ³n manual "Forzar Sync MeLi".
+    // V32: sincroniza el costo de envío efectivo que MeLi cobra por un ítem.
+    // Se invoca desde syncCatalogItem (flujo automático webhook → sync_item), para que
+    // el envío se actualice sin depender del botón manual "Forzar Sync MeLi".
     async syncShippingCost(accountId: string, itemId: string): Promise<void> {
         try {
             const { data: mkp } = await supabase
@@ -372,7 +372,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 { headers: { Authorization: `Bearer ${accessToken}` }, validateStatus: () => true }
             );
             if (shipResp.status === 403) {
-                logger.error({ accountId, itemId, status: shipResp.status, body: shipResp.data }, 'V32: ML bloqueÃ³ la peticiÃ³n de envÃ­os (403 PolicyAgent)');
+                logger.error({ accountId, itemId, status: shipResp.status, body: shipResp.data }, 'V32: ML bloqueó la petición de envíos (403 PolicyAgent)');
             }
             const listCost = shipResp.data?.coverage?.all_country?.list_cost;
             if (listCost == null) return;
@@ -383,22 +383,22 @@ export class MeliAdapter implements MarketplaceAdapter {
                 .eq('marketplace_id', accountId)
                 .eq('external_item_id', itemId);
 
-            // Recalcular el precio para que el draft refleje el envÃ­o actualizado.
+            // Recalcular el precio para que el draft refleje el envío actualizado.
             try {
                 await supabase.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id: pub.id });
             } catch (recalcErr: any) {
-                logger.warn({ accountId, itemId, pubId: pub.id, error: recalcErr?.message }, 'V32: fallo al recalcular precio tras sincronizar envÃ­o');
+                logger.warn({ accountId, itemId, pubId: pub.id, error: recalcErr?.message }, 'V32: fallo al recalcular precio tras sincronizar envío');
             }
         } catch (err: any) {
-            logger.warn({ accountId, itemId, error: err?.message }, 'V32: fallo al sincronizar costo de envÃ­o');
+            logger.warn({ accountId, itemId, error: err?.message }, 'V32: fallo al sincronizar costo de envío');
         }
     }
 
-    // V35: cotiza el costo de envÃ­o ANTES de publicar (sin item_id), usando
+    // V35: cotiza el costo de envío ANTES de publicar (sin item_id), usando
     // dimensiones + contexto. Fuente: GET /users/{seller}/shipping_options/free
-    // con `dimensions`. MeLi exige el peso en gramos enteros y ademÃ¡s
+    // con `dimensions`. MeLi exige el peso en gramos enteros y además
     // item_price + listing_type_id + logistic_type + free_shipping para no
-    // devolver list_cost=0 (doc: "Mercado EnvÃ­os - Costos y cotizaciones").
+    // devolver list_cost=0 (doc: "Mercado Envíos - Costos y cotizaciones").
     async cotizarEnvioCosto(
         accountId: string,
         p: {
@@ -438,18 +438,18 @@ export class MeliAdapter implements MarketplaceAdapter {
             const listCost = resp.data?.coverage?.all_country?.list_cost ?? null;
             return { list_cost: listCost, status: resp.status, raw: resp.data };
         } catch (err: any) {
-            logger.warn({ accountId, error: err?.message }, 'V35: fallo al cotizar envÃ­o pre-publicaciÃ³n');
+            logger.warn({ accountId, error: err?.message }, 'V35: fallo al cotizar envío pre-publicación');
             return { list_cost: null, status: 0, raw: { error: err?.message } };
         }
     }
 
-    // V33 (T1 LogÃ­stica Full): sincroniza el stock disponible en el depÃ³sito Full
-    // de MeLi para cada inventory_id del accountId, guardÃ¡ndolo en stock_full.
+    // V33 (T1 Logística Full): sincroniza el stock disponible en el depósito Full
+    // de MeLi para cada inventory_id del accountId, guardándolo en stock_full.
     async syncFullStock(accountId: string): Promise<{ updated: number; errors: number }> {
         const accessToken = await this.getAccessToken(accountId);
         const CONCURRENCY = 10;
 
-        // Paginar para no perder filas por el lÃ­mite de filas de PostgREST (1000).
+        // Paginar para no perder filas por el límite de filas de PostgREST (1000).
         const allInvIds = new Set<string>();
         const PAGE = 1000;
         let from = 0;
@@ -500,14 +500,14 @@ export class MeliAdapter implements MarketplaceAdapter {
         return { updated, errors };
     }
 
-    // V34 (T1 LogÃ­stica Full): sincroniza los datos de replenishment de MeLi
-    // (sugerencia de envÃ­o de ML, urgencia, deadline y ventas 30d nativas) para
-    // cada Ã­tem Full. Reemplaza el "Reporte de planificaciÃ³n" que antes era un Excel.
+    // V34 (T1 Logística Full): sincroniza los datos de replenishment de MeLi
+    // (sugerencia de envío de ML, urgencia, deadline y ventas 30d nativas) para
+    // cada ítem Full. Reemplaza el "Reporte de planificación" que antes era un Excel.
     async syncReplenishment(accountId: string): Promise<{ updated: number; errors: number }> {
         const accessToken = await this.getAccessToken(accountId);
         const CONCURRENCY = 5;
 
-        // 1. Solo Ã­tems Full MAPEADOS (para no exceder el timeout de Vercel).
+        // 1. Solo ítems Full MAPEADOS (para no exceder el timeout de Vercel).
         const mappedIds = new Set<string>();
         {
             let mfrom = 0;
@@ -543,7 +543,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             from += PAGE;
         }
 
-        // 2. Obtener user_product_id por Ã­tem vÃ­a multiGET.
+        // 2. Obtener user_product_id por ítem vía multiGET.
         const upIdByItem = new Map<string, string>();
         for (let i = 0; i < items.length; i += 20) {
             const chunk = items.slice(i, i + 20);
@@ -608,21 +608,21 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
 
-    // --- NUEVA FUNCIÃ“N SERVERLESS: BATCH SYNC ---
+    // --- NUEVA FUNCIÓN SERVERLESS: BATCH SYNC ---
     async syncCatalogBatch(accountId: string, itemIds: string[]): Promise<number> {
         if (itemIds.length === 0) return 0;
         const accessToken = await this.getAccessToken(accountId);
         return this.syncCatalogBatchFast(accountId, accessToken, itemIds);
     }
 
-    // --- VERSIÃ“N OPTIMIZADA: recibe token, multiGETs en paralelo ---
+    // --- VERSIÓN OPTIMIZADA: recibe token, multiGETs en paralelo ---
     async syncCatalogBatchFast(accountId: string, accessToken: string, itemIds: string[], offset: number = 0, limit?: number): Promise<number> {
-        // V130: soporte de reanudaciÃ³n â€” procesar solo el slice [offset, offset+limit)
+        // V130: soporte de reanudación — procesar solo el slice [offset, offset+limit)
         itemIds = itemIds.slice(offset, limit ? offset + limit : itemIds.length);
         if (itemIds.length === 0) return 0;
 
         try {
-            // MeLi permite mÃ¡ximo 20 IDs en MultiGET â€” paralelizar todos los chunks
+            // MeLi permite máximo 20 IDs en MultiGET — paralelizar todos los chunks
             const CHUNK_SIZE = 20;
             const chunks: string[][] = [];
             for (let i = 0; i < itemIds.length; i += CHUNK_SIZE) {
@@ -657,7 +657,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                     const _rawItemSku = item.attributes?.find((a: any) => a.id === 'SELLER_SKU')?.value_name || null;
                     const _cleanItemSku = isSkuGarbage(_rawItemSku) ? null : _rawItemSku;
 
-                    // Campos comunes a todas las filas de este Ã­tem (o variaciones)
+                    // Campos comunes a todas las filas de este ítem (o variaciones)
                     const base = {
                         marketplace_id: accountId,
                         external_item_id: item.id,
@@ -695,7 +695,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                         initial_quantity: item.initial_quantity ?? null,
                         // --- V20: Bundle flag ---
                         es_bundle: (item.tags || []).includes('bundle'),
-                        // --- V23: Fase 1 â€” campos adicionales del multiGET ---
+                        // --- V23: Fase 1 — campos adicionales del multiGET ---
                         shipping_tags:       item.shipping?.tags || [],
                         shipping_dimensions: item.shipping?.dimensions || null,
                         inventory_id:        item.inventory_id || null,
@@ -703,7 +703,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                         base_price:          item.base_price ?? null,
                         automatic_relist:    item.automatic_relist ?? false,
                         buying_mode:         item.buying_mode || null,
-                        // --- V24: Campos enriquecidos de atributos y envÃ­o ---
+                        // --- V24: Campos enriquecidos de atributos y envío ---
                         model:         item.attributes?.find((a: any) => a.id === 'MODEL')?.value_name || null,
                         ean:           item.attributes?.find((a: any) => a.id === 'EAN')?.value_name || null,
                         gtin:          item.attributes?.find((a: any) => a.id === 'GTIN')?.value_name || null,
@@ -714,8 +714,8 @@ export class MeliAdapter implements MarketplaceAdapter {
                     };
 
                     // Items con variaciones:
-                    // â€¢ Fila padre (variation_id='0'): datos de nivel item (brand, SKU, stock tot., precio base)
-                    // â€¢ Filas de variaciÃ³n: datos individuales (stock/precio/attrs por variante)
+                    // • Fila padre (variation_id='0'): datos de nivel item (brand, SKU, stock tot., precio base)
+                    // • Filas de variación: datos individuales (stock/precio/attrs por variante)
                     if (item.variations && item.variations.length > 0) {
                         const parentSellerSku = _cleanItemSku; // ya filtrado arriba
                         const parentRow = {
@@ -729,22 +729,22 @@ export class MeliAdapter implements MarketplaceAdapter {
                         const variationRows = item.variations.map((variation: any) => ({
                             ...base,
                             external_variation_id: variation.id.toString(),
-                            // V71: inventory_id es por VARIANTE en Full (no heredar el del Ã­tem padre)
+                            // V71: inventory_id es por VARIANTE en Full (no heredar el del ítem padre)
                             inventory_id: variation.inventory_id ?? null,
                             stock_publicado: variation.available_quantity ?? item.available_quantity,
                             precio_venta: variation.price ?? item.price,
-                            // Atributos de diferenciaciÃ³n de la variante (COLOR, TALLA, etc.)
+                            // Atributos de diferenciación de la variante (COLOR, TALLA, etc.)
                             variation_attributes: variation.attribute_combinations?.length
                                 ? variation.attribute_combinations
                                 : null,
-                            // Fotos especÃ­ficas de la variante
+                            // Fotos específicas de la variante
                             variation_picture_ids: variation.picture_ids?.length
                                 ? variation.picture_ids
                                 : null,
-                            // SKU especÃ­fico de la variante:
+                            // SKU específico de la variante:
                             // seller_custom_field = campo directo de la variante
-                            // seller_sku = seller_custom_field â†’ SELLER_SKU en attributes[] â†’ SKU del padre â†’ null
-                            // (V25: con include_attributes=all, variation.attributes[] ya estÃ¡ disponible)
+                            // seller_sku = seller_custom_field → SELLER_SKU en attributes[] → SKU del padre → null
+                            // (V25: con include_attributes=all, variation.attributes[] ya está disponible)
                             seller_custom_field: variation.seller_custom_field || null,
                             seller_sku: (() => {
                                 const raw = variation.seller_custom_field
@@ -753,14 +753,14 @@ export class MeliAdapter implements MarketplaceAdapter {
                                     || null;
                                 return isSkuGarbage(raw) ? null : raw;
                             })(),
-                            // EAN/GTIN por variaciÃ³n (V25: desde attributes[], no desde base del Ã­tem)
+                            // EAN/GTIN por variación (V25: desde attributes[], no desde base del ítem)
                             ean:  variation.attributes?.find((a: any) => a.id === 'EAN')?.value_name  || base.ean  || null,
                             gtin: variation.attributes?.find((a: any) => a.id === 'GTIN')?.value_name || base.gtin || null,
                         }));
                         return [parentRow, ...variationRows];
                     }
 
-                    // Sin variaciones: fila Ãºnica â€” campos de variante en NULL
+                    // Sin variaciones: fila única — campos de variante en NULL
                     return [{
                         ...base,
                         external_variation_id: '0',
@@ -772,7 +772,7 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             if (itemsPayload.length === 0) return 0;
 
-            // V21 â€” Enriquecer SKU de variaciones desde /items/{id}/variations
+            // V21 — Enriquecer SKU de variaciones desde /items/{id}/variations
             // El multi-GET no retorna seller_custom_field confiablemente en variaciones.
             // Solo llamar para items cuyas variaciones NO tuvieron seller_custom_field.
             const itemsNeedingSkuFetch = allResults
@@ -816,7 +816,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                                         row.seller_custom_field = sku;
                                         row.seller_sku = sku;
                                     }
-                                    // V24: Extraer EAN/GTIN por variaciÃ³n si no viene del multiGET
+                                    // V24: Extraer EAN/GTIN por variación si no viene del multiGET
                                     const varDetail = varDetails.find((vd: any) => vd.id.toString() === row.external_variation_id);
                                     if (varDetail) {
                                         const varEan = varDetail.attributes?.find((a: any) => a.id === 'EAN')?.value_name || null;
@@ -829,15 +829,15 @@ export class MeliAdapter implements MarketplaceAdapter {
                         } catch (varErr: any) {
                             logger.warn(
                                 { itemId, error: varErr.message },
-                                'No se pudo obtener SKU de variaciones â€” se usarÃ¡ campo del padre'
+                                'No se pudo obtener SKU de variaciones — se usará campo del padre'
                             );
                         }
                     }));
                 }
             }
-            // -- DetecciÃ³n de transiciÃ³n fulfillmentâ†’otro (portada de b39de85) --
+            // -- Detección de transición fulfillment→otro (portada de b39de85) --
             // Leer logistic_type previo para todos los items del batch en 1 sola query.
-            // Solo filas padre (external_variation_id='0') â€” son las Ãºnicas con logistic_type relevante.
+            // Solo filas padre (external_variation_id='0') — son las únicas con logistic_type relevante.
             const batchItemIds = [...new Set(itemsPayload.map((p: any) => p.external_item_id))];
             const { data: existingPubs } = await supabase
                 .from('publicaciones_externas')
@@ -858,8 +858,8 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             if (pubError) throw pubError;
 
-            // -- Post-upsert: detectar transiciones fulfillmentâ†’otro -----------
-            // Solo encola sync_stock si algÃºn item cambiÃ³ de fulfillment a otro tipo.
+            // -- Post-upsert: detectar transiciones fulfillment→otro -----------
+            // Solo encola sync_stock si algún item cambió de fulfillment a otro tipo.
             const transitionedPubIds: string[] = [];
             for (const payload of itemsPayload) {
                 if (payload.external_variation_id !== '0') continue; // solo filas padre
@@ -887,13 +887,13 @@ export class MeliAdapter implements MarketplaceAdapter {
                     );
                     logger.info(
                         { accountId, transitions: transitionedPubIds.length, skus: uniqueSkus },
-                        'Batch: transiciones fulfillmentâ†’otro detectadas, sync_stock encolados'
+                        'Batch: transiciones fulfillment→otro detectadas, sync_stock encolados'
                     );
                 }
             }
 
             // -- V71: Enriquecer stock Full (fulfillment) ----------------------
-            // Para publicaciones Full, el stock real estÃ¡ en el depÃ³sito Full
+            // Para publicaciones Full, el stock real está en el depósito Full
             // (GET /inventories/{inventory_id}/stock/fulfillment), no en
             // item.available_quantity. Guardamos stock_full para que el filtro
             // "Full + sin stock" sea correcto.
@@ -908,8 +908,8 @@ export class MeliAdapter implements MarketplaceAdapter {
                             const canProceed = await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
                             if (!canProceed) {
                                 // No descartar en silencio: registrar para trazabilidad y permitir
-                                // re-proceso futuro (el chunk mÃ¡s pequeÃ±o reduce la probabilidad).
-                                logger.warn({ accountId, itemId: row.external_item_id, inventoryId: row.inventory_id }, 'stock_full: Ã­tem diferido por rate limit');
+                                // re-proceso futuro (el chunk más pequeño reduce la probabilidad).
+                                logger.warn({ accountId, itemId: row.external_item_id, inventoryId: row.inventory_id }, 'stock_full: ítem diferido por rate limit');
                                 return;
                             }
                             const invResp = await axios.get(
@@ -938,14 +938,14 @@ export class MeliAdapter implements MarketplaceAdapter {
 
 
 
-                    // V30: Promover catalogo_derivada huÃ©rfanas a fuente de stock (padre ausente en publicaciones_externas)
-        // Esto cubre items de catÃ¡logo que fueron creados por MeLi sin publicaciÃ³n tradicional padre
+                    // V30: Promover catalogo_derivada huérfanas a fuente de stock (padre ausente en publicaciones_externas)
+        // Esto cubre items de catálogo que fueron creados por MeLi sin publicación tradicional padre
         const derivadasEnBatch = itemsPayload
             .filter((r: any) => r.tipo_publicacion === 'catalogo_derivada' && r.id_publicacion_padre && r.external_variation_id === '0')
             .map((r: any) => r.external_item_id);
 
         if (derivadasEnBatch.length > 0) {
-            // Buscar cuÃ¡les de esas derivadas NO tienen padre como fuente de stock
+            // Buscar cuáles de esas derivadas NO tienen padre como fuente de stock
             const { data: padresFuente } = await supabase
                 .from('publicaciones_externas')
                 .select('external_item_id')
@@ -955,7 +955,7 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             const padresConFuente = new Set((padresFuente || []).map((p: any) => p.external_item_id));
 
-            // Derivadas cuyo padre NO es fuente de stock â†’ promover
+            // Derivadas cuyo padre NO es fuente de stock → promover
             const huerfanas = derivadasEnBatch.filter((itemId: string) => {
                 const row = itemsPayload.find((r: any) => r.external_item_id === itemId && r.external_variation_id === '0');
                 return row && !padresConFuente.has(row.id_publicacion_padre);
@@ -970,9 +970,9 @@ export class MeliAdapter implements MarketplaceAdapter {
                     .eq('external_variation_id', '0');
 
                 if (promoError) {
-                    logger.warn({ accountId, error: promoError.message }, 'Error promoviendo derivadas huÃ©rfanas a fuente de stock');
+                    logger.warn({ accountId, error: promoError.message }, 'Error promoviendo derivadas huérfanas a fuente de stock');
                 } else {
-                    logger.info({ accountId, count: huerfanas.length }, 'Derivadas huÃ©rfanas promovidas a fuente de stock');
+                    logger.info({ accountId, count: huerfanas.length }, 'Derivadas huérfanas promovidas a fuente de stock');
                 }
             }
         }
@@ -985,7 +985,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                     p_item_ids: syncedItemIds,
                 });
                 if (parError) {
-                    logger.warn({ accountId, error: parError.message }, 'par_item_id RPC no disponible â€” se actualizarÃ¡ en el prÃ³ximo sync completo');
+                    logger.warn({ accountId, error: parError.message }, 'par_item_id RPC no disponible — se actualizará en el próximo sync completo');
                 }
                 // V22: catalog_count RPC
                 const { error: ccError } = await supabase.rpc('recalcular_catalog_count', {
@@ -1015,21 +1015,21 @@ export class MeliAdapter implements MarketplaceAdapter {
 
 
     // -------------------------------------------------------------------------
-    // reconcileClosedItems â€” Detecta publicaciones en BD con status aparentemente
-    // activo que MeLi ya cerrÃ³/desactivÃ³. El sync normal no las detecta porque
+    // reconcileClosedItems — Detecta publicaciones en BD con status aparentemente
+    // activo que MeLi ya cerró/desactivó. El sync normal no las detecta porque
     // getAccountItems solo devuelve items que MeLi indexa activamente.
-    // Usa multiGET directo /items?ids=... que sÃ­ retorna items cerrados.
+    // Usa multiGET directo /items?ids=... que sí retorna items cerrados.
     //
-    // CuÃ¡ndo se llama:
-    // - Como post-step del sync completo de catÃ¡logo
-    // - Como job programado 1 vez/dÃ­a (futuro)
+    // Cuándo se llama:
+    // - Como post-step del sync completo de catálogo
+    // - Como job programado 1 vez/día (futuro)
     //
     // Costo: 1 request por cada 20 items con status activo en BD. Negligible.
     // -------------------------------------------------------------------------
     // V131: enriquecimiento decorativo bajo demanda (Ruta B).
     // La Ruta A (syncCatalogBatchFast) ya NO trae pictures/video_id/deal_ids/warranty/
     // initial_quantity/original_price/automatic_relist para aligerar el multiGET frecuente.
-    // Esta funciÃ³n trae SOLO esos campos para un Ãºnico Ã­tem, cuando la UI abre la ficha.
+    // Esta función trae SOLO esos campos para un único ítem, cuando la UI abre la ficha.
     async enrichDecorativeFields(accountId: string, itemId: string): Promise<Record<string, any>> {
         const accessToken = await this.getAccessToken(accountId);
         const resp = await axios.get(
@@ -1090,14 +1090,14 @@ export class MeliAdapter implements MarketplaceAdapter {
         for (let i = 0; i < itemIds.length; i += CHUNK) {
             const chunk = itemIds.slice(i, i + CHUNK);
             try {
-                // MultiGET â€” MeLi retorna status real incluso de items cerrados
+                // MultiGET — MeLi retorna status real incluso de items cerrados
                 const resp = await axios.get(
                     `https://api.mercadolibre.com/items?ids=${chunk.join(',')}&attributes=id,status,sub_status`,
                     { headers: { Authorization: `Bearer ${accessToken}` } }
                 );
 
-                // MeLi devuelve un array alineado con `chunk`. Los Ã­tems borrados
-                // vienen como {code: 404} (sin body.id), asÃ­ que iteramos por Ã­ndice
+                // MeLi devuelve un array alineado con `chunk`. Los ítems borrados
+                // vienen como {code: 404} (sin body.id), así que iteramos por índice
                 // para mapear cada respuesta a su item_id original.
                 const results = Array.isArray(resp.data) ? resp.data : [];
                 for (let j = 0; j < chunk.length; j++) {
@@ -1128,7 +1128,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                             }
                         }
                     } else if (res.code === 404) {
-                        // Ãtem borrado en MeLi (ya no existe). Marcar 'closed' + sub_status
+                        // Ítem borrado en MeLi (ya no existe). Marcar 'closed' + sub_status
                         // ['deleted'], consistente con el paso 1.4 de publish/route.ts.
                         const { error } = await supabase
                             .from('publicaciones_externas')
@@ -1144,10 +1144,10 @@ export class MeliAdapter implements MarketplaceAdapter {
                             details.push({ item_id: itemId, old_status: oldStatus, new_status: 'deleted' });
                             updated++;
                         } else {
-                            logger.warn({ accountId, itemId, error: error.message }, 'reconcileClosedItems: error al marcar Ã­tem borrado');
+                            logger.warn({ accountId, itemId, error: error.message }, 'reconcileClosedItems: error al marcar ítem borrado');
                         }
                     }
-                    // Otros cÃ³digos (500, 429, etc.) â†’ no tocar (evitar falsos borrados).
+                    // Otros códigos (500, 429, etc.) → no tocar (evitar falsos borrados).
                 }
             } catch (err: any) {
                 logger.warn({ accountId, chunk, error: err.message }, 'reconcileClosedItems: error en chunk multiGET');
@@ -1160,15 +1160,15 @@ export class MeliAdapter implements MarketplaceAdapter {
 
 
     // -------------------------------------------------------------------------
-    // V27 â€” enrichCatalogBatch: comisiones + visitas + descripciones (separado del sync)
-    // Se llama desde /api/sync/enrich â€” NO desde syncCatalogBatchFast
+    // V27 — enrichCatalogBatch: comisiones + visitas + descripciones (separado del sync)
+    // Se llama desde /api/sync/enrich — NO desde syncCatalogBatchFast
     // -------------------------------------------------------------------------
     async enrichCatalogBatch(accountId: string, accessToken: string, itemIds: string[]): Promise<void> {
         const CONCURRENCY = 10;
 
-        // -- Comisiones (paralelas, cacheadas por combinaciÃ³n) ----------------
+        // -- Comisiones (paralelas, cacheadas por combinación) ----------------
         try {
-            // Obtener datos necesarios para calcular comisiÃ³n
+            // Obtener datos necesarios para calcular comisión
             const { data: rows } = await supabase
                 .from('publicaciones_externas')
                 .select('external_item_id, category_id, listing_type_id, logistic_type, shipping_mode, precio_venta')
@@ -1178,7 +1178,7 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             const commissionCache = new Map<string, { pct: number | null; amount: number | null; fixed_fee: number | null }>();
 
-            // Extraer combinaciones Ãºnicas para minimizar llamadas a MeLi
+            // Extraer combinaciones únicas para minimizar llamadas a MeLi
             const uniqueCombos = [...new Map((rows || []).map((r: any) => {
                 const priceBucket = Math.round((r.precio_venta || 0) / 100) * 100;
                 const key = `${r.category_id}|${r.listing_type_id}|${r.logistic_type}|${priceBucket}`;
@@ -1257,7 +1257,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                             .update({ visits_30d: totalVisits, visits_updated_at: new Date().toISOString() })
                             .eq('marketplace_id', accountId)
                             .eq('external_item_id', itemId);
-                    } catch { /* item fallido â€” continuar */ }
+                    } catch { /* item fallido — continuar */ }
                 }));
             }
             logger.debug({ accountId, items: itemIds.length }, 'V27: visitas 30d enriquecidas');
@@ -1304,19 +1304,19 @@ export class MeliAdapter implements MarketplaceAdapter {
                                     .eq('marketplace_id', accountId)
                                     .eq('external_item_id', itemId);
 
-                                // Recalcular el precio para que el draft refleje el envÃ­o actualizado.
-                                // Antes este recÃ¡lculo no se disparaba tras el sync de envÃ­o, por lo que
-                                // "EnvÃ­o Real MeLi" quedaba en $0 en el draft (bug reportado).
+                                // Recalcular el precio para que el draft refleje el envío actualizado.
+                                // Antes este recálculo no se disparaba tras el sync de envío, por lo que
+                                // "Envío Real MeLi" quedaba en $0 en el draft (bug reportado).
                                 const pubId = pubIdMap.get(itemId);
                                 if (pubId) {
                                     try {
                                         await supabase.rpc('fn_recalcular_precio_publicacion', { p_publicacion_id: pubId });
                                     } catch (recalcErr: any) {
-                                        logger.warn({ accountId, itemId, pubId, error: recalcErr?.message }, 'V31: fallo al recalcular precio tras actualizar envÃ­o');
+                                        logger.warn({ accountId, itemId, pubId, error: recalcErr?.message }, 'V31: fallo al recalcular precio tras actualizar envío');
                                     }
                                 }
                             } else if (shipResp.status === 403) {
-                                logger.error({ accountId, itemId, status: shipResp.status, error: shipResp.data }, 'V31: ML bloqueÃ³ la peticiÃ³n de envÃ­os (403 PolicyAgent)');
+                                logger.error({ accountId, itemId, status: shipResp.status, error: shipResp.data }, 'V31: ML bloqueó la petición de envíos (403 PolicyAgent)');
                             } else if (shipResp.data?.error) {
                                 logger.error({ accountId, itemId, error: shipResp.data.error }, 'V31: Error reportado por la API');
                             }
@@ -1331,7 +1331,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             logger.warn({ accountId, error: shipErr.message }, 'V31: error en enriquecimiento de envios');
         }
 
-        // -- Descripciones (solo items sin descripciÃ³n previa, mÃ¡x 20) --------
+        // -- Descripciones (solo items sin descripción previa, máx 20) --------
         try {
             const { data: withoutDesc } = await supabase
                 .from('publicaciones_externas')
@@ -1339,7 +1339,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 .eq('marketplace_id', accountId)
                 .in('external_item_id', itemIds)
                 .is('description_plain', null)
-                .limit(50); // V28: subido de 20 a 50 para cubrir mÃ¡s items por relay
+                .limit(50); // V28: subido de 20 a 50 para cubrir más items por relay
 
             for (let i = 0; i < (withoutDesc || []).length; i += CONCURRENCY) {
                 const chunk = (withoutDesc || []).slice(i, i + CONCURRENCY);
@@ -1357,7 +1357,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                                 .eq('marketplace_id', accountId)
                                 .eq('external_item_id', row.external_item_id);
                         }
-                    } catch { /* item sin descripciÃ³n â€” continuar */ }
+                    } catch { /* item sin descripción — continuar */ }
                 }));
             }
             logger.debug({ accountId }, 'V27: descripciones enriquecidas');
@@ -1365,12 +1365,12 @@ export class MeliAdapter implements MarketplaceAdapter {
             logger.warn({ accountId, error: descErr.message }, 'V27: error en enriquecimiento de descripciones');
         }
 
-        // Punto 7: fix par_item_id â€” rellenar catÃ¡logos cuyo par_item_id es NULL
-        // pero comparten id_producto_catalogo con una tradicional (67 casos histÃ³ricos + nuevos)
+        // Punto 7: fix par_item_id — rellenar catálogos cuyo par_item_id es NULL
+        // pero comparten id_producto_catalogo con una tradicional (67 casos históricos + nuevos)
         try {
             await supabase.rpc('fix_par_item_id_faltantes', { p_marketplace_id: accountId });
         } catch (parErr: any) {
-            logger.warn({ accountId, error: parErr.message }, 'V27: fix par_item_id fallÃ³ (no crÃ­tico)');
+            logger.warn({ accountId, error: parErr.message }, 'V27: fix par_item_id falló (no crítico)');
         }
     }
 
@@ -1409,7 +1409,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             orders.push(...results);
             offset += results.length;
 
-            // MeLi limita a ~1000 Ã³rdenes por bÃºsqueda; el parÃ¡metro 'since' acota el resultado
+            // MeLi limita a ~1000 órdenes por búsqueda; el parámetro 'since' acota el resultado
             if (results.length < limit || offset >= total) break;
         }
 
@@ -1418,12 +1418,12 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     // -------------------------------------------------------------------------
-    // PUBLICADOR â€” MÃ©todos para crear publicaciones nuevas en MeLi
+    // PUBLICADOR — Métodos para crear publicaciones nuevas en MeLi
     // Agregados en v_publish_01
     // -------------------------------------------------------------------------
 
     /**
-     * detectSellerModel â€” Verifica si la cuenta opera en modelo User Products (UP) o legacy.
+     * detectSellerModel — Verifica si la cuenta opera en modelo User Products (UP) o legacy.
      * Llama GET /users/me y busca el tag "user_product_seller".
      * Retorna: { model: 'up' | 'legacy', seller_id: number, tags: string[] }
      * El resultado debe guardarse en marketplace_configs para no repetir la consulta.
@@ -1453,10 +1453,10 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * predictCategory â€” Sugiere una categorÃ­a de MeLi para un texto de bÃºsqueda.
+     * predictCategory — Sugiere una categoría de MeLi para un texto de búsqueda.
      * Llama GET /sites/MLM/domain-discovery/search?q={query}
      * Retorna el primer resultado: { category_id, domain_id, category_name }
-     * El resultado se debe cachear en BD por categorÃ­a local para no repetir.
+     * El resultado se debe cachear en BD por categoría local para no repetir.
      */
     async predictCategory(accountId: string, query: string): Promise<{
         category_id: string;
@@ -1473,12 +1473,12 @@ export class MeliAdapter implements MarketplaceAdapter {
         );
         const results: any[] = resp.data || [];
         if (results.length === 0) {
-            throw new Error(`predictCategory: MeLi no devolviÃ³ categorÃ­as para la query "${query}"`);
+            throw new Error(`predictCategory: MeLi no devolvió categorías para la query "${query}"`);
         }
         const top = results[0];
         logger.info(
             { accountId, query, category_id: top.category_id, domain_id: top.domain_id },
-            'predictCategory: categorÃ­a sugerida por MeLi'
+            'predictCategory: categoría sugerida por MeLi'
         );
         return {
             category_id: top.category_id,
@@ -1494,7 +1494,7 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * getCategoryAttributes â€” Obtiene los atributos requeridos y opcionales de una categorÃ­a.
+     * getCategoryAttributes — Obtiene los atributos requeridos y opcionales de una categoría.
      * Llama GET /categories/{category_id}/attributes
      * Retorna listas separadas: required[], parent_pk[], child_pk[], optional[]
      * Cada atributo incluye id, name, type y valores permitidos si los tiene.
@@ -1531,7 +1531,7 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * createItem â€” Crea una publicaciÃ³n nueva en MeLi.
+     * createItem — Crea una publicación nueva en MeLi.
      * Soporta modelo User Products (UP): family_name, sin title, sin variations[].
      * Soporta modelo legacy: title, con variations[] si aplica.
      * El caller debe construir el body correcto y pasarlo completo.
@@ -1567,8 +1567,8 @@ export class MeliAdapter implements MarketplaceAdapter {
     }> {
         const accessToken = await this.getAccessToken(accountId);
 
-        // Nunca enviar title en modelo UP â€” MeLi lo genera
-        // Nunca enviar variations[] â€” en UP cada variante es un POST separado
+        // Nunca enviar title en modelo UP — MeLi lo genera
+        // Nunca enviar variations[] — en UP cada variante es un POST separado
         const body = { ...itemBody };
 
         logger.info(
@@ -1586,10 +1586,10 @@ export class MeliAdapter implements MarketplaceAdapter {
             respData = resp.data;
         } catch (err: any) {
             const meliError = err.response?.data;
-            logger.error({ accountId, meliError, statusCode: err.response?.status }, 'createItem: MeLi rechazÃ³ el POST /items');
+            logger.error({ accountId, meliError, statusCode: err.response?.status }, 'createItem: MeLi rechazó el POST /items');
             // Re-lanzar con el cuerpo de error de MeLi visible
             throw new Error(
-                `MeLi POST /items fallÃ³ [${err.response?.status}]: ${JSON.stringify(meliError)}`
+                `MeLi POST /items falló [${err.response?.status}]: ${JSON.stringify(meliError)}`
             );
         }
 
@@ -1601,7 +1601,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 title: respData.title,
                 status: respData.status,
             },
-            'createItem: publicaciÃ³n creada exitosamente en MeLi'
+            'createItem: publicación creada exitosamente en MeLi'
         );
 
         return {
@@ -1616,7 +1616,7 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * uploadPicture â€” Sube una imagen (buffer) a MeLi y devuelve su picture_id.
+     * uploadPicture — Sube una imagen (buffer) a MeLi y devuelve su picture_id.
      * POST /pictures/items/upload (multipart). Evita el estado 'paused' con
      * sub_status 'picture_download_pending' que ocurre al publicar con {source: url}.
      */
@@ -1646,13 +1646,13 @@ export class MeliAdapter implements MarketplaceAdapter {
             },
         );
         const id: string = resp.data?.id || '';
-        if (!id) throw new Error('uploadPicture: MeLi no devolviÃ³ picture id');
+        if (!id) throw new Error('uploadPicture: MeLi no devolvió picture id');
         logger.info({ accountId, pictureId: id }, 'uploadPicture: imagen subida a MeLi');
         return id;
     }
 
     /**
-     * uploadPicturesFromUrls â€” Descarga cada URL y la sube a MeLi. Devuelve solo
+     * uploadPicturesFromUrls — Descarga cada URL y la sube a MeLi. Devuelve solo
      * los picture_id que se lograron subir; los fallos individuales se omiten.
      */
     async uploadPicturesFromUrls(accountId: string, urls: string[]): Promise<string[]> {
@@ -1676,8 +1676,8 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * optinCatalogListing â€” Crea una publicaciÃ³n de CATÃLOGO vinculada a una
-     * publicaciÃ³n tradicional (marketplace) existente vÃ­a "optin".
+     * optinCatalogListing — Crea una publicación de CATÁLOGO vinculada a una
+     * publicación tradicional (marketplace) existente vía "optin".
      * Endpoint oficial: POST /items/catalog_listings
      * Ref: https://developers.mercadolibre.com.uy/en_us/catalog-listing#Optin-from-a-traditional-publication
      */
@@ -1710,15 +1710,15 @@ export class MeliAdapter implements MarketplaceAdapter {
             const meliError = err.response?.data;
             logger.error(
                 { accountId, meliError, statusCode: err.response?.status },
-                'optinCatalogListing: MeLi rechazÃ³ el POST /items/catalog_listings'
+                'optinCatalogListing: MeLi rechazó el POST /items/catalog_listings'
             );
             throw new Error(
-                `MeLi POST /items/catalog_listings fallÃ³ [${err.response?.status}]: ${JSON.stringify(meliError)}`
+                `MeLi POST /items/catalog_listings falló [${err.response?.status}]: ${JSON.stringify(meliError)}`
             );
         }
         logger.info(
             { accountId, item_id: respData.id, title: respData.title, status: respData.status },
-            'optinCatalogListing: catÃ¡logo creado y vinculado exitosamente'
+            'optinCatalogListing: catálogo creado y vinculado exitosamente'
         );
         return {
             item_id: respData.id,
@@ -1731,10 +1731,10 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * getItem â€” Obtiene un item completo de MeLi (propietario).
-     * GET /items/{item_id} con include_attributes=all para traer tambiÃ©n
+     * getItem — Obtiene un item completo de MeLi (propietario).
+     * GET /items/{item_id} con include_attributes=all para traer también
      * family_name (UP), seller_custom_field y attributes[] completos.
-     * Usado por "nueva condiciÃ³n de venta" para derivar un 2Âº Ã­tem del existente.
+     * Usado por "nueva condición de venta" para derivar un 2º ítem del existente.
      */
     async getItem(accountId: string, itemId: string): Promise<any> {
         const accessToken = await this.getAccessToken(accountId);
@@ -1747,10 +1747,10 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * updateItem â€” Actualiza un item existente en MeLi.
+     * updateItem — Actualiza un item existente en MeLi.
      * PUT /items/{item_id} con el body de campos a modificar (title/family_name,
-     * attributes, dimensions de envÃ­o, pictures, etc.).
-     * Usado por "mejorar publicaciÃ³n existente".
+     * attributes, dimensions de envío, pictures, etc.).
+     * Usado por "mejorar publicación existente".
      */
     async updateItem(accountId: string, itemId: string, body: any): Promise<any> {
         const accessToken = await this.getAccessToken(accountId);
@@ -1764,15 +1764,15 @@ export class MeliAdapter implements MarketplaceAdapter {
             return resp.data;
         } catch (err: any) {
             const meliError = err.response?.data;
-            logger.error({ accountId, itemId, meliError, statusCode: err.response?.status }, 'updateItem: MeLi rechazÃ³ el PUT /items');
-            throw new Error(`MeLi PUT /items/${itemId} fallÃ³ [${err.response?.status}]: ${JSON.stringify(meliError)}`);
+            logger.error({ accountId, itemId, meliError, statusCode: err.response?.status }, 'updateItem: MeLi rechazó el PUT /items');
+            throw new Error(`MeLi PUT /items/${itemId} falló [${err.response?.status}]: ${JSON.stringify(meliError)}`);
         }
     }
 
     /**
-     * getCatalogProduct â€” Obtiene la ficha de un producto del catÃ¡logo de MeLi.
+     * getCatalogProduct — Obtiene la ficha de un producto del catálogo de MeLi.
      * GET /products/{catalog_product_id}. Devuelve name, attributes[] y pictures[].
-     * Usado por "mejorar publicaciÃ³n" como fuente de Ãºltima instancia.
+     * Usado por "mejorar publicación" como fuente de última instancia.
      */
     async getCatalogProduct(accountId: string, catalogProductId: string): Promise<any | null> {
         const accessToken = await this.getAccessToken(accountId);
@@ -1783,13 +1783,13 @@ export class MeliAdapter implements MarketplaceAdapter {
             );
             return resp.data;
         } catch (err: any) {
-            logger.warn({ accountId, catalogProductId, error: err.response?.data || err.message }, 'getCatalogProduct fallÃ³');
+            logger.warn({ accountId, catalogProductId, error: err.response?.data || err.message }, 'getCatalogProduct falló');
             return null;
         }
     }
 
     /**
-     * getDescription â€” Devuelve la descripciÃ³n en texto plano de un item.
+     * getDescription — Devuelve la descripción en texto plano de un item.
      * GET /items/{item_id}/description
      */
     async getDescription(accountId: string, itemId: string): Promise<string> {
@@ -1806,9 +1806,9 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * getItemStatus â€” Consulta si un item existe y su estado real en MeLi.
+     * getItemStatus — Consulta si un item existe y su estado real en MeLi.
      * GET /items/{item_id}. Distingue 404 (eliminado) de otros errores.
-     * Usado por la reconciliaciÃ³n de vitrinas enlazadas para detectar "fantasmas".
+     * Usado por la reconciliación de vitrinas enlazadas para detectar "fantasmas".
      */
     async getItemStatus(accountId: string, itemId: string): Promise<{ exists: boolean; status: string }> {
         const accessToken = await this.getAccessToken(accountId);
@@ -1820,14 +1820,14 @@ export class MeliAdapter implements MarketplaceAdapter {
             return { exists: true, status: resp.data?.status || 'unknown' };
         } catch (err: any) {
             if (err.response?.status === 404) return { exists: false, status: 'deleted' };
-            throw err; // 401/429/red â†’ re-lanzar para que el caller lo maneje
+            throw err; // 401/429/red → re-lanzar para que el caller lo maneje
         }
     }
 
     /**
-     * addDescription â€” Agrega descripciÃ³n en texto plano a un item ya creado.
+     * addDescription — Agrega descripción en texto plano a un item ya creado.
      * Llama POST /items/{item_id}/description
-     * Debe llamarse DESPUÃ‰S de createItem. No es posible incluirla en el POST inicial.
+     * Debe llamarse DESPUÉS de createItem. No es posible incluirla en el POST inicial.
      */
     async addDescription(accountId: string, itemId: string, plainText: string): Promise<{
         item_id: string;
@@ -1835,7 +1835,7 @@ export class MeliAdapter implements MarketplaceAdapter {
         raw: any;
     }> {
         const accessToken = await this.getAccessToken(accountId);
-        const text = plainText.trim().slice(0, 50000); // lÃ­mite de MeLi
+        const text = plainText.trim().slice(0, 50000); // límite de MeLi
 
         logger.info({ accountId, itemId, length: text.length }, 'addDescription: iniciando POST /items/{id}/description');
 
@@ -1849,19 +1849,19 @@ export class MeliAdapter implements MarketplaceAdapter {
             respData = resp.data;
         } catch (err: any) {
             const meliError = err.response?.data;
-            logger.error({ accountId, itemId, meliError }, 'addDescription: MeLi rechazÃ³ el POST description');
+            logger.error({ accountId, itemId, meliError }, 'addDescription: MeLi rechazó el POST description');
             throw new Error(
-                `MeLi POST /items/${itemId}/description fallÃ³ [${err.response?.status}]: ${JSON.stringify(meliError)}`
+                `MeLi POST /items/${itemId}/description falló [${err.response?.status}]: ${JSON.stringify(meliError)}`
             );
         }
 
-        logger.info({ accountId, itemId }, 'addDescription: descripciÃ³n agregada exitosamente');
+        logger.info({ accountId, itemId }, 'addDescription: descripción agregada exitosamente');
         return { item_id: itemId, ok: true, raw: respData };
     }
 
     /**
-     * updateDescription â€” Actualiza la descripciÃ³n EXISTENTE de un item.
-     * PUT /items/{id}/description. MeLi exige PUT cuando ya hay descripciÃ³n
+     * updateDescription — Actualiza la descripción EXISTENTE de un item.
+     * PUT /items/{id}/description. MeLi exige PUT cuando ya hay descripción
      * (POST devuelve item.description.invalid "use PUT instead").
      */
     async updateDescription(accountId: string, itemId: string, plainText: string): Promise<{
@@ -1870,7 +1870,7 @@ export class MeliAdapter implements MarketplaceAdapter {
         raw: any;
     }> {
         const accessToken = await this.getAccessToken(accountId);
-        const text = plainText.trim().slice(0, 50000); // lÃ­mite de MeLi
+        const text = plainText.trim().slice(0, 50000); // límite de MeLi
 
         let respData: any;
         try {
@@ -1882,18 +1882,18 @@ export class MeliAdapter implements MarketplaceAdapter {
             respData = resp.data;
         } catch (err: any) {
             const meliError = err.response?.data;
-            logger.error({ accountId, itemId, meliError }, 'updateDescription: MeLi rechazÃ³ el PUT description');
+            logger.error({ accountId, itemId, meliError }, 'updateDescription: MeLi rechazó el PUT description');
             throw new Error(
-                `MeLi PUT /items/${itemId}/description fallÃ³ [${err.response?.status}]: ${JSON.stringify(meliError)}`
+                `MeLi PUT /items/${itemId}/description falló [${err.response?.status}]: ${JSON.stringify(meliError)}`
             );
         }
 
-        logger.info({ accountId, itemId }, 'updateDescription: descripciÃ³n actualizada');
+        logger.info({ accountId, itemId }, 'updateDescription: descripción actualizada');
         return { item_id: itemId, ok: true, raw: respData };
     }
 
     /**
-     * searchCatalog â€” Busca productos en el catÃ¡logo de MeLi (catalog_product_id)
+     * searchCatalog — Busca productos en el catálogo de MeLi (catalog_product_id)
      * por GTIN/EAN o texto libre. Devuelve los resultados del product search.
      */
     async searchCatalog(accountId: string, query: string): Promise<{ results: any[] }> {
@@ -1907,13 +1907,13 @@ export class MeliAdapter implements MarketplaceAdapter {
             logger.info({ accountId, query, count: results.length }, 'searchCatalog completado');
             return { results };
         } catch (err: any) {
-            logger.error({ accountId, query, error: err.response?.data || err.message }, 'searchCatalog fallÃ³');
+            logger.error({ accountId, query, error: err.response?.data || err.message }, 'searchCatalog falló');
             return { results: [] };
         }
     }
 
     /**
-     * updateListingType â€” Cambia el tipo de publicaciÃ³n de un item existente
+     * updateListingType — Cambia el tipo de publicación de un item existente
      * (gold_special <-> gold_pro) sin crear duplicados. POST /items/{id}/listing_type.
      */
     async updateListingType(accountId: string, itemId: string, listingTypeId: string): Promise<any> {
@@ -1928,8 +1928,8 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * getItemPrices â€” Obtiene los precios del item, incluyendo precios por cantidad (PxQ/mayorista).
-     * Usa el header show-all-prices: true para ver tambiÃ©n los nodos B2B.
+     * getItemPrices — Obtiene los precios del item, incluyendo precios por cantidad (PxQ/mayorista).
+     * Usa el header show-all-prices: true para ver también los nodos B2B.
      */
     async getItemPrices(accountId: string, itemId: string): Promise<any> {
         const accessToken = await this.getAccessToken(accountId);
@@ -1940,7 +1940,7 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * addPriceByQuantity â€” Agrega "Precios mayoristas" (precio por cantidad B2B) a una publicaciÃ³n.
+     * addPriceByQuantity — Agrega "Precios mayoristas" (precio por cantidad B2B) a una publicación.
      * POST /items/{id}/prices con nodos "standard" y conditions.context_restrictions =
      * ["channel_marketplace", "user_type_business"] + min_purchase_unit.
      * Requiere vendedor con tag "business".
@@ -2039,7 +2039,7 @@ export class MeliAdapter implements MarketplaceAdapter {
 
             logger.info({ accountId }, 'Token de acceso MeLi renovado y encriptado exitosamente en BD.');
         } catch (oauthErr: any) {
-            logger.error({ accountId, error: oauthErr.response?.data || oauthErr.message }, 'Fallo en la comunicaciÃ³n con MeLi /oauth/token');
+            logger.error({ accountId, error: oauthErr.response?.data || oauthErr.message }, 'Fallo en la comunicación con MeLi /oauth/token');
             throw oauthErr;
         }
     }
