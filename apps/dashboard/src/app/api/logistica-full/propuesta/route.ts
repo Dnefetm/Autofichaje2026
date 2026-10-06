@@ -122,6 +122,22 @@ export async function GET(req: Request) {
             if (pub?.shipping_urgency != null) e.shipping_urgency = pub.shipping_urgency;
         }
 
+        // Stock de bodega (inventory_snapshot) por artículo del catálogo asociado.
+        const articuloIds = [...new Set([...byCuentaInv.values()].map((e: any) => e.articulo_id).filter(Boolean))] as string[];
+        const stockBodegaMap = new Map<string, { physical: number; disponible: number }>();
+        for (let i = 0; i < articuloIds.length; i += 200) {
+            const chunk = articuloIds.slice(i, i + 200);
+            const { data: snaps } = await supabaseAdmin
+                .from('inventory_snapshot')
+                .select('sku, physical_stock, dropship_stock, reserved_stock')
+                .in('sku', chunk);
+            for (const s of (snaps || [])) {
+                const physical = Number(s.physical_stock || 0);
+                const disponible = physical + Number(s.dropship_stock || 0) - Number(s.reserved_stock || 0);
+                stockBodegaMap.set(s.sku, { physical, disponible });
+            }
+        }
+
         // 4. Cálculo por (cuenta, código ML).
         const propuesta = [...byCuentaInv.values()].map((e: any) => {
             const key = `${e.marketplace_id}|${e.inventory_id}`;
@@ -152,6 +168,8 @@ export async function GET(req: Request) {
                 articulo_id: e.articulo_id,
                 ventas_ultimo_mes: v30,
                 stock_full: e.stock_full,
+                stock_bodega: stockBodegaMap.get(e.articulo_id)?.physical ?? null,
+                stock_disponible: stockBodegaMap.get(e.articulo_id)?.disponible ?? null,
                 pendientes,
                 stock_efectivo: efectivo,
                 cobertura_dias: cobertura,

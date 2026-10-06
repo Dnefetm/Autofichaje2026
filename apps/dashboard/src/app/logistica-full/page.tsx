@@ -18,6 +18,8 @@ interface PropItem {
     articulo_id: string;
     ventas_ultimo_mes: number;
     stock_full: number;
+    stock_bodega: number | null;
+    stock_disponible: number | null;
     pendientes: number | null;
     stock_efectivo: number;
     cobertura_dias: number | null;
@@ -320,7 +322,24 @@ export default function LogisticaFullPage() {
             ),
         },
         { key: 'ventas_ultimo_mes', label: 'Ventas mes', align: 'right', render: (r) => <span className="font-mono">{r.ventas_ultimo_mes}</span> },
-        { key: 'stock_full', label: 'Full (aptas)', align: 'right', render: (r) => <span className="font-mono">{r.stock_full}</span> },
+        { key: 'stock_full', label: 'Full (aptas)', align: 'right', sortValue: (r) => r.stock_full, render: (r) => <span className="font-mono">{r.stock_full}</span> },
+        {
+            key: 'stock_bodega',
+            label: 'Stock bodega',
+            align: 'right',
+            sortValue: (r) => r.stock_bodega ?? -1,
+            render: (r) =>
+                r.stock_bodega != null ? (
+                    <div className="text-right">
+                        <span className="font-mono font-semibold">{r.stock_bodega}</span>
+                        {r.stock_disponible != null && r.stock_disponible !== r.stock_bodega && (
+                            <p className="text-[10px] text-[var(--text-faint)] font-mono">disp {r.stock_disponible}</p>
+                        )}
+                    </div>
+                ) : (
+                    <span className="font-mono text-[var(--text-faint)]">—</span>
+                ),
+        },
         {
             key: 'pendientes',
             label: 'Pendientes',
