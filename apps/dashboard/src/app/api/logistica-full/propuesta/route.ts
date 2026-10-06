@@ -110,11 +110,14 @@ export async function GET(req: Request) {
                 });
             }
             const e = byCuentaInv.get(key);
-            e.stock_full += pub?.stock_full != null ? Number(pub.stock_full) : 0;
+            // stock_full YA es el total del inventario: syncFullStock escribe el mismo
+            // available_quantity en todas las listings del inventory_id. Se toma el MÁXIMO,
+            // no la suma, para no duplicar el total.
+            e.stock_full = Math.max(e.stock_full, pub?.stock_full != null ? Number(pub.stock_full) : 0);
             if (pub?.stock_full_total != null) {
-                e.stock_full_total = (e.stock_full_total ?? 0) + Number(pub.stock_full_total);
+                e.stock_full_total = Math.max(e.stock_full_total ?? 0, Number(pub.stock_full_total));
             }
-            e.sales_30d_full += pub?.sales_30d_full != null ? Number(pub.sales_30d_full) : 0;
+            e.sales_30d_full = Math.max(e.sales_30d_full, pub?.sales_30d_full != null ? Number(pub.sales_30d_full) : 0);
             if (pub?.replenishment_suggested != null) e.replenishment_suggested = pub.replenishment_suggested;
             if (pub?.shipping_urgency != null) e.shipping_urgency = pub.shipping_urgency;
         }
