@@ -91,10 +91,10 @@ export function DataTable<T>({
       <button
         type="button"
         onClick={() => toggleSort(c.key)}
-        className={cn('inline-flex items-center gap-1 uppercase tracking-wider font-semibold hover:text-[var(--text)] transition-colors', c.align === 'right' && 'flex-row-reverse')}
+        className={cn('inline-flex items-center gap-1 font-semibold hover:text-[var(--text)] transition-colors', dense ? 'text-[11px]' : 'uppercase tracking-wider', c.align === 'right' && 'flex-row-reverse')}
       >
         {c.label}
-        <Icon className={cn('w-3 h-3', isSorted ? 'text-[var(--accent)]' : 'opacity-40')} />
+        <Icon className={cn('w-2.5 h-2.5 shrink-0', isSorted ? 'text-[var(--accent)]' : 'opacity-40')} />
       </button>
     );
   };
