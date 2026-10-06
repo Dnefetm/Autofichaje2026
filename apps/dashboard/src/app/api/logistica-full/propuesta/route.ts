@@ -102,6 +102,7 @@ export async function GET(req: Request) {
                     inventory_id: inv,
                     nombre: art?.nombre || null,
                     articulo_id: m.articulo_id,
+                    componentes: {} as Record<string, number>,
                     seller_sku: pub?.seller_sku || null,
                     codigo_universal: pub?.ean || pub?.gtin || pub?.upc || null,
                     stock_full: 0,
@@ -112,6 +113,11 @@ export async function GET(req: Request) {
                 });
             }
             const e = byCuentaInv.get(key);
+            if (m.articulo_id) {
+                // Componente del kit: cuántas unidades de este artículo físico se requieren
+                // para construir UNA unidad Full. Puede haber varios componentes por inventory_id.
+                e.componentes[m.articulo_id] = Math.max(1, Number(m.cantidad_requerida) || 1);
+            }
             if (!e.seller_sku && pub?.seller_sku) e.seller_sku = pub.seller_sku;
             if (!e.codigo_universal && (pub?.ean || pub?.gtin || pub?.upc)) {
                 e.codigo_universal = pub?.ean || pub?.gtin || pub?.upc;
@@ -128,8 +134,8 @@ export async function GET(req: Request) {
             if (pub?.shipping_urgency != null) e.shipping_urgency = pub.shipping_urgency;
         }
 
-        // Stock de bodega (inventory_snapshot) por artículo del catálogo asociado.
-        const articuloIds = [...new Set([...byCuentaInv.values()].map((e: any) => e.articulo_id).filter(Boolean))] as string[];
+        // Stock de bodega (inventory_snapshot) por CADA componente del kit mapeado.
+        const articuloIds = [...new Set([...byCuentaInv.values()].flatMap((e: any) => Object.keys(e.componentes || {})))] as string[];
         const stockBodegaMap = new Map<string, { physical: number; disponible: number }>();
         for (let i = 0; i < articuloIds.length; i += 200) {
             const chunk = articuloIds.slice(i, i + 200);
@@ -166,6 +172,24 @@ export async function GET(req: Request) {
             const sugerido = Math.max(0, Math.round(demandaDiaria * coberturaDeseada - efectivo));
             const cobertura = demandaDiaria > 0 ? Math.round((efectivo / demandaDiaria) * 10) / 10 : null;
 
+            // Stock de bodega = unidades Full CONSTRUIBLES con el stock físico actual.
+            // Para cada componente: piso(stock_componente / cantidad_requerida); el kit se
+            // construye al ritmo del componente más limitante (mínimo).
+            const comps = Object.entries(e.componentes || {}) as [string, number][];
+            let construible = 0;
+            let construibleDisponible = 0;
+            if (comps.length) {
+                construible = Infinity;
+                construibleDisponible = Infinity;
+                for (const [artId, qty] of comps) {
+                    const snap = stockBodegaMap.get(artId);
+                    construible = Math.min(construible, Math.floor((snap?.physical ?? 0) / qty));
+                    construibleDisponible = Math.min(construibleDisponible, Math.floor((snap?.disponible ?? 0) / qty));
+                }
+                if (!Number.isFinite(construible)) construible = 0;
+                if (!Number.isFinite(construibleDisponible)) construibleDisponible = 0;
+            }
+
             return {
                 marketplace_id: e.marketplace_id,
                 cuenta: e.cuenta,
@@ -176,8 +200,8 @@ export async function GET(req: Request) {
                 codigo_universal: e.codigo_universal,
                 ventas_ultimo_mes: v30,
                 stock_full: e.stock_full,
-                stock_bodega: stockBodegaMap.get(e.articulo_id)?.physical ?? null,
-                stock_disponible: stockBodegaMap.get(e.articulo_id)?.disponible ?? null,
+                stock_bodega: construible,
+                stock_disponible: construibleDisponible,
                 pendientes,
                 stock_efectivo: efectivo,
                 cobertura_dias: cobertura,

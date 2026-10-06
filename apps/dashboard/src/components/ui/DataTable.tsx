@@ -10,6 +10,12 @@ export interface Column<T> {
   align?: 'left' | 'right';
   render?: (row: T) => React.ReactNode;
   sortValue?: (row: T) => number | string | null | undefined;
+  /** Etiqueta de agrupación: las columnas contiguas con el mismo group comparten cabecera. */
+  group?: string;
+  /** Ancho fijo (ej. '64px'). La columna sin width absorbe el espacio restante. */
+  width?: string;
+  /** Evita el salto de línea del contenido de la celda. */
+  nowrap?: boolean;
 }
 
 export function DataTable<T>({
@@ -22,6 +28,7 @@ export function DataTable<T>({
   rowClassName,
   sortable = false,
   initialSort,
+  dense = false,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -32,6 +39,7 @@ export function DataTable<T>({
   rowClassName?: (row: T) => string | undefined;
   sortable?: boolean;
   initialSort?: { key: string; dir: 'asc' | 'desc' };
+  dense?: boolean;
 }) {
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(initialSort ?? null);
 
@@ -91,24 +99,78 @@ export function DataTable<T>({
     );
   };
 
+  const hasGroups = columns.some(c => c.group);
+  const useFixed = columns.some(c => c.width);
+  const cellPad = dense ? 'px-2 py-2' : 'px-4 py-3';
+  const headPad = dense ? 'px-2 py-1.5' : 'px-4 py-3';
+
+  // Cabecera agrupada (dos filas): grupos con colSpan + columnas sueltas con rowSpan.
+  const groupCells: React.ReactNode[] = [];
+  const subCells: React.ReactNode[] = [];
+  if (hasGroups) {
+    let i = 0;
+    while (i < columns.length) {
+      const c = columns[i];
+      if (c.group) {
+        let j = i;
+        while (j < columns.length && columns[j].group === c.group) j++;
+        groupCells.push(
+          <th key={`g-${i}`} colSpan={j - i} className="px-2 py-1.5 text-center text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)] border-x border-b border-[var(--border)] bg-[var(--surface-2)]">
+            {c.group}
+          </th>
+        );
+        for (let k = i; k < j; k++) {
+          const ck = columns[k];
+          subCells.push(
+            <th key={ck.key} className={cn(headPad, 'text-xs', ck.align === 'right' && 'text-right')} style={ck.width ? { width: ck.width } : undefined}>
+              {headerCell(ck)}
+            </th>
+          );
+        }
+        i = j;
+      } else {
+        groupCells.push(
+          <th key={`u-${i}`} rowSpan={2} className={cn(headPad, 'text-xs align-middle', c.align === 'right' && 'text-right')}>
+            {headerCell(c)}
+          </th>
+        );
+        i++;
+      }
+    }
+  }
+
   return (
     <div className={cn('overflow-x-auto', className)}>
       {/* Escritorio: tabla */}
-      <table className="w-full text-left text-sm hidden md:table">
-        <thead className="bg-[var(--bg)] text-[var(--text-muted)] border-b border-[var(--border)]">
-          <tr>
-            {columns.map((c) => (
-              <th key={c.key} className={cn('px-4 py-3 text-xs', c.align === 'right' && 'text-right')}>
-                {headerCell(c)}
-              </th>
+      <table className={cn('w-full text-left text-sm hidden md:table', useFixed && 'table-fixed')}>
+        {useFixed && (
+          <colgroup>
+            {columns.map((c, i) => (
+              <col key={i} style={c.width ? { width: c.width } : undefined} />
             ))}
+          </colgroup>
+        )}
+        <thead className="bg-[var(--bg)] text-[var(--text-muted)] border-b border-[var(--border)]">
+          {hasGroups && (
+            <tr>
+              {groupCells}
+            </tr>
+          )}
+          <tr>
+            {hasGroups
+              ? subCells
+              : columns.map((c) => (
+                  <th key={c.key} className={cn(headPad, 'text-xs', c.align === 'right' && 'text-right')}>
+                    {headerCell(c)}
+                  </th>
+                ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--border)]">
           {sorted.map((row) => (
             <tr key={rowKey(row)} className={rowClassName?.(row)}>
               {columns.map((c) => (
-                <td key={c.key} className={cn('px-4 py-3 align-middle', c.align === 'right' && 'text-right')}>
+                <td key={c.key} className={cn(cellPad, 'align-middle', c.align === 'right' && 'text-right', c.nowrap && 'whitespace-nowrap')}>
                   {value(row, c)}
                 </td>
               ))}

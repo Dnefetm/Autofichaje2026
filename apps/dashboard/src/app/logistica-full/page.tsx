@@ -174,14 +174,17 @@ export default function LogisticaFullPage() {
 
     const exportarCSV = () => {
         if (!data?.propuesta?.length) return;
-        const head = ['codigo_ml', 'producto', 'ventas_mes', 'stock_full_aptas', 'pendientes', 'stock_efectivo', 'cobertura_dias', 'a_enviar', 'sugerencia_ml', 'urgencia'];
+        const head = ['codigo_ml', 'sku', 'upc', 'producto', 'ventas_mes', 'full_aptas', 'en_camino', 'full_total', 'bodega_construible', 'cobertura_dias', 'a_enviar', 'ml_ref', 'urgencia'];
         const rows = data.propuesta.map((p) => [
             p.inventory_id,
+            `"${(p.seller_sku || '').replace(/"/g, '""')}"`,
+            `"${(p.codigo_universal || '').replace(/"/g, '""')}"`,
             `"${(p.nombre || '').replace(/"/g, '""')}"`,
             p.ventas_ultimo_mes,
             p.stock_full,
-            p.pendientes,
+            p.pendientes ?? '',
             p.stock_efectivo,
+            p.stock_bodega,
             p.cobertura_dias ?? '',
             p.sugerido,
             p.sugerencia_ml ?? '',
@@ -323,6 +326,16 @@ export default function LogisticaFullPage() {
 
     useEffect(() => { loadPlanes(); }, [loadPlanes]);
 
+    const urgenciaLabel = (u: string | null) => {
+        switch (u) {
+            case 'URGENT': return 'Urgente';
+            case 'THIS_WEEK': return 'Esta sem.';
+            case 'NEXT_WEEK': return 'Próx. sem.';
+            case 'IN_TWO_WEEKS': return '2 sem.';
+            default: return u || '';
+        }
+    };
+
     const columns: Column<PropItem>[] = [
         {
             key: 'nombre',
@@ -331,42 +344,48 @@ export default function LogisticaFullPage() {
             render: (r) => (
                 <div className="min-w-0">
                     <p className="font-medium text-[var(--text)] truncate">{r.nombre || '(sin nombre)'}</p>
-                    <p className="text-xs text-[var(--text-faint)] font-mono">{r.inventory_id}{r.seller_sku ? ` · ${r.seller_sku}` : ''}</p>
-                    {r.codigo_universal && <p className="text-[11px] text-[var(--text-faint)] font-mono">UPC {r.codigo_universal}</p>}
-                    <p className="text-[11px] text-[var(--accent)]">{r.cuenta}</p>
+                    <p className="text-xs text-[var(--text-faint)] font-mono truncate">{r.inventory_id}{r.seller_sku ? ` · ${r.seller_sku}` : ''}</p>
+                    {r.codigo_universal && <p className="text-[11px] text-[var(--text-faint)] font-mono truncate">UPC {r.codigo_universal}</p>}
+                    <p className="text-[11px] text-[var(--accent)] truncate">{r.cuenta}</p>
                 </div>
             ),
         },
-        { key: 'ventas_ultimo_mes', label: 'Ventas mes', align: 'right', sortValue: (r) => r.ventas_ultimo_mes, render: (r) => <span className="font-mono">{r.ventas_ultimo_mes}</span> },
-        { key: 'stock_full', label: 'Full (aptas)', align: 'right', sortValue: (r) => r.stock_full, render: (r) => <span className="font-mono">{r.stock_full}</span> },
-        {
-            key: 'stock_bodega',
-            label: 'Stock bodega',
-            align: 'right',
-            sortValue: (r) => r.stock_bodega ?? -1,
-            render: (r) =>
-                r.stock_bodega != null ? (
-                    <div className="text-right">
-                        <span className="font-mono font-semibold">{r.stock_bodega}</span>
-                        {r.stock_disponible != null && r.stock_disponible !== r.stock_bodega && (
-                            <p className="text-[10px] text-[var(--text-faint)] font-mono">disp {r.stock_disponible}</p>
-                        )}
-                    </div>
-                ) : (
-                    <span className="font-mono text-[var(--text-faint)]">—</span>
-                ),
-        },
+        { key: 'ventas_ultimo_mes', label: 'Mes', group: 'Ventas', width: '54px', nowrap: true, align: 'right', sortValue: (r) => r.ventas_ultimo_mes, render: (r) => <span className="font-mono">{r.ventas_ultimo_mes}</span> },
+        { key: 'stock_full', label: 'Aptas', group: 'Stock Full', width: '56px', nowrap: true, align: 'right', sortValue: (r) => r.stock_full, render: (r) => <span className="font-mono">{r.stock_full}</span> },
         {
             key: 'pendientes',
-            label: 'Pendientes',
+            label: 'En camino',
+            group: 'Stock Full',
+            width: '72px',
+            nowrap: true,
             align: 'right',
             sortValue: (r) => r.pendientes ?? -1,
             render: (r) => (r.pendientes == null ? <span className="font-mono text-[var(--text-faint)]">—</span> : r.pendientes > 0 ? <span className="font-mono text-[var(--info)]">+{r.pendientes}</span> : <span className="font-mono text-[var(--text-faint)]">0</span>),
         },
-        { key: 'stock_efectivo', label: 'Efectivo', align: 'right', sortValue: (r) => r.stock_efectivo, render: (r) => <span className="font-mono font-semibold">{r.stock_efectivo}</span> },
+        { key: 'stock_efectivo', label: 'Total', group: 'Stock Full', width: '56px', nowrap: true, align: 'right', sortValue: (r) => r.stock_efectivo, render: (r) => <span className="font-mono font-semibold">{r.stock_efectivo}</span> },
+        {
+            key: 'stock_bodega',
+            label: 'Construible',
+            group: 'Bodega',
+            width: '72px',
+            nowrap: true,
+            align: 'right',
+            sortValue: (r) => r.stock_bodega,
+            render: (r) => (
+                <div className="text-right">
+                    <span className="font-mono font-semibold">{r.stock_bodega}</span>
+                    {r.stock_disponible != null && r.stock_disponible !== r.stock_bodega && (
+                        <p className="text-[10px] text-[var(--text-faint)] font-mono">disp {r.stock_disponible}</p>
+                    )}
+                </div>
+            ),
+        },
         {
             key: 'cobertura_dias',
             label: 'Cobertura',
+            group: 'Propuesta',
+            width: '68px',
+            nowrap: true,
             align: 'right',
             sortValue: (r) => r.cobertura_dias ?? -1,
             render: (r) => {
@@ -381,6 +400,9 @@ export default function LogisticaFullPage() {
         {
             key: 'sugerido',
             label: 'A enviar',
+            group: 'Propuesta',
+            width: '76px',
+            nowrap: true,
             align: 'right',
             sortValue: (r) => r.sugerido,
             render: (r) =>
@@ -392,7 +414,10 @@ export default function LogisticaFullPage() {
         },
         {
             key: 'sugerencia_ml',
-            label: 'ML (ref)',
+            label: 'ML ref',
+            group: 'Propuesta',
+            width: '56px',
+            nowrap: true,
             align: 'right',
             sortValue: (r) => r.sugerencia_ml ?? -1,
             render: (r) =>
@@ -405,11 +430,14 @@ export default function LogisticaFullPage() {
         {
             key: 'shipping_urgency',
             label: 'Urgencia',
+            group: 'Propuesta',
+            width: '88px',
+            nowrap: true,
             sortValue: (r) => r.shipping_urgency ?? '',
             render: (r) =>
                 r.shipping_urgency ? (
                     <Badge tone={r.shipping_urgency === 'URGENT' || r.shipping_urgency === 'THIS_WEEK' ? 'danger' : 'neutral'}>
-                        {r.shipping_urgency}
+                        {urgenciaLabel(r.shipping_urgency)}
                     </Badge>
                 ) : (
                     <span className="text-[var(--text-faint)]">—</span>
@@ -579,6 +607,7 @@ export default function LogisticaFullPage() {
                     loading={loading}
                     empty={busqueda.trim() ? 'Sin coincidencias para la búsqueda' : 'Sin artículos Full mapeados'}
                     sortable
+                    dense
                     initialSort={{ key: 'sugerido', dir: 'desc' }}
                     rowClassName={(r) => {
                         const urg = r.shipping_urgency;
