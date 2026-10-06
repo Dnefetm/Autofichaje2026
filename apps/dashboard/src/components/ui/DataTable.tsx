@@ -170,7 +170,7 @@ export function DataTable<T>({
           {sorted.map((row) => (
             <tr key={rowKey(row)} className={rowClassName?.(row)}>
               {columns.map((c) => (
-                <td key={c.key} className={cn(cellPad, 'align-middle', c.align === 'right' && 'text-right', c.nowrap && 'whitespace-nowrap')}>
+                <td key={c.key} className={cn(cellPad, 'align-middle overflow-hidden', c.align === 'right' && 'text-right', c.nowrap && 'whitespace-nowrap')}>
                   {value(row, c)}
                 </td>
               ))}

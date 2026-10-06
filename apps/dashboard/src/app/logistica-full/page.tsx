@@ -331,6 +331,7 @@ export default function LogisticaFullPage() {
             case 'THIS_WEEK': return 'Esta sem.';
             case 'NEXT_WEEK': return 'Próx. sem.';
             case 'IN_TWO_WEEKS': return '2 sem.';
+            case 'EXCEDENT': return 'Excedente';
             default: return u || '';
         }
     };
@@ -415,17 +416,15 @@ export default function LogisticaFullPage() {
             key: 'shipping_urgency',
             label: 'Urgencia',
             group: 'Propuesta',
-            width: '88px',
+            width: '84px',
             nowrap: true,
             sortValue: (r) => r.shipping_urgency ?? '',
-            render: (r) =>
-                r.shipping_urgency ? (
-                    <Badge tone={r.shipping_urgency === 'URGENT' || r.shipping_urgency === 'THIS_WEEK' ? 'danger' : 'neutral'}>
-                        {urgenciaLabel(r.shipping_urgency)}
-                    </Badge>
-                ) : (
-                    <span className="text-[var(--text-faint)]">—</span>
-                ),
+            render: (r) => {
+                const u = r.shipping_urgency;
+                if (!u || u === 'NO_URGENCY') return <span className="text-[var(--text-faint)]">—</span>;
+                const danger = u === 'URGENT' || u === 'THIS_WEEK';
+                return <Badge tone={danger ? 'danger' : 'neutral'}>{urgenciaLabel(u)}</Badge>;
+            },
         },
     ];
 
