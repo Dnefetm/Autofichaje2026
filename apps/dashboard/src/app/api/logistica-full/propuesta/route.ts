@@ -167,7 +167,8 @@ export async function GET(req: Request) {
 
             const demandaDiaria = demanda / DIAS_VENTANA;
             // efectivo = aptas + pendientes + en tránsito; si ML no lo entregó, se usa solo aptas.
-            const efectivo = e.stock_full_total != null ? e.stock_full_total : e.stock_full;
+            // Se acota por abajo a las aptas: el total jamás puede ser menor que las aptas.
+            const efectivo = e.stock_full_total != null ? Math.max(e.stock_full_total, e.stock_full) : e.stock_full;
             const pendientes = e.stock_full_total != null ? Math.max(0, e.stock_full_total - e.stock_full) : null;
             const sugerido = Math.max(0, Math.round(demandaDiaria * coberturaDeseada - efectivo));
             const cobertura = demandaDiaria > 0 ? Math.round((efectivo / demandaDiaria) * 10) / 10 : null;
