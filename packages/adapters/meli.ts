@@ -990,15 +990,32 @@ export class MeliAdapter implements MarketplaceAdapter {
                 }
             }
 
-            // -- V71: Enriquecer stock Full (fulfillment) ----------------------
+            // -- V71: Enriquecer stock Full (fulfillment) + replenishment (total = aptas + en camino) --
             // Para publicaciones Full, el stock real está en el depósito Full
-            // (GET /inventories/{inventory_id}/stock/fulfillment), no en
-            // item.available_quantity. Guardamos stock_full para que el filtro
-            // "Full + sin stock" sea correcto.
+            // (GET /inventories/{inventory_id}/stock/fulfillment) y el total (incl. en camino)
+            // en el endpoint de replenishment. Se traen AMBOS en el mismo paso (atómico)
+            // para que aptas y en camino nunca se desincronicen.
             const fullRows = itemsPayload.filter((r: any) => r.logistic_type === 'fulfillment' && r.inventory_id);
             if (fullRows.length > 0) {
                 const CONCURRENCIA_FULL = 5;
                 const uniqFull = [...new Map(fullRows.map((r: any) => [`${r.external_item_id}|${r.external_variation_id}|${r.inventory_id}`, r])).values()];
+
+                // Resolver user_product_id (necesario para replenishment) en multiGET por lotes de 20.
+                const upIdByItem = new Map<string, string>();
+                for (let j = 0; j < uniqFull.length; j += 20) {
+                    const idsChunk = uniqFull.slice(j, j + 20).map((r: any) => r.external_item_id);
+                    try {
+                        const resp = await axios.get(`https://api.mercadolibre.com/items?ids=${idsChunk.join(',')}`, {
+                            headers: { Authorization: `Bearer ${accessToken}` }
+                        });
+                        for (const r of (resp.data || [])) {
+                            if (r.code === 200 && r.body?.user_product_id) upIdByItem.set(r.body.id, r.body.user_product_id);
+                        }
+                    } catch (e: any) {
+                        logger.warn({ accountId, error: e?.message }, 'V71: fallo multiGET user_product_id');
+                    }
+                }
+
                 for (let i = 0; i < uniqFull.length; i += CONCURRENCIA_FULL) {
                     const chunk = uniqFull.slice(i, i + CONCURRENCIA_FULL);
                     await Promise.all(chunk.map(async (row: any) => {
@@ -1024,10 +1041,38 @@ export class MeliAdapter implements MarketplaceAdapter {
                                 .eq('marketplace_id', accountId)
                                 .eq('external_item_id', row.external_item_id)
                                 .eq('external_variation_id', row.external_variation_id);
+
+                            // Replenishment (total = aptas + en camino) en el MISMO paso.
+                            const upId = upIdByItem.get(row.external_item_id);
+                            if (upId) {
+                                const canProceed2 = await checkRateLimit(accountId, this.capabilities.maxStockUpdateRate, 5);
+                                if (!canProceed2) return;
+                                const rr = await axios.get(
+                                    `https://api.mercadolibre.com/marketplace/fbm/user-products/${upId}/replenishment?country=MX`,
+                                    { headers: { Authorization: `Bearer ${accessToken}` } }
+                                );
+                                const b = rr.data;
+                                const sq = b?.recommendation?.suggested_quantity;
+                                const sugerido = typeof sq === 'object' && sq != null ? (sq.type === 'range' ? sq.max : sq.value) : (sq ?? null);
+                                await supabase
+                                    .from('publicaciones_externas')
+                                    .update({
+                                        user_product_id: upId,
+                                        stock_full_total: b?.stock?.total_stock ?? null,
+                                        replenishment_suggested: sugerido ?? null,
+                                        shipping_urgency: b?.stock?.shipping_urgency ?? null,
+                                        replenishment_deadline: b?.recommendation?.replenishment_deadline ?? null,
+                                        sales_30d_full: b?.sales?.sales_totals?.units_sold?.[0]?.full ?? null,
+                                        replenishment_updated_at: new Date().toISOString(),
+                                    })
+                                    .eq('marketplace_id', accountId)
+                                    .eq('external_item_id', row.external_item_id)
+                                    .eq('external_variation_id', row.external_variation_id);
+                            }
                         } catch (err: any) {
                             logger.warn(
                                 { accountId, inventoryId: row.inventory_id, error: err.response?.data || err.message },
-                                'V71: Fallo al obtener stock Full desde /inventories'
+                                'V71: Fallo al enriquecer stock Full/replenishment'
                             );
                         }
                     }));
