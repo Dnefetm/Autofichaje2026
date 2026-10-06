@@ -39,7 +39,11 @@ import { MeliAdapter } from '@gestor/adapters/meli';
 export const dynamic = 'force-dynamic';
 
 // Atributos que NO deben copiarse del ítem original (obsoletos / auto-generados por MeLi).
-const SKIP_ATTRS = new Set(['EXCLUSIVE_CHANNEL']);
+const SKIP_ATTRS = new Set([
+    'EXCLUSIVE_CHANNEL',
+    'PACKAGE_DATA_SOURCE', 'PACKAGE_HEIGHT', 'PACKAGE_LENGTH', 'PACKAGE_WEIGHT', 'PACKAGE_WIDTH',
+    'PRODUCT_FEATURES', 'SHIPMENT_PACKING'
+]);
 
 // Sale terms que sí tienen sentido copiar a la nueva condición.
 const COPY_SALE_TERMS = new Set(['WARRANTY_TYPE', 'WARRANTY_TIME', 'MANUFACTURING_TIME']);
@@ -136,6 +140,12 @@ export async function POST(req: NextRequest) {
         }
 
         const pictures = (existing.pictures || [])
+            .filter((p: any) => {
+                const m = String(p.size || '').match(/(\d+)\s*x\s*(\d+)/);
+                if (!m) return true;
+                const w = Number(m[1]), h = Number(m[2]);
+                return Math.max(w, h) >= 500 && Math.min(w, h) >= 250;
+            })
             .map((p: any) => p.secure_url || p.url)
             .filter(Boolean)
             .map((url: string) => ({ source: url }));

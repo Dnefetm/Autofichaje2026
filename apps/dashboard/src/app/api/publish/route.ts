@@ -171,8 +171,14 @@ export async function POST(req: NextRequest) {
                 // Fotos de la vidriera origen, conservando el id oficial de MeLi
                 // para reutilizarlas (evita re-descargar/re-subir en copia de condición).
                 const sourcePics = (sourceItem.pictures || [])
-                    .map((p: any) => ({ id: p.id || null, url: p.secure_url || p.url }))
-                    .filter((p: any) => p.url);
+                    .map((p: any) => ({ id: p.id || null, url: p.secure_url || p.url, size: p.size || '' }))
+                    .filter((p: any) => p.url)
+                    .filter((p: any) => {
+                        const m = String(p.size || '').match(/(\d+)\s*x\s*(\d+)/);
+                        if (!m) return true; // sin info de tamaño → conservar (id MeLi ya válido)
+                        const w = Number(m[1]), h = Number(m[2]);
+                        return Math.max(w, h) >= 500 && Math.min(w, h) >= 250;
+                    });
 
                 sourceData = {
                     nombre:             sourceItem.family_name || sourceItem.title || '',
@@ -720,8 +726,12 @@ export async function POST(req: NextRequest) {
             const mappedIdsPreSource = new Set(attributes.map(a => a.id));
             // SELLER_PACKAGE_* se omiten aquí: se re-construyen desde las dimensiones
             // resueltas (maybePushPackage) para evitar duplicados y unidades incorrectas.
-            const SKIP_SOURCE_ATTRS = new Set(['EXCLUSIVE_CHANNEL', 'SELLER_CUSTOM_FIELD', 'SIZE_GRID_ID',
-                'SELLER_PACKAGE_HEIGHT', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WEIGHT']);
+            const SKIP_SOURCE_ATTRS = new Set([
+                'EXCLUSIVE_CHANNEL', 'SELLER_CUSTOM_FIELD', 'SIZE_GRID_ID',
+                'SELLER_PACKAGE_HEIGHT', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WEIGHT',
+                'PACKAGE_DATA_SOURCE', 'PACKAGE_HEIGHT', 'PACKAGE_LENGTH', 'PACKAGE_WEIGHT', 'PACKAGE_WIDTH',
+                'PRODUCT_FEATURES', 'SHIPMENT_PACKING'
+            ]);
             for (const sa of sourceData.attributes) {
                 if (!sa?.id || SKIP_SOURCE_ATTRS.has(sa.id)) continue;
                 if (mappedIdsPreSource.has(sa.id)) continue;
@@ -861,9 +871,14 @@ export async function POST(req: NextRequest) {
         // IDs MeLi ya existentes, alineados con effectivePictures. Solo aplican
         // cuando heredamos de la vidriera origen (Flujo 1); las URLs externas del
         // request nunca traen id, así que se re-suben.
-        const inheritedIds: (string | null)[] = (pictures.length === 0 && sourceData?.picture_ids)
-            ? sourceData.picture_ids
-            : effectivePictures.map(() => null);
+        // Reutilizar IDs MeLi de la vidriera origen cuando la URL coincide: evita
+        // re-subir y re-validar el tamaño (causa del "invalid_size" al copiar).
+        const sourceIdByUrl = new Map<string, string>();
+        (sourceData?.pictures || []).forEach((u: string, i: number) => {
+            const id = sourceData?.picture_ids?.[i];
+            if (id && u) sourceIdByUrl.set(u, String(id));
+        });
+        const inheritedIds: (string | null)[] = effectivePictures.map((u) => sourceIdByUrl.get(u) || null);
 
         // -- Pre-subir SOLO las imágenes sin id MeLi (publish real) --------------
         // Flujo 1: las fotos que ya viven en MeLi se referencian por su {id} sin

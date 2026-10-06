@@ -71,6 +71,19 @@ interface PublishPanelProps {
 }
 
 // -- Helpers ------------------------------------------------------------------
+function PhotoBadge({ url }: { url: string }) {
+    const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+    const [failed, setFailed] = useState(false);
+    if (failed) return <span className="text-[9px] font-bold text-[var(--err)]">✗ no carga</span>;
+    if (!size) {
+        return <img src={url} alt="" className="hidden" onLoad={e => setSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} onError={() => setFailed(true)} />;
+    }
+    const ok = Math.max(size.w, size.h) >= 500 && Math.min(size.w, size.h) >= 250;
+    return ok
+        ? <span className="text-[9px] font-bold text-[var(--ok)]">✓ {size.w}×{size.h}</span>
+        : <span className="text-[9px] font-bold text-[var(--err)]">✗ {size.w}×{size.h} &lt;500px</span>;
+}
+
 function TraceBlock({ trace }: { trace: Record<string, any> }) {
     const [open, setOpen] = useState(false);
     return (
@@ -1061,6 +1074,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                             </div>
                                                             <span className="text-xs font-black text-[var(--text-faint)] w-5 shrink-0">#{i + 1}</span>
                                                             <span className="flex-1 text-xs text-[var(--text-muted)] truncate font-mono">{url}</span>
+                                                                <PhotoBadge url={url} />
                                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                 <button onClick={() => moveImage(i, -1)} disabled={i === 0} className="p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30" title="Subir"><ArrowUp className="w-3 h-3" /></button>
                                                                 <button onClick={() => moveImage(i, 1)} disabled={i === images.length - 1} className="p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30" title="Bajar"><ArrowDown className="w-3 h-3" /></button>
