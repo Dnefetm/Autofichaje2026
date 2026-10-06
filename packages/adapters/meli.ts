@@ -515,6 +515,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 const { data: m } = await supabase
                     .from('mapeo_publicacion_articulo')
                     .select('publicacion_id')
+                    .order('publicacion_id')
                     .range(mfrom, mfrom + 999);
                 const rows = m || [];
                 rows.forEach(r => mappedIds.add(r.publicacion_id));
