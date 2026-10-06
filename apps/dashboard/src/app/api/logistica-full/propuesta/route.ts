@@ -26,7 +26,7 @@ export async function GET(req: Request) {
             .select(`
                 articulo_id, cantidad_requerida,
                 articulo:articulos(articulo_id, nombre),
-                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, stock_full_total, sales_30d_full, replenishment_suggested, shipping_urgency, marketplace_id)
+                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, stock_full_total, sales_30d_full, replenishment_suggested, shipping_urgency, marketplace_id, seller_sku, ean, gtin, upc)
             `)
             .eq('publicacion.logistic_type', 'fulfillment')
             .not('publicacion.inventory_id', 'is', null);
@@ -102,6 +102,8 @@ export async function GET(req: Request) {
                     inventory_id: inv,
                     nombre: art?.nombre || null,
                     articulo_id: m.articulo_id,
+                    seller_sku: pub?.seller_sku || null,
+                    codigo_universal: pub?.ean || pub?.gtin || pub?.upc || null,
                     stock_full: 0,
                     stock_full_total: null,
                     sales_30d_full: 0,
@@ -110,6 +112,10 @@ export async function GET(req: Request) {
                 });
             }
             const e = byCuentaInv.get(key);
+            if (!e.seller_sku && pub?.seller_sku) e.seller_sku = pub.seller_sku;
+            if (!e.codigo_universal && (pub?.ean || pub?.gtin || pub?.upc)) {
+                e.codigo_universal = pub?.ean || pub?.gtin || pub?.upc;
+            }
             // stock_full YA es el total del inventario: syncFullStock escribe el mismo
             // available_quantity en todas las listings del inventory_id. Se toma el MÁXIMO,
             // no la suma, para no duplicar el total.
@@ -166,6 +172,8 @@ export async function GET(req: Request) {
                 inventory_id: e.inventory_id,
                 nombre: e.nombre,
                 articulo_id: e.articulo_id,
+                seller_sku: e.seller_sku,
+                codigo_universal: e.codigo_universal,
                 ventas_ultimo_mes: v30,
                 stock_full: e.stock_full,
                 stock_bodega: stockBodegaMap.get(e.articulo_id)?.physical ?? null,

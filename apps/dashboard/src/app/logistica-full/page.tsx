@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Page } from '@/components/ui/Page';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Btn } from '@/components/ui/Btn';
@@ -16,6 +16,8 @@ interface PropItem {
     inventory_id: string;
     nombre: string | null;
     articulo_id: string;
+    seller_sku: string | null;
+    codigo_universal: string | null;
     ventas_ultimo_mes: number;
     stock_full: number;
     stock_bodega: number | null;
@@ -59,6 +61,7 @@ export default function LogisticaFullPage() {
     const [metodo, setMetodo] = useState<'ultimo_mes' | 'historico_promedio' | 'historico_mediana' | 'hibrido'>('hibrido');
     const [cuentas, setCuentas] = useState<{ id: string; nombre: string }[]>([]);
     const [cuenta, setCuenta] = useState<string>('');
+    const [busqueda, setBusqueda] = useState('');
     const [importando, setImportando] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
 
@@ -141,6 +144,17 @@ export default function LogisticaFullPage() {
     }, []);
 
     useEffect(() => { load(); loadEnvios(); }, [load, loadEnvios]);
+
+    const propuestaFiltrada = useMemo(() => {
+        const q = busqueda.trim().toLowerCase();
+        const rows = data?.propuesta || [];
+        if (!q) return rows;
+        return rows.filter((p) =>
+            [p.inventory_id, p.nombre, p.seller_sku, p.codigo_universal, p.cuenta].some((v) =>
+                (v || '').toLowerCase().includes(q)
+            )
+        );
+    }, [data, busqueda]);
 
     const sync = async () => {
         setSyncing(true);
@@ -313,15 +327,17 @@ export default function LogisticaFullPage() {
         {
             key: 'nombre',
             label: 'Producto',
+            sortValue: (r) => r.nombre || '',
             render: (r) => (
                 <div className="min-w-0">
                     <p className="font-medium text-[var(--text)] truncate">{r.nombre || '(sin nombre)'}</p>
-                    <p className="text-xs text-[var(--text-faint)] font-mono">{r.inventory_id}</p>
+                    <p className="text-xs text-[var(--text-faint)] font-mono">{r.inventory_id}{r.seller_sku ? ` · ${r.seller_sku}` : ''}</p>
+                    {r.codigo_universal && <p className="text-[11px] text-[var(--text-faint)] font-mono">UPC {r.codigo_universal}</p>}
                     <p className="text-[11px] text-[var(--accent)]">{r.cuenta}</p>
                 </div>
             ),
         },
-        { key: 'ventas_ultimo_mes', label: 'Ventas mes', align: 'right', render: (r) => <span className="font-mono">{r.ventas_ultimo_mes}</span> },
+        { key: 'ventas_ultimo_mes', label: 'Ventas mes', align: 'right', sortValue: (r) => r.ventas_ultimo_mes, render: (r) => <span className="font-mono">{r.ventas_ultimo_mes}</span> },
         { key: 'stock_full', label: 'Full (aptas)', align: 'right', sortValue: (r) => r.stock_full, render: (r) => <span className="font-mono">{r.stock_full}</span> },
         {
             key: 'stock_bodega',
@@ -344,13 +360,15 @@ export default function LogisticaFullPage() {
             key: 'pendientes',
             label: 'Pendientes',
             align: 'right',
+            sortValue: (r) => r.pendientes ?? -1,
             render: (r) => (r.pendientes == null ? <span className="font-mono text-[var(--text-faint)]">—</span> : r.pendientes > 0 ? <span className="font-mono text-[var(--info)]">+{r.pendientes}</span> : <span className="font-mono text-[var(--text-faint)]">0</span>),
         },
-        { key: 'stock_efectivo', label: 'Efectivo', align: 'right', render: (r) => <span className="font-mono font-semibold">{r.stock_efectivo}</span> },
+        { key: 'stock_efectivo', label: 'Efectivo', align: 'right', sortValue: (r) => r.stock_efectivo, render: (r) => <span className="font-mono font-semibold">{r.stock_efectivo}</span> },
         {
             key: 'cobertura_dias',
             label: 'Cobertura',
             align: 'right',
+            sortValue: (r) => r.cobertura_dias ?? -1,
             render: (r) => {
                 const bajo = r.cobertura_dias != null && r.cobertura_dias < (data?.cobertura_deseada ?? 30);
                 return r.cobertura_dias != null ? (
@@ -364,6 +382,7 @@ export default function LogisticaFullPage() {
             key: 'sugerido',
             label: 'A enviar',
             align: 'right',
+            sortValue: (r) => r.sugerido,
             render: (r) =>
                 r.sugerido > 0 ? (
                     <Badge tone="warning"><Truck className="w-3 h-3" /> {r.sugerido}</Badge>
@@ -375,6 +394,7 @@ export default function LogisticaFullPage() {
             key: 'sugerencia_ml',
             label: 'ML (ref)',
             align: 'right',
+            sortValue: (r) => r.sugerencia_ml ?? -1,
             render: (r) =>
                 r.sugerencia_ml != null ? (
                     <span className="font-mono text-[var(--text-faint)]">{r.sugerencia_ml}</span>
@@ -385,6 +405,7 @@ export default function LogisticaFullPage() {
         {
             key: 'shipping_urgency',
             label: 'Urgencia',
+            sortValue: (r) => r.shipping_urgency ?? '',
             render: (r) =>
                 r.shipping_urgency ? (
                     <Badge tone={r.shipping_urgency === 'URGENT' || r.shipping_urgency === 'THIS_WEEK' ? 'danger' : 'neutral'}>
@@ -537,16 +558,26 @@ export default function LogisticaFullPage() {
                         <option value="historico_mediana">Histórico (mediana)</option>
                     </select>
                 </label>
+                <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+                    Buscar
+                    <input
+                        type="search"
+                        value={busqueda}
+                        onChange={(e) => setBusqueda(e.target.value)}
+                        placeholder="Código ML, SKU, UPC o nombre"
+                        className="w-56 px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)]"
+                    />
+                </label>
             </div>
 
             {/* Propuesta */}
             <Card title="Propuesta de reposición">
                 <DataTable<PropItem>
                     columns={columns}
-                    rows={data?.propuesta || []}
-                    rowKey={(r) => r.articulo_id}
+                    rows={propuestaFiltrada}
+                    rowKey={(r) => `${r.marketplace_id}|${r.inventory_id}`}
                     loading={loading}
-                    empty="Sin artículos Full mapeados"
+                    empty={busqueda.trim() ? 'Sin coincidencias para la búsqueda' : 'Sin artículos Full mapeados'}
                     sortable
                     initialSort={{ key: 'sugerido', dir: 'desc' }}
                     rowClassName={(r) => {
