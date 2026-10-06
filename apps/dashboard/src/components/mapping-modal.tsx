@@ -630,6 +630,7 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
                                 {comparisonArticle.marca && <span className="text-[var(--text-muted)] font-normal"> · {comparisonArticle.marca}</span>}
                                 {comparisonArticle.modelo && <span className="font-mono"> · {comparisonArticle.modelo}</span>}
                                 {comparisonArticle.codigo_universal && <span className="font-mono text-[var(--text-muted)]"> · {comparisonArticle.codigo_universal}</span>}
+                                {comparisonArticle.variante && <span className="text-[var(--info)]"> · {comparisonArticle.variante}</span>}
                                 {comparisonArticle.caja_madre && <span className="text-[var(--warn)] font-semibold"> · 📍{comparisonArticle.caja_madre}</span>}
                             </span>
                         </div>
@@ -638,8 +639,10 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
                             <span className="text-[var(--text-muted)] min-w-0 break-words">
                                 {pubTitle}
                                 {pubBrand && <span> · {pubBrand}</span>}
-                                {(pubModel || pubSku) && <span className="font-mono"> · {pubModel || pubSku}</span>}
+                                {pubModel && <span className="font-mono"> · {pubModel}</span>}
                                 {pubCodigo && <span className="font-mono"> · {pubCodigo}</span>}
+                                {varianteLabel(pubVariante) && <span className="text-[var(--info)]"> · {varianteLabel(pubVariante)}</span>}
+                                {pubSku && pubSku !== pubModel && <span className="font-mono"> · {pubSku}</span>}
                             </span>
                         </div>
                     </div>
