@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { MeliAdapter } from '@gestor/adapters/meli';
+import { dispatchWorker } from '@/lib/dispatch-worker';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 30;
 
-// T1 Logística Full — sincroniza el stock del depósito Full (stock_full) y los
-// datos de replenishment (sugerencia ML, urgencia, ventas 30d) hacia publicaciones_externas.
+// POST /api/logistica-full/sync — dispara el sync de catálogo RESUMIBLE (sync_account_catalog),
+// que ahora trae en un solo paso: catálogo + aptas (stock_full) + en camino (stock_full_total
+// vía replenishment). Ya no hace la sincronización inline (que moría por timeout a los 60s).
 export async function POST(req: Request) {
     try {
         const body = await req.json().catch(() => ({}));
@@ -27,22 +28,21 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: 'No hay cuentas activas' }, { status: 400 });
         }
 
-        const meli = new MeliAdapter();
-        const results: { accountId: string; stock: { updated: number; errors: number }; replenishment: { updated: number; errors: number } }[] = [];
+        let encolados = 0;
         for (const acc of accounts) {
-            const stock = await meli.syncFullStock(acc.id);
-            let replenishment = { updated: 0, errors: 0 };
-            try {
-                replenishment = await meli.syncReplenishment(acc.id);
-            } catch (e: any) {
-                // Si la migración de columnas aún no está aplicada, no romper el sync de stock.
-                replenishment = { updated: 0, errors: 1 };
-            }
-            results.push({ accountId: acc.id, stock, replenishment });
+            const { error } = await supabaseAdmin.from('jobs').insert({
+                type: 'sync_account_catalog',
+                payload: { marketplace_id: acc.id },
+                status: 'pending',
+                priority: 2,
+                scheduled_at: new Date().toISOString(),
+            });
+            if (!error) encolados++;
         }
 
-        return NextResponse.json({ success: true, results });
+        await dispatchWorker().catch(() => {});
+        return NextResponse.json({ success: true, encolados });
     } catch (err: any) {
-        return NextResponse.json({ error: err.message || 'Error sincronizando stock Full' }, { status: 500 });
+        return NextResponse.json({ error: err.message || 'Error encolando sync' }, { status: 500 });
     }
 }
