@@ -703,6 +703,16 @@ export class MeliAdapter implements MarketplaceAdapter {
         return this.syncCatalogBatchFast(accountId, accessToken, itemIds);
     }
 
+    // Devuelve el vendedor real del token de una cuenta (GET /users/me).
+    // Útil para diagnosticar si un token pertenece al seller_id correcto.
+    async whoAmI(accountId: string): Promise<any> {
+        const accessToken = await this.getAccessToken(accountId);
+        const meResp = await axios.get('https://api.mercadolibre.com/users/me', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        return meResp.data;
+    }
+
     // --- VERSIÓN OPTIMIZADA: recibe token, multiGETs en paralelo ---
     async syncCatalogBatchFast(accountId: string, accessToken: string, itemIds: string[], offset: number = 0, limit?: number): Promise<number> {
         // V130: soporte de reanudación — procesar solo el slice [offset, offset+limit)
