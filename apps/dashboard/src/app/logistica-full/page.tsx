@@ -11,12 +11,14 @@ import { RefreshCw, PackageSearch, Truck, Boxes, Download, Upload } from 'lucide
 import { toast } from 'sonner';
 
 interface PropItem {
+    marketplace_id: string;
+    cuenta: string;
     inventory_id: string;
     nombre: string | null;
     articulo_id: string;
     ventas_ultimo_mes: number;
     stock_full: number;
-    pendientes: number;
+    pendientes: number | null;
     stock_efectivo: number;
     cobertura_dias: number | null;
     sugerido: number;
@@ -313,6 +315,7 @@ export default function LogisticaFullPage() {
                 <div className="min-w-0">
                     <p className="font-medium text-[var(--text)] truncate">{r.nombre || '(sin nombre)'}</p>
                     <p className="text-xs text-[var(--text-faint)] font-mono">{r.inventory_id}</p>
+                    <p className="text-[11px] text-[var(--accent)]">{r.cuenta}</p>
                 </div>
             ),
         },
@@ -322,7 +325,7 @@ export default function LogisticaFullPage() {
             key: 'pendientes',
             label: 'Pendientes',
             align: 'right',
-            render: (r) => (r.pendientes > 0 ? <span className="font-mono text-[var(--info)]">+{r.pendientes}</span> : <span className="font-mono text-[var(--text-faint)]">0</span>),
+            render: (r) => (r.pendientes == null ? <span className="font-mono text-[var(--text-faint)]">—</span> : r.pendientes > 0 ? <span className="font-mono text-[var(--info)]">+{r.pendientes}</span> : <span className="font-mono text-[var(--text-faint)]">0</span>),
         },
         { key: 'stock_efectivo', label: 'Efectivo', align: 'right', render: (r) => <span className="font-mono font-semibold">{r.stock_efectivo}</span> },
         {

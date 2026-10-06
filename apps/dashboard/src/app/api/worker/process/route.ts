@@ -613,6 +613,15 @@ const { data: pub } = await supabaseAdmin
 shippingLogisticType = pub?.logistic_type ?? null;
 }
 
+// Saber si esta orden ya se acumuló (evita duplicar ventas en reintentos del webhook).
+const { data: ordenPrevia } = await supabaseAdmin
+.from('ordenes')
+.select('id, ventas_acumuladas')
+.eq('marketplace_id', marketplaceId)
+.eq('meli_order_id', order.id)
+.maybeSingle();
+const yaAcumulada = !!ordenPrevia?.ventas_acumuladas;
+
 const { data: ordenUpserted, error: ordenErr } = await supabaseAdmin
 .from('ordenes')
 .upsert({
@@ -631,7 +640,8 @@ shipping_logistic_type: shippingLogisticType,
 buying_mode: order.buying_mode ?? null,
 tags: order.tags ?? [],
 raw_json: order,
-updated_at: new Date().toISOString()
+updated_at: new Date().toISOString(),
+ventas_acumuladas: yaAcumulada
 }, { onConflict: 'marketplace_id,meli_order_id' })
 .select('id, status')
 .single();
@@ -642,6 +652,32 @@ const ordenId = ordenUpserted.id;
 logger.info({ meliOrderId, ordenId, status: order.status }, 'Orden procesada/actualizada');
 
 if (order.status === 'cancelled') {
+// Si la orden ya se había acumulado y luego se cancela, se revierte la venta.
+if (yaAcumulada) {
+for (const item of (order.order_items || [])) {
+const meliItemId = item.item?.id;
+const variationId = item.item?.variation_id ? String(item.item.variation_id) : null;
+const quantity = item.quantity;
+if (!meliItemId || !(quantity > 0)) continue;
+const { data: pubRow } = await supabaseAdmin
+.from('publicaciones_externas')
+.select('inventory_id')
+.eq('marketplace_id', marketplaceId)
+.eq('external_item_id', meliItemId)
+.eq('external_variation_id', variationId ?? '0')
+.maybeSingle();
+const inventoryId = pubRow?.inventory_id ?? null;
+if (inventoryId) {
+await supabaseAdmin.rpc('revertir_venta_diaria_ml', {
+p_marketplace_id: marketplaceId,
+p_codigo_ml: inventoryId,
+p_fecha_dia: (order.date_created || new Date().toISOString()).slice(0, 10),
+p_unidades: quantity,
+});
+}
+}
+await supabaseAdmin.from('ordenes').update({ ventas_acumuladas: false }).eq('id', ordenId);
+}
 const { data: itemsToFree } = await supabaseAdmin
 .from('orden_items')
 .select('id')
@@ -689,7 +725,7 @@ publicacionId = pubResult?.id ?? null;
 const inventoryId = pubResult?.inventory_id ?? null;
 
 // T1: acumular la venta por código ML (demanda de reposición Full).
-if (inventoryId && quantity > 0) {
+if (inventoryId && quantity > 0 && !yaAcumulada) {
 await acumularVentaML(marketplaceId, inventoryId, order.date_created, quantity);
 }
 
@@ -750,6 +786,10 @@ await supabaseAdmin
 .eq('estado', 'activa');
 logger.info({ articuloId, meliOrderId }, 'Reservacion consumida por entrega de orden MeLi');
 }
+}
+// Marcar la orden como acumulada (idempotente: solo la primera vez).
+if (!yaAcumulada) {
+await supabaseAdmin.from('ordenes').update({ ventas_acumuladas: true }).eq('id', ordenId);
 }
 }
 

@@ -34,36 +34,48 @@ export async function GET(req: Request) {
         const { data: mapeos, error: mapeosErr } = await query;
         if (mapeosErr) throw mapeosErr;
 
-        // 2. Ventas por código ML desde la tabla de agregación diaria.
-        //    Fallback: si la tabla aún no existe (migración no aplicada), se usa sales_30d_full de ML.
+        // 2. Ventas por (cuenta + código ML) desde la tabla de agregación diaria.
+        //    Las cuentas Full están segregadas: las ventas se filtran por marketplace_id
+        //    para no mezclar tiendas con inventarios independientes.
+        const { data: cuentas } = await supabaseAdmin
+            .from('marketplace_configs')
+            .select('id, account_name, settings');
+        const nombreCuenta = new Map<string, string>();
+        for (const c of (cuentas || [])) nombreCuenta.set(c.id, c.settings?.store_name || c.account_name || c.id);
+
         const corte30 = Date.now() - DIAS_VENTANA * 24 * 60 * 60 * 1000;
-        const ventas30PorCodigo = new Map<string, number>();
-        const ventas6mPorCodigo = new Map<string, number>();
-        const semanalPorCodigo = new Map<string, number[]>();
+        const ventas30PorCuentaCodigo = new Map<string, number>();
+        const ventas6mPorCuentaCodigo = new Map<string, number>();
+        const semanalPorCuentaCodigo = new Map<string, number[]>();
         let tieneVentasDiarias = true;
         try {
             let from = 0;
             const PAGE = 1000;
             while (true) {
-                const { data: ventas, error: ve } = await supabaseAdmin
+                let vq = supabaseAdmin
                     .from('ventas_diarias_ml')
-                    .select('codigo_ml, fecha_dia, unidades_vendidas')
+                    .select('marketplace_id, codigo_ml, fecha_dia, unidades_vendidas')
                     .gte('fecha_dia', new Date(Date.now() - DIAS_6MESES * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
+                    .order('marketplace_id')
+                    .order('codigo_ml')
+                    .order('fecha_dia')
                     .range(from, from + PAGE - 1);
+                if (accountId) vq = vq.eq('marketplace_id', accountId);
+                const { data: ventas, error: ve } = await vq;
                 if (ve) throw ve;
                 const rows = ventas || [];
                 for (const v of rows) {
-                    const cod = v.codigo_ml;
+                    const key = `${v.marketplace_id}|${v.codigo_ml}`;
                     const uni = Number(v.unidades_vendidas || 0);
-                    ventas6mPorCodigo.set(cod, (ventas6mPorCodigo.get(cod) || 0) + uni);
+                    ventas6mPorCuentaCodigo.set(key, (ventas6mPorCuentaCodigo.get(key) || 0) + uni);
                     const fecha = new Date(v.fecha_dia).getTime();
                     if (Number.isFinite(fecha) && fecha >= corte30) {
-                        ventas30PorCodigo.set(cod, (ventas30PorCodigo.get(cod) || 0) + uni);
+                        ventas30PorCuentaCodigo.set(key, (ventas30PorCuentaCodigo.get(key) || 0) + uni);
                     }
                     const bucket = Math.floor((Date.now() - fecha) / (7 * 24 * 60 * 60 * 1000));
                     if (bucket >= 0 && bucket < 12) {
-                        let arr = semanalPorCodigo.get(cod);
-                        if (!arr) { arr = new Array(12).fill(0); semanalPorCodigo.set(cod, arr); }
+                        let arr = semanalPorCuentaCodigo.get(key);
+                        if (!arr) { arr = new Array(12).fill(0); semanalPorCuentaCodigo.set(key, arr); }
                         arr[bucket] += uni;
                     }
                 }
@@ -74,34 +86,46 @@ export async function GET(req: Request) {
             tieneVentasDiarias = false;
         }
 
-        // 3. Agrupar por CÓDIGO ML (inventory_id).
-        const byInv = new Map<string, any>();
+        // 3. Agrupar por (CUENTA, código ML), sumando stock entre listings de la misma cuenta.
+        const byCuentaInv = new Map<string, any>();
         for (const m of (mapeos || []) as any[]) {
             const pub: any = m.publicacion;
             const art: any = m.articulo;
             const inv = pub?.inventory_id;
-            if (!inv) continue;
-            if (!byInv.has(inv)) {
-                byInv.set(inv, {
+            const mk = pub?.marketplace_id;
+            if (!inv || !mk) continue;
+            const key = `${mk}|${inv}`;
+            if (!byCuentaInv.has(key)) {
+                byCuentaInv.set(key, {
+                    marketplace_id: mk,
+                    cuenta: nombreCuenta.get(mk) || '—',
                     inventory_id: inv,
                     nombre: art?.nombre || null,
                     articulo_id: m.articulo_id,
-                    stock_full: pub?.stock_full != null ? Number(pub.stock_full) : 0,
-                    stock_full_total: pub?.stock_full_total != null ? Number(pub.stock_full_total) : (pub?.stock_full != null ? Number(pub.stock_full) : 0),
-                    sales_30d_full: pub?.sales_30d_full != null ? Number(pub.sales_30d_full) : 0,
-                    replenishment_suggested: pub?.replenishment_suggested ?? null,
-                    shipping_urgency: pub?.shipping_urgency ?? null,
+                    stock_full: 0,
+                    stock_full_total: null,
+                    sales_30d_full: 0,
+                    replenishment_suggested: null,
+                    shipping_urgency: null,
                 });
             }
+            const e = byCuentaInv.get(key);
+            e.stock_full += pub?.stock_full != null ? Number(pub.stock_full) : 0;
+            if (pub?.stock_full_total != null) {
+                e.stock_full_total = (e.stock_full_total ?? 0) + Number(pub.stock_full_total);
+            }
+            e.sales_30d_full += pub?.sales_30d_full != null ? Number(pub.sales_30d_full) : 0;
+            if (pub?.replenishment_suggested != null) e.replenishment_suggested = pub.replenishment_suggested;
+            if (pub?.shipping_urgency != null) e.shipping_urgency = pub.shipping_urgency;
         }
 
-        // 4. Cálculo por código ML.
-        const propuesta = [...byInv.values()].map((e: any) => {
-            const cod = e.inventory_id;
-            const v30 = tieneVentasDiarias ? (ventas30PorCodigo.get(cod) || 0) : e.sales_30d_full;
-            const total6m = ventas6mPorCodigo.get(cod) || 0;
+        // 4. Cálculo por (cuenta, código ML).
+        const propuesta = [...byCuentaInv.values()].map((e: any) => {
+            const key = `${e.marketplace_id}|${e.inventory_id}`;
+            const v30 = tieneVentasDiarias ? (ventas30PorCuentaCodigo.get(key) || 0) : e.sales_30d_full;
+            const total6m = ventas6mPorCuentaCodigo.get(key) || 0;
             const vPromedio6m = tieneVentasDiarias ? Math.round(total6m / MESES_HISTORICO) : e.sales_30d_full;
-            const semanas = semanalPorCodigo.get(cod) || new Array(12).fill(0);
+            const semanas = semanalPorCuentaCodigo.get(key) || new Array(12).fill(0);
             const vMediana = Math.round(mediana(semanas) * 4.33);
 
             let demanda: number;
@@ -111,12 +135,15 @@ export async function GET(req: Request) {
             else demanda = Math.min(v30, (v30 + vPromedio6m) / 2);
 
             const demandaDiaria = demanda / DIAS_VENTANA;
-            const efectivo = e.stock_full_total;
-            const pendientes = Math.max(0, efectivo - e.stock_full);
+            // efectivo = aptas + pendientes + en tránsito; si ML no lo entregó, se usa solo aptas.
+            const efectivo = e.stock_full_total != null ? e.stock_full_total : e.stock_full;
+            const pendientes = e.stock_full_total != null ? Math.max(0, e.stock_full_total - e.stock_full) : null;
             const sugerido = Math.max(0, Math.round(demandaDiaria * coberturaDeseada - efectivo));
             const cobertura = demandaDiaria > 0 ? Math.round((efectivo / demandaDiaria) * 10) / 10 : null;
 
             return {
+                marketplace_id: e.marketplace_id,
+                cuenta: e.cuenta,
                 inventory_id: e.inventory_id,
                 nombre: e.nombre,
                 articulo_id: e.articulo_id,
