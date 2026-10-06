@@ -115,7 +115,7 @@ export function DataTable<T>({
         let j = i;
         while (j < columns.length && columns[j].group === c.group) j++;
         groupCells.push(
-          <th key={`g-${i}`} colSpan={j - i} className="px-2 py-1.5 text-center text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)] border-x border-b border-[var(--border)] bg-[var(--surface-2)]">
+          <th key={`g-${i}`} colSpan={j - i} className="px-2 py-1.5 text-center text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)] border-b border-[var(--border)] bg-[var(--surface-2)]">
             {c.group}
           </th>
         );
