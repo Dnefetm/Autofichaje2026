@@ -640,7 +640,7 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
                                 {pubTitle}
                                 {pubBrand && <span> · {pubBrand}</span>}
                                 {pubModel && <span className="font-mono"> · {pubModel}</span>}
-                                {pubCodigo && <span className="font-mono"> · {pubCodigo}</span>}
+                                {(pubCodigo || comparisonArticle.codigo_universal) && <span className="font-mono"> · {pubCodigo || comparisonArticle.codigo_universal}</span>}
                                 {varianteLabel(pubVariante) && <span className="text-[var(--info)]"> · {varianteLabel(pubVariante)}</span>}
                                 {pubSku && pubSku !== pubModel && <span className="font-mono"> · {pubSku}</span>}
                             </span>
