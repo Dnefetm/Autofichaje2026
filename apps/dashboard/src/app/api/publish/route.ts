@@ -171,14 +171,8 @@ export async function POST(req: NextRequest) {
                 // Fotos de la vidriera origen, conservando el id oficial de MeLi
                 // para reutilizarlas (evita re-descargar/re-subir en copia de condición).
                 const sourcePics = (sourceItem.pictures || [])
-                    .map((p: any) => ({ id: p.id || null, url: p.secure_url || p.url, size: p.size || '' }))
-                    .filter((p: any) => p.url)
-                    .filter((p: any) => {
-                        const m = String(p.size || '').match(/(\d+)\s*x\s*(\d+)/);
-                        if (!m) return true; // sin info de tamaño → conservar (id MeLi ya válido)
-                        const w = Number(m[1]), h = Number(m[2]);
-                        return Math.max(w, h) >= 500 && Math.min(w, h) >= 250;
-                    });
+                    .map((p: any) => ({ id: p.id || null, url: p.secure_url || p.url }))
+                    .filter((p: any) => p.url);
 
                 sourceData = {
                     nombre:             sourceItem.family_name || sourceItem.title || '',
