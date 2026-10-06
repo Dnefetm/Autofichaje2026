@@ -608,6 +608,93 @@ export class MeliAdapter implements MarketplaceAdapter {
         return { updated, errors };
     }
 
+    // Sincronización PUNTUAL de un solo inventory_id (stock Full + replenishment).
+    // Uso diagnóstico/corrección de un producto, sin recorrer todo el catálogo
+    // (evita consumir el rate-limit de ML).
+    async syncInventoryPuntual(accountId: string, inventoryId: string): Promise<any> {
+        const accessToken = await this.getAccessToken(accountId);
+
+        // 1. Stock Full disponible (refresca stock_full, que puede estar obsoleto).
+        let stockQty: number | null = null;
+        try {
+            const sr = await axios.get(
+                `https://api.mercadolibre.com/inventories/${inventoryId}/stock/fulfillment`,
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            stockQty = sr.data?.available_quantity ?? null;
+            if (stockQty != null) {
+                await supabase
+                    .from('publicaciones_externas')
+                    .update({ stock_full: stockQty, stock_full_updated_at: new Date().toISOString() })
+                    .eq('marketplace_id', accountId)
+                    .eq('inventory_id', inventoryId);
+            }
+        } catch (e: any) {
+            logger.warn({ accountId, inventoryId, error: e?.message }, 'puntual: fallo stock Full');
+        }
+
+        // 2. Listings de ese inventory en la cuenta (variación 0).
+        const { data: pubs } = await supabase
+            .from('publicaciones_externas')
+            .select('id, external_item_id')
+            .eq('marketplace_id', accountId)
+            .eq('inventory_id', inventoryId)
+            .eq('external_variation_id', '0');
+        const items = (pubs || []).filter(p => p.external_item_id);
+        if (!items.length) {
+            return { accountId, inventoryId, stock_full: stockQty, items: 0, replenishment: { updated: 0, errors: 0, upIds: [] } };
+        }
+
+        // 3. Resolver user_product_id vía multiGET.
+        const ids = items.map(p => p.external_item_id).join(',');
+        const upIdByItem = new Map<string, string>();
+        try {
+            const ir = await axios.get(`https://api.mercadolibre.com/items?ids=${ids}`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            for (const r of (ir.data || [])) {
+                if (r.code === 200 && r.body?.user_product_id) upIdByItem.set(r.body.id, r.body.user_product_id);
+            }
+        } catch (e: any) {
+            logger.warn({ accountId, inventoryId, error: e?.message }, 'puntual: fallo multiGET user_product_id');
+        }
+
+        // 4. Replenishment por user_product_id.
+        let updated = 0;
+        let errors = 0;
+        for (const it of items) {
+            const upId = upIdByItem.get(it.external_item_id);
+            if (!upId) { errors++; continue; }
+            try {
+                const rr = await axios.get(
+                    `https://api.mercadolibre.com/marketplace/fbm/user-products/${upId}/replenishment?country=MX`,
+                    { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                const b = rr.data;
+                const sq = b?.recommendation?.suggested_quantity;
+                const sugerido = typeof sq === 'object' && sq != null ? (sq.type === 'range' ? sq.max : sq.value) : (sq ?? null);
+                const { error } = await supabase
+                    .from('publicaciones_externas')
+                    .update({
+                        user_product_id: upId,
+                        stock_full_total: b?.stock?.total_stock ?? null,
+                        replenishment_suggested: sugerido ?? null,
+                        shipping_urgency: b?.stock?.shipping_urgency ?? null,
+                        replenishment_deadline: b?.recommendation?.replenishment_deadline ?? null,
+                        sales_30d_full: b?.sales?.sales_totals?.units_sold?.[0]?.full ?? null,
+                        replenishment_updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', it.id);
+                if (error) errors++; else updated++;
+            } catch (e: any) {
+                errors++;
+                logger.warn({ accountId, inventoryId, itemId: it.external_item_id, error: e?.message }, 'puntual: fallo replenishment');
+            }
+        }
+
+        return { accountId, inventoryId, stock_full: stockQty, items: items.length, replenishment: { updated, errors, upIds: [...upIdByItem.values()] } };
+    }
+
 
     // --- NUEVA FUNCIÓN SERVERLESS: BATCH SYNC ---
     async syncCatalogBatch(accountId: string, itemIds: string[]): Promise<number> {
