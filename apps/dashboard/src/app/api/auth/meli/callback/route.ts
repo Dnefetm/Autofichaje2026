@@ -41,8 +41,39 @@ export async function GET(request: Request) {
 
         console.log(`[OAuth Callback] Token exchange OK for marketplace ${marketplaceId}. MeLi user_id: ${meliUserId}. expires_in: ${expires_in}s`);
 
-        // Auto-guardar seller_id en marketplace_configs.settings
-        if (meliUserId) {
+        // 2.5. Identidad real del vendedor (vía /users/me): seller_id + nickname.
+        let meliUserIdFinal: any = meliUserId;
+        let meliNickname: string | null = null;
+        try {
+            const meResp = await axios.get('https://api.mercadolibre.com/users/me', {
+                headers: { Authorization: `Bearer ${access_token}` }
+            });
+            if (meResp.data?.id) meliUserIdFinal = meResp.data.id;
+            meliNickname = meResp.data?.nickname ?? null;
+        } catch (e: any) {
+            console.warn(`[OAuth Callback] /users/me fallo (uso user_id del token):`, e?.message);
+        }
+
+        const sellerTxt = String(meliUserIdFinal);
+
+        // 2.6. GUARD: un vendedor solo puede estar vinculado a UNA cuenta activa.
+        const { data: duplicado } = await supabaseAdmin
+            .from('marketplace_configs')
+            .select('id, account_name')
+            .eq('is_active', true)
+            .neq('id', marketplaceId)
+            .eq('settings->>seller_id', sellerTxt)
+            .maybeSingle();
+
+        if (duplicado) {
+            console.warn(`[OAuth Callback] BLOQUEADO: seller ${sellerTxt} ya vinculado a ${duplicado.account_name}`);
+            return NextResponse.redirect(
+                `${baseUrl}/settings?auth=error&reason=duplicate_seller&seller=${encodeURIComponent(sellerTxt)}&cuenta=${encodeURIComponent(duplicado.account_name)}`
+            );
+        }
+
+        // Guardar identidad real en settings (seller_id + nickname) para que la UI la muestre.
+        if (meliUserIdFinal) {
             const { data: currentConfig } = await supabaseAdmin
                 .from('marketplace_configs')
                 .select('settings')
@@ -51,7 +82,8 @@ export async function GET(request: Request) {
 
             const updatedSettings = {
                 ...(currentConfig?.settings || {}),
-                seller_id: String(meliUserId)
+                seller_id: sellerTxt,
+                ...(meliNickname ? { seller_nickname: meliNickname } : {}),
             };
 
             await supabaseAdmin
@@ -59,7 +91,7 @@ export async function GET(request: Request) {
                 .update({ settings: updatedSettings })
                 .eq('id', marketplaceId);
 
-            console.log(`[OAuth Callback] seller_id ${meliUserId} saved to marketplace_configs.settings`);
+            console.log(`[OAuth Callback] seller_id ${sellerTxt} (${meliNickname ?? 'sin nickname'}) guardado en ${marketplaceId}`);
         }
 
         // 3. Guardar tokens en la DB (Encriptados) — con onConflict explícito

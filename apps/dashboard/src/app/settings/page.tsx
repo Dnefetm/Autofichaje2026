@@ -27,17 +27,25 @@ import { cn } from '@/lib/utils';
 function AuthFeedback() {
     const searchParams = useSearchParams();
     const auth = searchParams.get('auth');
+    const reason = searchParams.get('reason');
+    const seller = searchParams.get('seller');
+    const cuenta = searchParams.get('cuenta');
 
     if (!auth) return null;
+
+    let mensaje = 'Hubo un error al vincular tu cuenta. Por favor verifica tus credenciales.';
+    if (reason === 'duplicate_seller') {
+        mensaje = `El vendedor ${seller || '—'} que autorizaste ya está vinculado a la cuenta "${cuenta || '—'}". Cierra sesión en Mercado Libre e inicia con la cuenta correcta.`;
+    }
 
     return (
         <div className={cn(
             "p-4 rounded-xl border mb-6 flex items-center gap-3 animate-in zoom-in-95 duration-300",
             auth === 'success' ? "bg-[var(--ok)]/10 border-[var(--ok)]/30 text-[var(--ok)]" : "bg-[var(--err)]/10 border-[var(--err)]/30 text-[var(--err)]"
         )}>
-            {auth === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+            {auth === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
             <span className="text-sm font-bold">
-                {auth === 'success' ? '¡Tu cuenta de Mercado Libre ha sido vinculada con éxito!' : 'Hubo un error al vincular tu cuenta. Por favor verifica tus credenciales.'}
+                {auth === 'success' ? '¡Tu cuenta de Mercado Libre ha sido vinculada con éxito!' : mensaje}
             </span>
         </div>
     );
@@ -165,9 +173,15 @@ function SettingsContent() {
 
 function StoreCard({ config }: { config: any }) {
     const hasToken = config.marketplace_tokens && config.marketplace_tokens.length > 0;
+    const sellerId = config.settings?.seller_id || config.id.split('-')[0];
+    const sellerNick = config.settings?.seller_nickname || null;
 
     const handleReauth = () => {
-        window.location.href = `/api/auth/meli?marketplace_id=${config.id}`;
+        const ok = window.confirm(
+            `Vas a re-vincular "${config.account_name}" — vendedor ${sellerId}.\n\n` +
+            `IMPORTANTE: cierra sesión en Mercado Libre e inicia sesión con la cuenta del vendedor ${sellerId} antes de continuar.`
+        );
+        if (ok) window.location.href = `/api/auth/meli?marketplace_id=${config.id}`;
     };
 
     return (
@@ -181,7 +195,7 @@ function StoreCard({ config }: { config: any }) {
                     <div className="text-xs text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
                         <span className="text-[var(--warn)] font-semibold">Mercado Libre</span>
                         <span>•</span>
-                        <span>ID: {config.settings?.seller_id || config.id.split('-')[0]}</span>
+                        <span>ID: {sellerId}{sellerNick ? ` · ${sellerNick}` : ''}</span>
                     </div>
                 </div>
             </div>
