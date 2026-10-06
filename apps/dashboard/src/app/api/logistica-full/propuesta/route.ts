@@ -170,9 +170,6 @@ export async function GET(req: Request) {
             // Se acota por abajo a las aptas: el total jamás puede ser menor que las aptas.
             const efectivo = e.stock_full_total != null ? Math.max(e.stock_full_total, e.stock_full) : e.stock_full;
             const pendientes = e.stock_full_total != null ? Math.max(0, e.stock_full_total - e.stock_full) : null;
-            const sugerido = Math.max(0, Math.round(demandaDiaria * coberturaDeseada - efectivo));
-            const cobertura = demandaDiaria > 0 ? Math.round((efectivo / demandaDiaria) * 10) / 10 : null;
-
             // Stock de bodega = unidades Full CONSTRUIBLES con el stock físico actual.
             // Para cada componente: piso(stock_componente / cantidad_requerida); el kit se
             // construye al ritmo del componente más limitante (mínimo).
@@ -190,6 +187,12 @@ export async function GET(req: Request) {
                 if (!Number.isFinite(construible)) construible = 0;
                 if (!Number.isFinite(construibleDisponible)) construibleDisponible = 0;
             }
+
+            // A enviar = lo que Full necesita, acotado a lo que puedo construir ya (no puedo enviar
+            // más de lo que tengo componentes para armar).
+            const necesario = Math.max(0, Math.round(demandaDiaria * coberturaDeseada - efectivo));
+            const sugerido = Math.min(necesario, construible);
+            const cobertura = demandaDiaria > 0 ? Math.round((efectivo / demandaDiaria) * 10) / 10 : null;
 
             return {
                 marketplace_id: e.marketplace_id,

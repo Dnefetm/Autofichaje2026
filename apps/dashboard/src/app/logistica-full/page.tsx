@@ -174,7 +174,7 @@ export default function LogisticaFullPage() {
 
     const exportarCSV = () => {
         if (!data?.propuesta?.length) return;
-        const head = ['codigo_ml', 'sku', 'upc', 'producto', 'ventas_mes', 'full_aptas', 'en_camino', 'full_total', 'bodega_construible', 'cobertura_dias', 'a_enviar', 'ml_ref', 'urgencia'];
+        const head = ['codigo_ml', 'sku', 'upc', 'producto', 'ventas_mes', 'full_aptas', 'en_camino', 'full_total', 'bodega_construible', 'cobertura_dias', 'a_enviar', 'urgencia'];
         const rows = data.propuesta.map((p) => [
             p.inventory_id,
             `"${(p.seller_sku || '').replace(/"/g, '""')}"`,
@@ -187,7 +187,6 @@ export default function LogisticaFullPage() {
             p.stock_bodega,
             p.cobertura_dias ?? '',
             p.sugerido,
-            p.sugerencia_ml ?? '',
             p.shipping_urgency ?? '',
         ].join(','));
         const csv = [head.join(','), ...rows].join('\n');
@@ -408,21 +407,6 @@ export default function LogisticaFullPage() {
             render: (r) =>
                 r.sugerido > 0 ? (
                     <Badge tone="warning"><Truck className="w-3 h-3" /> {r.sugerido}</Badge>
-                ) : (
-                    <span className="font-mono text-[var(--text-faint)]">—</span>
-                ),
-        },
-        {
-            key: 'sugerencia_ml',
-            label: 'ML ref',
-            group: 'Propuesta',
-            width: '56px',
-            nowrap: true,
-            align: 'right',
-            sortValue: (r) => r.sugerencia_ml ?? -1,
-            render: (r) =>
-                r.sugerencia_ml != null ? (
-                    <span className="font-mono text-[var(--text-faint)]">{r.sugerencia_ml}</span>
                 ) : (
                     <span className="font-mono text-[var(--text-faint)]">—</span>
                 ),
