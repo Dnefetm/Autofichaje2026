@@ -85,6 +85,18 @@ export async function POST(req: Request) {
         const { guia, accion } = body;
         if (!guia || !accion) return NextResponse.json({ error: 'guia y accion requeridos' }, { status: 400 });
 
+        // Cancelar el envío completo: saca sus egresos de "en camino" (MeLi no señala cancelación).
+        if (accion === 'cancelar') {
+            const { data: upd, error: cancelErr } = await supabaseAdmin
+                .from('egresos')
+                .update({ estado_envio: 'cancelado' })
+                .eq('tipo_egreso', 'envio_full')
+                .eq('guia', guia)
+                .select('egreso_id');
+            if (cancelErr) throw cancelErr;
+            return NextResponse.json({ success: true, cancelados: (upd || []).length });
+        }
+
         const { data: egresos, error } = await supabaseAdmin
             .from('egresos')
             .select(`${CAMPOS_EGRESO}`)

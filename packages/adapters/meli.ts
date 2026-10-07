@@ -575,6 +575,30 @@ export class MeliAdapter implements MarketplaceAdapter {
         return { accountId, inventoryId, stock_full: stockQty, items: items.length, replenishment: { updated, errors, upIds: [...upIdByItem.values()] } };
     }
 
+    // Consulta el historial de operaciones de stock Full (INBOUND_RECEPTION, ventas, bajas, etc.)
+    // para reconciliar lo declarado vs lo recibido. Endpoint local (variante CBT: /marketplace/stock/...).
+    async syncFullOperations(accountId: string, inventoryId: string, options?: { type?: string; dateFrom?: string; dateTo?: string }): Promise<any[]> {
+        const accessToken = await this.getAccessToken(accountId);
+        const { data: mkp } = await supabase.from('marketplace_configs').select('settings').eq('id', accountId).single();
+        const sellerId = mkp?.settings?.seller_id;
+        if (!sellerId) return [];
+
+        const dateTo = options?.dateTo || new Date().toISOString().slice(0, 10);
+        const dateFrom = options?.dateFrom || new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const params = new URLSearchParams({ seller_id: String(sellerId), inventory_id: inventoryId, date_from: dateFrom, date_to: dateTo });
+        if (options?.type) params.set('type', options.type);
+
+        try {
+            const resp = await axios.get(`https://api.mercadolibre.com/stock/fulfillment/operations/search?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            return resp.data?.results || [];
+        } catch (e: any) {
+            logger.warn({ accountId, inventoryId, error: e?.message }, 'operations/search falló');
+            return [];
+        }
+    }
+
 
     // --- NUEVA FUNCIÓN SERVERLESS: BATCH SYNC ---
     async syncCatalogBatch(accountId: string, itemIds: string[]): Promise<number> {

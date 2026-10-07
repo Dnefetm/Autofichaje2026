@@ -89,7 +89,7 @@ export async function POST(req: Request) {
                     const egresoId = `${guia}-${cod}-${m.articulo_id}`;
                     if (procesados.has(egresoId)) continue;
                     procesados.add(egresoId);
-                    tareas.push({ guia, codigo_ml: cod, articulo_id: m.articulo_id, objetivo: unidades * Number(m.cantidad_requerida || 1), codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo });
+                    tareas.push({ guia, codigo_ml: cod, articulo_id: m.articulo_id, objetivo: unidades * Number(m.cantidad_requerida || 1), unidades_full: unidades, codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo });
                 }
             } else {
                 // Artículo con el código en codigos_marketplace (vinculación 1:1).
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
                         const egresoId = `${guia}-${cod}-${a.articulo_id}`;
                         if (procesados.has(egresoId)) continue;
                         procesados.add(egresoId);
-                        tareas.push({ guia, codigo_ml: cod, articulo_id: a.articulo_id, objetivo: unidades, codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo });
+                        tareas.push({ guia, codigo_ml: cod, articulo_id: a.articulo_id, objetivo: unidades, unidades_full: unidades, codigo_universal: it.codigo_universal, sku: it.sku, titulo: it.titulo });
                     }
                 } else {
                     // Sin ninguna vinculación: se reporta para mapear a mano (no se crea egreso).
@@ -200,7 +200,7 @@ async function extraerTextoPdf(base64: string): Promise<string> {
     return result.text || '';
 }
 
-async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, codigo_universal, sku, titulo, porEgresoId, creados, vistos, cambios }: any) {
+async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, unidades_full, codigo_universal, sku, titulo, porEgresoId, creados, vistos, cambios }: any) {
     const egresoId = `${guia}-${codigo_ml}-${articulo_id}`;
     const prev = porEgresoId.get(egresoId);
     vistos.add(egresoId);
@@ -242,6 +242,7 @@ async function upsertSalida({ guia, codigo_ml, articulo_id, objetivo, codigo_uni
     // (siempre se escriben, incluso null, para que el PDF sea la fuente de verdad).
     const extras: Record<string, any> = {
         objetivo: objetivo ?? null,
+        unidades_full: unidades_full ?? null,
         codigo_universal: codigo_universal ?? null,
         sku_ml: sku ?? null,
         titulo_ml: titulo ?? null,

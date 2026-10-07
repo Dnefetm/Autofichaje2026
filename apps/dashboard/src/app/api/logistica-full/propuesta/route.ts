@@ -150,6 +150,29 @@ export async function GET(req: Request) {
             }
         }
 
+        // "En camino" LOCAL: piezas Full declaradas en egresos envio_full activos.
+        // Reemplaza el stock_full_total de MeLi (gated por fecha de envío y que solo se
+        // refresca en ventas). Solo cuentan los egresos 'en_camino' (nuevos, no recibidos
+        // ni cancelados). Se dedupe por (guía, código) porque un kit tiene 1 egreso por componente.
+        const enCaminoPorCodigo = new Map<string, number>();
+        {
+            const { data: egresosActivos } = await supabaseAdmin
+                .from('egresos')
+                .select('guia, codigo_ml, unidades_full')
+                .eq('tipo_egreso', 'envio_full')
+                .eq('estado_envio', 'en_camino');
+            const vistos = new Set<string>();
+            for (const g of (egresosActivos || [])) {
+                const cod = g.codigo_ml;
+                const un = Number(g.unidades_full || 0);
+                if (!cod || !un) continue;
+                const k = `${g.guia}|${cod}`;
+                if (vistos.has(k)) continue;
+                vistos.add(k);
+                enCaminoPorCodigo.set(cod, (enCaminoPorCodigo.get(cod) || 0) + un);
+            }
+        }
+
         // 4. Cálculo por (cuenta, código ML).
         const propuesta = [...byCuentaInv.values()].map((e: any) => {
             const key = `${e.marketplace_id}|${e.inventory_id}`;
@@ -166,10 +189,10 @@ export async function GET(req: Request) {
             else demanda = Math.min(v30, (v30 + vPromedio6m) / 2);
 
             const demandaDiaria = demanda / DIAS_VENTANA;
-            // efectivo = aptas + pendientes + en tránsito; si ML no lo entregó, se usa solo aptas.
-            // Se acota por abajo a las aptas: el total jamás puede ser menor que las aptas.
-            const efectivo = e.stock_full_total != null ? Math.max(e.stock_full_total, e.stock_full) : e.stock_full;
-            const pendientes = e.stock_full_total != null ? Math.max(0, e.stock_full_total - e.stock_full) : null;
+            // "En camino" local (declarado en egresos) + aptas de MeLi = efectivo para decidir
+            // cuánto enviar. Ya no se depende de stock_full_total (gated por fecha de envío).
+            const pendientes = enCaminoPorCodigo.get(e.inventory_id) || 0;
+            const efectivo = e.stock_full + pendientes;
             // Stock de bodega = unidades Full CONSTRUIBLES con el stock físico actual.
             // Para cada componente: piso(stock_componente / cantidad_requerida); el kit se
             // construye al ritmo del componente más limitante (mínimo).
