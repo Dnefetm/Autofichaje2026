@@ -226,7 +226,7 @@ function EditableField({
             <span className="text-sm font-bold text-[var(--text)]">{fmt(localValue)}</span>
             <button
                 onClick={startEdit}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] text-[var(--text-faint)] hover:text-[var(--accent)]"
+                className="p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] text-[var(--text-faint)] hover:text-[var(--accent)]"
                 title={`Editar ${label}`}
             >
                 <Pencil className="w-3.5 h-3.5" />

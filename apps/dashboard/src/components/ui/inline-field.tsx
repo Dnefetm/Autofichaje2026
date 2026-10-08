@@ -152,7 +152,7 @@ export function InlineField({
             {labelCell}
             <div className="flex items-center gap-2 text-right flex-1 min-w-0">
                 <span className={cn('text-sm text-[var(--text)] break-words flex-1 min-w-0', valueClassName)}>{display}</span>
-                <button onClick={start} className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded hover:bg-[var(--surface-2)] text-[var(--text-faint)] hover:text-[var(--accent)] shrink-0" title={`Editar ${label || fieldId}`}>
+                <button onClick={start} className="p-1 rounded hover:bg-[var(--surface-2)] text-[var(--text-faint)] hover:text-[var(--accent)] shrink-0" title={`Editar ${label || fieldId}`}>
                     <Pencil className="w-3.5 h-3.5" />
                 </button>
             </div>
