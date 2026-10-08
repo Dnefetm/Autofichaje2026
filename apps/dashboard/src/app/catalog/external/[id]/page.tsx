@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import {
     ArrowLeft, ExternalLink, Link2, Package, Truck, RefreshCw, FileText,
     CheckCircle2, AlertCircle, Tag, BarChart2, ShieldCheck, Zap,
-    Clock, Globe, DollarSign, Pencil, X, Check, Loader2, ToggleLeft, ToggleRight, Layers, Copy
+    Clock, Globe, DollarSign, Pencil, X, Check, Loader2, Layers, Copy
 } from 'lucide-react';
 import Link from 'next/link';
 import { use } from 'react';
@@ -15,6 +15,7 @@ import MappingModal from '@/components/mapping-modal';
 import PricingAuditCard from './pricing-audit-card';
 import { PublishPanel } from '@/components/publish-panel';
 import { FieldEditor } from '@/components/field-editor';
+import { Switch } from '@/components/ui/switch';
 import type { FieldContext } from '@/lib/vitrina-fields';
 
 // --- Helpers -----------------------------------------------------------------
@@ -271,18 +272,15 @@ function StatusToggle({ id, current, disabled }: { id: string; current: string; 
                     {statusLabels[status] || status}
                 </span>
                 {canToggle && !disabled && (
-                    <button
-                        onClick={toggle}
-                        disabled={saving}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text)] text-xs font-semibold rounded-[var(--radius)] transition-colors disabled:opacity-50"
-                    >
-                        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
-                            status === 'active'
-                                ? <ToggleLeft className="w-3.5 h-3.5 text-[var(--text-faint)]" />
-                                : <ToggleRight className="w-3.5 h-3.5 text-[var(--ok)]" />
-                        )}
-                        {status === 'active' ? 'Pausar' : 'Activar'}
-                    </button>
+                    <>
+                        <Switch
+                            checked={status === 'active'}
+                            onCheckedChange={() => toggle()}
+                            disabled={saving}
+                            ariaLabel={status === 'active' ? 'Pausar publicación' : 'Activar publicación'}
+                        />
+                        {saving && <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--text-faint)]" />}
+                    </>
                 )}
             </div>
             {errorMsg && <p className="text-[10px] text-[var(--err)]">{errorMsg}</p>}
@@ -307,6 +305,9 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [showImproveModal, setShowImproveModal] = useState(false);
     // Editar vidriera (editor unificado de campos: título, precio, stock, estado, envío, comisión, descripción)
     const [showEditorModal, setShowEditorModal] = useState(false);
+    // Envío gratis inline (Switch unificado)
+    const [savingFreeShipping, setSavingFreeShipping] = useState(false);
+    const [freeShippingError, setFreeShippingError] = useState('');
     const [improveLoading, setImproveLoading] = useState(false);
     const [applyError, setApplyError] = useState('');
     const [identificacion, setIdentificacion] = useState<any[]>([]);
@@ -436,6 +437,30 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             return;
         }
         loadAll(true);
+    }
+
+    // Envío gratis: sincroniza a MeLi vía PATCH /api/vitrinas/[id].
+    async function toggleFreeShipping() {
+        if (savingFreeShipping || !pub) return;
+        const next = !pub.free_shipping;
+        setSavingFreeShipping(true);
+        setFreeShippingError('');
+        try {
+            const res = await fetch(`/api/vitrinas/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ changes: [{ field: 'free_shipping', value: next }] }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error al sincronizar');
+            const fs = Array.isArray(data.applied) ? data.applied.find((a: any) => a.field === 'free_shipping') : null;
+            if (fs && !fs.ok) throw new Error(fs.error || 'MeLi rechazó el cambio');
+            setPub((prev: any) => (prev ? { ...prev, free_shipping: next } : prev));
+        } catch (e: any) {
+            setFreeShippingError(e?.message || 'Error al actualizar envío gratis');
+        } finally {
+            setSavingFreeShipping(false);
+        }
     }
 
     // Mejorar publicación: analiza el ítem y carga todo el modal (dry_run).
@@ -1041,9 +1066,19 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             <InfoRow label="Tipo" value={logistic ? (
                                 <span className={cn('px-2 py-0.5 rounded-[var(--radius-sm)] text-xs font-semibold', logistic.color)}>{logistic.label}</span>
                             ) : pub.logistic_type} />
-                            <InfoRow label="Envío gratis" value={pub.free_shipping ? (
-                                <span className="text-[var(--ok)] font-semibold flex items-center gap-1 justify-end"><CheckCircle2 className="w-3.5 h-3.5" /> Sí</span>
-                            ) : 'No'} />
+                            <InfoRow label="Envío gratis" value={
+                                <div className="flex items-center gap-2 justify-end">
+                                    <Switch
+                                        checked={!!pub.free_shipping}
+                                        onCheckedChange={toggleFreeShipping}
+                                        disabled={savingFreeShipping}
+                                        label={pub.free_shipping ? 'Sí' : 'No'}
+                                        ariaLabel="Envío gratis"
+                                    />
+                                    {savingFreeShipping && <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--text-faint)]" />}
+                                    {freeShippingError && <span className="text-[10px] text-[var(--err)]">{freeShippingError}</span>}
+                                </div>
+                            } />
                             <InfoRow label="Modo envío" value={pub.shipping_mode} />
                             <InfoRow label="Retiro en persona" value={
                                 pub.local_pick_up === true  ? <span className="text-[var(--ok)] font-semibold text-xs">Sí</span>
@@ -1264,19 +1299,12 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                         </Link>
                                                     )}
                                                     {/* V71: toggle de sincronización de stock por mapeo */}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => toggleSyncStock(m)}
-                                                        role="switch"
-                                                        aria-checked={m.sincronizar_stock !== false}
-                                                        title={m.sincronizar_stock === false ? 'Stock no sincronizado (activar)' : 'Stock sincronizado (desactivar)'}
-                                                        className="inline-flex items-center gap-1.5 select-none group"
-                                                    >
-                                                        <span className="text-[11px] font-semibold text-[var(--text-muted)] group-hover:text-[var(--text)] transition-colors">Stock</span>
-                                                        <span className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${m.sincronizar_stock === false ? 'bg-[var(--border)]' : 'bg-[var(--ok)]'}`}>
-                                                            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transform transition-transform ${m.sincronizar_stock === false ? 'translate-x-0.5' : 'translate-x-[18px]'}`} />
-                                                        </span>
-                                                    </button>
+                                                    <Switch
+                                                        checked={m.sincronizar_stock !== false}
+                                                        onCheckedChange={() => toggleSyncStock(m)}
+                                                        label="Stock"
+                                                        ariaLabel={m.sincronizar_stock === false ? 'Stock no sincronizado (activar)' : 'Stock sincronizado (desactivar)'}
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
