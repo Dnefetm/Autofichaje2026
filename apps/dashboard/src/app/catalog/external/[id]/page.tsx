@@ -1,7 +1,7 @@
 "use client";
 import { toast } from 'sonner';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
     ArrowLeft, ExternalLink, Link2, Package, Truck, RefreshCw, FileText,
@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils';
 import MappingModal from '@/components/mapping-modal';
 import PricingAuditCard from './pricing-audit-card';
 import { PublishPanel } from '@/components/publish-panel';
+import { FieldEditor } from '@/components/field-editor';
+import type { FieldContext } from '@/lib/vitrina-fields';
 
 // --- Helpers -----------------------------------------------------------------
 const statusColors: Record<string, string> = {
@@ -303,6 +305,8 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [showCopyModal, setShowCopyModal] = useState(false);
     // Mejorar publicación existente
     const [showImproveModal, setShowImproveModal] = useState(false);
+    // Editar vidriera (editor unificado de campos: título, precio, stock, estado, envío, comisión, descripción)
+    const [showEditorModal, setShowEditorModal] = useState(false);
     const [improveLoading, setImproveLoading] = useState(false);
     const [applyError, setApplyError] = useState('');
     const [identificacion, setIdentificacion] = useState<any[]>([]);
@@ -600,6 +604,30 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         return n;
     })();
 
+    // Contexto declarativo para el editor unificado. Se construye desde la fila local;
+    // el servidor (PATCH /api/vitrinas/[id]) re-valida contra el ítem real de MeLi.
+    const fieldContext = useMemo<FieldContext | null>(() => {
+        if (!pub) return null;
+        const isCatalog = pub.tipo_publicacion === 'catalogo' || pub.tipo_publicacion === 'catalogo_derivada';
+        return {
+            item: {
+                family_name: null,
+                title: pub.titulo || '',
+                price: pub.precio_venta ?? 0,
+                available_quantity: pub.stock_publicado ?? 0,
+                status: pub.status_externo ?? 'active',
+                shipping: { free_shipping: !!pub.free_shipping },
+                sold_quantity: pub.sold_quantity ?? 0,
+                catalog_listing: isCatalog,
+                listing_type_id: pub.listing_type_id || '',
+            },
+            description: pub.description_plain || '',
+            isCatalog,
+            soldQuantity: pub.sold_quantity ?? 0,
+            isUP: false,
+        };
+    }, [pub]);
+
     if (loading) return (
         <div className="flex-1 flex items-center justify-center min-h-screen">
             <RefreshCw className="w-8 h-8 animate-spin text-[var(--accent)]" />
@@ -746,6 +774,13 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 md:flex md:flex-col md:w-56 md:shrink-0">
+                            <button
+                                onClick={() => setShowEditorModal(true)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-sm font-bold rounded-[var(--radius)] transition-colors"
+                            >
+                                <Pencil className="w-4 h-4" />
+                                Editar vidriera
+                            </button>
                             {pub.permalink && (
                                 <a href={pub.permalink} target="_blank" rel="noreferrer"
                                     className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-sm font-bold rounded-[var(--radius)] transition-colors">
@@ -1348,6 +1383,30 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 gtin: pub.gtin || pub.ean,
                             }}
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Editar vidriera (editor unificado de campos) */}
+            {showEditorModal && fieldContext && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/60 overflow-y-auto" onClick={() => setShowEditorModal(false)}>
+                    <div className="w-full max-w-lg my-8" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-5 py-3 bg-[var(--surface)] rounded-t-xl border border-[var(--border)]">
+                            <div className="flex items-center gap-2">
+                                <Pencil className="w-4 h-4 text-[var(--accent)]" />
+                                <h3 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Editar vidriera</h3>
+                            </div>
+                            <button onClick={() => setShowEditorModal(false)} className="p-1 text-[var(--text-faint)] hover:text-[var(--text)] transition-colors" title="Cerrar">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="bg-[var(--surface)] rounded-b-xl border border-t-0 border-[var(--border)] p-4">
+                            <FieldEditor
+                                pubId={id}
+                                context={fieldContext}
+                                onSynced={() => { setShowEditorModal(false); loadAll(true); }}
+                            />
+                        </div>
                     </div>
                 </div>
             )}
