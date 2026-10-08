@@ -1,10 +1,10 @@
 /**
  * vitrina-sync.ts — Motor de sincronización de cambios de una vidriera hacia MeLi.
  *
- * Recibe { field, value }[], valida contra el esquema declarativo, ejecuta CADA
- * campo con el mecanismo real de MeLi (no un PUT genérico) y persiste el write-back
- * local. Los fallos se aíslan por campo: si el título lo rechaza MeLi, precio y
- * stock igualmente se aplican y se reporta el error solo para el título.
+ * Recibe { field, value }[], valida contra el esquema declarativo, agrupa los campos
+ * por mecanismo real de MeLi (mínimo de llamadas) y persiste el write-back local.
+ * Los fallos se aíslan por campo: si el título lo rechaza MeLi, marca y stock igual
+ * se aplican y se reporta el error solo para el título.
  */
 
 import { supabaseAdmin } from '@/lib/supabase';
@@ -87,83 +87,123 @@ export async function applyVitrinaChanges(
     const ok = (field: string) => { okSet.add(field); results.push({ field, ok: true }); };
     const fail = (field: string, error: string) => { results.push({ field, ok: false, error }); };
 
-    // 4. Ejecutar por mecanismo MeLi (fallos aislados por grupo)
+    // 4. Agrupar por mecanismo MeLi
+    const itemPatch: Record<string, any> = {};
+    const attributes: any[] = [];
+    const saleTerms: any[] = [];
+    const itemFields: string[] = [];
+    const priceFields: Array<{ field: string; value: number }> = [];
+    const stockFields: Array<{ field: string; value: number }> = [];
+    const statusFields: Array<{ field: string; value: string }> = [];
+    const listingTypeFields: Array<{ field: string; value: string }> = [];
+    const descFields: Array<{ field: string; value: string }> = [];
 
-    // 4a. updateItem (título + envío gratis → un único PUT /items)
-    const updateItemFields = accepted.filter(a => getField(a.field)!.endpoint === 'updateItem');
-    if (updateItemFields.length > 0) {
-        const patch: Record<string, any> = {};
-        for (const a of updateItemFields) {
-            Object.assign(patch, getField(a.field)!.toMeliPatch(a.value, ctx));
+    for (const a of accepted) {
+        const f = getField(a.field)!;
+        const patch = f.toMeliPatch(a.value, ctx);
+        switch (f.writeKind) {
+            case 'title':
+            case 'shipping':
+            case 'sku':
+            case 'pictures':
+                Object.assign(itemPatch, patch);
+                itemFields.push(a.field);
+                break;
+            case 'attribute':
+                attributes.push(patch);
+                itemFields.push(a.field);
+                break;
+            case 'saleTerm':
+                saleTerms.push(patch);
+                itemFields.push(a.field);
+                break;
+            case 'price':
+                priceFields.push({ field: a.field, value: Number(a.value) });
+                break;
+            case 'stock':
+                stockFields.push({ field: a.field, value: Math.max(0, Math.floor(Number(a.value))) });
+                break;
+            case 'status':
+                statusFields.push({ field: a.field, value: String(a.value) });
+                break;
+            case 'listingType':
+                listingTypeFields.push({ field: a.field, value: String(a.value) });
+                break;
+            case 'description':
+                descFields.push({ field: a.field, value: String(a.value) });
+                break;
         }
+    }
+
+    // 5a. PUT /items/{id} único (title/shipping/sku/pictures/attribute/saleTerm)
+    if (itemFields.length > 0) {
+        const body: Record<string, any> = { ...itemPatch };
+        if (attributes.length > 0) body.attributes = attributes;
+        if (saleTerms.length > 0) body.sale_terms = saleTerms;
         try {
-            await (meli as any).updateItem(accountId, itemId, patch);
-            updateItemFields.forEach(a => ok(a.field));
+            await (meli as any).updateItem(accountId, itemId, body);
+            itemFields.forEach(ok);
         } catch (e: any) {
-            updateItemFields.forEach(a => fail(a.field, readableError(e, 'MeLi rechazó el cambio')));
+            itemFields.forEach((f) => fail(f, readableError(e, 'MeLi rechazó el cambio')));
         }
     }
 
-    // 4b. updatePrice
-    for (const a of accepted.filter(a => getField(a.field)!.endpoint === 'updatePrice')) {
-        const price = Number(a.value);
-        const res = await (meli as any).updatePrice(accountId, [{ itemId, variationId, price }]);
+    // 5b. Precio (variante-aware)
+    for (const p of priceFields) {
+        const res = await (meli as any).updatePrice(accountId, [{ itemId, variationId, price: p.value }]);
         const r = Array.isArray(res) ? res[0] : res;
-        if (r?.status === 'error') fail(a.field, readableError(r?.error, 'MeLi rechazó el precio'));
-        else ok(a.field);
+        if (r?.status === 'error') fail(p.field, readableError(r?.error, 'MeLi rechazó el precio'));
+        else ok(p.field);
     }
 
-    // 4c. updateStock
-    for (const a of accepted.filter(a => getField(a.field)!.endpoint === 'updateStock')) {
-        const quantity = Math.max(0, Math.floor(Number(a.value)));
-        const res = await (meli as any).updateStock(accountId, [{ itemId, variationId, quantity }]);
+    // 5c. Stock
+    for (const s of stockFields) {
+        const res = await (meli as any).updateStock(accountId, [{ itemId, variationId, quantity: s.value }]);
         const r = Array.isArray(res) ? res[0] : res;
-        if (r?.status === 'error') fail(a.field, readableError(r?.error, 'MeLi rechazó el stock'));
-        else ok(a.field);
+        if (r?.status === 'error') fail(s.field, readableError(r?.error, 'MeLi rechazó el stock'));
+        else ok(s.field);
     }
 
-    // 4d. updateStatus (pausar/activar)
-    for (const a of accepted.filter(a => getField(a.field)!.endpoint === 'updateStatus')) {
+    // 5d. Estado (pausar/activar)
+    for (const s of statusFields) {
         try {
-            if (String(a.value) === 'paused') await (meli as any).pauseListing(accountId, itemId);
+            if (s.value === 'paused') await (meli as any).pauseListing(accountId, itemId);
             else await (meli as any).activateListing(accountId, itemId);
-            ok(a.field);
+            ok(s.field);
         } catch (e: any) {
-            fail(a.field, readableError(e, 'MeLi rechazó el cambio de estado'));
+            fail(s.field, readableError(e, 'MeLi rechazó el cambio de estado'));
         }
     }
 
-    // 4e. updateListingType (comisión)
-    for (const a of accepted.filter(a => getField(a.field)!.endpoint === 'updateListingType')) {
+    // 5e. Comisión (listing_type)
+    for (const l of listingTypeFields) {
         try {
-            await (meli as any).updateListingType(accountId, itemId, String(a.value));
-            ok(a.field);
+            await (meli as any).updateListingType(accountId, itemId, l.value);
+            ok(l.field);
         } catch (e: any) {
-            fail(a.field, readableError(e, 'MeLi rechazó el cambio de comisión'));
+            fail(l.field, readableError(e, 'MeLi rechazó el cambio de comisión'));
         }
     }
 
-    // 4f. updateDescription (PUT si ya existe, POST si no)
-    for (const a of accepted.filter(a => getField(a.field)!.endpoint === 'updateDescription')) {
+    // 5f. Descripción (PUT si ya existe, POST si no)
+    for (const d of descFields) {
         try {
-            if (ctx.description) {
-                await (meli as any).updateDescription(accountId, itemId, String(a.value));
-            } else {
-                await (meli as any).addDescription(accountId, itemId, String(a.value));
-            }
-            ok(a.field);
+            if (ctx.description) await (meli as any).updateDescription(accountId, itemId, d.value);
+            else await (meli as any).addDescription(accountId, itemId, d.value);
+            ok(d.field);
         } catch (e: any) {
-            fail(a.field, readableError(e, 'MeLi rechazó la descripción'));
+            fail(d.field, readableError(e, 'MeLi rechazó la descripción'));
         }
     }
 
-    // 5. Persistir localmente (write-back) solo los cambios aceptados
+    // 6. Write-back local solo de los campos aceptados
     const dbUpdate: Record<string, any> = {};
     for (const a of accepted) {
         if (!okSet.has(a.field)) continue;
         const f = getField(a.field);
-        if (!f || !f.dbColumn) continue;
-        dbUpdate[f.dbColumn] = a.value;
+        for (const col of f?.dbColumns || []) {
+            dbUpdate[col] = a.value;
+        }
     }
     if (Object.keys(dbUpdate).length > 0) {
         dbUpdate.actualizado_el = new Date().toISOString();

@@ -1,7 +1,7 @@
 "use client";
 import { toast } from 'sonner';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
     ArrowLeft, ExternalLink, Link2, Package, Truck, RefreshCw, FileText,
@@ -14,9 +14,8 @@ import { cn } from '@/lib/utils';
 import MappingModal from '@/components/mapping-modal';
 import PricingAuditCard from './pricing-audit-card';
 import { PublishPanel } from '@/components/publish-panel';
-import { FieldEditor } from '@/components/field-editor';
 import { Switch } from '@/components/ui/switch';
-import type { FieldContext } from '@/lib/vitrina-fields';
+import { InlineField } from '@/components/ui/inline-field';
 
 // --- Helpers -----------------------------------------------------------------
 const statusColors: Record<string, string> = {
@@ -303,8 +302,6 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [showCopyModal, setShowCopyModal] = useState(false);
     // Mejorar publicación existente
     const [showImproveModal, setShowImproveModal] = useState(false);
-    // Editar vidriera (editor unificado de campos: título, precio, stock, estado, envío, comisión, descripción)
-    const [showEditorModal, setShowEditorModal] = useState(false);
     // Envío gratis inline (Switch unificado)
     const [savingFreeShipping, setSavingFreeShipping] = useState(false);
     const [freeShippingError, setFreeShippingError] = useState('');
@@ -629,30 +626,6 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         return n;
     })();
 
-    // Contexto declarativo para el editor unificado. Se construye desde la fila local;
-    // el servidor (PATCH /api/vitrinas/[id]) re-valida contra el ítem real de MeLi.
-    const fieldContext = useMemo<FieldContext | null>(() => {
-        if (!pub) return null;
-        const isCatalog = pub.tipo_publicacion === 'catalogo' || pub.tipo_publicacion === 'catalogo_derivada';
-        return {
-            item: {
-                family_name: null,
-                title: pub.titulo || '',
-                price: pub.precio_venta ?? 0,
-                available_quantity: pub.stock_publicado ?? 0,
-                status: pub.status_externo ?? 'active',
-                shipping: { free_shipping: !!pub.free_shipping },
-                sold_quantity: pub.sold_quantity ?? 0,
-                catalog_listing: isCatalog,
-                listing_type_id: pub.listing_type_id || '',
-            },
-            description: pub.description_plain || '',
-            isCatalog,
-            soldQuantity: pub.sold_quantity ?? 0,
-            isUP: false,
-        };
-    }, [pub]);
-
     if (loading) return (
         <div className="flex-1 flex items-center justify-center min-h-screen">
             <RefreshCw className="w-8 h-8 animate-spin text-[var(--accent)]" />
@@ -744,7 +717,20 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 )}
                             </div>
 
-                            <h1 className="text-xl font-bold text-[var(--text)] leading-snug mb-1">{pub.titulo}</h1>
+                            <div className="mb-1">
+                                <InlineField
+                                    pubId={id}
+                                    fieldId="title"
+                                    value={pub.titulo}
+                                    type="text"
+                                    maxLength={60}
+                                    valueClassName="text-xl font-bold leading-snug"
+                                    lockedReason={(pub.tipo_publicacion === 'catalogo' || pub.tipo_publicacion === 'catalogo_derivada')
+                                        ? 'El título lo impone el catálogo (no editable)'
+                                        : (pub.sold_quantity ?? 0) > 0 ? 'No editable: ya tiene ventas (MeLi bloquea el título)' : undefined}
+                                    onSaved={(v) => setPub((prev: any) => prev ? { ...prev, titulo: v } : prev)}
+                                />
+                            </div>
                             <p className="text-sm font-mono text-[var(--text-faint)]">{pub.external_item_id}{isVariant ? ` · var. ${pub.external_variation_id}` : ''}</p>
 
                             {/* Atributos de variante (si aplica) */}
@@ -799,13 +785,6 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 md:flex md:flex-col md:w-56 md:shrink-0">
-                            <button
-                                onClick={() => setShowEditorModal(true)}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-sm font-bold rounded-[var(--radius)] transition-colors"
-                            >
-                                <Pencil className="w-4 h-4" />
-                                Editar vidriera
-                            </button>
                             {pub.permalink && (
                                 <a href={pub.permalink} target="_blank" rel="noreferrer"
                                     className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-sm font-bold rounded-[var(--radius)] transition-colors">
@@ -943,12 +922,20 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     : pub.tipo_publicacion
                                 }
                             />
-                            <InfoRow
+                            <InlineField
+                                pubId={id}
+                                fieldId="listing_type"
                                 label="Comisión"
-                                value={pub.listing_type_id && listingTypeConfig[pub.listing_type_id]
-                                    ? <span className={cn('inline-flex items-center px-2 py-0.5 rounded-[var(--radius-sm)] text-xs font-semibold', (listingTypeConfig[pub.listing_type_id]?.color ?? ''))}>{(listingTypeConfig[pub.listing_type_id]?.label ?? pub.listing_type_id)}</span>
-                                    : pub.listing_type_id
-                                }
+                                type="select"
+                                value={pub.listing_type_id}
+                                displayValue={pub.listing_type_id && listingTypeConfig[pub.listing_type_id] ? listingTypeConfig[pub.listing_type_id].label : (pub.listing_type_id || '')}
+                                options={[
+                                    { value: 'gold_special', label: 'Clásica (~16%)' },
+                                    { value: 'gold_pro', label: 'Premium (~32%)' },
+                                    { value: 'free', label: 'Gratuita' },
+                                ]}
+                                lockedReason={(pub.tipo_publicacion === 'catalogo' || pub.tipo_publicacion === 'catalogo_derivada') ? 'El catálogo impone la comisión (no editable)' : undefined}
+                                onSaved={(v) => setPub((prev: any) => prev ? { ...prev, listing_type_id: v } : prev)}
                             />
                             <InfoRow
                                 label="ID Producto Cat."
@@ -967,17 +954,38 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             />
                             <InfoRow label="Categoría" value={pub.category_id} />
                             <InfoRow label="Dominio" value={pub.domain_id} />
-                            <InfoRow label="Marca" value={pub.brand} />
-                            <InfoRow label="Modelo" value={pub.model || null} />
+                            <InlineField
+                                pubId={id}
+                                fieldId="brand"
+                                label="Marca"
+                                value={pub.brand}
+                                lockedReason={(pub.tipo_publicacion === 'catalogo' || pub.tipo_publicacion === 'catalogo_derivada') ? 'El catálogo aporta la marca (no editable)' : undefined}
+                                onSaved={(v) => setPub((prev: any) => prev ? { ...prev, brand: v } : prev)}
+                            />
+                            <InlineField
+                                pubId={id}
+                                fieldId="model"
+                                label="Modelo"
+                                value={pub.model}
+                                lockedReason={(pub.tipo_publicacion === 'catalogo' || pub.tipo_publicacion === 'catalogo_derivada') ? 'El catálogo aporta el modelo (no editable)' : undefined}
+                                onSaved={(v) => setPub((prev: any) => prev ? { ...prev, model: v } : prev)}
+                            />
                             <InfoRow label="EAN" value={pub.ean || null} />
-                            <InfoRow label="GTIN" value={pub.gtin || null} />
+                            <InlineField
+                                pubId={id}
+                                fieldId="gtin"
+                                label="Código universal"
+                                value={pub.gtin}
+                                lockedReason={(pub.tipo_publicacion === 'catalogo' || pub.tipo_publicacion === 'catalogo_derivada') ? 'El catálogo aporta el GTIN (no editable)' : undefined}
+                                onSaved={(v) => setPub((prev: any) => prev ? { ...prev, gtin: v } : prev)}
+                            />
                             {/* SKU dual */}
-                            <InfoRow
+                            <InlineField
+                                pubId={id}
+                                fieldId="sku"
                                 label="SKU Ítem"
-                                value={pub.seller_sku
-                                    ? <span className="font-mono text-xs">{pub.seller_sku}</span>
-                                    : <span className="inline-flex items-center gap-1 text-xs bg-[var(--warn)]/10 text-[var(--warn)] px-2 py-0.5 rounded-[var(--radius-sm)] font-semibold"><AlertCircle className="w-3 h-3" />Sin SKU de ítem</span>
-                                }
+                                value={pub.seller_custom_field || pub.seller_sku}
+                                onSaved={(v) => setPub((prev: any) => prev ? { ...prev, seller_custom_field: v, seller_sku: v } : prev)}
                             />
                             {(isVariant || (variantes || []).length > 0) && (
                                 <InfoRow
@@ -1411,30 +1419,6 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 gtin: pub.gtin || pub.ean,
                             }}
                         />
-                    </div>
-                </div>
-            )}
-
-            {/* Modal: Editar vidriera (editor unificado de campos) */}
-            {showEditorModal && fieldContext && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/60 overflow-y-auto" onClick={() => setShowEditorModal(false)}>
-                    <div className="w-full max-w-lg my-8" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-between px-5 py-3 bg-[var(--surface)] rounded-t-xl border border-[var(--border)]">
-                            <div className="flex items-center gap-2">
-                                <Pencil className="w-4 h-4 text-[var(--accent)]" />
-                                <h3 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Editar vidriera</h3>
-                            </div>
-                            <button onClick={() => setShowEditorModal(false)} className="p-1 text-[var(--text-faint)] hover:text-[var(--text)] transition-colors" title="Cerrar">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="bg-[var(--surface)] rounded-b-xl border border-t-0 border-[var(--border)] p-4">
-                            <FieldEditor
-                                pubId={id}
-                                context={fieldContext}
-                                onSynced={() => { setShowEditorModal(false); loadAll(true); }}
-                            />
-                        </div>
                     </div>
                 </div>
             )}

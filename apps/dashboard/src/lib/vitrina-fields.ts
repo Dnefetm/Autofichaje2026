@@ -2,26 +2,29 @@
  * vitrina-fields.ts — Esquema declarativo de campos editables de una vidriera MeLi.
  *
  * Añadir un campo nuevo = añadir un objeto a VITRINA_FIELDS. El motor (vitrina-sync)
- * y la UI (FieldEditor) lo detectan automáticamente. No hay if/else disperso.
+ * y la UI (InlineField) lo detectan automáticamente. No hay if/else disperso.
  *
- * `endpoint` NO es el path HTTP; es el mecanismo real de escritura en MeLi:
- *  - updateItem        → PUT /items/{id}          (título, envío gratis)
- *  - updatePrice       → PUT /items/{id} {price}  (variante-aware)
- *  - updateStock       → PUT /items/{id} {available_quantity}
- *  - updateStatus      → PUT /items/{id} {status} (pausar/activar)
- *  - updateListingType → POST /items/{id}/listing_type (comisión)
- *  - updateDescription → PUT/POST /items/{id}/description
+ * `writeKind` es el mecanismo REAL de escritura en MeLi:
+ *  - title/shipping/sku/pictures  → se fusionan en UN PUT /items/{id}
+ *  - attribute                    → se acumula en attributes[] del PUT /items
+ *  - saleTerm                     → se acumula en sale_terms[] del PUT /items
+ *  - price/stock/status/listingType/description → llamada dedicada
  */
 
-export type FieldEndpoint =
-    | 'updateItem'
-    | 'updatePrice'
-    | 'updateStock'
-    | 'updateStatus'
-    | 'updateListingType'
-    | 'updateDescription';
+export type WriteKind =
+    | 'title'
+    | 'shipping'
+    | 'sku'
+    | 'pictures'
+    | 'attribute'
+    | 'saleTerm'
+    | 'price'
+    | 'stock'
+    | 'status'
+    | 'listingType'
+    | 'description';
 
-export type FieldType = 'text' | 'number' | 'boolean' | 'select';
+export type FieldType = 'text' | 'number' | 'select' | 'boolean' | 'textarea' | 'images';
 
 export interface FieldContext {
     item: any;            // ítem MeLi (getItem) o su equivalente desde la BD
@@ -40,11 +43,12 @@ export interface EditableField {
     id: string;
     label: string;
     type: FieldType;
+    writeKind: WriteKind;
+    /** columnas en publicaciones_externas a actualizar (write-back) */
+    dbColumns: string[];
+    attributeId?: string;
+    saleTermId?: string;
     options?: Array<{ value: string; label: string }>;
-    endpoint: FieldEndpoint;
-    /** columna en publicaciones_externas a actualizar ('' = no persistir) */
-    dbColumn: string;
-    /** longitud máxima (título 60, descripción 50000) */
     maxLength?: number;
     canEdit(ctx: FieldContext): { ok: boolean; reason?: string };
     getValue(ctx: FieldContext): any;
@@ -54,13 +58,20 @@ export interface EditableField {
 const yes = { ok: true };
 const no = (reason: string) => ({ ok: false, reason });
 
+function attrName(ctx: FieldContext, id: string): string {
+    return (ctx.item.attributes || []).find((a: any) => a.id === id)?.value_name ?? '';
+}
+function saleTerm(ctx: FieldContext, id: string): string {
+    return (ctx.item.sale_terms || []).find((s: any) => s.id === id)?.value_name ?? '';
+}
+
 export const VITRINA_FIELDS: EditableField[] = [
     {
         id: 'title',
         label: 'Título',
         type: 'text',
-        endpoint: 'updateItem',
-        dbColumn: 'titulo',
+        writeKind: 'title',
+        dbColumns: ['titulo'],
         maxLength: 60,
         canEdit: (ctx) =>
             ctx.isCatalog
@@ -78,8 +89,8 @@ export const VITRINA_FIELDS: EditableField[] = [
         id: 'price',
         label: 'Precio (MXN)',
         type: 'number',
-        endpoint: 'updatePrice',
-        dbColumn: 'precio_venta',
+        writeKind: 'price',
+        dbColumns: ['precio_venta'],
         canEdit: () => yes,
         getValue: (ctx) => ctx.item.price ?? 0,
         toMeliPatch: (value) => Number(value),
@@ -88,8 +99,8 @@ export const VITRINA_FIELDS: EditableField[] = [
         id: 'stock',
         label: 'Stock disponible',
         type: 'number',
-        endpoint: 'updateStock',
-        dbColumn: 'stock_publicado',
+        writeKind: 'stock',
+        dbColumns: ['stock_publicado'],
         canEdit: () => yes,
         getValue: (ctx) => ctx.item.available_quantity ?? 0,
         toMeliPatch: (value) => Math.max(0, Math.floor(Number(value))),
@@ -98,8 +109,8 @@ export const VITRINA_FIELDS: EditableField[] = [
         id: 'status',
         label: 'Estado',
         type: 'select',
-        endpoint: 'updateStatus',
-        dbColumn: 'status_externo',
+        writeKind: 'status',
+        dbColumns: ['status_externo'],
         options: [
             { value: 'active', label: 'Activa' },
             { value: 'paused', label: 'Pausada' },
@@ -112,8 +123,8 @@ export const VITRINA_FIELDS: EditableField[] = [
         id: 'free_shipping',
         label: 'Envío gratis',
         type: 'boolean',
-        endpoint: 'updateItem',
-        dbColumn: 'free_shipping',
+        writeKind: 'shipping',
+        dbColumns: ['free_shipping'],
         canEdit: () => yes,
         getValue: (ctx) => !!ctx.item.shipping?.free_shipping,
         toMeliPatch: (value, ctx) => {
@@ -125,33 +136,77 @@ export const VITRINA_FIELDS: EditableField[] = [
     },
     {
         id: 'listing_type',
-        label: 'Comisión (tipo de publicación)',
+        label: 'Comisión',
         type: 'select',
-        endpoint: 'updateListingType',
-        dbColumn: 'listing_type_id',
+        writeKind: 'listingType',
+        dbColumns: ['listing_type_id'],
         options: [
             { value: 'gold_special', label: 'Clásica (~16%)' },
             { value: 'gold_pro', label: 'Premium (~32%)' },
             { value: 'free', label: 'Gratuita' },
         ],
         canEdit: (ctx) =>
-            ctx.isCatalog
-                ? no('La comisión de un ítem de catálogo no se cambia desde aquí')
-                : yes,
+            ctx.isCatalog ? no('La comisión de un ítem de catálogo no se cambia aquí') : yes,
         getValue: (ctx) => ctx.item.listing_type_id || '',
         toMeliPatch: (value) => String(value),
     },
     {
         id: 'description',
         label: 'Descripción',
-        type: 'text',
-        endpoint: 'updateDescription',
-        dbColumn: 'description_plain',
+        type: 'textarea',
+        writeKind: 'description',
+        dbColumns: ['description_plain'],
         maxLength: 50000,
         canEdit: (ctx) =>
             ctx.isCatalog ? no('La descripción la impone el catálogo (no editable)') : yes,
         getValue: (ctx) => ctx.description,
         toMeliPatch: (value) => String(value),
+    },
+    {
+        id: 'brand',
+        label: 'Marca',
+        type: 'text',
+        writeKind: 'attribute',
+        attributeId: 'BRAND',
+        dbColumns: ['brand'],
+        canEdit: (ctx) =>
+            ctx.isCatalog ? no('El catálogo aporta la marca (no editable)') : yes,
+        getValue: (ctx) => attrName(ctx, 'BRAND'),
+        toMeliPatch: (value) => ({ id: 'BRAND', value_name: String(value).trim() }),
+    },
+    {
+        id: 'model',
+        label: 'Modelo',
+        type: 'text',
+        writeKind: 'attribute',
+        attributeId: 'MODEL',
+        dbColumns: ['model'],
+        canEdit: (ctx) =>
+            ctx.isCatalog ? no('El catálogo aporta el modelo (no editable)') : yes,
+        getValue: (ctx) => attrName(ctx, 'MODEL'),
+        toMeliPatch: (value) => ({ id: 'MODEL', value_name: String(value).trim() }),
+    },
+    {
+        id: 'sku',
+        label: 'SKU',
+        type: 'text',
+        writeKind: 'sku',
+        dbColumns: ['seller_custom_field', 'seller_sku'],
+        canEdit: () => yes,
+        getValue: (ctx) => ctx.item.seller_custom_field ?? '',
+        toMeliPatch: (value) => ({ seller_custom_field: String(value).trim() }),
+    },
+    {
+        id: 'gtin',
+        label: 'Código universal',
+        type: 'text',
+        writeKind: 'attribute',
+        attributeId: 'GTIN',
+        dbColumns: ['gtin'],
+        canEdit: (ctx) =>
+            ctx.isCatalog ? no('El catálogo aporta el GTIN (no editable)') : yes,
+        getValue: (ctx) => attrName(ctx, 'GTIN'),
+        toMeliPatch: (value) => ({ id: 'GTIN', value_name: String(value).trim() }),
     },
 ];
 
