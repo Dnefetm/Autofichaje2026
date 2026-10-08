@@ -208,6 +208,51 @@ export const VITRINA_FIELDS: EditableField[] = [
         getValue: (ctx) => attrName(ctx, 'GTIN'),
         toMeliPatch: (value) => ({ id: 'GTIN', value_name: String(value).trim() }),
     },
+    {
+        id: 'warranty_type',
+        label: 'Garantía (tipo)',
+        type: 'text',
+        writeKind: 'saleTerm',
+        saleTermId: 'WARRANTY_TYPE',
+        dbColumns: [],
+        canEdit: () => yes,
+        getValue: (ctx) => saleTerm(ctx, 'WARRANTY_TYPE'),
+        toMeliPatch: (value) => ({ id: 'WARRANTY_TYPE', value_name: String(value).trim() }),
+    },
+    {
+        id: 'warranty_time',
+        label: 'Garantía (duración)',
+        type: 'text',
+        writeKind: 'saleTerm',
+        saleTermId: 'WARRANTY_TIME',
+        dbColumns: [],
+        canEdit: () => yes,
+        getValue: (ctx) => saleTerm(ctx, 'WARRANTY_TIME'),
+        toMeliPatch: (value) => ({ id: 'WARRANTY_TIME', value_name: String(value).trim() }),
+    },
+    {
+        id: 'pictures',
+        label: 'Fotos',
+        type: 'images',
+        writeKind: 'pictures',
+        dbColumns: [],
+        canEdit: () => yes,
+        getValue: (ctx) => (ctx.item.pictures || []).map((p: any) => p.secure_url || p.url).filter(Boolean),
+        toMeliPatch: (value, ctx) => {
+            const urls: string[] = Array.isArray(value) ? value : [];
+            // Reutilizar el id de las fotos existentes (evita re-subir); subir solo URLs nuevas.
+            const byUrl = new Map<string, any>();
+            for (const p of (ctx.item.pictures || [])) {
+                byUrl.set(p.secure_url || p.url, p);
+            }
+            return {
+                pictures: urls.map((u: string) => {
+                    const existing = byUrl.get(u);
+                    return existing?.id ? { id: existing.id } : { source: u };
+                }),
+            };
+        },
+    },
 ];
 
 export function getField(id: string): EditableField | undefined {

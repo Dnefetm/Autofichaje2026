@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import {
     ArrowLeft, ExternalLink, Link2, Package, Truck, RefreshCw, FileText,
     CheckCircle2, AlertCircle, Tag, BarChart2, ShieldCheck, Zap,
-    Clock, Globe, DollarSign, Pencil, X, Check, Loader2, Layers, Copy
+    Clock, Globe, DollarSign, Pencil, X, Check, Loader2, Layers, Copy, Lock, Image as ImageIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import { use } from 'react';
@@ -16,6 +16,7 @@ import PricingAuditCard from './pricing-audit-card';
 import { PublishPanel } from '@/components/publish-panel';
 import { Switch } from '@/components/ui/switch';
 import { InlineField } from '@/components/ui/inline-field';
+import { PicturesEditor } from '@/components/ui/pictures-editor';
 
 // --- Helpers -----------------------------------------------------------------
 const statusColors: Record<string, string> = {
@@ -111,25 +112,73 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
     );
 }
 
-function DescriptionSection({ text }: { text: string }) {
+function DescriptionSection({ text, pubId, lockedReason, onSaved }: { text: string; pubId: string; lockedReason?: string; onSaved: (v: string) => void }) {
     const [expanded, setExpanded] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(text);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
     const preview = text.slice(0, 300);
     const hasMore = text.length > 300;
+
+    async function save() {
+        if (saving) return;
+        const v = draft.trim();
+        if (v === text) { setEditing(false); return; }
+        setSaving(true);
+        setError('');
+        try {
+            const res = await fetch(`/api/vitrinas/${pubId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ changes: [{ field: 'description', value: v }] }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error al sincronizar');
+            const r = Array.isArray(data.applied) ? data.applied.find((a: any) => a.field === 'description') : null;
+            if (r && !r.ok) throw new Error(r.error || 'MeLi rechazó el cambio');
+            onSaved(v);
+            setEditing(false);
+        } catch (e: any) {
+            setError(e?.message || 'Error al guardar');
+        } finally {
+            setSaving(false);
+        }
+    }
+
     return (
         <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] overflow-hidden">
             <div className="px-5 py-2.5 border-b border-[var(--border)] flex items-center gap-2.5 bg-[var(--surface-2)]">
                 <div className="text-[var(--text-faint)]"><Tag className="w-4 h-4" /></div>
                 <h2 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">Descripción</h2>
+                <div className="flex-1" />
+                {lockedReason ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-[var(--text-faint)]"><Lock className="w-3 h-3" /> {lockedReason}</span>
+                ) : (
+                    <button onClick={() => { setDraft(text); setEditing(true); setError(''); }} className="p-1 rounded hover:bg-[var(--surface-2)] text-[var(--text-faint)] hover:text-[var(--accent)]" title="Editar descripción">
+                        <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                )}
             </div>
             <div className="px-5 py-3">
-                <p className="text-sm text-[var(--text-muted)] leading-relaxed whitespace-pre-line">
-                    {expanded ? text : preview}{!expanded && hasMore && '…'}
-                </p>
-                {hasMore && (
-                    <button
-                        onClick={() => setExpanded(o => !o)}
-                        className="mt-2 text-xs text-[var(--accent)] hover:text-[var(--accent)] font-semibold transition-colors"
-                    >
+                {editing ? (
+                    <div className="space-y-2">
+                        <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={8} maxLength={50000} className="w-full text-sm border-2 border-[var(--accent)]/70 rounded-[var(--radius)] px-2 py-1 resize-y" />
+                        <div className="flex items-center gap-2">
+                            <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[var(--accent)] rounded disabled:opacity-50">
+                                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Guardar
+                            </button>
+                            <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-xs font-bold text-[var(--text-muted)] border border-[var(--border)] rounded">Cancelar</button>
+                        </div>
+                        {error && <p className="text-[10px] text-[var(--err)] break-words">{error}</p>}
+                    </div>
+                ) : (
+                    <p className="text-sm text-[var(--text-muted)] leading-relaxed whitespace-pre-line">
+                        {expanded ? text : preview}{!expanded && hasMore && '…'}
+                    </p>
+                )}
+                {!editing && hasMore && (
+                    <button onClick={() => setExpanded(o => !o)} className="mt-2 text-xs text-[var(--accent)] hover:text-[var(--accent)] font-semibold transition-colors">
                         {expanded ? 'Ver menos ↑' : 'Ver más ↓'}
                     </button>
                 )}
@@ -328,8 +377,19 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [enrichLoading, setEnrichLoading] = useState(false);
     // Indica que el mapeo de esta publicación se está guardando en background.
     const [mappingInProgress, setMappingInProgress] = useState(false);
+    // Ítem real de MeLi (sale_terms, pictures, attributes) para garantía, fotos y características.
+    const [ctxItem, setCtxItem] = useState<any>(null);
 
     useEffect(() => { loadAll(false); }, [id]);
+
+    // Carga el contexto MeLi en una sola llamada (valores actuales de garantía y fotos).
+    useEffect(() => {
+        if (!id) return;
+        fetch(`/api/vitrinas/${id}`, { method: 'GET' })
+            .then(r => r.json())
+            .then((d: any) => { if (d?.ok && d.item) setCtxItem(d.item); })
+            .catch(() => { /* silencioso */ });
+    }, [id]);
 
     async function loadAll(silent = false) {
         if (!silent) setLoading(true);
@@ -1000,13 +1060,37 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 />
                             )}
                             <InfoRow label="Condición" value={pub.condition === 'new' ? 'Nuevo' : pub.condition === 'used' ? 'Usado' : pub.condition} />
-                            <InfoRow label="Garantía" value={pub.warranty} />
+                            <InlineField
+                                pubId={id}
+                                fieldId="warranty_type"
+                                label="Garantía (tipo)"
+                                value={(ctxItem?.sale_terms || []).find((s: any) => s.id === 'WARRANTY_TYPE')?.value_name ?? ''}
+                                onSaved={(v) => setCtxItem((prev: any) => prev ? { ...prev, sale_terms: (prev.sale_terms || []).map((s: any) => s.id === 'WARRANTY_TYPE' ? { ...s, value_name: v } : s) } : prev)}
+                            />
+                            <InlineField
+                                pubId={id}
+                                fieldId="warranty_time"
+                                label="Garantía (duración)"
+                                value={(ctxItem?.sale_terms || []).find((s: any) => s.id === 'WARRANTY_TIME')?.value_name ?? ''}
+                                onSaved={(v) => setCtxItem((prev: any) => prev ? { ...prev, sale_terms: (prev.sale_terms || []).map((s: any) => s.id === 'WARRANTY_TIME' ? { ...s, value_name: v } : s) } : prev)}
+                            />
                             {pub.upc && <InfoRow label="UPC" value={pub.upc} />}
                             <InfoRow label="Fotos" value={pub.pictures_count != null ? `${pub.pictures_count} imágen${pub.pictures_count !== 1 ? 'es' : ''}` : null} />
                             <InfoRow label="Modo de compra" value={pub.buying_mode} />
                             <InfoRow label="Video" value={pub.video_id ? <span className="text-[var(--ok)] font-semibold text-xs">Sí — {pub.video_id}</span> : <span className="text-[var(--text-faint)] text-xs">No</span>} />
                             {pub.inventory_id && <InfoRow label="Inventory ID" value={<span className="font-mono text-[11px]">{pub.inventory_id}</span>} />}
                             <InfoRow label="Re-publicación auto" value={pub.automatic_relist ? <span className="text-[var(--ok)] font-semibold text-xs">Activa</span> : <span className="text-[var(--text-faint)] text-xs">No</span>} />
+                        </Section>
+
+                        {/* Fotos (editable) */}
+                        <Section title="Fotos" icon={<ImageIcon className="w-4 h-4" />}>
+                            <div className="py-3">
+                                <PicturesEditor
+                                    pubId={id}
+                                    pictures={(ctxItem?.pictures || []).map((p: any) => p.secure_url || p.url).filter(Boolean)}
+                                    onSaved={(urls) => setCtxItem((prev: any) => prev ? { ...prev, pictures: urls.map((u: string) => ({ secure_url: u, url: u })) } : prev)}
+                                />
+                            </div>
                         </Section>
 
                         {/* Datos Comerciales */}
@@ -1107,10 +1191,13 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             )}
                         </Section>
 
-                        {/* Descripción del producto */}
-                        {pub.description_plain && (
-                            <DescriptionSection text={pub.description_plain} />
-                        )}
+                        {/* Descripción del producto (editable) */}
+                        <DescriptionSection
+                            text={pub.description_plain || ''}
+                            pubId={id}
+                            lockedReason={(pub.tipo_publicacion === 'catalogo' || pub.tipo_publicacion === 'catalogo_derivada') ? 'La descripción la impone el catálogo (no editable)' : undefined}
+                            onSaved={(v) => setPub((prev: any) => prev ? { ...prev, description_plain: v } : prev)}
+                        />
 
                         {/* Variantes — tabla mejorada */}
                         {(variantes || []).length > 0 && (
