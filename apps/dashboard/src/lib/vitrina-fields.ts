@@ -116,7 +116,12 @@ export const VITRINA_FIELDS: EditableField[] = [
         dbColumn: 'free_shipping',
         canEdit: () => yes,
         getValue: (ctx) => !!ctx.item.shipping?.free_shipping,
-        toMeliPatch: (value) => ({ shipping: { free_shipping: !!value } }),
+        toMeliPatch: (value, ctx) => {
+            const shipping: Record<string, any> = { free_shipping: !!value };
+            const mode = ctx.item.shipping?.mode;
+            if (mode) shipping.mode = mode; // MeLi exige el modo actual al cambiar free_shipping
+            return { shipping };
+        },
     },
     {
         id: 'listing_type',
