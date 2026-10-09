@@ -1466,7 +1466,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 <MappingModal
                     listing={pub}
                     onClose={() => setShowMappingModal(false)}
-                    onSuccess={() => { loadAll(); }}
+                    onSuccess={() => { loadAll(true); }}
                     onMappingChange={(id, inProgress) => setMappingInProgress(inProgress)}
                 />
             )}

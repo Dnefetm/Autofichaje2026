@@ -65,8 +65,8 @@ export default function ArticuloDetailPage() {
         if (id) fetchProduct();
     }, [id]);
 
-    async function fetchProduct() {
-        setLoading(true);
+    async function fetchProduct(silent = false) {
+        if (!silent) setLoading(true);
         setError(null);
         try {
             const { data, error: err } = await supabase
@@ -187,7 +187,7 @@ export default function ArticuloDetailPage() {
                 <Link href="/catalog" className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors font-medium">
                     <ArrowLeft className="w-4 h-4" /> Volver al catálogo
                 </Link>
-                <button onClick={fetchProduct} className="p-2 text-[var(--text-faint)] hover:text-[var(--accent)] transition-colors" title="Refrescar">
+                <button onClick={() => fetchProduct()} className="p-2 text-[var(--text-faint)] hover:text-[var(--accent)] transition-colors" title="Refrescar">
                     <RefreshCw className="w-5 h-5" />
                 </button>
             </div>
@@ -454,7 +454,7 @@ export default function ArticuloDetailPage() {
                     currentPrice={Number(newConditionPub.precio_venta || 0)}
                     articuloId={product.articulo_id || id}
                     onClose={() => setNewConditionPub(null)}
-                    onDone={() => { setNewConditionPub(null); fetchProduct(); }}
+                    onDone={() => { setNewConditionPub(null); fetchProduct(true); }}
                 />
             )}
 
@@ -471,7 +471,7 @@ export default function ArticuloDetailPage() {
                         thumbnail: getPublicImageUrl(product.imagenes?.[0] || null),
                     }}
                     onClose={() => setShowVincularVitrina(false)}
-                    onSuccess={() => { setShowVincularVitrina(false); fetchProduct(); }}
+                    onSuccess={() => { setShowVincularVitrina(false); fetchProduct(true); }}
                 />
             )}
 
@@ -480,7 +480,7 @@ export default function ArticuloDetailPage() {
                 <RellenarDesdeFichaModal
                     articuloId={product.articulo_id || id}
                     onClose={() => setShowRellenarFicha(false)}
-                    onSuccess={() => { setShowRellenarFicha(false); fetchProduct(); }}
+                    onSuccess={() => { setShowRellenarFicha(false); fetchProduct(true); }}
                 />
             )}
         </div>
