@@ -12,8 +12,8 @@ export interface ImageSize {
 export function toHighResMeliUrl(url: string): string {
     if (!url || typeof url !== 'string') return url;
     if (url.includes('mlstatic.com')) {
-        // Reemplaza sufijos de miniaturas (-I, -V, -M) por la versión Full HD (-F)
-        return url.replace(/-[IVMC]\.(jpg|jpeg|png|webp)$/i, '-F.$1');
+        // Reemplaza miniaturas (-I, -V, -M) o versión base (-O) por la versión Full HD (-F) de MeLi
+        return url.replace(/-[IVMCO]\.(jpg|jpeg|png|webp)$/i, '-F.$1');
     }
     return url;
 }
@@ -40,9 +40,9 @@ export async function measureImage(url: string): Promise<ImageSize | null> {
     }
 }
 
-/** MeLi exige: al menos un lado >= 500px y el otro >= 250px (o >= 50px en productos angostos publicados). */
+/** MeLi exige: al menos un lado >= 500px y el otro >= 50px (para formatos verticales/horizontales). */
 export function meetsMeliSize(size: ImageSize): boolean {
-    return Math.max(size.w, size.h) >= 500 && Math.min(size.w, size.h) >= 250;
+    return Math.max(size.w, size.h) >= 500 && Math.min(size.w, size.h) >= 50;
 }
 
 /**

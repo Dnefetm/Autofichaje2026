@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { toHighResMeliUrl, meetsMeliSize } from '@/lib/image-utils';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
@@ -74,15 +75,16 @@ interface PublishPanelProps {
 function PhotoBadge({ url, onUpscale }: { url: string; onUpscale?: (url: string) => void }) {
     const [size, setSize] = useState<{ w: number; h: number } | null>(null);
     const [failed, setFailed] = useState(false);
+    const highResUrl = toHighResMeliUrl(url);
     if (failed) return <span className="text-[9px] font-bold text-[var(--err)]">✗ no carga</span>;
     if (!size) {
-        return <img src={url} alt="" className="hidden" onLoad={e => setSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} onError={() => setFailed(true)} />;
+        return <img src={highResUrl} alt="" className="hidden" onLoad={e => setSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} onError={() => setFailed(true)} />;
     }
-    const ok = Math.max(size.w, size.h) >= 500 && Math.min(size.w, size.h) >= 250;
+    const ok = meetsMeliSize(size);
     if (ok) return <span className="text-[9px] font-bold text-[var(--ok)]">✓ {size.w}×{size.h}</span>;
     return (
         <span className="inline-flex items-center gap-1">
-            <span className="text-[9px] font-bold text-[var(--err)]">✗ {size.w}×{size.h} &lt;500px</span>
+            <span className="text-[9px] font-bold text-[var(--err)]">✗ {size.w}×{size.h}</span>
             {onUpscale && (
                 <button onClick={() => onUpscale(url)} className="text-[9px] font-bold text-[var(--accent)] underline" title="Adaptar a dimensiones mínimas de MeLi (preserva nitidez original)">Agrandar</button>
             )}
@@ -313,7 +315,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             .then(r => r.json())
             .then(data => {
                 if (data?.ok && Array.isArray(data.pictures) && data.pictures.length > 0) {
-                    setImages(data.pictures);
+                    setImages(data.pictures.map(toHighResMeliUrl));
                 }
             })
             .catch(() => { /* silencioso: si falla, el backend igual hereda las fotos al publicar */ });

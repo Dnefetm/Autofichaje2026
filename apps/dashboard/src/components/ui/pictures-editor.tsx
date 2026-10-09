@@ -19,6 +19,12 @@ interface Props {
  */
 export function PicturesEditor({ pubId, pictures, onSaved }: Props) {
     const [urls, setUrls] = useState<string[]>(pictures);
+
+    // Sincronizar urls cuando pictures se carga asíncronamente desde el servidor
+    useEffect(() => {
+        setUrls(pictures);
+    }, [pictures]);
+
     const [newUrl, setNewUrl] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
