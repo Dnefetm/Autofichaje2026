@@ -71,7 +71,7 @@ interface PublishPanelProps {
 }
 
 // -- Helpers ------------------------------------------------------------------
-function PhotoBadge({ url }: { url: string }) {
+function PhotoBadge({ url, onUpscale }: { url: string; onUpscale?: (url: string) => void }) {
     const [size, setSize] = useState<{ w: number; h: number } | null>(null);
     const [failed, setFailed] = useState(false);
     if (failed) return <span className="text-[9px] font-bold text-[var(--err)]">✗ no carga</span>;
@@ -79,9 +79,15 @@ function PhotoBadge({ url }: { url: string }) {
         return <img src={url} alt="" className="hidden" onLoad={e => setSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} onError={() => setFailed(true)} />;
     }
     const ok = Math.max(size.w, size.h) >= 500 && Math.min(size.w, size.h) >= 250;
-    return ok
-        ? <span className="text-[9px] font-bold text-[var(--ok)]">✓ {size.w}×{size.h}</span>
-        : <span className="text-[9px] font-bold text-[var(--err)]">✗ {size.w}×{size.h} &lt;500px</span>;
+    if (ok) return <span className="text-[9px] font-bold text-[var(--ok)]">✓ {size.w}×{size.h}</span>;
+    return (
+        <span className="inline-flex items-center gap-1">
+            <span className="text-[9px] font-bold text-[var(--err)]">✗ {size.w}×{size.h} &lt;500px</span>
+            {onUpscale && (
+                <button onClick={() => onUpscale(url)} className="text-[9px] font-bold text-[var(--accent)] underline" title="Agrandar a >=500px. Pierde nitidez (último recurso)">Agrandar</button>
+            )}
+        </span>
+    );
 }
 
 function TraceBlock({ trace }: { trace: Record<string, any> }) {
@@ -239,6 +245,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const [catSearchLoading, setCatSearchLoading] = useState(false);
     const [catSelectedPath, setCatSelectedPath] = useState('');   // ruta de la cat elegida manualmente
     const catSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Dimensiones del paquete editables
     const [dimOverrides, setDimOverrides] = useState<Record<string, string>>({});
@@ -425,6 +432,41 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
     function removeImage(idx: number) {
         setImages(prev => prev.filter((_, i) => i !== idx));
+    }
+
+    // Subir imágenes desde archivo (multipart).
+    async function handleUploadFiles(files: FileList | null) {
+        if (!files || files.length === 0) return;
+        setImgInputError(null);
+        try {
+            for (const file of Array.from(files)) {
+                const form = new FormData();
+                form.append('file', file);
+                const res = await fetch('/api/upload-imagen', { method: 'POST', body: form });
+                const data = await res.json();
+                if (!res.ok || !data.ok) throw new Error(data.error || 'Error al subir');
+                setImages(prev => (prev.includes(data.url) ? prev : [...prev, data.url]));
+            }
+        } catch (e: any) {
+            setImgInputError(e?.message || 'Error al subir archivo');
+        }
+    }
+
+    // Agrandar (en servidor, sharp) una imagen que no cumple el mínimo de MeLi.
+    async function handleUpscaleImage(url: string) {
+        setImgInputError(null);
+        try {
+            const resp = await fetch(url, { mode: 'cors' });
+            const blob = await resp.blob();
+            const form = new FormData();
+            form.append('file', blob, 'imagen.jpg');
+            const res = await fetch('/api/upscale-imagen', { method: 'POST', body: form });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Error al agrandar');
+            setImages(prev => prev.map(u => (u === url ? data.url : u)));
+        } catch (e: any) {
+            setImgInputError(e?.message || 'Error al agrandar imagen');
+        }
     }
 
     function moveImage(idx: number, dir: -1 | 1) {
@@ -1074,7 +1116,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                             </div>
                                                             <span className="text-xs font-black text-[var(--text-faint)] w-5 shrink-0">#{i + 1}</span>
                                                             <span className="flex-1 text-xs text-[var(--text-muted)] truncate font-mono">{url}</span>
-                                                                <PhotoBadge url={url} />
+                                                                <PhotoBadge url={url} onUpscale={handleUpscaleImage} />
                                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                 <button onClick={() => moveImage(i, -1)} disabled={i === 0} className="p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30" title="Subir"><ArrowUp className="w-3 h-3" /></button>
                                                                 <button onClick={() => moveImage(i, 1)} disabled={i === images.length - 1} className="p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30" title="Bajar"><ArrowDown className="w-3 h-3" /></button>
@@ -1084,6 +1126,10 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                     ))}
                                                 </div>
                                             )}
+                                            <div className="flex gap-2">
+                                                <input type="file" accept="image/*" multiple ref={fileInputRef} className="hidden" onChange={(e) => { handleUploadFiles(e.target.files); e.target.value = ''; }} />
+                                                <button onClick={() => fileInputRef.current?.click()} className="px-3 py-2 bg-[var(--surface)] text-[var(--accent-ink)] rounded-lg text-sm font-bold flex items-center gap-1"><ImageIcon className="w-4 h-4" /> Subir archivo</button>
+                                            </div>
                                             <div className="flex gap-2">
                                                 <input type="url" value={newImageUrl} onChange={e => { setNewImageUrl(e.target.value); setImgInputError(null); }} onKeyDown={e => e.key === 'Enter' && addImage()} placeholder="https://... URL de imagen" className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                                                 <button onClick={addImage} className="px-3 py-2 bg-[var(--surface)] text-[var(--accent-ink)] rounded-lg text-sm font-bold flex items-center gap-1"><Plus className="w-4 h-4" /> Agregar</button>
