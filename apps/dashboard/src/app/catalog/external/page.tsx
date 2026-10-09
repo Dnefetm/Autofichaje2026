@@ -762,9 +762,9 @@ export default function VirtualCatalogPage() {
         return Object.entries(map).sort((a, b) => b[1] - a[1]);
     }
 
-    async function loadListings() {
+    async function loadListings(silent = false) {
         const seq = ++requestSeq.current;
-        setLoading(true);
+        if (!silent) setLoading(true);
         try {
             const from = page * PAGE_SIZE;
             const to = from + PAGE_SIZE - 1;
@@ -974,7 +974,7 @@ export default function VirtualCatalogPage() {
                             <Btn onClick={handleForceSync} disabled={syncing} loading={syncing} icon={<RefreshCw className="w-4 h-4" />}>
                                 {syncing ? 'Sincronizando...' : 'Forzar Sync MeLi'}
                             </Btn>
-                            <Btn variant="ghost" onClick={loadListings} icon={<RefreshCw className="w-4 h-4" />}>
+                            <Btn variant="ghost" onClick={() => loadListings()} icon={<RefreshCw className="w-4 h-4" />}>
                                 Refrescar
                             </Btn>
                         </>
@@ -1169,7 +1169,7 @@ export default function VirtualCatalogPage() {
                 <MappingModal
                     listing={selectedListing}
                     onClose={() => setSelectedListing(null)}
-                    onSuccess={() => { loadListings(); }}
+                    onSuccess={() => { loadListings(true); }}
                     onMappingChange={toggleMapping}
                 />
             )}
