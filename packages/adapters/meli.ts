@@ -667,7 +667,8 @@ export class MeliAdapter implements MarketplaceAdapter {
                         precio_venta: item.price,
                         stock_publicado: item.available_quantity,
                         status_externo: item.status,
-                        url_imagen: item.pictures?.[0]?.url || item.thumbnail,
+                        url_imagen: ((item.pictures?.[0]?.secure_url || item.pictures?.[0]?.url || item.thumbnail || '') as string)
+                            .replace(/-[IVMC]\.(jpg|jpeg|png|webp)$/i, '-F.$1') || null,
                         permalink: item.permalink,
                         tipo_publicacion: clasificacion.tipo_publicacion,
                         id_publicacion_padre: clasificacion.id_publicacion_padre,

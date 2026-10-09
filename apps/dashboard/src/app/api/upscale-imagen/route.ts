@@ -24,16 +24,55 @@ export async function POST(req: NextRequest) {
 
         const buffer = Buffer.from(await file.arrayBuffer());
         const meta = await sharp(buffer).metadata();
-        const w = meta.width || 0;
-        const h = meta.height || 0;
+        let w = meta.width || 0;
+        let h = meta.height || 0;
         if (!w || !h) return NextResponse.json({ ok: false, error: 'Imagen inválida' }, { status: 400 });
 
-        const scale = Math.max(600 / Math.max(w, h), 250 / Math.min(w, h), 1);
-        if (scale <= 1) return NextResponse.json({ ok: false, error: 'La imagen ya cumple el tamaño mínimo' }, { status: 400 });
+        // Si ya cumple el tamaño mínimo de MeLi (max >= 500 && min >= 250), no tocar nada
+        if (Math.max(w, h) >= 500 && Math.min(w, h) >= 250) {
+            return NextResponse.json({ ok: false, error: 'La imagen ya cumple el tamaño mínimo' }, { status: 400 });
+        }
 
-        const out = await sharp(buffer)
-            .resize(Math.round(w * scale), Math.round(h * scale), { kernel: 'lanczos3', fit: 'fill' })
-            .jpeg({ quality: 92 })
+        let pipeline = sharp(buffer).flatten({ background: { r: 255, g: 255, b: 255 } });
+
+        // Umbral: Si ambos lados son muy chicos (< 400 en su lado mayor),
+        // aplicar upscale moderado (máx 1.5x) con Lanczos3 y unsharp mask suave para mantener bordes
+        if (Math.max(w, h) < 400) {
+            const moderateScale = Math.min(1.5, 500 / Math.max(w, h));
+            const newW = Math.round(w * moderateScale);
+            const newH = Math.round(h * moderateScale);
+            pipeline = pipeline
+                .resize(newW, newH, { kernel: 'lanczos3', fit: 'fill' })
+                .sharpen({ sigma: 1.0, m1: 1.5, m2: 0.7 });
+            w = newW;
+            h = newH;
+        }
+
+        // Padding puro con .extend(): agrega margen blanco sin tocar ni remuestrear los píxeles originales
+        const isLandscape = w >= h;
+        const targetW = isLandscape ? Math.max(w, 500) : Math.max(w, 250);
+        const targetH = isLandscape ? Math.max(h, 250) : Math.max(h, 500);
+
+        const padW = Math.max(0, targetW - w);
+        const padH = Math.max(0, targetH - h);
+
+        if (padW > 0 || padH > 0) {
+            const left = Math.floor(padW / 2);
+            const right = padW - left;
+            const top = Math.floor(padH / 2);
+            const bottom = padH - top;
+
+            pipeline = pipeline.extend({
+                top,
+                bottom,
+                left,
+                right,
+                background: { r: 255, g: 255, b: 255 },
+            });
+        }
+
+        const out = await pipeline
+            .jpeg({ quality: 95 })
             .toBuffer();
 
         const supabase = createClient(
@@ -49,6 +88,6 @@ export async function POST(req: NextRequest) {
         const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${filename}`;
         return NextResponse.json({ ok: true, url });
     } catch (err: any) {
-        return NextResponse.json({ ok: false, error: err.message || 'Error al agrandar la imagen' }, { status: 500 });
+        return NextResponse.json({ ok: false, error: err.message || 'Error al adaptar la imagen' }, { status: 500 });
     }
 }

@@ -5,10 +5,24 @@ export interface ImageSize {
     h: number;
 }
 
-/** Mide las dimensiones reales de una imagen por URL. */
+/**
+ * Convierte URLs de miniaturas del CDN de MercadoLibre (-I.jpg, -V.jpg, etc.)
+ * a su versión en alta definición / Zoom completo (-F.jpg o -O.jpg).
+ */
+export function toHighResMeliUrl(url: string): string {
+    if (!url || typeof url !== 'string') return url;
+    if (url.includes('mlstatic.com')) {
+        // Reemplaza sufijos de miniaturas (-I, -V, -M) por la versión Full HD (-F)
+        return url.replace(/-[IVMC]\.(jpg|jpeg|png|webp)$/i, '-F.$1');
+    }
+    return url;
+}
+
+/** Mide las dimensiones reales de una imagen por URL (eleva a alta resolución si es de MeLi). */
 export async function measureImage(url: string): Promise<ImageSize | null> {
+    const targetUrl = toHighResMeliUrl(url);
     try {
-        const resp = await fetch(url, { mode: 'cors' });
+        const resp = await fetch(targetUrl, { mode: 'cors' });
         if (!resp.ok) return null;
         const blob = await resp.blob();
         const objUrl = URL.createObjectURL(blob);
@@ -26,7 +40,7 @@ export async function measureImage(url: string): Promise<ImageSize | null> {
     }
 }
 
-/** MeLi exige: un lado >= 500px y el otro >= 250px. */
+/** MeLi exige: al menos un lado >= 500px y el otro >= 250px (o >= 50px en productos angostos publicados). */
 export function meetsMeliSize(size: ImageSize): boolean {
     return Math.max(size.w, size.h) >= 500 && Math.min(size.w, size.h) >= 250;
 }

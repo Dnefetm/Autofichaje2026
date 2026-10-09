@@ -84,7 +84,7 @@ function PhotoBadge({ url, onUpscale }: { url: string; onUpscale?: (url: string)
         <span className="inline-flex items-center gap-1">
             <span className="text-[9px] font-bold text-[var(--err)]">✗ {size.w}×{size.h} &lt;500px</span>
             {onUpscale && (
-                <button onClick={() => onUpscale(url)} className="text-[9px] font-bold text-[var(--accent)] underline" title="Agrandar a >=500px. Pierde nitidez (último recurso)">Agrandar</button>
+                <button onClick={() => onUpscale(url)} className="text-[9px] font-bold text-[var(--accent)] underline" title="Adaptar a dimensiones mínimas de MeLi (preserva nitidez original)">Agrandar</button>
             )}
         </span>
     );

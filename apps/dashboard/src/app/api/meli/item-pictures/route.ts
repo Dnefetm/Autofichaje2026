@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MeliAdapter } from '@gestor/adapters/meli';
 
+import { toHighResMeliUrl } from '@/lib/image-utils';
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -22,7 +24,7 @@ export async function GET(req: NextRequest) {
     try {
         const item = await (meli as any).getItem(accountId, itemId);
         const pictures: string[] = (item?.pictures || [])
-            .map((p: any) => p.secure_url || p.url)
+            .map((p: any) => toHighResMeliUrl(p.secure_url || p.url))
             .filter(Boolean);
         return NextResponse.json({ ok: true, pictures });
     } catch (e: any) {

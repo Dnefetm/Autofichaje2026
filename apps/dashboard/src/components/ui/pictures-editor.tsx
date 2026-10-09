@@ -100,7 +100,7 @@ export function PicturesEditor({ pubId, pictures, onSaved }: Props) {
             if (!newUrl) { setError('No se pudo agrandar la imagen. Verificá que la URL sea accesible.'); return; }
             setUrls(prev => prev.map(u => (u === url ? newUrl : u)));
             setDirty(true);
-            setInfo('Imagen ampliada para cumplir el mínimo de MeLi. Nota: pierde nitidez; lo ideal es una imagen original de ≥500px.');
+            setInfo('Imagen adaptada para cumplir el mínimo de MeLi (preservando nitidez original con padding blanco).');
         } catch (e: any) {
             setError(e?.message || 'Error al agrandar');
         } finally {
@@ -151,7 +151,7 @@ export function PicturesEditor({ pubId, pictures, onSaved }: Props) {
                                     onClick={() => agrandar(u)}
                                     disabled={upscaling[u]}
                                     className="absolute bottom-8 right-1 px-1.5 py-0.5 text-[10px] font-bold bg-[var(--accent)] text-white rounded disabled:opacity-50"
-                                    title="Agrandar a >=500px. Pierde nitidez (último recurso)"
+                                    title="Adaptar a dimensiones mínimas de MeLi (preserva nitidez)"
                                 >
                                     {upscaling[u] ? <Loader2 className="w-3 h-3 animate-spin inline" /> : <Wand2 className="w-3 h-3 inline mr-0.5" />}
                                     Agrandar

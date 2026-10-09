@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { InlineField } from '@/components/ui/inline-field';
 import { PicturesEditor } from '@/components/ui/pictures-editor';
 import { buildSecondaryAttributeFields } from '@/lib/vitrina-fields';
+import { toHighResMeliUrl } from '@/lib/image-utils';
 
 // --- Helpers -----------------------------------------------------------------
 const statusColors: Record<string, string> = {
@@ -835,7 +836,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] p-5">
                     <div className="flex flex-col md:flex-row items-start gap-5">
                         {pub.url_imagen ? (
-                            <img src={pub.url_imagen} alt={pub.titulo} className="w-28 h-28 rounded-[var(--radius)] object-contain border border-[var(--border)] bg-[var(--surface)] shrink-0" />
+                            <img src={toHighResMeliUrl(pub.url_imagen)} alt={pub.titulo} className="w-28 h-28 rounded-[var(--radius)] object-contain border border-[var(--border)] bg-[var(--surface)] shrink-0" />
                         ) : (
                             <div className="w-28 h-28 rounded-[var(--radius)] bg-[var(--surface-2)] flex items-center justify-center shrink-0">
                                 <Package className="w-10 h-10 text-[var(--text-faint)]" />
@@ -1192,7 +1193,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             <div className="py-3">
                                 <PicturesEditor
                                     pubId={id}
-                                    pictures={(ctxItem?.pictures || []).map((p: any) => p.secure_url || p.url).filter(Boolean)}
+                                    pictures={(ctxItem?.pictures || []).map((p: any) => toHighResMeliUrl(p.secure_url || p.url)).filter(Boolean)}
                                     onSaved={(urls) => setCtxItem((prev: any) => prev ? { ...prev, pictures: urls.map((u: string) => ({ secure_url: u, url: u })) } : prev)}
                                 />
                             </div>
@@ -1613,7 +1614,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             articulo_id={mapeos?.[0]?.articulo?.articulo_id || ''}
                             nombreArticulo={pub?.titulo || ''}
                             modalMode
-                            imagenesBase={pub?.url_imagen ? [pub.url_imagen] : []}
+                            imagenesBase={pub?.url_imagen ? [toHighResMeliUrl(pub.url_imagen)] : []}
                             codigoUniversal={pub?.gtin || pub?.ean || ''}
                             sourcePublicacion={{
                                 marketplace_id: pub.marketplace_id,
