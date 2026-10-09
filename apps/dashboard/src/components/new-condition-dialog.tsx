@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, Layers, CheckCircle2, AlertCircle, ExternalLink, RefreshCw, Truck, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
 
 const LISTING_TYPES = [
     { id: 'gold_special', label: 'Clásica', desc: 'Exposición estándar · sin envío gratis' },
@@ -140,23 +141,7 @@ export function NewConditionDialog({
                                 <p className="text-[10px] text-[var(--text-muted)]">El costo del envío lo absorbes tú</p>
                             </div>
                         </div>
-                        <button
-                            type="button"
-                            role="switch"
-                            aria-checked={freeShipping}
-                            onClick={() => setFreeShipping(v => !v)}
-                            className={cn(
-                                "relative w-11 h-6 rounded-full transition-colors",
-                                freeShipping ? "bg-[var(--ok)]" : "bg-[var(--border)]",
-                            )}
-                        >
-                            <span
-                                className={cn(
-                                    "absolute top-0.5 w-5 h-5 rounded-full bg-[var(--text)] shadow transition-transform",
-                                    freeShipping ? "translate-x-[22px]" : "translate-x-0.5",
-                                )}
-                            />
-                        </button>
+                        <Switch checked={freeShipping} onCheckedChange={() => setFreeShipping(v => !v)} ariaLabel="Envío gratis" />
                     </label>
 
                     {/* Precio */}

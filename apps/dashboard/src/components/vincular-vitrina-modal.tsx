@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { dispatchWorker } from '@/lib/dispatch-worker';
 import { X, Search, Link2, Save, RefreshCw, Plus, Info, Package } from 'lucide-react';
 import ComparacionArticuloVitrina from './comparacion-articulo-vitrina';
+import { QuantityStepper } from '@/components/ui/quantity-stepper';
 
 interface ArticuloInfo {
   articulo_id: string;
@@ -375,11 +376,7 @@ export default function VincularVitrinaModal({
                       return s ? (
                         <>
                           <span className="text-xs text-[var(--text-muted)]">Cantidad:</span>
-                          <div className="flex items-center border border-[var(--border)] bg-[var(--surface-2)] rounded-lg overflow-hidden h-9">
-                            <button onClick={() => changeQuantity(s.id, s.quantity - 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface)]">-</button>
-                            <input type="number" value={s.quantity} onChange={(e) => changeQuantity(s.id, Math.max(1, parseInt(e.target.value) || 1))} className="w-12 h-full text-center text-sm font-bold bg-transparent border-none p-0 focus:ring-0 text-[var(--text)]" />
-                            <button onClick={() => changeQuantity(s.id, s.quantity + 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface)]">+</button>
-                          </div>
+                          <QuantityStepper value={s.quantity} onChange={(n) => changeQuantity(s.id, n)} />
                         </>
                       ) : (
                         <button
@@ -508,11 +505,7 @@ export default function VincularVitrinaModal({
                       </div>
                       <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">
                         <span className="text-xs font-medium text-[var(--text-muted)]">Cantidad por venta</span>
-                        <div className="flex items-center border border-[var(--border)] bg-[var(--surface-2)] rounded-lg overflow-hidden h-7">
-                          <button onClick={() => changeQuantity(s.id, s.quantity - 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] hover:bg-[var(--surface)] font-bold transition-colors">-</button>
-                          <input type="number" value={s.quantity} onChange={(e) => changeQuantity(s.id, parseInt(e.target.value) || 1)} className="w-12 h-full text-center text-xs font-bold bg-transparent border-none appearance-none p-0 focus:ring-0 text-[var(--text)]" />
-                          <button onClick={() => changeQuantity(s.id, s.quantity + 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] hover:bg-[var(--surface)] font-bold transition-colors">+</button>
-                        </div>
+                        <QuantityStepper value={s.quantity} onChange={(n) => changeQuantity(s.id, n)} />
                       </div>
                     </div>
                   ))}

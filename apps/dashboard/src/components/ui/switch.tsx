@@ -8,6 +8,7 @@ interface SwitchProps {
     label?: ReactNode;
     disabled?: boolean;
     ariaLabel?: string;
+    id?: string;
 }
 
 /**
@@ -20,9 +21,10 @@ interface SwitchProps {
  * Tamaños por token fijo: pista h-6 w-11 (24×44px), perilla h-5 w-5 (20×20px),
  * padding px-0.5 (2px). ON = perilla a la derecha + verde; OFF = izquierda + gris.
  */
-export function Switch({ checked, onCheckedChange, label, disabled, ariaLabel }: SwitchProps) {
+export function Switch({ checked, onCheckedChange, label, disabled, ariaLabel, id }: SwitchProps) {
     return (
         <button
+            id={id}
             type="button"
             role="switch"
             aria-checked={checked}

@@ -16,13 +16,12 @@ import {
     Zap,
     Clock,
     Activity,
-    ToggleLeft,
-    ToggleRight,
     ChevronDown,
     ChevronRight
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
 
 function AuthFeedback() {
     const searchParams = useSearchParams();
@@ -388,16 +387,12 @@ function WebhookControlPanel() {
                                             {/* Fila 1: habilitar + nombre + métricas */}
                                             <div className="flex items-center justify-between gap-4">
                                                 <div className="flex items-center gap-3">
-                                                    <button
+                                                    <Switch
                                                         id={`toggle-${topic}`}
-                                                        onClick={() => handleChange(topic, 'enabled', !enabled)}
-                                                        title={enabled ? 'Deshabilitar' : 'Habilitar'}
-                                                        className="shrink-0"
-                                                    >
-                                                        {enabled
-                                                            ? <ToggleRight className="w-6 h-6 text-[var(--ok)]" />
-                                                            : <ToggleLeft className="w-6 h-6 text-[var(--text-faint)]" />}
-                                                    </button>
+                                                        checked={enabled}
+                                                        onCheckedChange={() => handleChange(topic, 'enabled', !enabled)}
+                                                        ariaLabel={enabled ? 'Deshabilitar' : 'Habilitar'}
+                                                    />
                                                     <div>
                                                         <p className="font-semibold text-sm text-[var(--text)]">{def.label}</p>
                                                         <p className="text-[10px] text-[var(--text-faint)] font-mono mt-0.5">{topic}</p>

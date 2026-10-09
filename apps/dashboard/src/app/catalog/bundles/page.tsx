@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Package, Search, Plus, Trash2, ArrowLeft, Save, Loader2, Link as LinkIcon, X } from 'lucide-react';
 import { dashboardService } from '@/lib/dashboard-service';
 import Link from 'next/link';
+import { QuantityStepper } from '@/components/ui/quantity-stepper';
 
 export default function BundlesPage() {
     const [bundleSku, setBundleSku] = useState("");
@@ -181,13 +182,7 @@ export default function BundlesPage() {
 
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs text-[var(--text-muted)] font-medium">Cant:</span>
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    value={comp.quantity}
-                                                    onChange={(e) => updateQuantity(comp.sku, parseInt(e.target.value) || 1)}
-                                                    className="w-16 px-2 py-1 text-sm border rounded text-center font-bold"
-                                                />
+                                                <QuantityStepper value={comp.quantity} onChange={(n) => updateQuantity(comp.sku, n)} showButtons={false} className="w-16" />
                                             </div>
 
                                             <button

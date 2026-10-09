@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Trash2, Loader2, AlertCircle, Check, ReceiptText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { QuantityStepper } from '@/components/ui/quantity-stepper';
 
 type Cliente = { id: string; nombre: string; vendedor_id: string | null; rango: { nombre: string; porcentaje: number } | null };
 type Vendedor = { id: string; nombre: string };
@@ -237,8 +238,7 @@ export default function NuevoPedidoPage() {
                     {l.precio_menudeo > 0 ? fmt(l.precio_menudeo) : <span className="italic text-[var(--text-faint)]">Precio pendiente</span>}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <input type="number" min={1} className="w-16 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-right text-[var(--text)]" value={l.cantidad}
-                      onChange={(e) => setLineas((prev) => prev.map((x) => claveLinea(x) === claveLinea(l) ? { ...x, cantidad: Number(e.target.value) || 1 } : x))} />
+                    <QuantityStepper value={l.cantidad} onChange={(n) => setLineas((prev) => prev.map((x) => claveLinea(x) === claveLinea(l) ? { ...x, cantidad: n } : x))} showButtons={false} className="w-16" />
                   </td>
                   <td className="px-4 py-2 text-right font-semibold text-[var(--text)]">{fmt(l.precio_menudeo * l.cantidad * (1 - porcentaje / 100))}</td>
                   <td className="px-4 py-2 text-right"><button onClick={() => quitar(claveLinea(l))} className="text-[var(--text-faint)] hover:text-[var(--err)]"><Trash2 className="w-4 h-4" /></button></td>

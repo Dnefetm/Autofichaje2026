@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { dispatchWorker } from '@/lib/dispatch-worker';
 import { X, Search, Package, Save, RefreshCw, Plus, Trash2, Tag, Barcode, Info } from 'lucide-react';
 import Link from 'next/link';
+import { QuantityStepper } from '@/components/ui/quantity-stepper';
+import { Switch } from '@/components/ui/switch';
 interface MappingModalProps {
 listing: any;
 onClose: () => void;
@@ -611,11 +613,7 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
                                 {(() => {
                                     const s = selectedSkus.find(x => x.sku === comparisonArticle.articulo_id);
                                     return s ? (
-                                        <div className="flex items-center border border-[var(--border)] bg-[var(--surface)] rounded-md overflow-hidden h-7">
-                                            <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="w-7 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface-2)]">-</button>
-                                            <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, Math.max(1, parseInt(e.target.value) || 1))} className="w-10 h-full text-center text-xs font-bold bg-transparent border-none p-0 focus:ring-0 text-[var(--text)]" />
-                                            <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="w-7 h-full flex items-center justify-center text-[var(--text)] font-bold hover:bg-[var(--surface-2)]">+</button>
-                                        </div>
+                                        <QuantityStepper value={s.quantity} onChange={(n) => handleQuantityChange(s.sku, n)} />
                                     ) : (
                                         <button onClick={() => handleAddSku(comparisonArticle)} className="px-3 py-1 bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-semibold rounded-md hover:brightness-110">Añadir</button>
                                     );
@@ -797,11 +795,7 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
 
                                         <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">
                                             <span className="text-xs font-medium text-[var(--text-muted)]">Multiplicador</span>
-                                            <div className="flex items-center border border-[var(--border)] bg-[var(--surface-2)] rounded-lg overflow-hidden h-7">
-                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity - 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] hover:bg-[var(--surface)] font-bold transition-colors">-</button>
-                                                <input type="number" value={s.quantity} onChange={(e) => handleQuantityChange(s.sku, parseInt(e.target.value) || 1)} className="w-12 h-full text-center text-xs font-bold bg-transparent border-none appearance-none p-0 focus:ring-0 text-[var(--text)]" />
-                                                <button onClick={() => handleQuantityChange(s.sku, s.quantity + 1)} className="w-9 h-full flex items-center justify-center text-[var(--text)] hover:bg-[var(--surface)] font-bold transition-colors">+</button>
-                                            </div>
+                                            <QuantityStepper value={s.quantity} onChange={(n) => handleQuantityChange(s.sku, n)} />
                                         </div>
                                     </div>
                                 ))
@@ -814,15 +808,7 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
                 <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--surface)] shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-20">
                     <label className="flex items-center gap-2.5 mr-auto cursor-pointer select-none" title="Si está apagado, este mapeo no alimenta ni recibe stock desde el inventario">
                         <span className="text-xs font-semibold text-[var(--text-muted)]">Sincronizar stock</span>
-                        <button
-                            type="button"
-                            role="switch"
-                            aria-checked={sincronizarStock}
-                            onClick={() => setSincronizarStock(v => !v)}
-                            className={`relative w-11 h-6 rounded-full transition-colors ${sincronizarStock ? 'bg-[var(--ok)]' : 'bg-[var(--border)]'}`}
-                        >
-                            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-[var(--text)] shadow transition-transform ${sincronizarStock ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
-                        </button>
+                        <Switch checked={sincronizarStock} onCheckedChange={() => setSincronizarStock(v => !v)} ariaLabel="Sincronizar stock" />
                     </label>
                     <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-[var(--text-muted)] bg-[var(--surface-2)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-2)]/80 hover:text-[var(--text)] transition-colors">
                         Cancelar
