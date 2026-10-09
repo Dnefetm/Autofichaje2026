@@ -555,6 +555,18 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         }
     }
 
+    // Refresca SOLO el mapeo (una query) sin recargar la página ni parpadear.
+    async function refreshMapeos() {
+        try {
+            const { data: mapeosData } = await supabase
+                .from('mapeo_publicacion_articulo')
+                .select(`*, articulo:articulos(articulo_id, nombre, marca, modelo)`)
+                .eq('publicacion_id', id);
+            setMapeos(mapeosData || []);
+            setPub((prev: any) => prev ? { ...prev, esta_mapeado: (mapeosData || []).length > 0 } : prev);
+        } catch { /* silencioso */ }
+    }
+
     async function generarFicha() {
         setGenerandoFicha(true);
         try {
@@ -1579,7 +1591,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 <MappingModal
                     listing={pub}
                     onClose={() => setShowMappingModal(false)}
-                    onSuccess={() => { loadAll(true); }}
+                    onSuccess={refreshMapeos}
                     onMappingChange={(id, inProgress) => setMappingInProgress(inProgress)}
                 />
             )}
