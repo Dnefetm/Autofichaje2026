@@ -17,6 +17,7 @@ import { PublishPanel } from '@/components/publish-panel';
 import { Switch } from '@/components/ui/switch';
 import { InlineField } from '@/components/ui/inline-field';
 import { PicturesEditor } from '@/components/ui/pictures-editor';
+import { buildSecondaryAttributeFields } from '@/lib/vitrina-fields';
 
 // --- Helpers -----------------------------------------------------------------
 const statusColors: Record<string, string> = {
@@ -182,6 +183,86 @@ function DescriptionSection({ text, pubId, lockedReason, onSaved }: { text: stri
                         {expanded ? 'Ver menos ↑' : 'Ver más ↓'}
                     </button>
                 )}
+            </div>
+        </div>
+    );
+}
+
+// --- Campo editable de característica secundaria ------------------------------
+function SecondaryAttrField({ pubId, attributeId, label, currentName, currentValueId, options, onSaved }: {
+    pubId: string;
+    attributeId: string;
+    label: string;
+    currentName: string;
+    currentValueId: string | null;
+    options: Array<{ value: string; label: string }> | null;
+    onSaved: () => void;
+}) {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(currentName);
+    const [draftId, setDraftId] = useState<string | null>(currentValueId);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const fieldId = `attr:${attributeId}`;
+
+    async function save() {
+        setSaving(true);
+        setError('');
+        try {
+            const value = options ? draft : draft.trim();
+            const change: any = { field: fieldId, value };
+            if (options) change.valueId = draftId || undefined;
+            const res = await fetch(`/api/vitrinas/${pubId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ changes: [change] }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error al sincronizar');
+            const r = Array.isArray(data.applied) ? data.applied.find((a: any) => a.field === fieldId) : null;
+            if (r && !r.ok) throw new Error(r.error || 'MeLi rechazó el cambio');
+            setEditing(false);
+            onSaved();
+        } catch (e: any) {
+            setError(e?.message || 'Error al guardar');
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    if (editing) {
+        return (
+            <div className="flex items-center justify-between py-1.5 border-b border-[var(--border)] last:border-0 gap-2">
+                <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider shrink-0 w-40">{label}</span>
+                <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                    {options ? (
+                        <select value={draftId ?? ''} onChange={(e) => { const v = e.target.value; const o = options.find((x) => x.value === v); setDraftId(v); setDraft(o?.label ?? ''); }} className="flex-1 h-9 text-sm border-2 border-[var(--accent)]/70 rounded-[var(--radius)] px-2 bg-[var(--surface)]">
+                            <option value="">(sin especificar)</option>
+                            {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                    ) : (
+                        <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }} className="flex-1 h-9 text-sm border-2 border-[var(--accent)]/70 rounded-[var(--radius)] px-2 font-mono" />
+                    )}
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : (
+                        <>
+                            <button onClick={save} className="p-1.5 bg-[var(--accent)] text-[var(--accent-ink)] rounded-[var(--radius-sm)] shrink-0" title="Guardar"><Check className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => setEditing(false)} className="p-1.5 bg-[var(--surface-2)] text-[var(--text-muted)] rounded-[var(--radius-sm)] shrink-0" title="Cancelar"><X className="w-3.5 h-3.5" /></button>
+                        </>
+                    )}
+                </div>
+                {error && <p className="text-[10px] text-[var(--err)] break-words">{error}</p>}
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex items-center justify-between py-1.5 border-b border-[var(--border)] last:border-0 gap-2 group">
+            <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider shrink-0 w-40">{label}</span>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-sm text-[var(--text)] break-words flex-1 min-w-0">{currentName || '—'}</span>
+                <button onClick={() => { setDraft(currentName); setDraftId(currentValueId); setEditing(true); setError(''); }} className="p-1 rounded hover:bg-[var(--surface-2)] text-[var(--text-faint)] hover:text-[var(--accent)] shrink-0" title={`Editar ${label}`}>
+                    <Pencil className="w-3.5 h-3.5" />
+                </button>
             </div>
         </div>
     );
@@ -379,17 +460,26 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [mappingInProgress, setMappingInProgress] = useState(false);
     // Ítem real de MeLi (sale_terms, pictures, attributes) para garantía, fotos y características.
     const [ctxItem, setCtxItem] = useState<any>(null);
+    const [ctxCategoryAttrs, setCtxCategoryAttrs] = useState<any[]>([]);
 
     useEffect(() => { loadAll(false); }, [id]);
 
-    // Carga el contexto MeLi en una sola llamada (valores actuales de garantía y fotos).
+    // Carga el contexto MeLi en una sola llamada (valores actuales de garantía, fotos y características).
     useEffect(() => {
         if (!id) return;
         fetch(`/api/vitrinas/${id}`, { method: 'GET' })
             .then(r => r.json())
-            .then((d: any) => { if (d?.ok && d.item) setCtxItem(d.item); })
+            .then((d: any) => { if (d?.ok) { setCtxItem(d.item); setCtxCategoryAttrs(d.categoryAttributes || []); } })
             .catch(() => { /* silencioso */ });
     }, [id]);
+
+    // Re-carga el contexto MeLi (tras guardar garantía, fotos o características).
+    async function reloadContext() {
+        try {
+            const d = await fetch(`/api/vitrinas/${id}`, { method: 'GET' }).then(r => r.json()).catch(() => null);
+            if (d?.ok) { setCtxItem(d.item); setCtxCategoryAttrs(d.categoryAttributes || []); }
+        } catch { /* silencioso */ }
+    }
 
     async function loadAll(silent = false) {
         if (!silent) setLoading(true);
@@ -702,6 +792,9 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
 
     const logistic = logisticConfig[pub.logistic_type] || null;
     const isVariant = pub.external_variation_id && pub.external_variation_id !== '0';
+    const isCatalogPub = pub.tipo_publicacion === 'catalogo' || pub.tipo_publicacion === 'catalogo_derivada';
+    const secondaryCtx = { item: ctxItem, description: '', categoryAttributes: ctxCategoryAttrs, isCatalog: isCatalogPub, soldQuantity: pub.sold_quantity ?? 0, isUP: false };
+    const secondaryFields = (ctxItem && ctxCategoryAttrs.length > 0) ? buildSecondaryAttributeFields(secondaryCtx) : [];
 
     return (
         <div className="flex-1 overflow-auto bg-[var(--surface-2)] min-h-screen">
@@ -1092,6 +1185,26 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 />
                             </div>
                         </Section>
+
+                        {/* Características secundarias (editables) */}
+                        {!isCatalogPub && secondaryFields.length > 0 && (
+                            <Section title={`Características (${secondaryFields.length})`} icon={<Tag className="w-4 h-4" />}>
+                                <div className="py-1">
+                                    {secondaryFields.map((f) => (
+                                        <SecondaryAttrField
+                                            key={f.id}
+                                            pubId={id}
+                                            attributeId={f.attributeId!}
+                                            label={f.label}
+                                            currentName={f.getValue(secondaryCtx) ?? ''}
+                                            currentValueId={f.getValueId ? f.getValueId(secondaryCtx) : null}
+                                            options={f.options || null}
+                                            onSaved={reloadContext}
+                                        />
+                                    ))}
+                                </div>
+                            </Section>
+                        )}
 
                         {/* Datos Comerciales */}
                         <Section title="Datos Comerciales" icon={<DollarSign className="w-4 h-4" />}>

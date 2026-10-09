@@ -57,6 +57,7 @@ export async function applyVitrinaChanges(
     const ctx: FieldContext = {
         item,
         description,
+        categoryAttributes: [],
         isCatalog: item.catalog_listing === true || item.listing_type_id === 'gold_product_page',
         soldQuantity: Number(item.sold_quantity ?? 0),
         isUP: item.family_name != null,
@@ -66,10 +67,25 @@ export async function applyVitrinaChanges(
     const variationId = hasVariation ? pub.external_variation_id : undefined;
 
     // 3. Validar (sin ejecutar aún)
-    const accepted: Array<{ field: string; value: any }> = [];
+    const accepted: Array<{ field: string; value: any; valueId?: string | null; isAttr?: boolean; attributeId?: string }> = [];
     const results: FieldResult[] = [];
 
     for (const ch of changes) {
+        // Características secundarias dinámicas (field = attr:<ID>)
+        if (ch.field.startsWith('attr:')) {
+            const attributeId = ch.field.slice(5);
+            const value = String(ch.value ?? '').trim();
+            if (!value) {
+                results.push({ field: ch.field, ok: false, error: 'Valor vacío' });
+                continue;
+            }
+            if (ctx.isCatalog) {
+                results.push({ field: ch.field, ok: false, error: 'Los atributos los impone el catálogo' });
+                continue;
+            }
+            accepted.push({ field: ch.field, value, valueId: ch.valueId ?? null, isAttr: true, attributeId });
+            continue;
+        }
         const f = getField(ch.field);
         if (!f) {
             results.push({ field: ch.field, ok: false, error: 'Campo desconocido' });
@@ -99,6 +115,13 @@ export async function applyVitrinaChanges(
     const descFields: Array<{ field: string; value: string }> = [];
 
     for (const a of accepted) {
+        if (a.isAttr) {
+            const attr: any = { id: a.attributeId, value_name: a.value };
+            if (a.valueId) attr.value_id = a.valueId;
+            attributes.push(attr);
+            itemFields.push(a.field);
+            continue;
+        }
         const f = getField(a.field)!;
         const patch = f.toMeliPatch(a.value, ctx);
         switch (f.writeKind) {

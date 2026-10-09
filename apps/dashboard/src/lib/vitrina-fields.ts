@@ -29,6 +29,7 @@ export type FieldType = 'text' | 'number' | 'select' | 'boolean' | 'textarea' | 
 export interface FieldContext {
     item: any;            // ítem MeLi (getItem) o su equivalente desde la BD
     description: string;  // descripción actual
+    categoryAttributes: any[]; // metadatos de atributos de la categoría (características secundarias)
     isCatalog: boolean;   // catalog_listing === true (ficha la impone MeLi)
     soldQuantity: number;
     isUP: boolean;        // tiene family_name (User Products)
@@ -37,6 +38,7 @@ export interface FieldContext {
 export interface FieldChange {
     field: string;
     value: any;
+    valueId?: string | null; // value_id de MeLi para atributos enum (listas cerradas)
 }
 
 export interface EditableField {
@@ -52,7 +54,8 @@ export interface EditableField {
     maxLength?: number;
     canEdit(ctx: FieldContext): { ok: boolean; reason?: string };
     getValue(ctx: FieldContext): any;
-    toMeliPatch(value: any, ctx: FieldContext): any;
+    getValueId?(ctx: FieldContext): string | null;
+    toMeliPatch(value: any, ctx: FieldContext, valueId?: string | null): any;
 }
 
 const yes = { ok: true };
@@ -254,6 +257,44 @@ export const VITRINA_FIELDS: EditableField[] = [
         },
     },
 ];
+
+// Atributos que NO son "características del producto" y no se exponen como editables.
+const FIXED_ATTR_IDS = new Set([
+    'BRAND', 'MODEL', 'GTIN', 'EAN', 'UPC', 'SELLER_SKU', 'SELLER_CUSTOM_FIELD',
+    'ITEM_CONDITION', 'SIZE_GRID_ID', 'EXCLUSIVE_CHANNEL',
+]);
+
+/**
+ * Construye los campos editables de las CARACTERÍSTICAS SECUNDARIAS (COLOR, MATERIAL,
+ * ORIGIN_COUNTRY, etc.) desde los metadatos de la categoría. Enum (lista cerrada) → select
+ * con value_id; libre → texto con value_name. Se identifican como `attr:<ID>`.
+ */
+export function buildSecondaryAttributeFields(ctx: FieldContext): EditableField[] {
+    const itemAttrMap = new Map<string, any>();
+    for (const a of (ctx.item.attributes || [])) itemAttrMap.set(a.id, a);
+    return (ctx.categoryAttributes || [])
+        .filter((a: any) => a && a.id && !FIXED_ATTR_IDS.has(a.id) && !(a.tags || {}).hidden)
+        .map((a: any) => {
+            const cur = itemAttrMap.get(a.id);
+            const values: Array<{ value: string; label: string }> = (a.values || []).map((v: any) => ({ value: String(v.id), label: v.name }));
+            const isEnum = values.length > 0;
+            return {
+                id: `attr:${a.id}`,
+                label: a.name || a.id,
+                type: isEnum ? 'select' : 'text',
+                writeKind: 'attribute' as const,
+                attributeId: a.id,
+                dbColumns: [],
+                options: isEnum ? values : undefined,
+                canEdit: (c) => (c.isCatalog ? no('Los atributos los impone el catálogo') : yes),
+                getValue: () => cur?.value_name ?? '',
+                getValueId: () => cur?.value_id ?? null,
+                toMeliPatch: (value, _c, valueId) => isEnum
+                    ? (valueId ? { id: a.id, value_id: valueId, value_name: String(value) } : { id: a.id, value_name: String(value) })
+                    : { id: a.id, value_name: String(value) },
+            };
+        });
+}
 
 export function getField(id: string): EditableField | undefined {
     return VITRINA_FIELDS.find((f) => f.id === id);
