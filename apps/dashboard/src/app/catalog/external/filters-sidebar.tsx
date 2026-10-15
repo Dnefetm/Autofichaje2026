@@ -8,6 +8,7 @@ export interface FilterState {
     marketplace_id: string | null;
     tipoPublicacion: string[];
     statusExterno: string[];
+    posiblesEliminadas: boolean;
     mapeoFilter: 'all' | 'unmapped' | 'mapped';
     bundleFilter: 'all' | 'only_bundles' | 'hide_bundles';
     brands: string[];
@@ -29,6 +30,7 @@ export const defaultFilters: FilterState = {
     marketplace_id: null,
     tipoPublicacion: [],
     statusExterno: [],
+    posiblesEliminadas: false,
     mapeoFilter: 'all',
     bundleFilter: 'all',
     brands: [],
@@ -107,6 +109,7 @@ function countActive(filters: FilterState): number {
     if (filters.marketplace_id) c++;
     if (filters.tipoPublicacion.length > 0) c++;
     if (filters.statusExterno.length > 0) c++;
+    if (filters.posiblesEliminadas) c++;
     if (filters.mapeoFilter !== 'all') c++;
     if (filters.bundleFilter !== 'all') c++;
     if (filters.brands.length > 0) c++;
@@ -221,6 +224,15 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                             </button>
                         ))}
                     </div>
+                </Accordion>
+
+                {/* Posibles eliminadas */}
+                <Accordion title="Posibles eliminadas" defaultOpen>
+                    <CheckItem
+                        label="Solo posibles eliminadas"
+                        checked={filters.posiblesEliminadas}
+                        onChange={() => set({ posiblesEliminadas: !filters.posiblesEliminadas })}
+                    />
                 </Accordion>
 
                 {/* Estado */}

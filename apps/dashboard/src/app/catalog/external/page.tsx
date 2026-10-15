@@ -123,6 +123,14 @@ function BundleBadge({ isBundle }: { isBundle: boolean }) {
     );
 }
 
+function PosibleEliminadaBadge() {
+    return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--warn)]/15 text-[var(--warn)] border border-[var(--warn)]/40">
+            ⚠ Posible eliminada
+        </span>
+    );
+}
+
 // --- Agrupación: solo variaciones del mismo external_item_id ---------------------
 // Los catálogos con par se excluyen de la query principal (server-side).
 // Los hijos de catálogo se cargan lazy cuando el usuario expande la fila.
@@ -338,7 +346,7 @@ function GroupedListingRows({ group, onMapear, mappingIds }: { group: GroupedLis
             // Query 1: catálogos derivados directos (por par_item_id)
             const { data: catData } = await supabase
                 .from('publicaciones_externas')
-                .select('id, external_item_id, titulo, tipo_publicacion, status_externo, listing_type_id, precio_venta, sold_quantity, stock_publicado, health, esta_mapeado, seller_custom_field, seller_sku, brand')
+                .select('id, external_item_id, titulo, tipo_publicacion, status_externo, posible_eliminada, listing_type_id, precio_venta, sold_quantity, stock_publicado, health, esta_mapeado, seller_custom_field, seller_sku, brand')
                 .eq('par_item_id', parent.external_item_id)
                 .in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
                 .eq('external_variation_id', '0')
@@ -348,7 +356,7 @@ function GroupedListingRows({ group, onMapear, mappingIds }: { group: GroupedLis
             if (parent.id_producto_catalogo) {
                 const { data } = await supabase
                     .from('publicaciones_externas')
-                    .select('id, external_item_id, titulo, tipo_publicacion, status_externo, listing_type_id, precio_venta, sold_quantity, stock_publicado, health, esta_mapeado, seller_custom_field, seller_sku, brand')
+                    .select('id, external_item_id, titulo, tipo_publicacion, status_externo, posible_eliminada, listing_type_id, precio_venta, sold_quantity, stock_publicado, health, esta_mapeado, seller_custom_field, seller_sku, brand')
                     .eq('id_producto_catalogo', parent.id_producto_catalogo)
                     .neq('external_item_id', parent.external_item_id)
                     .eq('external_variation_id', '0')
@@ -400,6 +408,7 @@ function GroupedListingRows({ group, onMapear, mappingIds }: { group: GroupedLis
                         <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[parent.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
                             {statusLabels[parent.status_externo] || parent.status_externo}
                         </span>
+                        {parent.posible_eliminada && <PosibleEliminadaBadge />}
                         {mappingIds.has(parent.id) ? (
                             <span className="inline-flex items-center gap-1 text-[10px] text-[var(--info)] font-semibold">
                                 <RefreshCw className="w-3 h-3 animate-spin" /> Mapeando…
@@ -597,6 +606,7 @@ function GroupedListingRows({ group, onMapear, mappingIds }: { group: GroupedLis
                                 <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[rel.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
                                     {statusLabels[rel.status_externo] || rel.status_externo}
                                 </span>
+                                {rel.posible_eliminada && <PosibleEliminadaBadge />}
                                 <TipoBadge tipo={rel.tipo_publicacion} />
                                 {rel.esta_mapeado
                                     ? <span className="text-xs text-[var(--ok)] font-semibold">Mapeado</span>
@@ -817,7 +827,10 @@ export default function VirtualCatalogPage() {
             // Estado: sin filtro explícito → solo vitrinas vivas (ocultar por defecto
             // cerradas/borradas/inactivas). Con filtro explícito se respeta la selección
             // (p. ej. marcar "Cerrada" para verlas).
-            if (filters.statusExterno.length > 0 && filters.statusExterno.length < 4) {
+            if (filters.posiblesEliminadas) {
+                // Solo publicaciones marcadas como "posible eliminada" (incluye cerradas).
+                query = query.eq('posible_eliminada', true);
+            } else if (filters.statusExterno.length > 0 && filters.statusExterno.length < 4) {
                 query = query.in('status_externo', filters.statusExterno);
             } else if (filters.statusExterno.length === 0) {
                 query = query.in('status_externo', ['active', 'paused', 'under_review']);
@@ -1085,6 +1098,7 @@ export default function VirtualCatalogPage() {
                                                             <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[p.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
                                                                 {statusLabels[p.status_externo] || p.status_externo}
                                                             </span>
+                                                            {p.posible_eliminada && <PosibleEliminadaBadge />}
                                                             {mappingIds.has(p.id) ? (
                                                                 <span className="inline-flex items-center gap-1 text-[10px] text-[var(--info)] font-semibold"><RefreshCw className="w-3 h-3 animate-spin" /> Mapeando…</span>
                                                             ) : p.esta_mapeado ? (

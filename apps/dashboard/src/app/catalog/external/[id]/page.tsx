@@ -846,6 +846,11 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap gap-2 mb-2">
                                 <StatusToggle id={id} current={pub.status_externo} disabled={pub.sync_disabled || false} />
+                                {pub.posible_eliminada && (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--warn)]/15 text-[var(--warn)] border border-[var(--warn)]/40">
+                                        ⚠ Posible eliminada
+                                    </span>
+                                )}
                                 {/* Tipo de publicación */}
                                 {pub.tipo_publicacion && tipoPubConfig[pub.tipo_publicacion] && (
                                     <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', (tipoPubConfig[pub.tipo_publicacion]?.color ?? ''))}>
