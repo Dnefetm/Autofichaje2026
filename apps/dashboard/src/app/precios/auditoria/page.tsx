@@ -15,16 +15,47 @@ export default function AuditoriaPricingPage() {
         loadDrafts();
     }, []);
 
+    const [loadError, setLoadError] = useState<string | null>(null);
+
     const loadDrafts = async () => {
         setLoading(true);
-        const { data } = await supabase
-            .from('publication_pricing_drafts')
-            .select('*, publicacion:publicaciones_externas(id, titulo, precio_venta, sku_fabricante, category_id, marketplace:marketplace_configs(account_name))')
-            .eq('pricing_review_status', 'pending');
-        setDrafts(data || []);
+        setLoadError(null);
+
+        // Paginado explicito: PostgREST devuelve como maximo 1,000 filas. Sin esto la
+        // bandeja veia 1,000 de los 6,842 borradores.
+        const PAGE = 1000;
+        let all: any[] = [];
+        for (let from = 0; ; from += PAGE) {
+            const { data, error } = await supabase
+                .from('publication_pricing_drafts')
+                // seller_sku es la columna REAL. sku_fabricante no existe y hacia fallar
+                // la consulta completa (400), dejando la bandeja en Todo al dia.
+                .select('*, publicacion:publicaciones_externas(id, titulo, precio_venta, seller_sku, seller_custom_field, free_shipping, shipping_cost_monto, sync_disabled, category_id, marketplace:marketplace_configs(account_name))')
+                .eq('pricing_review_status', 'pending')
+                .range(from, from + PAGE - 1);
+
+            if (error) {
+                setLoadError(error.message);
+                setDrafts([]);
+                setSelected(new Set());
+                setLoading(false);
+                return;
+            }
+            all = all.concat(data || []);
+            if (!data || data.length < PAGE) break;
+        }
+
+        setDrafts(all);
         setSelected(new Set());
         setLoading(false);
     };
+
+    // Un borrador solo es aprobable si el precio sirve y el envio es creible.
+    const esAprobable = (d: any) =>
+        Number(d.draft_price) > 0 &&
+        ['valid', 'estimated_params', 'override_active'].includes(d.pricing_status) &&
+        d.publicacion?.sync_disabled !== true &&
+        (!d.publicacion?.free_shipping || Number(d.publicacion?.shipping_cost_monto) > 0);
 
     const toggleSelect = (id: string) => {
         const next = new Set(selected);
@@ -34,8 +65,9 @@ export default function AuditoriaPricingPage() {
     };
 
     const toggleAll = () => {
-        if (selected.size === drafts.length) setSelected(new Set());
-        else setSelected(new Set(drafts.map(d => d.publicacion_id)));
+        const aprobables = drafts.filter(esAprobable).map(d => d.publicacion_id);
+        if (selected.size === aprobables.length) setSelected(new Set());
+        else setSelected(new Set(aprobables));
     };
 
     const handleApproveSelected = async () => {
@@ -83,6 +115,13 @@ export default function AuditoriaPricingPage() {
                 </div>
             </div>
 
+            {loadError && (
+                <div className="mb-4 p-4 rounded-xl border border-[var(--err)] bg-[var(--err)]/10 text-[var(--err)] text-sm">
+                    <b>No se pudo cargar la bandeja.</b> {loadError}
+                    <br />La lista vacia NO significa todo al dia.
+                </div>
+            )}
+
             {drafts.length === 0 ? (
                 <div className="bg-[var(--surface)] p-10 rounded-xl border border-[var(--border)] text-center text-[var(--text-muted)] flex flex-col items-center">
                     <CheckSquare className="w-10 h-10 text-[var(--ok)] mb-3" />
@@ -96,7 +135,7 @@ export default function AuditoriaPricingPage() {
                             <tr>
                                 <th className="px-4 py-3 w-10">
                                     <button onClick={toggleAll}>
-                                        {selected.size === drafts.length ? <CheckSquare className="w-4 h-4 text-[var(--accent)]" /> : <Square className="w-4 h-4" />}
+                                        {selected.size > 0 && selected.size === drafts.filter(esAprobable).length ? <CheckSquare className="w-4 h-4 text-[var(--accent)]" /> : <Square className="w-4 h-4" />}
                                     </button>
                                 </th>
                                 <th className="px-4 py-3">Publicación</th>
@@ -107,7 +146,7 @@ export default function AuditoriaPricingPage() {
                         </thead>
                         <tbody className="divide-y divide-[var(--border)]">
                             {drafts.map(d => {
-                                const cur = d.publicacion.precio_venta || 0;
+                                const cur = d.publicacion?.precio_venta || 0;
                                 const nxt = d.draft_price;
                                 const pct = cur > 0 ? ((nxt - cur) / cur) * 100 : 0;
                                 const isUp = pct > 0;
@@ -119,11 +158,11 @@ export default function AuditoriaPricingPage() {
                                             </button>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <p className="font-semibold text-[var(--text)] line-clamp-1" title={d.publicacion.titulo}>{d.publicacion.titulo}</p>
-                                            <p className="text-xs text-[var(--text-muted)]">SKU: {d.publicacion.sku_fabricante} • {d.publicacion.marketplace?.account_name}</p>
+                                            <p className="font-semibold text-[var(--text)] line-clamp-1" title={d.publicacion?.titulo || ""}>{d.publicacion?.titulo || "(Sin título)"}</p>
+                                            <p className="text-xs text-[var(--text-muted)]">SKU: {d.publicacion?.seller_sku || d.publicacion?.seller_custom_field || '-'} • {d.publicacion?.marketplace?.account_name || "-"}</p>
                                         </td>
-                                        <td className="px-4 py-3 text-[var(--text-muted)] font-medium"></td>
-                                        <td className="px-4 py-3 font-bold text-[var(--warn)]"></td>
+                                        <td className="px-4 py-3 text-[var(--text-muted)] font-medium">{Number(cur) > 0 ? '$' + Number(cur).toFixed(2) : '-'}</td>
+                                        <td className="px-4 py-3 font-bold text-[var(--warn)]">{Number(nxt) > 0 ? '$' + Number(nxt).toFixed(2) : 'bloqueado: ' + d.pricing_status}</td>
                                         <td className="px-4 py-3">
                                             {cur > 0 && pct !== 0 ? (
                                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold">

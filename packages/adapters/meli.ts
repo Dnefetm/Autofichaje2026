@@ -420,6 +420,17 @@ export class MeliAdapter implements MarketplaceAdapter {
                 logger.error({ accountId, itemId, status: shipResp.status, body: shipResp.data }, 'V32: ML bloqueó la petición de envíos (403 PolicyAgent)');
             }
             const listCost = shipResp.data?.coverage?.all_country?.list_cost;
+
+            // Un item de ENVIO GRATIS cuyo list_cost llega en 0 no es un costo real: es lo
+            // que devuelve MeLi cuando la peticion va sin contexto (dimensiones, item_price,
+            // listing_type_id, mode). Escribir ese 0 metia un envio de $0 en la formula del
+            // precio y lo subvaloraba sin dejar rastro.
+            if (isFree && Number(listCost) === 0) {
+                logger.warn({ accountId, itemId },
+                    'V36: MeLi devolvio list_cost=0 en item de envio gratis; NO se sobrescribe shipping_cost_monto');
+                return;
+            }
+
             if (listCost == null) return;
 
             await supabase

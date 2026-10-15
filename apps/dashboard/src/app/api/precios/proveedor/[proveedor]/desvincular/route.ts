@@ -64,5 +64,18 @@ export async function POST(
         console.error("Error updating matching_decisiones on unlink:", mdErr);
     }
 
-    return NextResponse.json({ ok: true });
+    // Ademas: el ALIAS canonico es de donde LEE el motor de precios
+    // (fn_costo_articulo_vigente hace JOIN con proveedor_articulos_alias). Sin borrarlo
+    // aqui, "desvincular precio" dejaba el costo vivo y el precio se seguia calculando.
+    const { error: aliasDelErr, count: aliasBorrados } = await supabaseAdmin
+        .from('proveedor_articulos_alias')
+        .delete({ count: 'exact' })
+        .eq('proveedor', decodeURIComponent(proveedor))
+        .eq('articulo_id', articulo_id);
+
+    if (aliasDelErr) {
+        return NextResponse.json({ ok: false, error: friendlyError(aliasDelErr) }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, alias_borrados: aliasBorrados ?? 0 });
 }

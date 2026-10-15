@@ -21,12 +21,14 @@ export async function POST(
         return NextResponse.json({ ok: false, error: 'Faltan datos para desvincular' }, { status: 400 });
     }
 
-    // Borra el alias manual (el vínculo). Solo actúa sobre proveedor_articulos_alias.
+    // Desvincular debe BORRAR SIEMPRE. Antes exigia locked = true, pero el endpoint de
+    // vincular nunca escribia ese flag: este DELETE borraba 0 filas y respondia ok: true,
+    // dejando el alias vivo. Consecuencia: el motor de precios seguia calculando el costo
+    // y el producto seguia apareciendo como "Ya Vinculado", sin poder reasignarlo.
     let query = supabaseAdmin
         .from('proveedor_articulos_alias')
-        .delete()
-        .eq('proveedor', proveedorDecoded)
-        .eq('locked', true);
+        .delete({ count: 'exact' })
+        .eq('proveedor', proveedorDecoded);
 
     if (codigo_excel) {
         query = query.eq('codigo_excel', codigo_excel);
@@ -34,7 +36,7 @@ export async function POST(
         query = query.eq('marca_excel', marca_excel).eq('modelo_excel', modelo_excel);
     }
 
-    const { error } = await query;
+    const { error, count } = await query;
     if (error) {
         return NextResponse.json({ ok: false, error: friendlyError(error) }, { status: 500 });
     }
@@ -48,5 +50,7 @@ export async function POST(
         console.error('Error re-materializando tras desvincular:', matErr);
     }
 
-    return NextResponse.json({ ok: true });
+    // Se devuelve cuantas filas se borraron DE VERDAD: si son 0, el vinculo no existia.
+    // Antes la respuesta era un ok vacio que ocultaba el fallo.
+    return NextResponse.json({ ok: true, borradas: count ?? 0 });
 }
