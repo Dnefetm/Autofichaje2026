@@ -218,7 +218,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const [categoryOverride, setCategoryOverride] = useState<string>('');
     const [familyNameOverride, setFamilyNameOverride] = useState<string>('');
     const [priceOverride, setPriceOverride] = useState<string>('');
-    const [stockOverride, setStockOverride] = useState<string>('');
+    const [stockOverride, setStockOverride] = useState<string>('1');
     const [descriptionOverride, setDescriptionOverride] = useState<string>('');
     // Identificación editable (marca/modelo/SKU/GTIN). Vacío = usar el valor resuelto por el backend.
     const [marcaOverride, setMarcaOverride] = useState<string>('');
@@ -624,6 +624,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     category_id: categoryId || undefined,
                     listing_type_id: listingType,
                     dry_run: true,
+                    ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
                     ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
                     ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
@@ -658,6 +659,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     category_id: forcedCategoryId,
                     listing_type_id: listingType,
                     dry_run: true,
+                    ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
                 }),
             });
@@ -803,7 +805,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setCategoryOverride('');
         setFamilyNameOverride('');
         setPriceOverride('');
-        setStockOverride('');
+        setStockOverride('1');
         setDescriptionOverride('');
         setExtractUrl('');
         setCatalogResults([]);
@@ -981,6 +983,23 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                     <option value="silver">Silver</option>
                                     <option value="free">Free</option>
                                 </select>
+                            </div>
+
+                            {/* Stock inicial */}
+                            <div>
+                                <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5" htmlFor="publish-stock">
+                                    Stock inicial
+                                </label>
+                                <input
+                                    id="publish-stock"
+                                    type="number"
+                                    min="0"
+                                    value={stockOverride}
+                                    onChange={e => setStockOverride(e.target.value)}
+                                    placeholder="1"
+                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface)] font-mono"
+                                />
+                                <p className="text-[10px] text-[var(--text-faint)] mt-1">Stock a publicar (default 1, editable).</p>
                             </div>
 
                             {/* Error general */}
@@ -1393,10 +1412,10 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 min="0"
                                                 value={stockOverride !== '' ? stockOverride : (t?.paso_4_stock?.available_quantity ?? '')}
                                                 onChange={e => setStockOverride(e.target.value)}
-                                                placeholder="Stock (vacío = toma el del catálogo maestro)"
+                                                placeholder="1"
                                                 className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
                                             />
-                                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Vacío = usa el stock del catálogo maestro ({t?.paso_4_stock?.available_quantity ?? '—'}).</p>
+                                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Stock a publicar (default 1). Vacío = usa el del catálogo maestro ({t?.paso_4_stock?.available_quantity ?? '—'}).</p>
                                         </div>
                                         {/* Descripción */}
                                         <div>

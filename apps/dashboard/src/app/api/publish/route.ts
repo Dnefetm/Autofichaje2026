@@ -26,6 +26,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import { resolvePublicationAI } from '@gestor/sync/meli-ai-helper';
+import { registrarAuditoria } from '@/lib/auditoria';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,6 +128,7 @@ export async function POST(req: NextRequest) {
             catalog_product_id = null as string | null,
             catalog_listing = false as boolean,
             stock_override = null as number | null,
+            compatibilities = null as any,
             source_marketplace_id = null as string | null,
             source_item_id = null as string | null,
         } = body;
@@ -646,6 +648,7 @@ export async function POST(req: NextRequest) {
         // -- 5.3 Stock: override manual > copiado de la vidriera origen > inventario --
         if (stock_override != null && Number(stock_override) >= 0) {
             stock = Number(stock_override);
+            stockFailed = false; // el operador fijó el stock manualmente: no bloquear por fallo de cálculo
             trace.paso_5_3_stock_manual = { stock, nota: 'Stock fijado manualmente por el operador' };
         } else if (stock_override == null && sourceData?.stock != null && Number(sourceData.stock) >= 0) {
             stock = Number(sourceData.stock);
@@ -692,6 +695,13 @@ export async function POST(req: NextRequest) {
 
         if (resolved.marca)            attributes.push({ id: 'BRAND',  value_name: resolved.marca });
         if (resolved.modelo)           attributes.push({ id: 'MODEL',  value_name: resolved.modelo });
+        // PART_NUMBER: prioridad al override manual del panel (MODEL/PART_NUMBER), luego modelo/SKU.
+        // Solo si la categoría reconoce PART_NUMBER (evita rechazos en otras categorías).
+        const overridePartNumber = (attribute_overrides || []).find((o: any) => o.id === 'PART_NUMBER' || o.id === 'MODEL')?.value_name;
+        const partNumberEfectivo = overridePartNumber || resolved.modelo || sku_efectivo;
+        if (partNumberEfectivo && (attrInfo?.raw || []).some((a: any) => a.id === 'PART_NUMBER')) {
+            attributes.push({ id: 'PART_NUMBER', value_name: partNumberEfectivo });
+        }
         if (resolved.codigo_universal) attributes.push({ id: 'GTIN',   value_name: resolved.codigo_universal });
         if (sku_efectivo)              attributes.push({ id: 'SELLER_SKU', value_name: sku_efectivo });
         if (resolved.pais_origen)      attributes.push({ id: 'ORIGIN_COUNTRY', value_name: resolved.pais_origen });
@@ -1063,6 +1073,19 @@ export async function POST(req: NextRequest) {
             });
         }
 
+        // -- 11.5 Pre-vuelo: POST /items/validate (sin crear la publicación) -----
+        const validacion = await (meli as any).validateItem(marketplace_id, tradicionalBody);
+        trace.paso_11_5_validate = validacion;
+        if (!validacion.ok) {
+            return NextResponse.json({
+                ok: false,
+                error: 'MeLi rechazó la validación previa (no se creó la publicación)',
+                errores: validacion.errores,
+                duracion_ms: Date.now() - startTime,
+                trace,
+            }, { status: 422 });
+        }
+
         // -- 12. Publicar en MeLi: primero la TRADICIONAL (base) ----------------
         const created = await (meli as any).createItem(marketplace_id, tradicionalBody);
         trace.paso_12_meli_create = {
@@ -1130,6 +1153,18 @@ export async function POST(req: NextRequest) {
             };
         } else {
             trace.paso_12b_catalogo = { omitido: 'Sin catálogo' };
+        }
+
+        // -- 12.5 Compatibilidades vehiculares (autopartes): opcional, no bloqueante --
+        if (compatibilities && ((compatibilities.products || []).length > 0 || (compatibilities.products_families || []).length > 0)) {
+            try {
+                const compRes = await (meli as any).addCompatibilities(marketplace_id, created.item_id, compatibilities);
+                trace.paso_12_5_compatibilidades = { ok: true, created_compatibilities_count: compRes?.created_compatibilities_count ?? null };
+            } catch (compErr: any) {
+                trace.paso_12_5_compatibilidades = { error: compErr.message || String(compErr) };
+            }
+        } else {
+            trace.paso_12_5_compatibilidades = { omitido: 'Sin compatibilidades en el request' };
         }
 
         // -- 13. Descripción: va a la TRADICIONAL (la de catálogo la aporta MeLi) --
@@ -1226,6 +1261,12 @@ export async function POST(req: NextRequest) {
             persistidas: persistedIds.length,
             errores:     persistErrors,
         };
+
+        // -- 14a. Registro de auditoría: la publicación recién creada nace "auditada".
+        // (Es recién publicada: no requiere revisión inmediata. Fail-safe, no bloquea la respuesta.)
+        for (const pid of persistedIds) {
+            await registrarAuditoria(pid, 'publicacion', sourceData ? 'creada_desde_copia' : 'creada_nueva', { item_id: created.item_id });
+        }
 
         // -- 14b. Vincular tradicional ↔ catálogo de inmediato -----------------
         // El RPC recalcular_par_item_id solo empareja tipo 'tradicional' (NO 'up'),

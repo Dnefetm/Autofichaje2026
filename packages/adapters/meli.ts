@@ -389,7 +389,18 @@ export class MeliAdapter implements MarketplaceAdapter {
     // V32: sincroniza el costo de envío efectivo que MeLi cobra por un ítem.
     // Se invoca desde syncCatalogItem (flujo automático webhook → sync_item), para que
     // el envío se actualice sin depender del botón manual "Forzar Sync MeLi".
-    async syncShippingCost(accountId: string, itemId: string): Promise<void> {
+    //
+    // V37: devuelve el RESULTADO. Antes devolvia void y se tragaba el 403 de politica de
+    // MeLi (PA_UNAUTHORIZED_RESULT_FROM_POLICIES): el boton "refrescar envío" respondia
+    // success:true sin haber actualizado nada, asi que el envío se quedaba en 0 sin que
+    // nadie supiera por qué.
+    async syncShippingCost(accountId: string, itemId: string): Promise<{
+        actualizado: boolean;
+        status?: number;
+        list_cost?: number | null;
+        motivo?: string;
+        detalle?: any;
+    }> {
         try {
             const { data: mkp } = await supabase
                 .from('marketplace_configs')
@@ -397,41 +408,62 @@ export class MeliAdapter implements MarketplaceAdapter {
                 .eq('id', accountId)
                 .single();
             const sellerId = mkp?.settings?.seller_id;
-            if (!sellerId) return;
+            if (!sellerId) return { actualizado: false, motivo: 'cuenta_sin_seller_id' };
 
             const { data: pub } = await supabase
                 .from('publicaciones_externas')
-                .select('id, free_shipping')
+                .select('id, free_shipping, precio_venta, listing_type_id, logistic_type')
                 .eq('marketplace_id', accountId)
                 .eq('external_item_id', itemId)
                 .eq('external_variation_id', '0')
                 .maybeSingle();
-            if (!pub) return;
+            if (!pub) return { actualizado: false, motivo: 'publicacion_no_registrada_en_bd' };
 
             const isFree = pub.free_shipping === true;
-            const queryParam = isFree ? '&free_shipping=true' : '';
-            const path = `/users/${sellerId}/shipping_options/free?item_id=${itemId}${queryParam}`;
             const accessToken = await this.getAccessToken(accountId);
-            const shipResp = await axios.get(
-                `https://api.mercadolibre.com${path}`,
-                { headers: { Authorization: `Bearer ${accessToken}` }, validateStatus: () => true }
-            );
-            if (shipResp.status === 403) {
-                logger.error({ accountId, itemId, status: shipResp.status, body: shipResp.data }, 'V32: ML bloqueó la petición de envíos (403 PolicyAgent)');
-            }
-            const listCost = shipResp.data?.coverage?.all_country?.list_cost;
 
-            // Un item de ENVIO GRATIS cuyo list_cost llega en 0 no es un costo real: es lo
-            // que devuelve MeLi cuando la peticion va sin contexto (dimensiones, item_price,
-            // listing_type_id, mode). Escribir ese 0 metia un envio de $0 en la formula del
-            // precio y lo subvaloraba sin dejar rastro.
-            if (isFree && Number(listCost) === 0) {
-                logger.warn({ accountId, itemId },
-                    'V36: MeLi devolvio list_cost=0 en item de envio gratis; NO se sobrescribe shipping_cost_monto');
-                return;
+            // V38: COTIZAR CON CONTEXTO COMPLETO. Antes se llamaba solo con item_id y el
+            // flag de envio gratis tomado de la base. Medido contra MeLi:
+            //   publicacion REGULAR (gold_special / silver / gold_pro) -> list_cost 74.50
+            //     CON o SIN envio gratis: una publicacion regular SIEMPRE tiene costo de envio.
+            //   publicacion 'free' (gratuita) SIN envio gratis -> list_cost 0.
+            // Sin dimensions + item_price + listing_type_id + mode, MeLi responde list_cost=0
+            // y ese 0 se guardaba: el precio quedaba sin envio aunque la publicacion si lo tenga.
+            let item: any = null;
+            try { item = await this.getItem(accountId, itemId); } catch { /* se usa lo de la base */ }
+
+            const dims = item?.shipping?.dimensions;
+            const cotizacion = await this.cotizarEnvioCosto(accountId, {
+                largo_cm: Number(dims?.length) || 25,
+                ancho_cm: Number(dims?.width) || 15,
+                alto_cm: Number(dims?.height) || 4,
+                peso_gramos: dims?.weight ? Math.round(Number(dims.weight) * 1000) : 1000,
+                item_price: Number(item?.price ?? pub.precio_venta ?? 0),
+                listing_type_id: String(item?.listing_type_id ?? pub.listing_type_id ?? 'gold_special'),
+                mode: String(item?.shipping?.mode ?? pub.logistic_type ?? 'me2'),
+                free_shipping: isFree,
+            });
+
+            const listingType = String(item?.listing_type_id ?? pub.listing_type_id ?? '');
+            const listCost = cotizacion.list_cost;
+
+            if (cotizacion.status !== 200 && listCost == null) {
+                logger.error({ accountId, itemId, status: cotizacion.status, raw: cotizacion.raw },
+                    'V38: MeLi no devolvio cotizacion de envio');
+                return { actualizado: false, status: cotizacion.status, motivo: 'meli_sin_coverage', detalle: cotizacion.raw };
             }
 
-            if (listCost == null) return;
+            // Un 0 en una publicacion REGULAR es una respuesta incompleta, no un dato:
+            // no se sobrescribe el envio que ya estaba guardado.
+            if (Number(listCost) === 0 && listingType !== 'free') {
+                logger.warn({ accountId, itemId, listingType },
+                    'V38: MeLi devolvio list_cost=0 en una publicacion regular; NO se sobrescribe shipping_cost_monto');
+                return { actualizado: false, list_cost: 0, motivo: 'list_cost_cero_en_publicacion_regular', detalle: { listing_type_id: listingType } };
+            }
+
+            if (listCost == null) {
+                return { actualizado: false, status: cotizacion.status, motivo: 'meli_sin_coverage', list_cost: null };
+            }
 
             await supabase
                 .from('publicaciones_externas')
@@ -445,8 +477,11 @@ export class MeliAdapter implements MarketplaceAdapter {
             } catch (recalcErr: any) {
                 logger.warn({ accountId, itemId, pubId: pub.id, error: recalcErr?.message }, 'V32: fallo al recalcular precio tras sincronizar envío');
             }
+
+            return { actualizado: true, status: cotizacion.status, list_cost: listCost };
         } catch (err: any) {
             logger.warn({ accountId, itemId, error: err?.message }, 'V32: fallo al sincronizar costo de envío');
+            return { actualizado: false, motivo: 'excepcion', detalle: err?.message };
         }
     }
 
@@ -1247,7 +1282,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 if (fee && (fee.pct != null || fee.amount != null || fee.fixed_fee != null)) {
                     await supabase
                         .from('publicaciones_externas')
-                        .update({ comision_porcentaje: fee.pct, comision_monto: fee.amount, comision_fijo: fee.fixed_fee })
+                        .update({ comision_porcentaje: fee.pct, comision_monto: fee.amount })
                         .eq('marketplace_id', accountId)
                         .eq('external_item_id', row.external_item_id)
                         .eq('external_variation_id', '0');
@@ -1545,6 +1580,46 @@ export class MeliAdapter implements MarketplaceAdapter {
             'getCategoryAttributes completado'
         );
         return { required, parent_pk, child_pk, optional, raw };
+    }
+
+    /**
+     * validateItem — Pre-vuelo de validación de un ítem sin crearlo.
+     * POST /items/validate: 204 = válido; 400 = errores (cause[]).
+     */
+    async validateItem(accountId: string, itemBody: any): Promise<{ ok: boolean; errores?: Array<{ code?: string; message?: string }> }> {
+        const accessToken = await this.getAccessToken(accountId);
+        try {
+            await axios.post('https://api.mercadolibre.com/items/validate', itemBody, {
+                headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            });
+            return { ok: true };
+        } catch (err: any) {
+            const status = err.response?.status;
+            const cause = err.response?.data?.cause;
+            if (status === 400 && Array.isArray(cause)) {
+                return { ok: false, errores: cause.map((c: any) => ({ code: c.code, message: c.message })) };
+            }
+            throw err;
+        }
+    }
+
+    /**
+     * addCompatibilities — Escribe compatibilidades vehiculares de un ítem (autopartes).
+     * POST /items/{id}/compatibilities. Body real de MeLi: { products, products_families }.
+     * creation_source se inyecta 'DEFAULT' si no viene.
+     */
+    async addCompatibilities(accountId: string, itemId: string, payload: any): Promise<any> {
+        const accessToken = await this.getAccessToken(accountId);
+        const body: any = { ...payload };
+        if (Array.isArray(body.products)) {
+            body.products = body.products.map((p: any) => ({ creation_source: 'DEFAULT', ...p }));
+        }
+        const resp = await axios.post(
+            `https://api.mercadolibre.com/items/${itemId}/compatibilities`,
+            body,
+            { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+        );
+        return resp.data;
     }
 
     /**
@@ -1916,9 +1991,13 @@ export class MeliAdapter implements MarketplaceAdapter {
     async searchCatalog(accountId: string, query: string): Promise<{ results: any[] }> {
         const accessToken = await this.getAccessToken(accountId);
         try {
+            const trimmed = query.trim();
+            const isGtin = /^\d{8,14}$/.test(trimmed);
             const resp = await axios.get('https://api.mercadolibre.com/products/search', {
                 headers: { Authorization: `Bearer ${accessToken}` },
-                params: { status: 'active', site_id: 'MLM', q: query, limit: 5 },
+                params: isGtin
+                    ? { status: 'active', site_id: 'MLM', product_identifier: trimmed, limit: 5 }
+                    : { status: 'active', site_id: 'MLM', q: query, limit: 5 },
             });
             const results = Array.isArray(resp.data?.results) ? resp.data.results : [];
             logger.info({ accountId, query, count: results.length }, 'searchCatalog completado');

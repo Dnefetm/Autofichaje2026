@@ -201,6 +201,22 @@ results.errors.push(`Fatal: ${err.message}`);
     return NextResponse.json(results);
 }
 
+async function handlePublishItem(job: any): Promise<void> {
+// Llama al motor de publicación EN MEMORIA (no HTTP externo): evita duplicar
+// la función serverless en Vercel y el doble cobro de Active CPU.
+const { POST: publishPost } = await import('@/app/api/publish/route');
+const req = new NextRequest('http://localhost/api/publish', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(job.payload || {}),
+});
+const res = await publishPost(req);
+if (res.status >= 400) {
+const json = await res.json().catch(() => ({}));
+throw new Error(`PUBLISH_FAILED status=${res.status}: ${json?.error || json?.message || 'error desconocido'}`);
+}
+}
+
 async function processOneJob(job: any, meli: MeliAdapter): Promise<{ done: boolean; checkpoint?: any }> {
 const maxAttempts = job.max_attempts || 3;
 if ((job.attempts || 0) >= maxAttempts) {
@@ -248,6 +264,9 @@ break;
 case 'confirm_matching_batch':
 await handleConfirmMatchingBatch(job);
 break;
+case 'publish_item':
+await handlePublishItem(job);
+break;
 default:
 throw new Error(`Tipo de job no soportado: ${job.type}`);
 }
@@ -281,6 +300,12 @@ return { done: true };
 }
 const backoffMs = Math.min(attempts * 2 * 60 * 1000, 15 * 60 * 1000);
 await supabaseAdmin.from('jobs').update({ status: 'pending', attempts, processed_at: new Date().toISOString(), scheduled_at: new Date(Date.now() + backoffMs).toISOString(), error_log: `Rate Limit. Reintento ${attempts}/${maxRateLimitRetries} en ${Math.round(backoffMs/60000)}min.` }).eq('id', job.id);
+return { done: true };
+}
+
+const isPublishFail = errMessage.includes('publish_failed');
+if (isPublishFail) {
+await supabaseAdmin.from('jobs').update({ status: 'failed', attempts: (job.attempts || 0) + 1, processed_at: new Date().toISOString(), error_log: error.message }).eq('id', job.id);
 return { done: true };
 }
 
