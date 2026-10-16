@@ -7,7 +7,7 @@ import Link from 'next/link';
 import {
     ArrowLeft, AlertCircle, Image as ImageIcon,
     ExternalLink, RefreshCw,
-    FileText, XCircle, CheckCircle, Link2, Plus, Sparkles
+    FileText, XCircle, CheckCircle, Link2, Plus, Sparkles, Clock
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -390,6 +390,12 @@ export default function ArticuloDetailPage() {
                                 : p.status_externo === 'paused'
                                     ? 'bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30'
                                     : 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]';
+                            const auditSinAuditar = p.ultima_auditoria_precio_el == null && p.ultima_auditoria_pub_el == null;
+                            const _msAudit = auditSinAuditar ? null : Math.min(
+                                p.ultima_auditoria_precio_el ? new Date(p.ultima_auditoria_precio_el).getTime() : Infinity,
+                                p.ultima_auditoria_pub_el ? new Date(p.ultima_auditoria_pub_el).getTime() : Infinity,
+                            );
+                            const auditVieja = !auditSinAuditar && _msAudit != null && (Date.now() - _msAudit) / 86400000 > 7;
                             return (
                                 <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
                                     <div className="min-w-0">
@@ -404,6 +410,16 @@ export default function ArticuloDetailPage() {
                                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]">{tipoLabel}</span>
                                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]">{listingLabel}</span>
                                             <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusTone)}>{statusLabel}</span>
+                                            {auditSinAuditar && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-[var(--err)]/10 text-[var(--err)] border-[var(--err)]/30" title="Sin auditoría de precio ni de publicación">
+                                                    <AlertCircle className="w-3 h-3" /> Sin auditar
+                                                </span>
+                                            )}
+                                            {auditVieja && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30" title="La auditoría más reciente (precio o publicación) tiene más de 7 días">
+                                                    <Clock className="w-3 h-3" /> Auditoría +7 días
+                                                </span>
+                                            )}
                                         </div>
                                         <p className="text-[11px] text-[var(--text-faint)] mt-1 font-mono">
                                             {p.account_name || '—'} · {p.external_item_id}

@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
                     id, marketplace_id, external_item_id, status_externo, titulo,
                     tipo_publicacion, listing_type_id, free_shipping, precio_venta,
                     stock_publicado, logistic_type, permalink,
+                    ultima_auditoria_precio_el, ultima_auditoria_precio_accion,
+                    ultima_auditoria_pub_el, ultima_auditoria_pub_accion,
                     marketplace_configs(account_name)
                 )
             `)
@@ -150,6 +152,10 @@ export async function POST(req: NextRequest) {
                 permalink: p.permalink,
                 marketplace_id: p.marketplace_id,
                 account_name: p.marketplace_configs?.account_name || null,
+                ultima_auditoria_precio_el: p.ultima_auditoria_precio_el || null,
+                ultima_auditoria_precio_accion: p.ultima_auditoria_precio_accion || null,
+                ultima_auditoria_pub_el: p.ultima_auditoria_pub_el || null,
+                ultima_auditoria_pub_accion: p.ultima_auditoria_pub_accion || null,
             }));
 
         return NextResponse.json({
