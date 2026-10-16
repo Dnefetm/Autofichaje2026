@@ -1595,9 +1595,22 @@ export class MeliAdapter implements MarketplaceAdapter {
             return { ok: true };
         } catch (err: any) {
             const status = err.response?.status;
-            const cause = err.response?.data?.cause;
+            const data = err.response?.data;
+            const cause = data?.cause;
             if (status === 400 && Array.isArray(cause)) {
-                return { ok: false, errores: cause.map((c: any) => ({ code: c.code, message: c.message })) };
+                return {
+                    ok: false,
+                    errores: cause.map((c: any) => ({
+                        code: c.code || c.type || 'validation_error',
+                        message: c.message || JSON.stringify(c),
+                    })),
+                };
+            }
+            if (data?.message) {
+                return {
+                    ok: false,
+                    errores: [{ code: data.error || 'error', message: data.message }],
+                };
             }
             throw err;
         }

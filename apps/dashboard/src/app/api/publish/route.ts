@@ -858,7 +858,16 @@ export async function POST(req: NextRequest) {
             trace.paso_8_overrides_usuario = attribute_overrides;
         }
 
-        trace.paso_8_attributes_final = allAttributes;
+        // Descartar atributos que MeLi marca como read_only o de sistema en la categoría (ej. PACKS_NUMBER, VALUE_ADDED_TAX)
+        const readOnlyAttrIds = new Set(
+            (attrInfo.raw || [])
+                .filter((a: any) => a.tags?.read_only || (a.tags?.hidden && a.id !== 'SELLER_SKU' && a.id !== 'GTIN' && a.id !== 'ITEM_CONDITION'))
+                .map((a: any) => a.id)
+        );
+        const cleanAttributes = allAttributes.filter(
+            (a: any) => !readOnlyAttrIds.has(a.id) && (a.value_name != null && a.value_name !== '' || a.value_id != null)
+        );
+        trace.paso_8_attributes_final = cleanAttributes;
 
         // Atributos requeridos todavía faltantes después del AI
         const stillMissingIds = new Set(allAttributes.map((a: any) => a.id));
@@ -1001,7 +1010,7 @@ export async function POST(req: NextRequest) {
                     : []),
             ],
             pictures: picturesField,
-            attributes: allAttributes,
+            attributes: cleanAttributes,
             // legacy: MeLi exige title; UP: family_name.
             ...(isLegacy ? { title: titleLegacy } : { family_name: familyNameFinal }),
         };
@@ -1079,10 +1088,17 @@ export async function POST(req: NextRequest) {
         const validacion = await (meli as any).validateItem(marketplace_id, tradicionalBody);
         trace.paso_11_5_validate = validacion;
         if (!validacion.ok) {
+            const erroresFormateados: string[] = (validacion.errores || []).map((e: any) => {
+                if (typeof e === 'string') return e;
+                const code = e?.code ? `[${e.code}] ` : '';
+                return `${code}${e?.message || JSON.stringify(e)}`;
+            });
+            console.error('[publish/validateItem] MeLi rechazó la validación previa:', JSON.stringify(validacion.errores, null, 2));
             return NextResponse.json({
                 ok: false,
                 error: 'MeLi rechazó la validación previa (no se creó la publicación)',
-                errores: validacion.errores,
+                errores: erroresFormateados,
+                meli_error: { cause: validacion.errores },
                 duracion_ms: Date.now() - startTime,
                 trace,
             }, { status: 422 });

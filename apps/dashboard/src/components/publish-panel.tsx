@@ -1107,9 +1107,12 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         <h3 className="font-bold text-[var(--err)] text-sm">Error de validación</h3>
                                     </div>
                                     <p className="text-xs text-[var(--err)] mb-2">{previewResult.data.error}</p>
-                                    {previewResult.data.errores?.map((e: string, i: number) => (
-                                        <p key={i} className="text-xs text-[var(--err)] font-mono bg-[var(--err)]/10 px-2 py-1 rounded mt-1">• {e}</p>
-                                    ))}
+                                    {previewResult.data.errores?.map((e: any, i: number) => {
+                                        const txt = typeof e === 'string' ? e : `${e?.code ? `[${e.code}] ` : ''}${e?.message || JSON.stringify(e)}`;
+                                        return (
+                                            <p key={i} className="text-xs text-[var(--err)] font-mono bg-[var(--err)]/10 px-2 py-1 rounded mt-1">• {txt}</p>
+                                        );
+                                    })}
                                     {previewResult.data.meli_error && (
                                         <div className="mt-3 p-3 bg-[var(--err)]/10 rounded-lg border border-[var(--err)]/30">
                                             <p className="text-[10px] font-bold uppercase text-[var(--err)] mb-1.5">Detalle de MeLi</p>
@@ -1675,11 +1678,11 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             )}
                                         </div>
 
-                                        {/* Publicar similar (duplicado independiente) */}
-                                        <label className="flex items-start gap-2 text-xs text-[var(--text)] cursor-pointer p-2 rounded border border-[var(--border)] bg-[var(--surface-2)]">
-                                            <input type="checkbox" checked={forceDuplicate} onChange={e => setForceDuplicate(e.target.checked)} className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)] mt-0.5" />
-                                            <span>Publicar <strong>duplicado independiente</strong> (idéntico, sin enlazar). Para una <strong>nueva condición de venta</strong> (Clásica ↔ Premium, enlazada), usa el botón <strong>&quot;Condición&quot;</strong> en la sección &quot;Publicaciones / Vitrinas enlazadas&quot;.</span>
-                                        </label>
+                                        {/* Garantía de enlace al catálogo */}
+                                        <div className="flex items-center gap-2 p-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-xs text-[var(--text-muted)]">
+                                            <CheckCircle2 className="w-4 h-4 text-[var(--ok)] shrink-0" />
+                                            <span>Esta publicación se creará <strong>enlazada a tu producto en el catálogo</strong> (gestión unificada de stock e inventario).</span>
+                                        </div>
 
                                         {/* CTAs */}
                                         <div className="flex gap-3">
@@ -1737,7 +1740,16 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 <div className="mt-1 space-y-1">
                                                     <p className="text-xs text-[var(--err)]">{r.error}</p>
                                                     {r.meli_message && <p className="text-xs text-[var(--err)]">{r.meli_message}</p>}
-                                                    {r.errores?.length > 0 && <p className="text-xs text-[var(--err)] font-mono break-all">{r.errores.join(' | ')}</p>}
+                                                    {r.errores?.length > 0 && (
+                                                        <div className="space-y-0.5 mt-1">
+                                                            {r.errores.map((e: any, ei: number) => {
+                                                                const txt = typeof e === 'string' ? e : `${e?.code ? `[${e.code}] ` : ''}${e?.message || JSON.stringify(e)}`;
+                                                                return (
+                                                                    <p key={ei} className="text-xs text-[var(--err)] font-mono bg-[var(--surface)] px-2 py-1 rounded">• {txt}</p>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                     {r.meli_error?.cause?.length > 0 && (
                                                         <div className="space-y-0.5">
                                                             {r.meli_error.cause.map((c: any, ci: number) => (
@@ -1813,9 +1825,12 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         <h3 className="font-bold text-[var(--err)] text-sm">Error al publicar</h3>
                                     </div>
                                     <p className="text-xs text-[var(--err)]">{publishResult.data.error}</p>
-                                    {publishResult.data.errores?.map((e: string, i: number) => (
-                                        <p key={i} className="text-xs text-[var(--err)] font-mono bg-[var(--err)]/10 px-2 py-1 rounded mt-1">• {e}</p>
-                                    ))}
+                                    {publishResult.data.errores?.map((e: any, i: number) => {
+                                        const txt = typeof e === 'string' ? e : `${e?.code ? `[${e.code}] ` : ''}${e?.message || JSON.stringify(e)}`;
+                                        return (
+                                            <p key={i} className="text-xs text-[var(--err)] font-mono bg-[var(--err)]/10 px-2 py-1 rounded mt-1">• {txt}</p>
+                                        );
+                                    })}
                                     {publishResult.data.meli_error && (
                                         <div className="mt-3 p-3 bg-[var(--err)]/10 rounded-lg border border-[var(--err)]/30">
                                             <p className="text-[10px] font-bold uppercase text-[var(--err)] mb-1.5">Detalle de rechazo MeLi</p>
