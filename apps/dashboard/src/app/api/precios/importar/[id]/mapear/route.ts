@@ -35,6 +35,10 @@ async function procesarMapear(req: NextRequest, props: { params: Promise<{ id: s
         columna_moneda,
         moneda_default = 'MXN',
         columnas_a_guardar = [],
+        columna_sat,
+        fila_encabezado = 0,
+        omitir_encabezados_repetidos = true,
+        limpieza_descripcion = true,
     } = body ?? {};
 
     // -- Validaciones
@@ -83,6 +87,10 @@ async function procesarMapear(req: NextRequest, props: { params: Promise<{ id: s
                 ...(columna_moneda && { columna_moneda }),
                 moneda_default,
                 columnas_a_guardar,
+                ...(columna_sat && { columna_sat }),
+                fila_encabezado,
+                omitir_encabezados_repetidos,
+                limpieza_descripcion,
             },
             tipo_costo_default: tiposCosto,
             estado: 'procesando',

@@ -246,6 +246,10 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
   const [columnaCodigo, setColumnaCodigo] = useState('');
   const [columnaDescripcion, setColumnaDescripcion] = useState('');
   const [columnaMoneda, setColumnaMoneda] = useState('');
+  const [columnaSat, setColumnaSat] = useState('');
+  const [filaEncabezado, setFilaEncabezado] = useState<number>(0);
+  const [omitirRepetidos, setOmitirRepetidos] = useState(true);
+  const [limpiezaDescripcion, setLimpiezaDescripcion] = useState(true);
   const [monedaDefault, setMonedaDefault] = useState('MXN');
   const [columnasAGuardar, setColumnasAGuardar] = useState<string[]>([]);
   const [precios, setPrecios] = useState<PrecioMapeo[]>([{ columna: '', tipo_costo: 'distribuidor' }]);
@@ -282,6 +286,10 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
           setColumnaCodigo(m.columna_codigo || '');
           setColumnaDescripcion(m.columna_descripcion || '');
           setColumnaMoneda(m.columna_moneda || '');
+          setColumnaSat(m.columna_sat || '');
+          setFilaEncabezado(typeof m.fila_encabezado === 'number' ? m.fila_encabezado : 0);
+          if (m.omitir_encabezados_repetidos !== undefined) setOmitirRepetidos(!!m.omitir_encabezados_repetidos);
+          if (m.limpieza_descripcion !== undefined) setLimpiezaDescripcion(!!m.limpieza_descripcion);
           if (Array.isArray(m.precios) && m.precios.length > 0) {
             setPrecios(m.precios);
           } else if (m.columna_precio && m.tipo_costo) {
@@ -294,6 +302,10 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
           }
         } else {
           setColumnasAGuardar(d.headers || []);
+          // Auto-detección de Código SAT por sinónimos (conveniencia; se puede cambiar)
+          const satSyn = /codigo\s*(sat|cfdi)|c[oó]digo\s*(sat|cfdi)|clave\s*(sat|cfdi)|claveprodserv|cve_prod_serv/i;
+          const sat = (d.headers || []).find((h: string) => satSyn.test(h || ''));
+          if (sat) setColumnaSat(sat);
         }
       })
       .catch((e) => {
@@ -331,6 +343,10 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
           columna_moneda: columnaMoneda || undefined,
           moneda_default: monedaDefault,
           columnas_a_guardar: columnasAGuardar,
+          columna_sat: columnaSat || undefined,
+          fila_encabezado: filaEncabezado,
+          omitir_encabezados_repetidos: omitirRepetidos,
+          limpieza_descripcion: limpiezaDescripcion,
         }),
       });
       const d = await res.json();
@@ -450,6 +466,28 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
             <Sel id="sel-columna-descripcion" value={columnaDescripcion} onChange={setColumnaDescripcion} placeholder="-- Sin columna --" />
             <p className="text-[10px] text-[var(--text-faint)] mt-1">Título o descripción larga del producto</p>
           </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Código SAT <span className="text-[var(--text-faint)]">(opc.)</span></label>
+            <Sel id="sel-columna-sat" value={columnaSat} onChange={setColumnaSat} placeholder="-- Sin columna --" />
+            <p className="text-[10px] text-[var(--text-faint)] mt-1">Clave de producto/servicio SAT (CFDI)</p>
+          </div>
+          <div>
+            <label htmlFor="sel-fila-encabezado" className="block text-xs font-bold text-[var(--text-muted)] mb-1">Fila de encabezado</label>
+            <input id="sel-fila-encabezado" type="number" min="0" value={filaEncabezado} onChange={(e) => setFilaEncabezado(Number(e.target.value) || 0)} className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-xl bg-[var(--surface)] focus:ring-2 focus:ring-[var(--accent)] focus:outline-none" />
+            <p className="text-[10px] text-[var(--text-faint)] mt-1">0 = primera fila. Súbelo si hay portada o índice arriba.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-5 pt-1">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--text-muted)]">
+            <input type="checkbox" checked={omitirRepetidos} onChange={(e) => setOmitirRepetidos(e.target.checked)} className="rounded text-[var(--accent)] focus:ring-[var(--accent)] w-4 h-4" />
+            Omitir filas que repiten el encabezado
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[var(--text-muted)]">
+            <input type="checkbox" checked={limpiezaDescripcion} onChange={(e) => setLimpiezaDescripcion(e.target.checked)} className="rounded text-[var(--accent)] focus:ring-[var(--accent)] w-4 h-4" />
+            Limpiar anotaciones de la descripción
+          </label>
         </div>
       </div>
 
