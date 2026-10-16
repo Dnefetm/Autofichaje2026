@@ -858,10 +858,12 @@ export async function POST(req: NextRequest) {
             trace.paso_8_overrides_usuario = attribute_overrides;
         }
 
-        // Descartar atributos que MeLi marca como read_only o de sistema en la categoría (ej. PACKS_NUMBER, VALUE_ADDED_TAX)
+        // Descartar atributos que MeLi marca estrictamente como read_only en la categoría (ej. PACKS_NUMBER, VALUE_ADDED_TAX, PACKAGE_HEIGHT).
+        // NUNCA descartar los atributos hidden que son editables por el vendedor (SELLER_PACKAGE_*, SELLER_SKU, ITEM_CONDITION),
+        // pues sin SELLER_PACKAGE_* MeLi no puede calcular Mercado Envíos (me2) y rechaza con 'shipping.lost_me1_by_user'.
         const readOnlyAttrIds = new Set(
             (attrInfo.raw || [])
-                .filter((a: any) => a.tags?.read_only || (a.tags?.hidden && a.id !== 'SELLER_SKU' && a.id !== 'GTIN' && a.id !== 'ITEM_CONDITION'))
+                .filter((a: any) => a.tags?.read_only)
                 .map((a: any) => a.id)
         );
         const cleanAttributes = allAttributes.filter(
@@ -996,6 +998,7 @@ export async function POST(req: NextRequest) {
             shipping: {
                 mode: shipping_mode || 'me2',
                 free_shipping: !!free_shipping,
+                ...(sourceData?.shipping?.dimensions ? { dimensions: sourceData.shipping.dimensions } : {}),
             },
             // legacy exige condition; UP lo deriva del catálogo
             ...(isLegacy ? { condition: 'new' } : {}),

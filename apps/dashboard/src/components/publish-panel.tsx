@@ -625,6 +625,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     category_id: categoryId || undefined,
                     listing_type_id: listingType,
                     dry_run: true,
+                    free_shipping: freeShipping,
+                    shipping_mode: shippingMode,
                     ...(effectiveForce ? { force_duplicate: true } : {}),
                     ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
                     ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
