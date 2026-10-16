@@ -27,23 +27,25 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
             return NextResponse.json({ ok: false, error: 'No hay archivo asociado a esta importación' }, { status: 400 });
         }
 
-        const { data: file } = await supabaseAdmin.storage.from(bucket).download(path);
-        
-        if (!file) {
-            return NextResponse.json({ ok: false, error: 'No se pudo descargar el Excel desde Storage' }, { status: 404 });
+        // Leer de la tabla raw (ya parseada header-agnóstica por letra de columna)
+        const { data: rawRows } = await supabaseAdmin
+            .from('listas_precios_raw')
+            .select('payload')
+            .eq('importacion_id', id)
+            .order('fila_num', { ascending: true })
+            .limit(1000);
+
+        let headers: string[] = [];
+        let headerLabels: Record<string, string> = {};
+        let preview: string[][] = [];
+        if (rawRows && rawRows.length > 0) {
+            headers = Object.keys((rawRows[0].payload as Record<string, any>) || {});
+            const headerRow = rawRows.find(r => Object.values((r.payload as Record<string, any>) || {}).some((v: any) => /precio|codigo|descrip|aplicaci/i.test(String(v ?? ''))));
+            if (headerRow) headerLabels = (headerRow.payload as Record<string, string>) || {};
+            preview = rawRows.slice(0, 4).map(r => headers.map(h => ((r.payload as Record<string, any>) || {})[h] ?? ''));
         }
 
-        const buf = new Uint8Array(await file.arrayBuffer());
-        const XLSX = await import('xlsx');
-        const wb = XLSX.read(buf, { type: 'buffer', dense: true, sheetRows: 6 });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-
-        const headers: string[] = (rows[0] ?? []).map(String);
-        // Muestra de las primeras filas para vista previa (ignoramos la fila 0 que es el header)
-        const preview = rows.slice(1, 4).map(r => r.map((v: any) => String(v ?? '')));
-
-        return NextResponse.json({ ok: true, headers, preview, mapeo_actual: m });
+        return NextResponse.json({ ok: true, headers, preview, header_labels: headerLabels, mapeo_actual: m });
     } catch (err: any) {
         return NextResponse.json({ ok: false, error: friendlyError(err) }, { status: 500 });
     }

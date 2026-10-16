@@ -17,6 +17,7 @@ export default function MapearColumnasPage() {
 
     const [headers, setHeaders] = useState<string[]>([]);
     const [preview, setPreview] = useState<string[][]>([]);
+    const [headerLabels, setHeaderLabels] = useState<Record<string, string>>({});
     
     // Mapeo form state
     const [colCodigo, setColCodigo] = useState('');
@@ -46,6 +47,7 @@ export default function MapearColumnasPage() {
                 if (!data.ok) throw new Error(data.error);
                 setHeaders(data.headers || []);
                 setPreview(data.preview || []);
+                setHeaderLabels(data.header_labels || {});
                 
                 const m = data.mapeo_actual || {};
                 setColCodigo(m.columna_codigo || '');
@@ -173,21 +175,21 @@ export default function MapearColumnasPage() {
                             <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna Código Universal (UPC/EAN/GTIN) *</label>
                             <select className="w-full border p-2 rounded-md" value={colCodigo} onChange={e => setColCodigo(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
-                                {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
+                                {headers.map((h, i) => <option key={i} value={h}>{headerLabels[h] ? `${h} · ${headerLabels[h]}` : h}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna Modelo (Referencia / N° de parte) *</label>
                             <select className="w-full border p-2 rounded-md" value={colModelo} onChange={e => setColModelo(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
-                                {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
+                                {headers.map((h, i) => <option key={i} value={h}>{headerLabels[h] ? `${h} · ${headerLabels[h]}` : h}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna MARCA <span className="text-[var(--text-faint)]">(opcional)</span></label>
                             <select className="w-full border p-2 rounded-md" value={colMarca} onChange={e => setColMarca(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
-                                {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
+                                {headers.map((h, i) => <option key={i} value={h}>{headerLabels[h] ? `${h} · ${headerLabels[h]}` : h}</option>)}
                             </select>
                             <p className="text-[10px] text-[var(--text-faint)] mt-1">Si la lista no trae columna de marca, déjala vacía.</p>
                         </div>
@@ -195,7 +197,7 @@ export default function MapearColumnasPage() {
                             <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Columna DESCRIPCIÓN</label>
                             <select className="w-full border p-2 rounded-md" value={colDescripcion} onChange={e => setColDescripcion(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
-                                {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
+                                {headers.map((h, i) => <option key={i} value={h}>{headerLabels[h] ? `${h} · ${headerLabels[h]}` : h}</option>)}
                             </select>
                         </div>
                         <div>
@@ -220,7 +222,7 @@ export default function MapearColumnasPage() {
                                 <label className="block text-xs font-medium text-[var(--text-muted)] uppercase mb-1">Columna Excel</label>
                                 <select className="w-full border p-2 rounded-md mb-2 bg-[var(--surface)]" value={p.columna} onChange={e => handlePrecioChange(index, 'columna', e.target.value)}>
                                     <option value="">-- Seleccionar Columna --</option>
-                                    {headers.map((h, i) => <option key={i} value={h}>{h}</option>)}
+                                    {headers.map((h, i) => <option key={i} value={h}>{headerLabels[h] ? `${h} · ${headerLabels[h]}` : h}</option>)}
                                 </select>
                                 
                                 <div className="flex gap-2">

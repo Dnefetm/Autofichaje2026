@@ -75,26 +75,26 @@ export default function SubirPaso1() {
             const wb = XLSX.read(new Uint8Array(buf), { type: 'array', dense: true, cellFormula: false, cellHTML: false, cellStyles: false, cellText: false });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
-            const headers: string[] = (rows[0] || []).map((h: any) => String(h ?? '').trim());
+            const COLS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
             const CHUNK = 1000;
             let chunk: any[] = [];
             let filaNum = 0;
 
-            for (let i = 1; i < rows.length; i++) {
+            for (let i = 0; i < rows.length; i++) {
                 const vals = rows[i] || [];
                 const payload: Record<string, string> = {};
                 const colsUsadas: string[] = [];
                 let nonEmpty = 0;
-                for (let c = 0; c < headers.length; c++) {
-                    const h = headers[c];
-                    if (!h) continue;
+                for (let c = 0; c < vals.length; c++) {
+                    const letra = COLS[c] ?? `C${c + 1}`;
+                    const key = `col_${letra}`;
                     const valStr = String(vals[c] ?? '').trim();
-                    payload[h] = valStr;
-                    colsUsadas.push(h);
+                    payload[key] = valStr;
+                    colsUsadas.push(key);
                     if (valStr !== '') nonEmpty++;
                 }
-                if (nonEmpty < 3) continue;
+                if (nonEmpty === 0) continue;
                 filaNum++;
                 chunk.push({ fila_num: filaNum, payload, columnas_guardadas: colsUsadas });
                 if (chunk.length >= CHUNK) {
