@@ -1,5 +1,6 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { registrarAuditoria } from '@/lib/auditoria';
 
 export async function POST(req: Request) {
     try {
@@ -16,6 +17,10 @@ export async function POST(req: Request) {
 
         if (error) {
             throw error;
+        }
+
+        for (const pid of publicaciones) {
+            await registrarAuditoria(pid, 'precio', 'aprobacion_borrador');
         }
 
         return NextResponse.json({ success: true, message: ` publicaciones aprobadas y encoladas para sincronización.` });

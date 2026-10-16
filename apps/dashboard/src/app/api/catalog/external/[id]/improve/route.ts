@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import { resolvePublicationAI } from '@gestor/sync/meli-ai-helper';
+import { registrarAuditoria } from '@/lib/auditoria';
 
 export const dynamic = 'force-dynamic';
 
@@ -257,6 +258,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 await (meli as any).addDescription(pub.marketplace_id, pub.external_item_id, camposAceptados.descripcion);
             }
             aplicados++;
+        }
+
+        if (aplicados > 0) {
+            await registrarAuditoria(id, 'publicacion', 'mejorar_publicacion', { campos: Object.keys(camposAceptados) });
         }
 
         return NextResponse.json({ ok: true, item_id: pub.external_item_id, aplicados, campos: Object.keys(camposAceptados) });

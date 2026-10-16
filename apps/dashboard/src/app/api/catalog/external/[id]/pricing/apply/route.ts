@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
+import { registrarAuditoria } from '@/lib/auditoria';
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -84,6 +85,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await supabaseAdmin.from('publicaciones_externas')
       .update({ base_price: newPrice, precio_venta: newPrice, actualizado_el: new Date().toISOString() })
       .eq('id', id);
+
+    await registrarAuditoria(id, 'precio', 'precio_manual', { new_price: newPrice });
 
     return NextResponse.json({
       success: true,

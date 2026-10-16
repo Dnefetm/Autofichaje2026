@@ -442,6 +442,11 @@ if (selectedSkus.length === 0) {
 const relacionados = [listing.id, ...siblings.filter(s => s.id !== listing.id).map(s => s.id)];
 await supabase.from('mapeo_publicacion_articulo').delete().in('publicacion_id', relacionados);
 await supabase.from('publicaciones_externas').update({ esta_mapeado: false }).in('id', relacionados);
+fetch(`/api/catalog/external/${listing.id}/audit-mark`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ambito: 'publicacion', accion: 'mapeo_desvinculado' }),
+}).catch(() => {});
 onSuccess();
 return;
 }
@@ -498,6 +503,11 @@ await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publi
 }
 // El worker se dispara sin bloquear el cierre del modal.
 dispatchWorker();
+fetch(`/api/catalog/external/${listing.id}/audit-mark`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ambito: 'publicacion', accion: 'mapeo_guardado', detalle: { skus: selectedSkus.length } }),
+}).catch(() => {});
 onSuccess();
 } catch (error) {
 console.error('Error guardando el mapeo:', error);

@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import {
     Search, RefreshCw, AlertCircle, CheckCircle2, Link2,
     SlidersHorizontal, ExternalLink, MoreVertical, Truck,
-    ChevronDown, ChevronRight, Package, Layers
+    ChevronDown, ChevronRight, Package, Layers, Clock
 } from 'lucide-react';
 import Link from 'next/link';
 import MappingModal from '@/components/mapping-modal';
@@ -129,6 +129,31 @@ function PosibleEliminadaBadge() {
             ⚠ Posible eliminada
         </span>
     );
+}
+
+// Badge de urgencia de auditoría (precio + publicación).
+function AuditBadge({ precioEl, pubEl }: { precioEl: string | null; pubEl: string | null }) {
+    const now = Date.now();
+    const ageDays = (d: string | null) => (d == null ? Infinity : (now - new Date(d).getTime()) / 86400000);
+    const precioAge = ageDays(precioEl);
+    const pubAge = ageDays(pubEl);
+    const neverAudited = precioAge === Infinity && pubAge === Infinity;
+    if (neverAudited) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--err)]/15 text-[var(--err)] border border-[var(--err)]/40">
+                <AlertCircle className="w-3 h-3" /> Sin auditar
+            </span>
+        );
+    }
+    const minAge = Math.min(precioAge, pubAge);
+    if (minAge > 7) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--warn)]/15 text-[var(--warn)] border border-[var(--warn)]/40" title="La auditoría más reciente (precio o publicación) tiene más de 7 días">
+                <Clock className="w-3 h-3" /> Auditoría +7 días
+            </span>
+        );
+    }
+    return null; // reciente: no destacar
 }
 
 // --- Agrupación: solo variaciones del mismo external_item_id ---------------------
@@ -801,9 +826,15 @@ export default function VirtualCatalogPage() {
             let query = supabase
                 .from('publicaciones_externas')
                 // count 'estimated' (no COUNT(*) escaneo completo) para no reventar el statement_timeout
-                .select(`*, par_item_id, es_bundle, catalog_count, associated_count`, { count: 'estimated' })
-                .order(filters.sortBy, { ascending: filters.sortDir === 'asc' })
-                .range(from, to);
+                .select(`*, par_item_id, es_bundle, catalog_count, associated_count`, { count: 'estimated' });
+
+            // Auditoría: los más urgentes primero (nunca auditados = NULL primero, luego los más antiguos).
+            if (filters.sortBy === 'ultima_auditoria_precio_el') {
+                query = query.order('ultima_auditoria_precio_el', { ascending: true, nullsFirst: true });
+            } else {
+                query = query.order(filters.sortBy, { ascending: filters.sortDir === 'asc' });
+            }
+            query = query.range(from, to);
 
             // --- Exclusión server-side de catálogos con par --------------------------
             // Excluir publicaciones de catálogo que son hijas de una tradicional (tienen par_item_id).
@@ -1099,6 +1130,7 @@ export default function VirtualCatalogPage() {
                                                                 {statusLabels[p.status_externo] || p.status_externo}
                                                             </span>
                                                             {p.posible_eliminada && <PosibleEliminadaBadge />}
+                                                            <AuditBadge precioEl={p.ultima_auditoria_precio_el ?? null} pubEl={p.ultima_auditoria_pub_el ?? null} />
                                                             {mappingIds.has(p.id) ? (
                                                                 <span className="inline-flex items-center gap-1 text-[10px] text-[var(--info)] font-semibold"><RefreshCw className="w-3 h-3 animate-spin" /> Mapeando…</span>
                                                             ) : p.esta_mapeado ? (

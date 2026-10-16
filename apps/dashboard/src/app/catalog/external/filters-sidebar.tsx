@@ -22,7 +22,7 @@ export interface FilterState {
     priceMax: number | null;
     salesRange: '0' | '1-10' | '11-50' | '50+' | null;
     stockRange: '0' | '1-5' | '6-20' | '20+' | null;
-    sortBy: 'creado_el' | 'precio_venta' | 'sold_quantity' | 'health' | 'stock_publicado' | 'titulo';
+    sortBy: 'creado_el' | 'precio_venta' | 'sold_quantity' | 'health' | 'stock_publicado' | 'titulo' | 'ultima_auditoria_precio_el';
     sortDir: 'asc' | 'desc';
 }
 
@@ -212,18 +212,21 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                         <option value="sold_quantity">Ventas</option>
                         <option value="health">Salud</option>
                         <option value="stock_publicado">Stock</option>
+                        <option value="ultima_auditoria_precio_el">Auditoría de precio (más urgente)</option>
                     </select>
-                    <div className="flex gap-2 mt-1.5">
-                        {(['desc', 'asc'] as const).map(d => (
-                            <button
-                                key={d}
-                                onClick={() => set({ sortDir: d })}
-                                className={cn("flex-1 text-xs py-1 rounded border transition-colors", filters.sortDir === d ? "bg-[var(--accent)] text-[var(--accent-ink)] border-[var(--accent)]" : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--border-strong)]")}
-                            >
-                                {d === 'desc' ? '↓ Mayor' : '↑ Menor'}
-                            </button>
-                        ))}
-                    </div>
+                    {filters.sortBy !== 'ultima_auditoria_precio_el' && (
+                        <div className="flex gap-2 mt-1.5">
+                            {(['desc', 'asc'] as const).map(d => (
+                                <button
+                                    key={d}
+                                    onClick={() => set({ sortDir: d })}
+                                    className={cn("flex-1 text-xs py-1 rounded border transition-colors", filters.sortDir === d ? "bg-[var(--accent)] text-[var(--accent-ink)] border-[var(--accent)]" : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--border-strong)]")}
+                                >
+                                    {d === 'desc' ? '↓ Mayor' : '↑ Menor'}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </Accordion>
 
                 {/* Posibles eliminadas */}

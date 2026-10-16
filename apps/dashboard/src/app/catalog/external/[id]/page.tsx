@@ -462,6 +462,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     // Ítem real de MeLi (sale_terms, pictures, attributes) para garantía, fotos y características.
     const [ctxItem, setCtxItem] = useState<any>(null);
     const [ctxCategoryAttrs, setCtxCategoryAttrs] = useState<any[]>([]);
+    const [markingPub, setMarkingPub] = useState(false);
 
     useEffect(() => { loadAll(false); }, [id]);
 
@@ -480,6 +481,27 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             const d = await fetch(`/api/vitrinas/${id}`, { method: 'GET' }).then(r => r.json()).catch(() => null);
             if (d?.ok) { setCtxItem(d.item); setCtxCategoryAttrs(d.categoryAttributes || []); }
         } catch { /* silencioso */ }
+    }
+
+    // Marca la publicación como revisada (auditoría de publicación) vía endpoint fail-safe.
+    async function handleMarkPublicationReviewed() {
+        setMarkingPub(true);
+        try {
+            const res = await fetch(`/api/catalog/external/${id}/audit-mark`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ambito: 'publicacion', accion: 'revisada_ok' })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'No se pudo registrar');
+            toast.success('Publicación marcada como revisada');
+            await loadAll(true);
+        } catch (err: any) {
+            console.error(err);
+            toast.error('Error: ' + (err.message || 'Desconocido'));
+        } finally {
+            setMarkingPub(false);
+        }
     }
 
     async function loadAll(silent = false) {
@@ -903,6 +925,22 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 />
                             </div>
                             <p className="text-sm font-mono text-[var(--text-faint)]">{pub.external_item_id}{isVariant ? ` · var. ${pub.external_variation_id}` : ''}</p>
+
+                            {/* Última auditoría de publicación + marcar revisada */}
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[var(--radius-sm)] text-[11px] font-semibold bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)]">
+                                    <Clock className="w-3 h-3" />
+                                    Última auditoría de publicación: {pub.ultima_auditoria_pub_el ? new Date(pub.ultima_auditoria_pub_el).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Nunca'}
+                                </span>
+                                <button
+                                    onClick={handleMarkPublicationReviewed}
+                                    disabled={markingPub}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[var(--radius-sm)] text-[11px] font-bold bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30 hover:bg-[var(--ok)]/20 transition-colors disabled:opacity-50"
+                                >
+                                    {markingPub ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                    Marcar revisada
+                                </button>
+                            </div>
 
                             {/* Atributos de variante (si aplica) */}
                             {isVariant && pub.variation_attributes?.length > 0 && (

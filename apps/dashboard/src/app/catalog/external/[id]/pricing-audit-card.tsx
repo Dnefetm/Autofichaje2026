@@ -44,6 +44,7 @@ export default function PricingAuditCard({
     const [editValue, setEditValue] = useState<string>('');
     const [saving, setSaving] = useState(false);
     const [recalculating, setRecalculating] = useState(false);
+    const [marking, setMarking] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     
     // Modifiers panel & custom toggles
@@ -221,6 +222,26 @@ export default function PricingAuditCard({
             toast.error('Error: ' + (err.message || 'Desconocido'));
         } finally {
             setRecalculating(false);
+        }
+    };
+
+    const handleMarkReviewed = async () => {
+        setMarking(true);
+        try {
+            const res = await fetch(`/api/catalog/external/${publicacionId}/audit-mark`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ambito: 'precio', accion: 'revisada_ok' })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'No se pudo registrar');
+            toast.success('Auditoría de precio marcada como revisada');
+            onOverrideUpdated();
+        } catch (err: any) {
+            console.error(err);
+            toast.error('Error: ' + (err.message || 'Desconocido'));
+        } finally {
+            setMarking(false);
         }
     };
 
@@ -558,6 +579,41 @@ export default function PricingAuditCard({
                         </div>
                     </div>
                 )}
+
+                {/* Último cálculo + Historial + Marcar revisada */}
+                <div className="border-t border-[var(--border)] pt-3 space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                        <p className="text-xs text-[var(--text-muted)]">
+                            <Clock className="w-3 h-3 inline mr-1 -mt-0.5" />
+                            Último cálculo del motor:{' '}
+                            <span className="font-semibold text-[var(--text)]">{lastCalcAt ? formatDate(lastCalcAt) : '—'}</span>
+                        </p>
+                        <button
+                            onClick={handleMarkReviewed}
+                            disabled={marking}
+                            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--ok)]/20 transition-colors disabled:opacity-50"
+                        >
+                            {marking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                            Marcar revisada
+                        </button>
+                    </div>
+                    {history.length > 0 && (
+                        <div className="text-xs text-[var(--text-muted)]">
+                            <p className="font-semibold uppercase text-[var(--text-faint)] mb-1">Historial de cambios de precio</p>
+                            <ul className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                                {history.map((h, i) => (
+                                    <li key={i} className="flex items-center justify-between gap-2">
+                                        <span className="truncate">
+                                            {h.reason || 'Cambio'}
+                                            {h.new_price != null ? ` → ${fmt(h.new_price)}` : ''}
+                                        </span>
+                                        <span className="shrink-0 text-[var(--text-faint)]">{h.created_at ? formatDate(h.created_at) : ''}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
 
                 {/* Sección de Aprobación y Aplicación */}
                 <div className="border-t border-[var(--border)] pt-4 space-y-3">

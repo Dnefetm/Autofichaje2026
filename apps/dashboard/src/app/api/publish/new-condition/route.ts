@@ -35,6 +35,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
+import { registrarAuditoria } from '@/lib/auditoria';
 
 export const dynamic = 'force-dynamic';
 
@@ -319,6 +320,14 @@ export async function POST(req: NextRequest) {
             trace.paso_9_mapeo = mapErr ? { error: mapErr.message } : { ok: true };
         } else {
             trace.paso_9_mapeo = { omitido: 'Sin publicacion_id o articulo_id para enlazar' };
+        }
+
+        // -- 9a. Registro de auditoría: la nueva condición nace "auditada" (fail-safe).
+        if (pubInserted?.id) {
+            await registrarAuditoria(pubInserted.id, 'publicacion', 'creada_nueva_condicion', {
+                listing_type_id,
+                free_shipping: !!free_shipping,
+            });
         }
 
         return NextResponse.json({

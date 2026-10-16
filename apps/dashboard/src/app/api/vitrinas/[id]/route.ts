@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import { applyVitrinaChanges } from '@/lib/vitrina-sync';
+import { registrarAuditoria } from '@/lib/auditoria';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +80,10 @@ export async function PATCH(
 
     try {
         const result = await applyVitrinaChanges(id, changes);
+        const huboCambios = Array.isArray(result.applied) && result.applied.some((a: any) => a.ok);
+        if (huboCambios) {
+            await registrarAuditoria(id, 'publicacion', 'edicion_campos', { campos: changes.map((c: any) => c.field) });
+        }
         return NextResponse.json(result);
     } catch (err: any) {
         const msg =

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { registrarAuditoria } from '@/lib/auditoria';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -62,6 +63,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         } catch (recalcErr) {
             console.error('Error recalculando post-override:', recalcErr);
         }
+
+        await registrarAuditoria(id, 'precio', 'modificadores', { override_type, value, force_rule_id });
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
