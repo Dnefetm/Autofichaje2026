@@ -23,7 +23,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         }
 
         const meli = new MeliAdapter();
-        await meli.syncShippingCost(pub.marketplace_id, pub.external_item_id);
+        const resultado = await meli.syncShippingCost(pub.marketplace_id, pub.external_item_id);
 
         const { data: updated } = await supabaseAdmin
             .from('publicaciones_externas')
@@ -31,10 +31,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             .eq('id', id)
             .maybeSingle();
 
+        // V37: antes respondia success:true SIEMPRE, aunque MeLi hubiera rechazado la
+        // consulta por politica (403) y el envío se hubiera quedado igual. Ahora se dice
+        // la verdad: si no se actualizo, el motivo viene explicito y la UI puede avisarlo.
+        const actualizado = resultado?.actualizado === true;
         return NextResponse.json({
-            success: true,
+            ok: actualizado,
+            success: actualizado,
+            actualizado,
             shipping_cost_monto: updated?.shipping_cost_monto ?? null,
-        });
+            motivo: resultado?.motivo ?? null,
+            meli_status: resultado?.status ?? null,
+            detalle: resultado?.detalle ?? null,
+        }, { status: actualizado ? 200 : 409 });
     } catch (err: any) {
         return NextResponse.json({ error: err?.message || 'Error refrescando envío' }, { status: 500 });
     }

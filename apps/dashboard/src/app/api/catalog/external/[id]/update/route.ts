@@ -23,7 +23,7 @@ export async function PUT(
         // Obtener la publicación con todos los datos necesarios para llamar a MeLi
         const { data: pub, error: pubErr } = await supabaseAdmin
             .from('publicaciones_externas')
-            .select('id, marketplace_id, external_item_id, external_variation_id')
+            .select('id, marketplace_id, external_item_id, external_variation_id, logistic_type')
             .eq('id', id)
             .single();
 
@@ -71,16 +71,36 @@ export async function PUT(
                 return NextResponse.json({ error: 'Stock inválido' }, { status: 400 });
             }
 
-            if (hasVariation) {
-                await meli.updateStock(pub.marketplace_id, [
-                    { itemId: pub.external_item_id, quantity: numValue, variationId: pub.external_variation_id }
-                ]);
-            } else {
-                await meli.updateStock(pub.marketplace_id, [
-                    { itemId: pub.external_item_id, quantity: numValue }
-                ]);
+            if (pub.logistic_type === 'fulfillment') {
+                return NextResponse.json({
+                    error: 'El stock de publicaciones Full es gestionado directamente por la bodega de Mercado Libre y no puede modificarse manualmente.'
+                }, { status: 400 });
             }
-            dbUpdate = { stock_publicado: numValue };
+
+            try {
+                if (hasVariation) {
+                    await meli.updateStock(pub.marketplace_id, [
+                        { itemId: pub.external_item_id, quantity: numValue, variationId: pub.external_variation_id }
+                    ]);
+                } else {
+                    await meli.updateStock(pub.marketplace_id, [
+                        { itemId: pub.external_item_id, quantity: numValue }
+                    ]);
+                }
+                dbUpdate = { stock_publicado: numValue };
+            } catch (stockErr: any) {
+                const msg = stockErr.message || '';
+                if (msg.toLowerCase().includes('not_modifiable') || msg.toLowerCase().includes('not modifiable')) {
+                    await supabaseAdmin.from('publicaciones_externas').update({
+                        logistic_type: 'fulfillment',
+                        actualizado_el: new Date().toISOString()
+                    }).eq('id', id);
+                    return NextResponse.json({
+                        error: 'Mercado Libre reporta que esta publicación es Full. El stock no puede modificarse por API ni manualmente.'
+                    }, { status: 400 });
+                }
+                throw stockErr;
+            }
 
         } else if (field === 'status') {
             if (value !== 'active' && value !== 'paused') {

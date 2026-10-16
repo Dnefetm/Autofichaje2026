@@ -491,7 +491,18 @@ successCount++;
 } catch (err: any) {
 const errMsg = err.message || '';
 if (errMsg.toLowerCase().includes('not_modifiable') || errMsg.toLowerCase().includes('not modifiable')) {
-await supabaseAdmin.from('publicaciones_externas').update({ sync_disabled: true, sync_disabled_reason: `MeLi rechaza modificación: ${errMsg.slice(0, 200)}` }).eq('id', pub.id);
+// Publicación Full en MeLi: el stock lo gestiona la bodega de MeLi.
+// Auto-corregir: marcar logistic_type='fulfillment' y apagar sincronizar_stock en el mapeo.
+// NO apagar la vitrina completa con sync_disabled=true para permitir que sigan funcionando precios y estado.
+await supabaseAdmin.from('publicaciones_externas').update({
+  logistic_type: 'fulfillment',
+  sync_disabled: false,
+  sync_disabled_reason: null,
+  actualizado_el: new Date().toISOString()
+}).eq('id', pub.id);
+await supabaseAdmin.from('mapeo_publicacion_articulo').update({
+  sincronizar_stock: false
+}).eq('publicacion_id', pub.id);
 successCount++;
 continue;
 }
@@ -559,10 +570,27 @@ maxKits = Math.min(maxKits, Math.floor(compStock / comp.cantidad_requerida));
 }
 const finalStock = Math.max(0, maxKits);
 
+try {
 await meli.updateStock(pub.marketplace_id, [{ itemId: pub.external_item_id, quantity: finalStock }]);
 await supabaseAdmin.from('publicaciones_externas')
 .update({ stock_publicado: finalStock, actualizado_el: new Date().toISOString() })
 .eq('id', pub.id);
+} catch (err: any) {
+const errMsg = err.message || '';
+if (errMsg.toLowerCase().includes('not_modifiable') || errMsg.toLowerCase().includes('not modifiable')) {
+await supabaseAdmin.from('publicaciones_externas').update({
+  logistic_type: 'fulfillment',
+  sync_disabled: false,
+  sync_disabled_reason: null,
+  actualizado_el: new Date().toISOString()
+}).eq('id', pub.id);
+await supabaseAdmin.from('mapeo_publicacion_articulo').update({
+  sincronizar_stock: false
+}).eq('publicacion_id', pub.id);
+return;
+}
+throw err;
+}
 
 if (finalStock > 0 && pub.status_externo === 'paused') {
 try {

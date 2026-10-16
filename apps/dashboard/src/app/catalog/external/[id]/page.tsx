@@ -463,6 +463,21 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [ctxItem, setCtxItem] = useState<any>(null);
     const [ctxCategoryAttrs, setCtxCategoryAttrs] = useState<any[]>([]);
     const [markingPub, setMarkingPub] = useState(false);
+    const [reenablingSync, setReenablingSync] = useState(false);
+
+    const handleReenableSync = async () => {
+        setReenablingSync(true);
+        try {
+            const res = await fetch(`/api/catalog/external/${id}/sync-enable`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error al reactivar');
+            setPub((prev: any) => prev ? { ...prev, sync_disabled: false, sync_disabled_reason: null } : prev);
+        } catch (err: any) {
+            alert(err.message || 'Error al reactivar sincronización');
+        } finally {
+            setReenablingSync(false);
+        }
+    };
 
     useEffect(() => { loadAll(false); }, [id]);
 
@@ -904,9 +919,20 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     </span>
                                 )}
                                 {pub.sync_disabled && (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--err)]/10 border  text-[var(--err)]" title={pub.sync_disabled_reason || ''}>
-                                        ⚠ sync off
-                                    </span>
+                                    <div className="inline-flex items-center gap-1.5">
+                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--err)]/10 border border-[var(--err)]/30 text-[var(--err)]" title={pub.sync_disabled_reason || ''}>
+                                            ⚠ sync off
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={handleReenableSync}
+                                            disabled={reenablingSync}
+                                            className="text-[11px] px-2 py-0.5 rounded border border-[var(--ok)]/40 bg-[var(--ok)]/10 text-[var(--ok)] hover:bg-[var(--ok)]/20 font-bold transition-colors cursor-pointer"
+                                            title="Limpiar error y reactivar sincronización"
+                                        >
+                                            {reenablingSync ? 'Reactivando...' : '✓ Reactivar sync'}
+                                        </button>
+                                    </div>
                                 )}
                             </div>
 
@@ -962,10 +988,17 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                         <p className="text-sm text-[var(--text-faint)] line-through mt-0.5">{fmt(pub.original_price)}</p>
                                     )}
                                 </div>
-                                {/* Stock — editable */}
+                                {/* Stock — editable si no es Full */}
                                 <div>
                                     <p className="text-xs text-[var(--text-faint)] uppercase font-semibold mb-0.5">Stock</p>
-                                    <EditableField id={id} field="stock" value={pub.stock_publicado} label="Stock" />
+                                    {pub.logistic_type === 'fulfillment' ? (
+                                        <div className="flex items-center gap-1.5 py-0.5" title="El stock lo gestiona la bodega de Mercado Libre Full">
+                                            <span className="text-sm font-bold text-[var(--text)]">{pub.stock_publicado ?? 0}</span>
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20">Full</span>
+                                        </div>
+                                    ) : (
+                                        <EditableField id={id} field="stock" value={pub.stock_publicado} label="Stock" />
+                                    )}
                                 </div>
                                 <div className="text-center">
                                     <p className="text-xl font-bold text-[var(--text)]">{pub.sold_quantity ?? 0}</p>

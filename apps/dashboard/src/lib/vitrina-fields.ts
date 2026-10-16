@@ -104,7 +104,10 @@ export const VITRINA_FIELDS: EditableField[] = [
         type: 'number',
         writeKind: 'stock',
         dbColumns: ['stock_publicado'],
-        canEdit: () => yes,
+        canEdit: (ctx) =>
+            ctx.item.shipping?.logistic_type === 'fulfillment'
+                ? no('El stock lo gestiona la bodega de MeLi Full (no editable)')
+                : yes,
         getValue: (ctx) => ctx.item.available_quantity ?? 0,
         toMeliPatch: (value) => Math.max(0, Math.floor(Number(value))),
     },

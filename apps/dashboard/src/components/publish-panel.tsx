@@ -606,12 +606,13 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     }
 
     // -- Preview (dry_run) ----------------------------------------------------
-    async function handlePreview() {
+    async function handlePreview(overrideForceDuplicate?: boolean | unknown) {
         if (!primaryAccount) { setErrorMsg('Selecciona una cuenta MeLi'); return; }
         setErrorMsg(null);
         setLoading(true);
         setPreviewResult(null);
         const identOverrides = buildIdentOverrides();
+        const effectiveForce = typeof overrideForceDuplicate === 'boolean' ? overrideForceDuplicate : forceDuplicate;
         try {
             const res = await fetch('/api/publish', {
                 method: 'POST',
@@ -624,6 +625,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     category_id: categoryId || undefined,
                     listing_type_id: listingType,
                     dry_run: true,
+                    ...(effectiveForce ? { force_duplicate: true } : {}),
                     ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
                     ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
                     ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
@@ -1014,7 +1016,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             {stage === 'config' && (
                                 <button
                                     id="publish-preview-btn"
-                                    onClick={handlePreview}
+                                    onClick={() => handlePreview()}
                                     disabled={loading || selectedAccounts.length === 0}
                                     className="w-full flex items-center justify-center gap-2 py-3 bg-[var(--accent)] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--accent-ink)] font-bold rounded-xl transition-all shadow-sm"
                                 >
@@ -1055,18 +1057,42 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         <AlertCircle className="w-5 h-5 text-[var(--warn)]" />
                                         <h3 className="font-bold text-[var(--warn)] text-sm">Ya existe una publicación activa para esta cuenta</h3>
                                     </div>
-                                    <p className="text-xs text-[var(--warn)] mb-3">{previewResult.data.error}</p>
+                                    <p className="text-xs text-[var(--warn)] mb-2">{previewResult.data.error}</p>
+                                    <p className="text-xs text-[var(--text-muted)] mb-3">
+                                        Si estás creando o copiando una presentación en <strong>paquete (2, 4, 8, 12 piezas)</strong>, un bundle o una variante independiente, puedes continuar sin problema.
+                                    </p>
                                     {previewResult.data.publicacion_existente && (
                                         <a
                                             href={`https://www.mercadolibre.com.mx/p/${previewResult.data.publicacion_existente}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 text-xs font-bold text-[var(--warn)] hover:underline"
+                                            className="inline-flex items-center gap-1 text-xs font-bold text-[var(--warn)] hover:underline mb-4 block"
                                         >
                                             <ExternalLink className="w-3 h-3" />
-                                            Ver {previewResult.data.publicacion_existente} en MeLi
+                                            Ver {previewResult.data.publicacion_existente} existente en MeLi
                                         </a>
                                     )}
+                                    <div className="pt-3 border-t border-[var(--warn)]/20 flex flex-col sm:flex-row gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setForceDuplicate(true);
+                                                handlePreview(true);
+                                            }}
+                                            disabled={loading}
+                                            className="flex-1 py-2 px-3 bg-[var(--warn)] text-[var(--bg)] font-bold rounded-lg text-xs hover:brightness-110 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                                        >
+                                            <Send className="w-3.5 h-3.5" />
+                                            Continuar (Paquete / Variante independiente)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={resetPanel}
+                                            className="py-2 px-3 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-lg text-xs transition-colors"
+                                        >
+                                            Volver
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
