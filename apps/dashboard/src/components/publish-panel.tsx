@@ -634,6 +634,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                 }),
             });
             const data = await res.json();
+            if (data?.trace?.paso_1_5_duplicado?.item_existente || data?.advertencia_duplicado?.item_existente) {
+                setForceDuplicate(true);
+            }
             setPreviewResult({ status: res.status, data });
             setStage('preview');
         } catch (e: any) {
@@ -715,7 +718,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             shipping_mode: shippingMode,
                             manufacturing_time_days: manufacturingDays !== '' ? Number(manufacturingDays) : null,
                             ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
-                            ...(forceDuplicate ? { force_duplicate: true } : {}),
+                            ...(forceDuplicate || Boolean(previewResult?.data?.trace?.paso_1_5_duplicado?.item_existente) || Boolean(sourcePublicacion) ? { force_duplicate: true } : {}),
                         }),
                     });
                     const data = await res.json();
@@ -1150,6 +1153,40 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 <p className="text-xs text-[var(--ok)]">Cuenta: <strong>{accountName}</strong>{t?.paso_3_precio?.sale_price ? <span> · Precio: <strong>{new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(t.paso_3_precio.sale_price)}</strong></span> : null}</p>
                                             </div>
                                         </div>
+
+                                        {/* Advertencia informativa de publicación existente / paquete */}
+                                        {(t?.paso_1_5_duplicado?.item_existente || previewResult.data?.advertencia_duplicado?.item_existente) && (() => {
+                                            const itemExistente = t?.paso_1_5_duplicado?.item_existente || previewResult.data?.advertencia_duplicado?.item_existente;
+                                            const statusExistente = t?.paso_1_5_duplicado?.status || previewResult.data?.advertencia_duplicado?.status;
+                                            return (
+                                                <div className="flex items-start gap-2.5 p-3 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl text-xs">
+                                                    <AlertCircle className="w-4 h-4 text-[var(--warn)] shrink-0 mt-0.5" />
+                                                    <div className="flex-1 space-y-1">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span className="font-bold text-[var(--warn)]">Aviso:</span>
+                                                            <span className="text-[var(--text)]">Ya existe publicación activa</span>
+                                                            <a
+                                                                href={`https://www.mercadolibre.com.mx/p/${itemExistente}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-1 font-mono font-bold text-[var(--warn)] underline hover:opacity-80"
+                                                            >
+                                                                <ExternalLink className="w-3 h-3" />
+                                                                {itemExistente}
+                                                            </a>
+                                                            {statusExistente && (
+                                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--warn)]/20 text-[var(--warn)] font-semibold">
+                                                                    {statusExistente}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-[var(--text-muted)] text-[11px] leading-relaxed">
+                                                            Se publicará como <strong>paquete independiente (2, 4, 8, 12 pzas)</strong> o variante en esta cuenta sin impedimento.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* Fotos — editar en el preview */}
                                         <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2">

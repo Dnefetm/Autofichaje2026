@@ -475,7 +475,8 @@ export async function POST(req: NextRequest) {
             .limit(1)
             .maybeSingle();
 
-        if (pubActiva && !force_duplicate) {
+        const esCopia = Boolean(source_item_id);
+        if (pubActiva && !force_duplicate && !dry_run && !esCopia) {
             return NextResponse.json({
                 ok: false,
                 error: `Ya existe una publicación activa para este artículo en esta cuenta: ${pubActiva.external_item_id} (status: ${pubActiva.status_externo}). Ciérrala primero o usa force_duplicate: true.`,
@@ -485,7 +486,7 @@ export async function POST(req: NextRequest) {
         }
 
         trace.paso_1_5_duplicado = pubActiva
-            ? { advertencia: 'force_duplicate=true — publicando pese a existente', item_existente: pubActiva.external_item_id }
+            ? { advertencia: `Ya existe publicación activa ${pubActiva.external_item_id} (${pubActiva.status_externo})`, item_existente: pubActiva.external_item_id, status: pubActiva.status_externo }
             : { ok: true, sin_duplicados: true };
 
         // -- 2. Detectar modelo del seller -------------------------------------
@@ -1068,6 +1069,7 @@ export async function POST(req: NextRequest) {
                 ok: true,
                 dry_run: true,
                 mensaje: 'Simulación completada. Para publicar envía dry_run: false.',
+                advertencia_duplicado: pubActiva ? { item_existente: pubActiva.external_item_id, status: pubActiva.status_externo } : null,
                 duracion_ms: Date.now() - startTime,
                 trace,
             });
