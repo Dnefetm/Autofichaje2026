@@ -75,6 +75,10 @@ export default function SubirPaso1() {
             const wb = XLSX.read(new Uint8Array(buf), { type: 'array', dense: true, cellFormula: false, cellHTML: false, cellStyles: false, cellText: false });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
+            // Ancho REAL de la hoja (por !ref, no por fila) para columnas consistentes col_A..col_F
+            const refMatch = (ws['!ref'] || 'A1').match(/([A-Z]+)\d+$/);
+            const lastLetter = refMatch ? refMatch[1] : 'A';
+            const colCount = lastLetter.split('').reduce((acc, ch) => acc * 26 + (ch.charCodeAt(0) - 64), 0);
             const COLS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
             const CHUNK = 1000;
@@ -86,7 +90,7 @@ export default function SubirPaso1() {
                 const payload: Record<string, string> = {};
                 const colsUsadas: string[] = [];
                 let nonEmpty = 0;
-                for (let c = 0; c < vals.length; c++) {
+                for (let c = 0; c < colCount; c++) {
                     const letra = COLS[c] ?? `C${c + 1}`;
                     const key = `col_${letra}`;
                     const valStr = String(vals[c] ?? '').trim();
