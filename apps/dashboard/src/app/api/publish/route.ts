@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
             catalog_product_id = null as string | null,
             catalog_listing = false as boolean,
             stock_override = null as number | null,
+            cantidad_requerida = null as number | null,
             compatibilities = null as any,
             source_marketplace_id = null as string | null,
             source_item_id = null as string | null,
@@ -216,8 +217,8 @@ export async function POST(req: NextRequest) {
                 };
             }
 
-            // Resolver articulo_id desde el mapeo de la vidriera origen (si no se proveyó)
-            if (!resolvedArticuloId) {
+            let sourcePackQty: number | null = null;
+            if (source_marketplace_id && source_item_id) {
                 const { data: srcPub } = await supabaseAdmin
                     .from('publicaciones_externas')
                     .select('id')
@@ -230,14 +231,17 @@ export async function POST(req: NextRequest) {
                 if (srcPub?.id) {
                     const { data: srcMap } = await supabaseAdmin
                         .from('mapeo_publicacion_articulo')
-                        .select('articulo_id')
+                        .select('articulo_id, cantidad_requerida')
                         .eq('publicacion_id', srcPub.id)
                         .limit(1)
                         .maybeSingle();
 
-                    if (srcMap?.articulo_id) {
+                    if (srcMap?.cantidad_requerida) {
+                        sourcePackQty = Number(srcMap.cantidad_requerida);
+                    }
+                    if (!resolvedArticuloId && srcMap?.articulo_id) {
                         resolvedArticuloId = srcMap.articulo_id;
-                        trace.paso_0_5_articulo_resuelto = { desde: 'mapeo_origen', articulo_id: resolvedArticuloId };
+                        trace.paso_0_5_articulo_resuelto = { desde: 'mapeo_origen', articulo_id: resolvedArticuloId, cantidad_requerida: sourcePackQty };
                     }
                 }
             }
@@ -1260,15 +1264,15 @@ export async function POST(req: NextRequest) {
 
             if (pubInserted?.id) {
                 persistedIds.push(pubInserted.id);
+                const isFulfillment = (sourceData?.shipping?.logistic_type === 'fulfillment') || (sourceItem?.shipping?.logistic_type === 'fulfillment');
+                const effectivePackQty = Math.max(1, Number((body as any)?.pack_quantity ?? 1));
                 const { error: mapErr } = await supabaseAdmin
                     .from('mapeo_publicacion_articulo')
                     .upsert({
                         publicacion_id:     pubInserted.id,
                         articulo_id:        resolvedArticuloId,
-                        cantidad_requerida: 1,
-                        // V71: la copia desde vidriera nace con sincronización de stock apagada
-                        // (su stock es el copiado/editable, no el del inventario interno).
-                        sincronizar_stock:  sourceData ? false : true,
+                        cantidad_requerida: effectivePackQty,
+                        sincronizar_stock:  !isFulfillment,
                     }, { onConflict: 'publicacion_id,articulo_id' });
                 if (mapErr) persistErrors.push(`mapeo ${p.item.item_id}: ${mapErr.message}`);
             } else if (pubErr) {

@@ -304,8 +304,8 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
           setColumnasAGuardar(d.headers || []);
           // Auto-detección de Código SAT por sinónimos (conveniencia; se puede cambiar)
           const satSyn = /codigo\s*(sat|cfdi)|c[oó]digo\s*(sat|cfdi)|clave\s*(sat|cfdi)|claveprodserv|cve_prod_serv/i;
-          const sat = (d.headers || []).find((h: string) => satSyn.test(h || ''));
-          if (sat) setColumnaSat(sat);
+          const satEntry = Object.entries((d.header_labels || {}) as Record<string, string>).find(([, v]) => satSyn.test(v || ''));
+          if (satEntry) setColumnaSat(satEntry[0]);
         }
       })
       .catch((e) => {
@@ -394,6 +394,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
 
   const headers = preview?.headers || [];
   const rows = preview?.rows || [];
+  const headerLabels = (preview as any)?.header_labels || {};
 
   // Colores por rol para el preview
   type ColInfo = { label: string; emoji: string; hCls: string; cCls: string };
@@ -412,7 +413,7 @@ export function PasoMapear({ importacionId, onDone, onBack }: {
       <select id={id} value={value} onChange={(e) => { onChange(e.target.value); setError(null); }}
         className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-[var(--accent)] focus:outline-none bg-[var(--surface)]">
         <option value="">{placeholder}</option>
-        {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+        {headers.map((h) => <option key={h} value={h}>{headerLabels[h] ? `${h} · ${headerLabels[h]}` : h}</option>)}
       </select>
     );
   }

@@ -55,19 +55,29 @@ export async function GET(
     .select('payload, fila_num')
     .eq('importacion_id', id)
     .order('fila_num', { ascending: true })
-    .limit(10);
+    .limit(1000);
 
   if (rawErr) {
      return NextResponse.json({ ok: false, error: 'Error leyendo preview de base de datos' }, { status: 500 });
   }
 
-  // Si no hay headers guardados explícitamente en mapeo_columnas, inferirlos de la fila 1
+  // Columnas = letras (col_A, col_B…). La fila de encabezado se detecta buscando
+  // la que contiene "PRECIO"/"CODIGO" y se devuelve como etiqueta para el mapeo.
   let headers: string[] = [];
+  let headerLabels: Record<string, string> = {};
   const dataRows: string[][] = [];
-  
+
   if (rawRows && rawRows.length > 0) {
-      headers = Object.keys(rawRows[0].payload as Record<string, any>);
-      
+      headers = Object.keys((rawRows[0].payload as Record<string, any>) || {});
+
+      const headerRow = rawRows.find(r => {
+        const vals = Object.values((r.payload as Record<string, string>) || {});
+        return vals.some(v => /precio|codigo|descrip|aplicaci/i.test(v));
+      });
+      if (headerRow) {
+        headerLabels = (headerRow.payload as Record<string, string>) || {};
+      }
+
       for (const r of rawRows) {
           const dict = r.payload as Record<string, string>;
           const rowArr = headers.map(h => dict[h] ?? '');
@@ -104,6 +114,7 @@ export async function GET(
     nombre_archivo: importacion.nombre_archivo,
     proveedor: importacion.proveedor,
     headers,
+    header_labels: headerLabels,
     rows: dataRows,
     total_rows: totalRows,
     mapeo_previo: mapeoPrevio,

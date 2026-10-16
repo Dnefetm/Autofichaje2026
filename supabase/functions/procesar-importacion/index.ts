@@ -83,67 +83,35 @@ serve(async (req: Request) => {
     // Limpieza idempotente
     await sb.from('listas_precios_raw').delete().eq('importacion_id', id);
 
-    // La lista RAW se guarda FIEL: todas las columnas, celdas vacías incluidas.
-    // columnas_a_guardar se respeta aguas abajo (fn_procesar_precios_proveedor → columnas jsonb).
+    // La lista RAW se guarda FIEL y HEADER-AGNÓSTICA: cada celda se guarda con su
+    // clave por LETRA de columna (col_A, col_B…). La interpretación de cuál fila es
+    // el encabezado y qué significa cada columna se hace AGUAS ABAJO (mapeo), no aquí.
 
-    const filaEncabezado = (typeof m.fila_encabezado === 'number' && m.fila_encabezado >= 0) ? m.fila_encabezado : 0;
-    const omitirRepetidos = m.omitir_encabezados_repetidos !== false;
     const COLS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
     let chunk: any[] = [];
     let totalProcesadas = 0;
 
     for await (const worksheet of workbookReader) {
-      const headers: string[] = [];
-      let headerSnapshot: string[] = [];
       let filaNum = 0;
-      let rowIndex = 0;
 
       for await (const row of worksheet) {
         const values: any[] = (row as any).values || [];
 
-        // Omitir filas antes del encabezado configurado (portada / índice)
-        if (rowIndex < filaEncabezado) { rowIndex++; continue; }
-
-        // Fila de encabezado: nombrar columnas sin título por letra (col_A, col_B…)
-        if (headers.length === 0) {
-          for (let c = 1; c < values.length; c++) {
-            const raw = String(values[c] ?? '').trim();
-            const letra = COLS[c - 1] ?? `C${c}`;
-            headers.push(raw !== '' ? raw : `col_${letra}`);
-          }
-          headerSnapshot = [...headers];
-          rowIndex++;
-          continue;
-        }
-
-        // Fila de datos: payload FIEL (todas las columnas, celdas vacías incluidas)
         const payload: Record<string, string> = {};
         const colsUsadas: string[] = [];
         let nonEmpty = 0;
-        for (let c = 0; c < headers.length; c++) {
-          const h = headers[c];
-          const valStr = String(values[c + 1] ?? '').trim();
-          payload[h] = valStr;
-          colsUsadas.push(h);
+        for (let c = 1; c < values.length; c++) {
+          const letra = COLS[c - 1] ?? `C${c}`;
+          const key = `col_${letra}`;
+          const valStr = String(values[c] ?? '').trim();
+          payload[key] = valStr;
+          colsUsadas.push(key);
           if (valStr !== '') nonEmpty++;
         }
 
-        // Omitir encabezado repetido por sección (misma fila que el encabezado)
-        if (omitirRepetidos) {
-          let coincidencias = 0;
-          let noVaciosHeader = 0;
-          for (let i = 0; i < headers.length; i++) {
-            if (headerSnapshot[i] !== '') {
-              noVaciosHeader++;
-              if (payload[headers[i]] === headerSnapshot[i]) coincidencias++;
-            }
-          }
-          if (noVaciosHeader >= 2 && coincidencias === noVaciosHeader) { rowIndex++; continue; }
-        }
-
-        // Saltar filas casi vacías (títulos de sección, filas sin datos)
-        if (nonEmpty < 3) { rowIndex++; continue; }
+        // Omitir solo filas totalmente vacías (fiel al original)
+        if (nonEmpty === 0) continue;
 
         filaNum++;
         totalProcesadas++;
@@ -161,7 +129,6 @@ serve(async (req: Request) => {
           chunk = [];
           await new Promise((r) => setTimeout(r, 5));
         }
-        rowIndex++;
       }
       break; // solo la primera hoja
     }
