@@ -1092,24 +1092,19 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // -- 11.5 Pre-vuelo: POST /items/validate (sin crear la publicación) -----
-        const validacion = await (meli as any).validateItem(marketplace_id, tradicionalBody);
-        trace.paso_11_5_validate = validacion;
-        if (!validacion.ok) {
-            const erroresFormateados: string[] = (validacion.errores || []).map((e: any) => {
-                if (typeof e === 'string') return e;
-                const code = e?.code ? `[${e.code}] ` : '';
-                return `${code}${e?.message || JSON.stringify(e)}`;
-            });
-            console.error('[publish/validateItem] MeLi rechazó la validación previa:', JSON.stringify(validacion.errores, null, 2));
-            return NextResponse.json({
-                ok: false,
-                error: 'MeLi rechazó la validación previa (no se creó la publicación)',
-                errores: erroresFormateados,
-                meli_error: { cause: validacion.errores },
-                duracion_ms: Date.now() - startTime,
-                trace,
-            }, { status: 422 });
+        // -- 11.5 Pre-vuelo: POST /items/validate (diagnóstico NO bloqueante) ----
+        // No debe impedir la publicación: /items/validate emite falsos positivos
+        // (ej. shipping.lost_me1_by_user en cuentas me2) que POST /items no aplica.
+        // createItem (POST /items) valida de nuevo y devuelve los errores reales.
+        try {
+            const validacion = await (meli as any).validateItem(marketplace_id, tradicionalBody);
+            trace.paso_11_5_validate = validacion;
+            if (!validacion.ok) {
+                trace.paso_11_5_advertencia = validacion.errores;
+                console.warn('[publish/validateItem] advertencia no bloqueante:', JSON.stringify(validacion.errores));
+            }
+        } catch (e: any) {
+            trace.paso_11_5_error = e?.message || 'validateItem falló (ignorado)';
         }
 
         // -- 12. Publicar en MeLi: primero la TRADICIONAL (base) ----------------
