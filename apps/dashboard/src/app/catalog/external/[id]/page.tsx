@@ -1706,6 +1706,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 modelo: pub.model,
                                 sku: pub.seller_custom_field || pub.seller_sku,
                                 gtin: pub.gtin || pub.ean,
+                                cantidad_requerida: mapeos?.[0]?.cantidad_requerida ?? 1,
                             }}
                         />
                     </div>

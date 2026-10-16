@@ -1598,9 +1598,24 @@ export class MeliAdapter implements MarketplaceAdapter {
             const data = err.response?.data;
             const cause = data?.cause;
             if (status === 400 && Array.isArray(cause)) {
+                // Filtrar avisos no bloqueantes de MeLi (ej. shipping.lost_me1_by_user: aviso de que la cuenta usa ME2 estándar y no ME1 fletes)
+                const isNonBlocking = (c: any) => {
+                    if (c?.type === 'warning') return true;
+                    const code = String(c?.code || '').toLowerCase();
+                    const msg = String(c?.message || '').toLowerCase();
+                    if (code.includes('lost_me1') || msg.includes('lost_me1') || msg.includes('has not mode me1')) {
+                        return true;
+                    }
+                    return false;
+                };
+
+                const blockingErrors = cause.filter((c: any) => !isNonBlocking(c));
+                if (blockingErrors.length === 0) {
+                    return { ok: true };
+                }
                 return {
                     ok: false,
-                    errores: cause.map((c: any) => ({
+                    errores: blockingErrors.map((c: any) => ({
                         code: c.code || c.type || 'validation_error',
                         message: c.message || JSON.stringify(c),
                     })),
@@ -1612,7 +1627,10 @@ export class MeliAdapter implements MarketplaceAdapter {
                     errores: [{ code: data.error || 'error', message: data.message }],
                 };
             }
-            throw err;
+            return {
+                ok: false,
+                errores: [{ code: 'validation_error', message: err.message || 'Error de validación desconocido' }],
+            };
         }
     }
 

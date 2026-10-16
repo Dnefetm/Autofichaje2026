@@ -143,6 +143,7 @@ export async function POST(req: NextRequest) {
         let resolvedArticuloId: string = articulo_id || '';
         let sourceItem: any = null;
         let sourceData: any = null;
+        let sourcePackQty: number | null = null;
 
         if (source_marketplace_id && source_item_id) {
             try {
@@ -217,7 +218,7 @@ export async function POST(req: NextRequest) {
                 };
             }
 
-            let sourcePackQty: number | null = null;
+            sourcePackQty = null;
             if (source_marketplace_id && source_item_id) {
                 const { data: srcPub } = await supabaseAdmin
                     .from('publicaciones_externas')
@@ -1265,7 +1266,7 @@ export async function POST(req: NextRequest) {
             if (pubInserted?.id) {
                 persistedIds.push(pubInserted.id);
                 const isFulfillment = (sourceData?.shipping?.logistic_type === 'fulfillment') || (sourceItem?.shipping?.logistic_type === 'fulfillment');
-                const effectivePackQty = Math.max(1, Number((body as any)?.pack_quantity ?? 1));
+                const effectivePackQty = Math.max(1, Number(cantidad_requerida ?? (body as any)?.pack_quantity ?? sourcePackQty ?? 1));
                 const { error: mapErr } = await supabaseAdmin
                     .from('mapeo_publicacion_articulo')
                     .upsert({

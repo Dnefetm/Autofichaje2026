@@ -54,6 +54,7 @@ export interface SourcePublicacion {
     modelo?: string | null;
     sku?: string | null;
     gtin?: string | null;
+    cantidad_requerida?: number | null;
 }
 
 interface PublishPanelProps {
@@ -229,6 +230,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const [activeProfiles, setActiveProfiles] = useState<{ title?: string; description?: string }>({});
     const [freeShipping, setFreeShipping] = useState(false);
     const [shippingMode, setShippingMode] = useState('me2');
+    const [packQuantity, setPackQuantity] = useState<number>(sourcePublicacion?.cantidad_requerida ? Number(sourcePublicacion.cantidad_requerida) : 1);
     const [manufacturingDays, setManufacturingDays] = useState<string>('');
     const [catalogResults, setCatalogResults] = useState<any[]>([]);
     const [catalogProductId, setCatalogProductId] = useState<string | null>(null);
@@ -300,6 +302,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         }
         if (sourcePublicacion.stock_publicado != null && Number(sourcePublicacion.stock_publicado) >= 0) {
             setStockOverride(String(sourcePublicacion.stock_publicado));
+        }
+        if (sourcePublicacion.cantidad_requerida != null && Number(sourcePublicacion.cantidad_requerida) >= 1) {
+            setPackQuantity(Number(sourcePublicacion.cantidad_requerida));
         }
         if (sourcePublicacion.tipo_publicacion === 'catalogo' && sourcePublicacion.id_producto_catalogo) {
             setCatalogProductId(sourcePublicacion.id_producto_catalogo);
@@ -627,6 +632,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     dry_run: true,
                     free_shipping: freeShipping,
                     shipping_mode: shippingMode,
+                    cantidad_requerida: packQuantity,
                     ...(effectiveForce ? { force_duplicate: true } : {}),
                     ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
                     ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
@@ -718,6 +724,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
                             free_shipping: freeShipping,
                             shipping_mode: shippingMode,
+                            cantidad_requerida: packQuantity,
                             manufacturing_time_days: manufacturingDays !== '' ? Number(manufacturingDays) : null,
                             ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
                             ...(forceDuplicate || Boolean(previewResult?.data?.trace?.paso_1_5_duplicado?.item_existente) || Boolean(sourcePublicacion) ? { force_duplicate: true } : {}),
@@ -992,21 +999,37 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                 </select>
                             </div>
 
-                            {/* Stock inicial */}
-                            <div>
-                                <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5" htmlFor="publish-stock">
-                                    Stock inicial
-                                </label>
-                                <input
-                                    id="publish-stock"
-                                    type="number"
-                                    min="0"
-                                    value={stockOverride}
-                                    onChange={e => setStockOverride(e.target.value)}
-                                    placeholder="1"
-                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface)] font-mono"
-                                />
-                                <p className="text-[10px] text-[var(--text-faint)] mt-1">Stock a publicar (default 1, editable).</p>
+                            {/* Stock inicial y Piezas por venta */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5" htmlFor="publish-stock">
+                                        Stock inicial a publicar
+                                    </label>
+                                    <input
+                                        id="publish-stock"
+                                        type="number"
+                                        min="0"
+                                        value={stockOverride}
+                                        onChange={e => setStockOverride(e.target.value)}
+                                        placeholder="1"
+                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface)] font-mono"
+                                    />
+                                    <p className="text-[10px] text-[var(--text-faint)] mt-1">Stock que se verá publicado en MeLi.</p>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5" htmlFor="publish-pack-qty">
+                                        Piezas por venta (a restar de catálogo)
+                                    </label>
+                                    <input
+                                        id="publish-pack-qty"
+                                        type="number"
+                                        min="1"
+                                        value={packQuantity}
+                                        onChange={e => setPackQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                        className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface)] font-mono font-bold text-[var(--accent)]"
+                                    />
+                                    <p className="text-[10px] text-[var(--text-faint)] mt-1">Piezas del artículo que descuenta cada venta (1 = unitario; 2, 4, 8, etc.).</p>
+                                </div>
                             </div>
 
                             {/* Error general */}
@@ -1472,18 +1495,31 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 </div>
                                             );
                                         })()}
-                                        {/* Stock */}
-                                        <div>
-                                            <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Stock a publicar</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={stockOverride !== '' ? stockOverride : (t?.paso_4_stock?.available_quantity ?? '')}
-                                                onChange={e => setStockOverride(e.target.value)}
-                                                placeholder="1"
-                                                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
-                                            />
-                                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Stock a publicar (default 1). Vacío = usa el del catálogo maestro ({t?.paso_4_stock?.available_quantity ?? '—'}).</p>
+                                        {/* Stock y Piezas por venta */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Stock a publicar</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={stockOverride !== '' ? stockOverride : (t?.paso_4_stock?.available_quantity ?? '')}
+                                                    onChange={e => setStockOverride(e.target.value)}
+                                                    placeholder="1"
+                                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
+                                                />
+                                                <p className="text-[10px] text-[var(--text-faint)] mt-1">Stock a publicar (default 1). Vacío = usa el del catálogo maestro ({t?.paso_4_stock?.available_quantity ?? '—'}).</p>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Piezas por venta (descuento de catálogo)</label>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={packQuantity}
+                                                    onChange={e => setPackQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono font-bold text-[var(--accent)]"
+                                                />
+                                                <p className="text-[10px] text-[var(--text-faint)] mt-1">Piezas a restar del producto por cada venta (1 = unitario; 2, 4, 8, etc.).</p>
+                                            </div>
                                         </div>
                                         {/* Descripción */}
                                         <div>
@@ -1683,7 +1719,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         {/* Garantía de enlace al catálogo */}
                                         <div className="flex items-center gap-2 p-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-xs text-[var(--text-muted)]">
                                             <CheckCircle2 className="w-4 h-4 text-[var(--ok)] shrink-0" />
-                                            <span>Esta publicación se creará <strong>enlazada a tu producto en el catálogo</strong> (gestión unificada de stock e inventario).</span>
+                                            <span>Esta publicación se creará <strong>enlazada a tu producto en el catálogo</strong>: cada venta descontará <strong>{packQuantity} {packQuantity === 1 ? 'pieza' : 'piezas'}</strong> del inventario.</span>
                                         </div>
 
                                         {/* CTAs */}
