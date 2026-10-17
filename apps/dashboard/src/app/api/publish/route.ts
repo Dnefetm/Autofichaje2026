@@ -1277,7 +1277,15 @@ export async function POST(req: NextRequest) {
             const aplicaciones = resolved.atributos_especificos && typeof resolved.atributos_especificos === 'object'
                 ? (resolved.atributos_especificos as any).compatibilidades
                 : null;
-            effectiveCompatibilities = buildCompatibilitiesFromAplicaciones(aplicaciones);
+            if (Array.isArray(aplicaciones) && aplicaciones.length > 0) {
+                try {
+                    effectiveCompatibilities = await (meli as any).resolveCompatibilityFamilies(marketplace_id, aplicaciones);
+                } catch (e) {
+                    effectiveCompatibilities = buildCompatibilitiesFromAplicaciones(aplicaciones);
+                }
+            } else {
+                effectiveCompatibilities = null;
+            }
         }
         if (effectiveCompatibilities && ((effectiveCompatibilities.products || []).length > 0 || (effectiveCompatibilities.products_families || []).length > 0)) {
             try {

@@ -1657,6 +1657,79 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
+     * resolveCompatibilityFamilies — Resuelve aplicaciones vehiculares (marca/modelo/año)
+     * a value_id del catálogo de MeLi vía top_values y arma products_families para el
+     * dominio MLM-CARS_AND_VANS_FOR_COMPATIBILITIES. Usa value_id cuando lo encuentra;
+     * si no, cae a value_name (para no romper el envío).
+     */
+    async resolveCompatibilityFamilies(accountId: string, aplicaciones: any[]): Promise<{ products_families: any[] } | null> {
+        if (!Array.isArray(aplicaciones) || aplicaciones.length === 0) return null;
+        const DOMAIN = 'MLM-CARS_AND_VANS_FOR_COMPATIBILITIES';
+        const accessToken = await this.getAccessToken(accountId);
+
+        const brandCache = new Map<string, string>();
+        const modelCache = new Map<string, string>();
+
+        const topValueId = async (attrId: string, known: Array<{ id: string; value_id: string }>, name: string): Promise<string | null> => {
+            try {
+                const resp = await axios.post(
+                    `https://api.mercadolibre.com/catalog_domains/${DOMAIN}/attributes/${attrId}/top_values`,
+                    known.length ? { known_attributes: known } : {},
+                    { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } },
+                );
+                const list = Array.isArray(resp.data) ? resp.data : [];
+                const hit = list.find((v: any) => String(v?.name ?? '').trim().toLowerCase() === name.trim().toLowerCase());
+                return hit?.id ? String(hit.id) : null;
+            } catch {
+                return null;
+            }
+        };
+
+        const families: any[] = [];
+        const seen = new Set<string>();
+        for (const a of aplicaciones) {
+            const marca = String(a?.marca ?? '').trim();
+            const modelo = String(a?.modelo ?? '').trim();
+            if (!marca || !modelo) continue;
+
+            if (!brandCache.has(marca)) {
+                brandCache.set(marca, (await topValueId('BRAND', [], marca)) || '');
+            }
+            const brandId = brandCache.get(marca) || null;
+
+            const modelKey = `${marca}||${modelo}`;
+            if (!modelCache.has(modelKey)) {
+                modelCache.set(modelKey, brandId ? ((await topValueId('CAR_AND_VAN_MODEL', [{ id: 'BRAND', value_id: brandId }], modelo)) || '') : '');
+            }
+            const modelId = modelCache.get(modelKey) || null;
+
+            const anioIni = parseInt(String(a?.anio ?? ''), 10);
+            const anioFin = parseInt(String(a?.anioF ?? ''), 10);
+            const anios: number[] = [];
+            if (!isNaN(anioIni) && anioIni >= 1900 && anioIni <= 2100) {
+                const fin = (!isNaN(anioFin) && anioFin >= anioIni && anioFin <= 2100) ? anioFin : anioIni;
+                for (let y = anioIni; y <= fin && anios.length < 40; y++) anios.push(y);
+            }
+            if (anios.length === 0) anios.push(-1);
+
+            for (const y of anios) {
+                const key = `${brandId}||${modelId}||${y}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                const attributes: any[] = [];
+                if (brandId) attributes.push({ id: 'BRAND', value_id: brandId });
+                else attributes.push({ id: 'BRAND', value_name: marca });
+                if (modelId) attributes.push({ id: 'CAR_AND_VAN_MODEL', value_id: modelId });
+                else attributes.push({ id: 'CAR_AND_VAN_MODEL', value_name: modelo });
+                if (y > 0) attributes.push({ id: 'YEAR', value_name: String(y) });
+                families.push({ domain_id: DOMAIN, attributes });
+            }
+            if (families.length >= 200) break;
+        }
+        return families.length > 0 ? { products_families: families } : null;
+    }
+
+    /**
      * createItem — Crea una publicación nueva en MeLi.
      * Soporta modelo User Products (UP): family_name, sin title, sin variations[].
      * Soporta modelo legacy: title, con variations[] si aplica.
