@@ -62,6 +62,23 @@ export default function PublicarDaiPage() {
         }
     }
 
+    async function borrar(sku: string) {
+        const artId = resultado[sku]?.articulo_id;
+        if (!artId) return;
+        if (!confirm(`¿Borrar la ficha del código ${sku} del catálogo? Podrás prepararlo de nuevo desde cero.`)) return;
+        setPreparando(sku); setError(null);
+        try {
+            const r = await fetch(`/api/catalog/${artId}`, { method: 'DELETE' });
+            const d = await r.json();
+            if (!d.ok) { setError(d.error || 'No se pudo borrar'); return; }
+            setResultado((prev) => { const n = { ...prev }; delete n[sku]; return n; });
+        } catch (e: any) {
+            setError(e.message);
+        } finally {
+            setPreparando(null);
+        }
+    }
+
     async function capturar360(sku: string) {
         setPreparando(sku); setError(null);
         try {
@@ -142,6 +159,11 @@ export default function PublicarDaiPage() {
                                                             <Link href={`/catalog/${r.articulo_id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--accent)] hover:underline">
                                                                 <CheckCircle2 className="w-3.5 h-3.5" /> Ficha <ExternalLink className="w-3 h-3" />
                                                             </Link>
+                                                        )}
+                                                        {r?.ok && (
+                                                            <button onClick={() => borrar(f.sku_proveedor)} disabled={preparando === f.sku_proveedor} className="text-[10px] font-semibold text-[var(--err)] hover:underline disabled:opacity-50" title="Borrar ficha del catálogo">
+                                                                Borrar
+                                                            </button>
                                                         )}
                                                         {r?.ok && !r.w360 ? (
                                                             <span className="text-[10px] text-[var(--text-faint)] italic">Sin 360 en DAI</span>
