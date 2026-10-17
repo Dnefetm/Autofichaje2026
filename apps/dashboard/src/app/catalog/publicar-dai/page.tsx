@@ -23,15 +23,21 @@ export default function PublicarDaiPage() {
     const [preparando, setPreparando] = useState<string | null>(null);
     const [resultado, setResultado] = useState<Record<string, any>>({});
     const [error, setError] = useState<string | null>(null);
+    const [proveedor, setProveedor] = useState('dai');
 
-    useEffect(() => { cargar(''); }, []);
+    useEffect(() => {
+        const sp = new URLSearchParams(window.location.search);
+        const p = sp.get('proveedor') || 'dai';
+        setProveedor(p);
+        cargar('', p);
+    }, []);
 
-    async function cargar(term: string) {
+    async function cargar(term: string, prov: string = proveedor) {
         setLoading(true); setError(null);
         let q = supabase
             .from('precios_proveedor')
             .select('sku_proveedor, descripcion, valor, codigo_barra')
-            .ilike('proveedor', '%dai%')
+            .ilike('proveedor', `%${prov}%`)
             .eq('vigente', true)
             .order('sku_proveedor', { ascending: true })
             .limit(200);

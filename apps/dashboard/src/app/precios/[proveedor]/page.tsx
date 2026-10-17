@@ -190,6 +190,12 @@ export default async function HubProveedorPage(props: {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                             <Link
+                                href={`/catalog/publicar-dai?proveedor=${encodeURIComponent(proveedorDecoded)}`}
+                                className="bg-[var(--ok)]/10 hover:bg-[var(--ok)]/20 text-[var(--ok)] px-4 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center text-sm"
+                            >
+                                Publicar en MeLi
+                            </Link>
+                            <Link
                                 href={`/precios/${encodeURIComponent(proveedorDecoded)}/revisar`}
                                 className="bg-[var(--surface-2)] hover:bg-[var(--bg)] text-[var(--text)] px-4 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center text-sm"
                             >

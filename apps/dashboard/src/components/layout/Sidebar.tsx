@@ -68,7 +68,6 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
         { name: 'Dashboard',        icon: LayoutDashboard, href: '/' },
         { name: 'Catálogo Maestro', icon: Package,         href: '/catalog' },
         { name: 'Vitrinas MeLi',   icon: Store,            href: '/catalog/external' },
-        { name: 'Publicar DAI',    icon: Package,          href: '/catalog/publicar-dai' },
         { name: 'Ventas MeLi',      icon: ShoppingCart,    href: '/ventas' },
         { name: 'Clientes',         icon: Users,           href: '/ventas/clientes' },
         { name: 'Pedidos',          icon: ReceiptText,     href: '/ventas/pedidos' },
