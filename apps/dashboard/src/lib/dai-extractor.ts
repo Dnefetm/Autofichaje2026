@@ -77,3 +77,23 @@ export function limpiarEan(raw: string | null | undefined): string | null {
     const s = String(raw ?? '').replace(/^'+/, '').trim();
     return /^\d{8,14}$/.test(s) ? s : null;
 }
+
+/**
+ * Frames del visor 360 de DAI. NO es un visor interactivo: es una carpeta con
+ * imágenes estáticas (img/1.jpg … img/64.jpg) servidas por HTTP. Devuelve las URLs.
+ */
+export async function extraerFrames360(codigo: string): Promise<string[]> {
+    const base = `https://dai.com.mx/panel/files/360/${codigo}/`;
+    try {
+        const res = await fetch(base);
+        if (!res.ok) return [];
+        const html = await res.text();
+        const frames: string[] = [];
+        const re = /img\/(\d+)\.jpg/g;
+        let m;
+        while ((m = re.exec(html)) !== null) frames.push(`${base}img/${m[1]}.jpg`);
+        return frames;
+    } catch {
+        return [];
+    }
+}

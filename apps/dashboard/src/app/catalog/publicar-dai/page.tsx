@@ -61,6 +61,27 @@ export default function PublicarDaiPage() {
         }
     }
 
+    async function capturar360(sku: string) {
+        setPreparando(sku); setError(null);
+        try {
+            let artId = resultado[sku]?.articulo_id;
+            if (!artId) {
+                const rp = await fetch('/api/dai/preparar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, proveedor }) });
+                const dp = await rp.json();
+                if (!dp.ok) throw new Error(dp.error);
+                artId = dp.articulo_id;
+                setResultado((prev) => ({ ...prev, [sku]: dp }));
+            }
+            const r = await fetch('/api/dai/capturar-360', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: sku, articulo_id: artId }) });
+            const d = await r.json();
+            setResultado((prev) => ({ ...prev, [sku]: { ...(prev[sku] || {}), capturadas360: d.capturadas, frames360: d.frames_disponibles } }));
+        } catch (e: any) {
+            setError(e.message);
+        } finally {
+            setPreparando(null);
+        }
+    }
+
     return (
         <div className="flex-1 overflow-auto bg-[var(--bg)] min-h-screen">
             <Page>
@@ -112,16 +133,22 @@ export default function PublicarDaiPage() {
                                                 </td>
                                                 <td className="px-3 py-2 font-mono text-[var(--text-faint)]">{f.codigo_barra?.replace(/^'+/, '') || '—'}</td>
                                                 <td className="px-3 py-2 font-mono">${Number(f.valor).toFixed(2)}</td>
-                                                <td className="px-3 py-2 text-right">
-                                                    {r?.ok ? (
-                                                        <Link href={`/catalog/${r.articulo_id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--accent)] hover:underline">
-                                                            <CheckCircle2 className="w-3.5 h-3.5" /> Listo ({r.aplicaciones?.length ?? 0} apps) · Abrir ficha <ExternalLink className="w-3 h-3" />
-                                                        </Link>
-                                                    ) : (
-                                                        <Btn size="sm" onClick={() => preparar(f.sku_proveedor)} loading={preparando === f.sku_proveedor}>
-                                                            {preparando === f.sku_proveedor ? 'Preparando…' : 'Preparar'}
+                                                <td className="px-3 py-2 text-right whitespace-nowrap">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        {r?.ok && (
+                                                            <Link href={`/catalog/${r.articulo_id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--accent)] hover:underline">
+                                                                <CheckCircle2 className="w-3.5 h-3.5" /> Ficha <ExternalLink className="w-3 h-3" />
+                                                            </Link>
+                                                        )}
+                                                        <Btn size="sm" variant="ghost" onClick={() => capturar360(f.sku_proveedor)} loading={preparando === f.sku_proveedor}>
+                                                            {r?.capturadas360 ? `360 (${r.capturadas360})` : 'Capturar 360'}
                                                         </Btn>
-                                                    )}
+                                                        {!r?.ok && (
+                                                            <Btn size="sm" onClick={() => preparar(f.sku_proveedor)} loading={preparando === f.sku_proveedor}>
+                                                                Preparar
+                                                            </Btn>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
