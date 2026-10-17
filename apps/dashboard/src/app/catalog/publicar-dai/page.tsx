@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Btn } from '@/components/ui/Btn';
@@ -34,19 +33,16 @@ export default function PublicarDaiPage() {
 
     async function cargar(term: string, prov: string = proveedor) {
         setLoading(true); setError(null);
-        let q = supabase
-            .from('precios_proveedor')
-            .select('sku_proveedor, descripcion, valor, codigo_barra')
-            .eq('proveedor', prov)
-            .eq('vigente', true)
-            .order('sku_proveedor', { ascending: true })
-            .limit(200);
-        if (term.trim()) {
-            q = q.or(`sku_proveedor.ilike.%${term.trim()}%,descripcion.ilike.%${term.trim()}%`);
+        try {
+            const r = await fetch(`/api/dai/skus?proveedor=${encodeURIComponent(prov)}&busqueda=${encodeURIComponent(term)}`);
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.error);
+            setFilas((d.filas as FilaDai[]) || []);
+        } catch (e: any) {
+            setError(e.message);
+        } finally {
+            setLoading(false);
         }
-        const { data, error: err } = await q;
-        if (err) setError(err.message); else setFilas((data as FilaDai[]) || []);
-        setLoading(false);
     }
 
     async function preparar(sku: string) {
