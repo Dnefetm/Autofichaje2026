@@ -702,7 +702,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             });
             const data = await res.json();
             setPreviewResult({ status: res.status, data });
-            setCategoryOverride('');
+            setCategoryOverride(forcedCategoryId);
             setAttrOverrides({});
             setCurrentAttrValues(new Map());
         } catch (e: any) {
