@@ -93,6 +93,40 @@ function resolvePublicationData(articulo: any, ficha: any | null, source: any | 
     };
 }
 
+/** Convierte las aplicaciones vehiculares de DAI al contrato de compatibilidades de MeLi (products_families). */
+function buildCompatibilitiesFromAplicaciones(aplicaciones: any[] | null | undefined): { products_families: any[] } | null {
+    if (!Array.isArray(aplicaciones) || aplicaciones.length === 0) return null;
+    const DOMAIN = 'MLM-CARS_AND_VANS_FOR_COMPATIBILITIES';
+    const families: any[] = [];
+    const seen = new Set<string>();
+    for (const a of aplicaciones) {
+        const marca = String(a?.marca ?? '').trim();
+        const modelo = String(a?.modelo ?? '').trim();
+        if (!marca || !modelo) continue;
+        const anioIni = parseInt(String(a?.anio ?? ''), 10);
+        const anioFin = parseInt(String(a?.anioF ?? ''), 10);
+        const anios: number[] = [];
+        if (!isNaN(anioIni) && anioIni >= 1900 && anioIni <= 2100) {
+            const fin = (!isNaN(anioFin) && anioFin >= anioIni && anioFin <= 2100) ? anioFin : anioIni;
+            for (let y = anioIni; y <= fin && anios.length < 40; y++) anios.push(y);
+        }
+        if (anios.length === 0) anios.push(-1); // sin año
+        for (const y of anios) {
+            const key = `${marca}||${modelo}||${y}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const attributes: any[] = [
+                { id: 'BRAND', value_name: marca },
+                { id: 'CAR_AND_VAN_MODEL', value_name: modelo },
+            ];
+            if (y > 0) attributes.push({ id: 'YEAR', value_name: String(y) });
+            families.push({ domain_id: DOMAIN, attributes });
+        }
+        if (families.length >= 200) break;
+    }
+    return families.length > 0 ? { products_families: families } : null;
+}
+
 export async function POST(req: NextRequest) {
     const startTime = Date.now();
     const trace: Record<string, any> = {}; // "tubo transparente" — cada paso deja su huella aquí
@@ -1188,15 +1222,23 @@ export async function POST(req: NextRequest) {
         }
 
         // -- 12.5 Compatibilidades vehiculares (autopartes): opcional, no bloqueante --
-        if (compatibilities && ((compatibilities.products || []).length > 0 || (compatibilities.products_families || []).length > 0)) {
+        let effectiveCompatibilities = compatibilities;
+        if (!effectiveCompatibilities || ((effectiveCompatibilities.products || []).length === 0 && (effectiveCompatibilities.products_families || []).length === 0)) {
+            const aplicaciones = resolved.atributos_especificos && typeof resolved.atributos_especificos === 'object'
+                ? (resolved.atributos_especificos as any).compatibilidades
+                : null;
+            effectiveCompatibilities = buildCompatibilitiesFromAplicaciones(aplicaciones);
+        }
+        if (effectiveCompatibilities && ((effectiveCompatibilities.products || []).length > 0 || (effectiveCompatibilities.products_families || []).length > 0)) {
             try {
-                const compRes = await (meli as any).addCompatibilities(marketplace_id, created.item_id, compatibilities);
-                trace.paso_12_5_compatibilidades = { ok: true, created_compatibilities_count: compRes?.created_compatibilities_count ?? null };
+                const compRes = await (meli as any).addCompatibilities(marketplace_id, created.item_id, effectiveCompatibilities);
+                const enviadas = (effectiveCompatibilities.products?.length ?? 0) + (effectiveCompatibilities.products_families?.length ?? 0);
+                trace.paso_12_5_compatibilidades = { ok: true, enviadas, created_compatibilities_count: compRes?.created_compatibilities_count ?? null };
             } catch (compErr: any) {
                 trace.paso_12_5_compatibilidades = { error: compErr.message || String(compErr) };
             }
         } else {
-            trace.paso_12_5_compatibilidades = { omitido: 'Sin compatibilidades en el request' };
+            trace.paso_12_5_compatibilidades = { omitido: 'Sin compatibilidades en el request ni en el artículo' };
         }
 
         // -- 13. Descripción: va a la TRADICIONAL (la de catálogo la aporta MeLi) --

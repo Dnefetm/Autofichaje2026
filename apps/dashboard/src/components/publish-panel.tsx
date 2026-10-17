@@ -160,6 +160,13 @@ function PublishStepper({ trace }: { trace: Record<string, any> }) {
             detail: trace?.paso_9_titulo?.title_legacy || trace?.paso_9_titulo?.family_name_up || '—',
             tone: 'neutral',
         },
+        {
+            label: 'Compatibilidades',
+            detail: trace?.paso_12_5_compatibilidades?.ok
+                ? `${trace.paso_12_5_compatibilidades.enviadas ?? trace.paso_12_5_compatibilidades.created_compatibilities_count ?? '—'} enviada(s)`
+                : (trace?.paso_12_5_compatibilidades?.error ? `Error: ${trace.paso_12_5_compatibilidades.error}` : (trace?.paso_12_5_compatibilidades?.omitido ?? '—')),
+            tone: trace?.paso_12_5_compatibilidades?.ok ? 'ok' : (trace?.paso_12_5_compatibilidades?.error ? 'warn' : 'neutral'),
+        },
     ];
 
     if (trace?.paso_12_meli_create) {
@@ -375,7 +382,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         let cancelled = false;
         supabase
             .from('articulos')
-            .select('nombre, marca, modelo, variante, categoria, codigo_universal, peso_kg, largo_cm, ancho_cm, alto_cm, descripcion')
+            .select('nombre, marca, modelo, variante, categoria, codigo_universal, peso_kg, largo_cm, ancho_cm, alto_cm, descripcion, atributos_especificos')
             .eq('articulo_id', articulo_id)
             .single()
             .then(({ data }) => { if (!cancelled && data) setArticleData(data); });
@@ -1045,6 +1052,18 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                     ))}
                                 </select>
                             </div>
+
+                            {/* Compatibilidades vehiculares (autopartes) */}
+                            {(() => {
+                                const comps = articleData?.atributos_especificos?.compatibilidades;
+                                if (!Array.isArray(comps) || comps.length === 0) return null;
+                                const marcas = [...new Set(comps.map((c: any) => String(c?.marca ?? '').trim()).filter(Boolean))];
+                                return (
+                                    <div className="p-2 rounded bg-[var(--info)]/10 border border-[var(--info)]/30 text-[11px] text-[var(--info)]">
+                                        Compatibilidades vehiculares: <strong>{comps.length}</strong> aplicación(es) · {marcas.join(', ') || 'sin marca'} — se enviarán a MeLi al publicar.
+                                    </div>
+                                );
+                            })()}
 
                             {/* Stock inicial y Piezas por venta */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
