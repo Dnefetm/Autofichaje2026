@@ -1639,7 +1639,7 @@ export class MeliAdapter implements MarketplaceAdapter {
      * POST /items/{id}/compatibilities. Body real de MeLi: { products, products_families }.
      * creation_source se inyecta 'DEFAULT' si no viene.
      */
-    async addCompatibilities(accountId: string, itemId: string, payload: any): Promise<any> {
+    async addCompatibilities(accountId: string, itemId: string, payload: any, userProductId?: string | null): Promise<any> {
         const accessToken = await this.getAccessToken(accountId);
         const body: any = { ...payload };
         if (Array.isArray(body.products)) {
@@ -1648,8 +1648,12 @@ export class MeliAdapter implements MarketplaceAdapter {
         if (Array.isArray(body.products_families)) {
             body.products_families = body.products_families.map((f: any) => ({ creation_source: 'DEFAULT', ...f }));
         }
+        // User Products usan su propio recurso de compatibilidades.
+        const endpoint = userProductId
+            ? `https://api.mercadolibre.com/user-products/${userProductId}/compatibilities`
+            : `https://api.mercadolibre.com/items/${itemId}/compatibilities`;
         const resp = await axios.post(
-            `https://api.mercadolibre.com/items/${itemId}/compatibilities`,
+            endpoint,
             body,
             { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
         );

@@ -1289,7 +1289,7 @@ export async function POST(req: NextRequest) {
         }
         if (effectiveCompatibilities && ((effectiveCompatibilities.products || []).length > 0 || (effectiveCompatibilities.products_families || []).length > 0)) {
             try {
-                const compRes = await (meli as any).addCompatibilities(marketplace_id, created.item_id, effectiveCompatibilities);
+                const compRes = await (meli as any).addCompatibilities(marketplace_id, created.item_id, effectiveCompatibilities, created.user_product_id);
                 const enviadas = (effectiveCompatibilities.products?.length ?? 0) + (effectiveCompatibilities.products_families?.length ?? 0);
                 trace.paso_12_5_compatibilidades = { ok: true, enviadas, created_compatibilities_count: compRes?.created_compatibilities_count ?? null };
             } catch (compErr: any) {
@@ -1347,6 +1347,7 @@ export async function POST(req: NextRequest) {
                 .upsert({
                     marketplace_id,
                     external_item_id:      p.item.item_id,
+                    user_product_id:       p.item.user_product_id ?? null,
                     external_variation_id: '0',
                     titulo:                p.item.title,
                     precio_venta:          price,
