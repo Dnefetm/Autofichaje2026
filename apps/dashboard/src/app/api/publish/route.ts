@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
             manufacturing_time_days = null as number | null,
             catalog_product_id = null as string | null,
             catalog_listing = false as boolean,
+            force_rule_id = null as string | null,
             stock_override = null as number | null,
             cantidad_requerida = null as number | null,
             compatibilities = null as any,
@@ -630,6 +631,7 @@ export async function POST(req: NextRequest) {
                 p_marketplace_id:  marketplace_id,
                 p_category_id:     category_id,
                 p_listing_type_id: listing_type_id,
+                ...(force_rule_id ? { p_force_rule_id: force_rule_id } : {}),
             });
             if (!rpcErr && rpcPrice?.sale_price != null && Number(rpcPrice.sale_price) > 0) {
                 price = Number(rpcPrice.sale_price);

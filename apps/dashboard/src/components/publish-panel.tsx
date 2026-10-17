@@ -219,6 +219,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     const [categoryOverride, setCategoryOverride] = useState<string>('');
     const [familyNameOverride, setFamilyNameOverride] = useState<string>('');
     const [priceOverride, setPriceOverride] = useState<string>('');
+    const [forceRuleId, setForceRuleId] = useState<string>('');
+    const [pricingRules, setPricingRules] = useState<any[]>([]);
     const [stockOverride, setStockOverride] = useState<string>('1');
     const [descriptionOverride, setDescriptionOverride] = useState<string>('');
     // Identificación editable (marca/modelo/SKU/GTIN). Vacío = usar el valor resuelto por el backend.
@@ -276,6 +278,14 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                 // Auto-seleccionar la primera cuenta por defecto
                 if (data && data.length > 0) setSelectedAccounts([data[0].id]);
             });
+    }, []);
+
+    // Reglas de precio disponibles (para forzar una distinta a la automática)
+    useEffect(() => {
+        fetch('/api/settings/pricing')
+            .then(r => r.json())
+            .then(d => setPricingRules(d.rules || []))
+            .catch(() => {});
     }, []);
 
     // Perfiles de "voz de marca" activos (transparencia).
@@ -634,6 +644,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     ...(ficha_id ? { ficha_id } : {}),
                     category_id: categoryId || undefined,
                     listing_type_id: listingType,
+                    ...(forceRuleId ? { force_rule_id: forceRuleId } : {}),
                     dry_run: true,
                     free_shipping: freeShipping,
                     shipping_mode: shippingMode,
@@ -676,6 +687,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     ...(ficha_id ? { ficha_id } : {}),
                     category_id: forcedCategoryId,
                     listing_type_id: listingType,
+                    ...(forceRuleId ? { force_rule_id: forceRuleId } : {}),
                     dry_run: true,
                     ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
@@ -720,6 +732,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             ...(ficha_id ? { ficha_id } : {}),
                             category_id: categoryOverride || categoryId || undefined,
                             listing_type_id: listingType,
+                            ...(forceRuleId ? { force_rule_id: forceRuleId } : {}),
                             dry_run: false,
                             ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
                             ...(allOverrides.length > 0 ? { attribute_overrides: allOverrides } : {}),
@@ -1004,6 +1017,17 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                     <option value="gold_pro">Gold Pro</option>
                                     <option value="silver">Silver</option>
                                     <option value="free">Free</option>
+                                </select>
+                            </div>
+
+                            {/* Regla de precio (opcional: forzar una distinta a la automática) */}
+                            <div>
+                                <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Regla de precio</label>
+                                <select value={forceRuleId} onChange={e => setForceRuleId(e.target.value)} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface)]">
+                                    <option value="">Automática (por proveedor)</option>
+                                    {pricingRules.map((r: any) => (
+                                        <option key={r.id} value={r.id}>{r.name}{r.proveedor ? ` · ${r.proveedor}` : ''} · {r.cost_basis} · {r.margen_objetivo}%</option>
+                                    ))}
                                 </select>
                             </div>
 
