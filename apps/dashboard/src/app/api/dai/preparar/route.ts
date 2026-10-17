@@ -58,6 +58,9 @@ export async function POST(req: NextRequest) {
             .map((a) => `${a.marca} ${a.modelo} ${a.anio}${a.anioF ? '-' + a.anioF : ''}${a.motor ? ' ' + a.motor : ''}`.trim())
             .filter(Boolean).join(' | ');
         const descripcion = [fila.descripcion, aplicacionesTxt].filter(Boolean).join('\nAplicaciones: ');
+        const atrEsp: Record<string, any> = {};
+        if (producto?.oem) atrEsp.OEM = producto.oem;
+        if (Array.isArray(producto?.aplicaciones) && producto.aplicaciones.length > 0) atrEsp.compatibilidades = producto.aplicaciones;
         const { data: nuevo, error: nuevoErr } = await supabaseAdmin
             .from('articulos')
             .insert({
@@ -69,7 +72,7 @@ export async function POST(req: NextRequest) {
                 codigo_sat: fila.codigo_sat || null,
                 url_imagen: producto?.imagen || null,
                 descripcion: descripcion.slice(0, 2000),
-                atributos_especificos: producto?.oem ? { OEM: producto.oem } : null,
+                atributos_especificos: Object.keys(atrEsp).length > 0 ? atrEsp : null,
                 activo: true,
             })
             .select('articulo_id')
@@ -85,8 +88,21 @@ export async function POST(req: NextRequest) {
         const appsTxt = (producto?.aplicaciones || []).map((a) => `${a.marca} ${a.modelo} ${a.anio}${a.anioF ? '-' + a.anioF : ''}${a.motor ? ' ' + a.motor : ''}`.trim()).filter(Boolean).join(' | ');
         const patch: Record<string, any> = {};
         if (producto?.imagen) patch.url_imagen = producto.imagen;
-        if (producto?.oem) patch.atributos_especificos = { OEM: producto.oem };
         if (appsTxt) patch.descripcion = [fila.descripcion, 'Aplicaciones: ' + appsTxt].filter(Boolean).join('\n').slice(0, 2000);
+
+        // Merge de atributos_especificos (OEM + compatibilidades) sin sobrescribir lo existente
+        if (producto?.oem || (Array.isArray(producto?.aplicaciones) && producto.aplicaciones.length > 0)) {
+            const { data: artActual } = await supabaseAdmin
+                .from('articulos')
+                .select('atributos_especificos')
+                .eq('articulo_id', articuloId)
+                .maybeSingle();
+            const atrEsp: Record<string, any> = { ...(artActual?.atributos_especificos || {}) };
+            if (producto?.oem) atrEsp.OEM = producto.oem;
+            if (Array.isArray(producto?.aplicaciones) && producto.aplicaciones.length > 0) atrEsp.compatibilidades = producto.aplicaciones;
+            patch.atributos_especificos = atrEsp;
+        }
+
         if (Object.keys(patch).length > 0) {
             await supabaseAdmin.from('articulos').update(patch).eq('articulo_id', articuloId);
         }

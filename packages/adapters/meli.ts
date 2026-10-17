@@ -1645,6 +1645,9 @@ export class MeliAdapter implements MarketplaceAdapter {
         if (Array.isArray(body.products)) {
             body.products = body.products.map((p: any) => ({ creation_source: 'DEFAULT', ...p }));
         }
+        if (Array.isArray(body.products_families)) {
+            body.products_families = body.products_families.map((f: any) => ({ creation_source: 'DEFAULT', ...f }));
+        }
         const resp = await axios.post(
             `https://api.mercadolibre.com/items/${itemId}/compatibilities`,
             body,
