@@ -1629,7 +1629,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 ].map(({ id, label, unit, traceKey }) => {
                                                     const traceNum = parseDimNum(t?.paso_7_package_dimensions?.[traceKey]);
                                                     const currentVal = dimOverrides[id] !== undefined ? dimOverrides[id] : (traceNum != null ? String(traceNum) : '');
-                                                    const isEdited = dimOverrides[id] !== undefined && dimOverrides[id] !== traceVal;
+                                                    const isEdited = dimOverrides[id] !== undefined && dimOverrides[id] !== (traceNum != null ? String(traceNum) : '');
                                                     return (
                                                         <div key={id} className="relative">
                                                             <label className="text-[9px] uppercase text-[var(--text-faint)] font-bold">{label}</label>
