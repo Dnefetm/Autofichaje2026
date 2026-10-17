@@ -17,7 +17,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     try {
         const { data: pub } = await supabaseAdmin
             .from('publicaciones_externas')
-            .select('external_item_id, user_product_id, marketplace_id')
+            .select('external_item_id, user_product_id, marketplace_id, domain_id')
             .eq('id', id)
             .single();
         if (!pub?.external_item_id) return NextResponse.json({ ok: false, error: 'Publicación no encontrada' }, { status: 404 });
@@ -51,7 +51,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
             } catch { upId = null; }
         }
 
-        const comp = await meli.resolveCompatibilityFamilies(pub.marketplace_id, aplicaciones);
+        const comp = await meli.resolveCompatibilityFamilies(pub.marketplace_id, aplicaciones, pub.domain_id);
         if (!comp) return NextResponse.json({ ok: false, error: 'No se pudieron resolver compatibilidades (top_values)' }, { status: 400 });
 
         let res;

@@ -1279,7 +1279,7 @@ export async function POST(req: NextRequest) {
                 : null;
             if (Array.isArray(aplicaciones) && aplicaciones.length > 0) {
                 try {
-                    effectiveCompatibilities = await (meli as any).resolveCompatibilityFamilies(marketplace_id, aplicaciones);
+                    effectiveCompatibilities = await (meli as any).resolveCompatibilityFamilies(marketplace_id, aplicaciones, trace.paso_5_categoria?.domain_id || created?.raw?.domain_id || null);
                 } catch (e) {
                     effectiveCompatibilities = buildCompatibilitiesFromAplicaciones(aplicaciones);
                 }

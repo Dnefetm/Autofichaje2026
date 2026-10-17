@@ -1661,15 +1661,40 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * resolveCompatibilityFamilies — Resuelve aplicaciones vehiculares (marca/modelo/año)
-     * a value_id del catálogo de MeLi vía top_values y arma products_families para el
-     * dominio MLM-CARS_AND_VANS_FOR_COMPATIBILITIES. Usa value_id cuando lo encuentra;
-     * si no, cae a value_name (para no romper el envío).
+     * getCompatibleDomainId — Obtiene el dominio compatible (vehículos) para un dominio de ítem,
+     * consultando el dump oficial de compatibilidades. Es la fuente de verdad para el domain_id.
      */
-    async resolveCompatibilityFamilies(accountId: string, aplicaciones: any[]): Promise<{ products_families: any[] } | null> {
+    async getCompatibleDomainId(accountId: string, itemDomainId: string): Promise<string | null> {
+        const accessToken = await this.getAccessToken(accountId);
+        try {
+            const resp = await axios.get('https://api.mercadolibre.com/catalog/dumps/domains/MLM/compatibilities', {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            const groups = Array.isArray(resp.data) ? resp.data : [resp.data];
+            for (const group of groups) {
+                const list = Array.isArray(group) ? group : [group];
+                for (const dom of list) {
+                    if (dom?.domain_id !== itemDomainId) continue;
+                    const comps = Array.isArray(dom?.compatibilities) ? dom.compatibilities : [];
+                    const ext = comps.find((c: any) => c?.type === 'EXTENSION');
+                    if (ext?.compatible_domain_id) return String(ext.compatible_domain_id);
+                }
+            }
+            return null;
+        } catch (err: any) {
+            logger.warn({ accountId, itemDomainId, error: err?.message }, 'getCompatibleDomainId falló');
+            return null;
+        }
+    }
+
+    /**
+     * resolveCompatibilityFamilies — Resuelve aplicaciones vehiculares (marca/modelo/año)
+     * a value_id del catálogo de MeLi vía top_values y arma products_families. El domain_id
+     * se obtiene del dump (o cae a MLM-CARS_AND_VANS). Usa value_id cuando lo encuentra.
+     */
+    async resolveCompatibilityFamilies(accountId: string, aplicaciones: any[], itemDomainId?: string): Promise<{ products_families: any[] } | null> {
         if (!Array.isArray(aplicaciones) || aplicaciones.length === 0) return null;
-        // Dominio de vehículos para MLM (el sufijo _FOR_COMPATIBILITIES era inválido en el payload de products_families).
-        const DOMAIN = 'MLM-CARS_AND_VANS';
+        const DOMAIN = (itemDomainId ? await this.getCompatibleDomainId(accountId, itemDomainId) : null) || 'MLM-CARS_AND_VANS';
         const accessToken = await this.getAccessToken(accountId);
 
         const brandCache = new Map<string, string>();
