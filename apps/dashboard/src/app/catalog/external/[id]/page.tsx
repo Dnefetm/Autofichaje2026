@@ -1636,6 +1636,22 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                 </div>
 
                 {/* Nueva Fila Completa para Auditoría de Precios V2 */}
+                {pub.tags?.includes('incomplete_compatibilities') && (
+                    <div className="mb-3">
+                        <button
+                            onClick={async () => {
+                                const res = await fetch(`/api/catalog/external/${encodeURIComponent(id)}/apply-compatibilities`, { method: 'POST' });
+                                const data = await res.json();
+                                if (data?.ok) toast.success(`Compatibilidades aplicadas (${data.familias ?? 0} familias)`);
+                                else toast.error(data?.error || 'Error al aplicar compatibilidades');
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-[var(--radius-sm)] hover:brightness-110 transition-colors"
+                        >
+                            Re-aplicar compatibilidades vehiculares
+                        </button>
+                    </div>
+                )}
+
                 <div>
                     <PricingAuditCard 
                         publicacionId={id}
