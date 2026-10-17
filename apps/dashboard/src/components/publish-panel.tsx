@@ -783,6 +783,10 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             const alto = parseDimNum(dimOverrides.SELLER_PACKAGE_HEIGHT ?? dims.SELLER_PACKAGE_HEIGHT) ?? articleData?.alto_cm ?? 0;
             const pesoG = parseDimNum(dimOverrides.SELLER_PACKAGE_WEIGHT ?? dims.SELLER_PACKAGE_WEIGHT)
                 ?? (articleData?.peso_kg != null ? Math.round(Number(articleData.peso_kg) * 1000) : 0);
+            if (pesoG <= 0) {
+                setCotizacionError('El artículo no tiene peso configurado. Ponle peso (kg) y dimensiones en "Datos del artículo" y vuelve a cotizar el envío.');
+                return;
+            }
             const precio = Number(priceOverride || (trace.paso_9_titulo?.price_final ?? trace.paso_3_precio?.sale_price ?? 0));
 
             const res = await fetch('/api/cotizar-envio', {
