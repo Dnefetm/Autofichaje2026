@@ -44,9 +44,25 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         const comp = await meli.resolveCompatibilityFamilies(pub.marketplace_id, aplicaciones);
         if (!comp) return NextResponse.json({ ok: false, error: 'No se pudieron resolver compatibilidades (top_values)' }, { status: 400 });
 
-        const res = await meli.addCompatibilities(pub.marketplace_id, pub.external_item_id, comp);
-        return NextResponse.json({ ok: true, result: res, familias: comp.products_families?.length ?? 0 });
+        let res;
+        try {
+            res = await meli.addCompatibilities(pub.marketplace_id, pub.external_item_id, comp);
+        } catch (addErr: any) {
+            return NextResponse.json({
+                ok: false,
+                error: 'MeLi rechazó las compatibilidades',
+                meli_status: addErr?.response?.status ?? null,
+                meli_body: addErr?.response?.data ?? null,
+                payload: comp,
+            }, { status: 502 });
+        }
+        return NextResponse.json({ ok: true, result: res, familias: comp.products_families?.length ?? 0, payload: comp });
     } catch (e: any) {
-        return NextResponse.json({ ok: false, error: e?.message || 'Error aplicando compatibilidades' }, { status: 500 });
+        return NextResponse.json({
+            ok: false,
+            error: e?.message || 'Error aplicando compatibilidades',
+            meli_status: e?.response?.status ?? null,
+            meli_body: e?.response?.data ?? null,
+        }, { status: 500 });
     }
 }

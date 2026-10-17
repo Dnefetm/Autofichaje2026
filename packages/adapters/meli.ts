@@ -1674,7 +1674,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             try {
                 const resp = await axios.post(
                     `https://api.mercadolibre.com/catalog_domains/${DOMAIN}/attributes/${attrId}/top_values`,
-                    known.length ? { known_attributes: known } : {},
+                    known.length ? { known_attributes: known } : undefined,
                     { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } },
                 );
                 const list = Array.isArray(resp.data) ? resp.data : [];
