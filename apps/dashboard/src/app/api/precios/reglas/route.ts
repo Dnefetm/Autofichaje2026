@@ -6,24 +6,24 @@ export async function POST(req: Request) {
     const payload = await req.json();
 
     try {
-        // La tabla reglas_precio usa: nombre, canal, margen_pct, costos_fijos,
-        // retenciones (jsonb array), prioridad, activa, marca_filtro, categoria_filtro.
-        const retenciones = [
-            { nombre: 'marketplace', porcentaje: Number(payload.retencion_marketplace_porcentaje) || 0 },
-            { nombre: 'comision_pago', porcentaje: Number(payload.comision_pago_porcentaje) || 0 },
-            { nombre: 'iva', porcentaje: Number(payload.iva_efectivo_porcentaje) || 0 },
-        ];
-
         const { error } = await supabaseAdmin.from('reglas_precio').insert({
             nombre: payload.nombre,
-            canal: payload.canal || 'general',
-            margen_pct: Number(payload.margen_porcentaje) || 0,
-            costos_fijos: Number(payload.margen_fijo) || 0,
-            retenciones,
+            marketplace_id: null, // canal general → aplica a todas las tiendas
+            tipo_publicacion: payload.canal || 'general',
+            tipo_costo_base: 'distribuidor',
+            margen_porcentaje: Number(payload.margen_porcentaje) || 0,
+            margen_fijo: Number(payload.margen_fijo) || 0,
+            comision_venta_porcentaje: Number(payload.comision_pago_porcentaje) || 0,
+            retencion_marketplace_porcentaje: Number(payload.retencion_marketplace_porcentaje) || 0,
+            comision_pago_porcentaje: Number(payload.comision_pago_porcentaje) || 0,
+            iva_efectivo_porcentaje: Number(payload.iva_efectivo_porcentaje) || 0,
+            iva_porcentaje: Number(payload.iva_efectivo_porcentaje) || 0,
+            redondeo: '99',
             prioridad: Number(payload.prioridad) || 0,
             activa: true,
-            marca_filtro: payload.filtro_marca || null,
-            categoria_filtro: payload.filtro_categoria || null,
+            creado_el: new Date().toISOString(),
+            filtro_marca: payload.filtro_marca || null,
+            filtro_categoria: payload.filtro_categoria || null,
         });
 
         if (error) throw error;
