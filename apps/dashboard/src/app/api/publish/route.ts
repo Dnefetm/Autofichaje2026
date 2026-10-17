@@ -27,6 +27,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import { resolvePublicationAI } from '@gestor/sync/meli-ai-helper';
 import { registrarAuditoria } from '@/lib/auditoria';
+import sharp from 'sharp';
 
 export const dynamic = 'force-dynamic';
 
@@ -125,6 +126,52 @@ function buildCompatibilitiesFromAplicaciones(aplicaciones: any[] | null | undef
         if (families.length >= 200) break;
     }
     return families.length > 0 ? { products_families: families } : null;
+}
+
+/** Garantiza que una imagen cumpla el mínimo de MeLi (lado mayor >= 500px, menor >= 250px). */
+async function ensureImageSize(url: string): Promise<string> {
+    try {
+        const res = await fetch(url);
+        if (!res.ok) return url;
+        const buf = Buffer.from(await res.arrayBuffer());
+        const meta = await sharp(buf).metadata();
+        let w = meta.width || 0;
+        let h = meta.height || 0;
+        if (!w || !h) return url;
+        if (Math.max(w, h) >= 500 && Math.min(w, h) >= 250) return url; // ya cumple
+
+        let pipeline = sharp(buf).flatten({ background: { r: 255, g: 255, b: 255 } });
+
+        if (Math.max(w, h) < 400) {
+            const s = Math.min(1.5, 500 / Math.max(w, h));
+            w = Math.round(w * s);
+            h = Math.round(h * s);
+            pipeline = pipeline.resize(w, h, { kernel: 'lanczos3', fit: 'fill' }).sharpen({ sigma: 1.0, m1: 1.5, m2: 0.7 });
+        }
+
+        const isLandscape = w >= h;
+        const targetW = isLandscape ? Math.max(w, 500) : Math.max(w, 250);
+        const targetH = isLandscape ? Math.max(h, 250) : Math.max(h, 500);
+        const padW = Math.max(0, targetW - w);
+        const padH = Math.max(0, targetH - h);
+        if (padW > 0 || padH > 0) {
+            pipeline = pipeline.extend({
+                top: Math.floor(padH / 2),
+                bottom: padH - Math.floor(padH / 2),
+                left: Math.floor(padW / 2),
+                right: padW - Math.floor(padW / 2),
+                background: { r: 255, g: 255, b: 255 },
+            });
+        }
+
+        const out = await pipeline.jpeg({ quality: 95 }).toBuffer();
+        const filename = `mejoras/pub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
+        const { error: upErr } = await supabaseAdmin.storage.from('ficha-imagenes').upload(filename, out, { contentType: 'image/jpeg', upsert: false });
+        if (upErr) return url;
+        return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/ficha-imagenes/${filename}`;
+    } catch {
+        return url;
+    }
 }
 
 export async function POST(req: NextRequest) {
@@ -966,11 +1013,14 @@ export async function POST(req: NextRequest) {
                 }
             });
 
+            const urlsParaSubir = await Promise.all(
+                urlsPorSubir.map(async (x) => ({ index: x.index, url: await ensureImageSize(x.url) })),
+            );
             const subidas: string[] = await (meli as any).uploadPicturesFromUrls(
                 marketplace_id,
-                urlsPorSubir.map((x) => x.url),
+                urlsParaSubir.map((x) => x.url),
             );
-            urlsPorSubir.forEach((x, k) => {
+            urlsParaSubir.forEach((x, k) => {
                 field[x.index] = subidas[k] ? { id: subidas[k] } : { source: x.url };
             });
 

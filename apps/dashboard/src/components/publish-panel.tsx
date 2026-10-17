@@ -719,9 +719,20 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setErrorMsg(null);
         try {
             const attrOvList = Object.entries(attrOverrides).map(([id, v]) => ({ id, ...v }));
+            const DIM_UNITS: Record<string, string> = {
+                SELLER_PACKAGE_HEIGHT: 'cm',
+                SELLER_PACKAGE_WIDTH: 'cm',
+                SELLER_PACKAGE_LENGTH: 'cm',
+                SELLER_PACKAGE_WEIGHT: 'g',
+            };
             const dimOvList = Object.entries(dimOverrides)
                 .filter(([, v]) => v.trim() !== '')
-                .map(([id, v]) => ({ id, value_name: v.trim() }));
+                .map(([id, v]) => {
+                    const raw = v.trim();
+                    const unit = DIM_UNITS[id];
+                    const tieneUnidad = /[a-z\u00b5µ"']/i.test(raw);
+                    return { id, value_name: unit && !tieneUnidad ? `${raw} ${unit}` : raw };
+                });
             const identOvList = buildIdentOverrides();
             const allOverrides = [...attrOvList, ...dimOvList, ...identOvList];
 
@@ -1616,8 +1627,8 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                     { id: 'SELLER_PACKAGE_LENGTH', label: 'Largo',  unit: 'cm', traceKey: 'SELLER_PACKAGE_LENGTH' },
                                                     { id: 'SELLER_PACKAGE_WEIGHT', label: 'Peso',   unit: 'g',  traceKey: 'SELLER_PACKAGE_WEIGHT'  },
                                                 ].map(({ id, label, unit, traceKey }) => {
-                                                    const traceVal = t?.paso_7_package_dimensions?.[traceKey] ?? '';
-                                                    const currentVal = dimOverrides[id] !== undefined ? dimOverrides[id] : traceVal;
+                                                    const traceNum = parseDimNum(t?.paso_7_package_dimensions?.[traceKey]);
+                                                    const currentVal = dimOverrides[id] !== undefined ? dimOverrides[id] : (traceNum != null ? String(traceNum) : '');
                                                     const isEdited = dimOverrides[id] !== undefined && dimOverrides[id] !== traceVal;
                                                     return (
                                                         <div key={id} className="relative">
