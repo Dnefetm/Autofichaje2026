@@ -75,7 +75,7 @@ export default function ArticuloDetailPage() {
                     *,
                     inventory_snapshot(physical_stock),
                     mapeo_publicacion_articulo(publicacion_id),
-                    fichas_tecnicas(id, estado, nombre_producto, created_at)
+                    fichas_tecnicas(id, estado, nombre_producto, created_at, ficha_imagenes(url, orden, tipo))
                 `)
                 .eq('articulo_id', id)
                 .single();
@@ -352,7 +352,11 @@ export default function ArticuloDetailPage() {
             <PublishPanel
                 articulo_id={product.articulo_id || id}
                 nombreArticulo={product.nombre || ''}
-                imagenesBase={product.url_imagen ? [product.url_imagen, ...(Array.isArray(product.imagenes) ? product.imagenes : [])] : (Array.isArray(product.imagenes) ? product.imagenes : [])}
+                imagenesBase={(() => {
+                    const fichaImgs = (product.fichas_tecnicas || []).flatMap((f: any) => (f.ficha_imagenes || []).map((i: any) => i.url));
+                    const base = product.url_imagen ? [product.url_imagen] : [];
+                    return [...base, ...fichaImgs, ...(Array.isArray(product.imagenes) ? product.imagenes : [])];
+                })()}
                 codigoUniversal={product.codigo_universal || ''}
             />
 
