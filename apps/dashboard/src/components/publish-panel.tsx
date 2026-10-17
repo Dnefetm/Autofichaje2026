@@ -776,13 +776,24 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setCotizacionError(null);
         setCotizacionEnvio(null);
         try {
+            // Re-leer peso y dimensiones frescos (el artículo pudo editarse después de montar el panel).
+            let fresh = articleData;
+            try {
+                const { data: art } = await supabase
+                    .from('articulos')
+                    .select('peso_kg, largo_cm, ancho_cm, alto_cm')
+                    .eq('articulo_id', articulo_id)
+                    .single();
+                if (art) fresh = art;
+            } catch { /* conserva articleData */ }
+
             const trace = previewResult?.data?.trace || {};
             const dims = trace.paso_7_package_dimensions || {};
-            const largo = parseDimNum(dimOverrides.SELLER_PACKAGE_LENGTH ?? dims.SELLER_PACKAGE_LENGTH) ?? articleData?.largo_cm ?? 0;
-            const ancho = parseDimNum(dimOverrides.SELLER_PACKAGE_WIDTH ?? dims.SELLER_PACKAGE_WIDTH) ?? articleData?.ancho_cm ?? 0;
-            const alto = parseDimNum(dimOverrides.SELLER_PACKAGE_HEIGHT ?? dims.SELLER_PACKAGE_HEIGHT) ?? articleData?.alto_cm ?? 0;
+            const largo = parseDimNum(dimOverrides.SELLER_PACKAGE_LENGTH ?? dims.SELLER_PACKAGE_LENGTH) ?? fresh?.largo_cm ?? 0;
+            const ancho = parseDimNum(dimOverrides.SELLER_PACKAGE_WIDTH ?? dims.SELLER_PACKAGE_WIDTH) ?? fresh?.ancho_cm ?? 0;
+            const alto = parseDimNum(dimOverrides.SELLER_PACKAGE_HEIGHT ?? dims.SELLER_PACKAGE_HEIGHT) ?? fresh?.alto_cm ?? 0;
             const pesoG = parseDimNum(dimOverrides.SELLER_PACKAGE_WEIGHT ?? dims.SELLER_PACKAGE_WEIGHT)
-                ?? (articleData?.peso_kg != null ? Math.round(Number(articleData.peso_kg) * 1000) : 0);
+                ?? (fresh?.peso_kg != null ? Math.round(Number(fresh.peso_kg) * 1000) : 0);
             if (pesoG <= 0) {
                 setCotizacionError('El artículo no tiene peso configurado. Ponle peso (kg) y dimensiones en "Datos del artículo" y vuelve a cotizar el envío.');
                 return;
