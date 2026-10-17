@@ -1668,7 +1668,8 @@ export class MeliAdapter implements MarketplaceAdapter {
      */
     async resolveCompatibilityFamilies(accountId: string, aplicaciones: any[]): Promise<{ products_families: any[] } | null> {
         if (!Array.isArray(aplicaciones) || aplicaciones.length === 0) return null;
-        const DOMAIN = 'MLM-CARS_AND_VANS_FOR_COMPATIBILITIES';
+        // Dominio de vehículos para MLM (el sufijo _FOR_COMPATIBILITIES era inválido en el payload de products_families).
+        const DOMAIN = 'MLM-CARS_AND_VANS';
         const accessToken = await this.getAccessToken(accountId);
 
         const brandCache = new Map<string, string>();
