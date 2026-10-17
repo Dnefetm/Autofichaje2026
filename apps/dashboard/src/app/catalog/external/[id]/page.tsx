@@ -1640,12 +1640,16 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                     <div className="mb-3">
                         <button
                             onClick={async () => {
-                                const res = await fetch(`/api/catalog/external/${encodeURIComponent(id)}/apply-compatibilities`, { method: 'POST' });
-                                const data = await res.json();
-                                if (data?.ok) toast.success(`Compatibilidades aplicadas (${data.familias ?? 0} familias)`);
-                                else {
-                                    const det = data?.meli_body ? JSON.stringify(data.meli_body) : (data?.payload ? 'payload=' + JSON.stringify(data.payload) : '');
-                                    toast.error(data?.error || 'Error al aplicar compatibilidades', { description: det.slice(0, 500) });
+                                try {
+                                    const res = await fetch(`/api/catalog/external/${encodeURIComponent(id)}/apply-compatibilities`, { method: 'POST' });
+                                    const data = await res.json().catch(() => ({}));
+                                    if (data?.ok) toast.success(`Compatibilidades aplicadas (${data.familias ?? 0} familias)`);
+                                    else {
+                                        const det = data?.meli_body ? JSON.stringify(data.meli_body) : (data?.payload ? 'payload=' + JSON.stringify(data.payload) : '');
+                                        toast.error(data?.error || `Error ${res.status}`, { description: det.slice(0, 500) });
+                                    }
+                                } catch (e: any) {
+                                    toast.error('No se pudo aplicar compatibilidades', { description: e?.message || String(e) });
                                 }
                             }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-[var(--radius-sm)] hover:brightness-110 transition-colors"
