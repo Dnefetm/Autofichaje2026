@@ -169,7 +169,7 @@ export default function ArticuloDetailPage() {
     const isLowStock = stock <= 2;
     const isMapped = linkedPubs.length > 0;
     const fichas = Array.isArray(product.fichas_tecnicas) ? product.fichas_tecnicas : [];
-    const rawImage = product.imagenes?.[0] || null;
+    const rawImage = product.imagenes?.[0] || product.url_imagen || null;
     const image = getPublicImageUrl(rawImage);
 
     const boolFields = [
@@ -352,7 +352,7 @@ export default function ArticuloDetailPage() {
             <PublishPanel
                 articulo_id={product.articulo_id || id}
                 nombreArticulo={product.nombre || ''}
-                imagenesBase={Array.isArray(product.imagenes) ? product.imagenes : []}
+                imagenesBase={product.url_imagen ? [product.url_imagen, ...(Array.isArray(product.imagenes) ? product.imagenes : [])] : (Array.isArray(product.imagenes) ? product.imagenes : [])}
                 codigoUniversal={product.codigo_universal || ''}
             />
 
@@ -484,7 +484,7 @@ export default function ArticuloDetailPage() {
                         modelo: product.modelo || null,
                         codigo_universal: product.codigo_universal || null,
                         caja_madre: product.caja_madre || null,
-                        thumbnail: getPublicImageUrl(product.imagenes?.[0] || null),
+                        thumbnail: getPublicImageUrl(product.imagenes?.[0] || product.url_imagen || null),
                     }}
                     onClose={() => setShowVincularVitrina(false)}
                     onSuccess={() => { setShowVincularVitrina(false); fetchProduct(true); }}
