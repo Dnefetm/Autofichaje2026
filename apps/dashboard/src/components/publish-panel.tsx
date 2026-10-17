@@ -1680,6 +1680,22 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         {/* Precio final + cotización de envío */}
                                         <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2">
                                             <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block">Precio de venta (MXN)</label>
+                                            {(() => {
+                                                const p = t?.paso_5_1_precio_prepublicacion;
+                                                if (!p) return null;
+                                                const fmt = (n: any) => n != null && !isNaN(Number(n)) ? `$${Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—';
+                                                return (
+                                                    <div className="p-2 rounded bg-[var(--bg)] border border-[var(--border)] space-y-1 text-[11px]">
+                                                        <div className="flex justify-between"><span className="text-[var(--text-faint)]">Costo base ({p.cost_basis || '—'})</span><span className="font-mono">{fmt(p.base_price)}</span></div>
+                                                        <div className="flex justify-between"><span className="text-[var(--text-faint)]">Margen</span><span className="font-mono">{p.margen_pct != null ? `${p.margen_pct}%` : '—'}</span></div>
+                                                        <div className="flex justify-between"><span className="text-[var(--text-faint)]">Comisión MeLi</span><span className="font-mono">{p.comision_pct != null ? `${p.comision_pct}%` : '—'}</span></div>
+                                                        <div className="flex justify-between"><span className="text-[var(--text-faint)]">Retenciones</span><span className="font-mono">{p.retenciones_pct != null ? `${p.retenciones_pct}%` : '—'}</span></div>
+                                                        <div className="flex justify-between"><span className="text-[var(--text-faint)]">Envío fijo</span><span className="font-mono">{fmt(p.envio_fijo)}</span></div>
+                                                        <div className="flex justify-between border-t border-[var(--border)] pt-1"><span className="font-semibold text-[var(--text)]">Precio sugerido</span><span className="font-mono font-bold text-[var(--ok)]">{fmt(p.sale_price)}</span></div>
+                                                        <div className="text-[10px] text-[var(--text-faint)]">Regla: {p.rule_name || '—'}{p.proveedor ? ` · ${p.proveedor}` : ''}</div>
+                                                    </div>
+                                                );
+                                            })()}
                                             <input
                                                 type="number"
                                                 step="0.01"

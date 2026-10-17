@@ -143,9 +143,13 @@ export default function PublicarDaiPage() {
                                                                 <CheckCircle2 className="w-3.5 h-3.5" /> Ficha <ExternalLink className="w-3 h-3" />
                                                             </Link>
                                                         )}
-                                                        <Btn size="sm" variant="ghost" onClick={() => capturar360(f.sku_proveedor)} loading={preparando === f.sku_proveedor}>
-                                                            {r?.capturadas360 ? `360 (${r.capturadas360})` : 'Capturar 360'}
-                                                        </Btn>
+                                                        {r?.ok && !r.w360 ? (
+                                                            <span className="text-[10px] text-[var(--text-faint)] italic">Sin 360 en DAI</span>
+                                                        ) : (
+                                                            <Btn size="sm" variant="ghost" onClick={() => capturar360(f.sku_proveedor)} loading={preparando === f.sku_proveedor}>
+                                                                {r?.capturadas360 ? `360 (${r.capturadas360})` : 'Capturar 360'}
+                                                            </Btn>
+                                                        )}
                                                         {!r?.ok && (
                                                             <Btn size="sm" onClick={() => preparar(f.sku_proveedor)} loading={preparando === f.sku_proveedor}>
                                                                 Preparar
