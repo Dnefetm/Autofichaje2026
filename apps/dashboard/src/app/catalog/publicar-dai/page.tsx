@@ -23,11 +23,11 @@ export default function PublicarDaiPage() {
     const [preparando, setPreparando] = useState<string | null>(null);
     const [resultado, setResultado] = useState<Record<string, any>>({});
     const [error, setError] = useState<string | null>(null);
-    const [proveedor, setProveedor] = useState('dai');
+    const [proveedor, setProveedor] = useState('DAI Autopartes');
 
     useEffect(() => {
         const sp = new URLSearchParams(window.location.search);
-        const p = sp.get('proveedor') || 'dai';
+        const p = sp.get('proveedor') || 'DAI Autopartes';
         setProveedor(p);
         cargar('', p);
     }, []);
@@ -37,7 +37,7 @@ export default function PublicarDaiPage() {
         let q = supabase
             .from('precios_proveedor')
             .select('sku_proveedor, descripcion, valor, codigo_barra')
-            .ilike('proveedor', `%${prov}%`)
+            .eq('proveedor', prov)
             .eq('vigente', true)
             .order('sku_proveedor', { ascending: true })
             .limit(200);
@@ -54,7 +54,7 @@ export default function PublicarDaiPage() {
         try {
             const r = await fetch('/api/dai/preparar', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sku }),
+                body: JSON.stringify({ sku, proveedor }),
             });
             const d = await r.json();
             setResultado((prev) => ({ ...prev, [sku]: d }));

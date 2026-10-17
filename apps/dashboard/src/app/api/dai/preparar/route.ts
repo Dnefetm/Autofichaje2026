@@ -17,6 +17,7 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null);
     const sku = String(body?.sku ?? '').trim();
+    const proveedor = String(body?.proveedor ?? '').trim() || 'DAI Autopartes';
     if (!sku) return NextResponse.json({ ok: false, error: 'sku requerido' }, { status: 400 });
 
     // 1) Fila de la lista
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
         .from('precios_proveedor')
         .select('sku_proveedor, codigo_barra, descripcion, valor, codigo_sat, proveedor')
         .eq('sku_proveedor', sku)
-        .ilike('proveedor', '%dai%')
+        .eq('proveedor', proveedor)
         .eq('vigente', true)
         .order('valor', { ascending: true })
         .limit(1)
