@@ -48,13 +48,14 @@ export async function extraerProductoDai(codigo: string): Promise<DaiProducto | 
     if (!exacto) return null;
 
     const d = exacto.detalle || {};
-    const appsRaw = Array.isArray(exacto.lista) ? exacto.lista : Array.isArray(exacto.listaDetalles) ? exacto.listaDetalles : [];
+    // Las aplicaciones vehiculares viven en `especificaciones` (array en la raíz), no en `lista`.
+    const appsRaw = Array.isArray(exacto.especificaciones) ? exacto.especificaciones : [];
 
     const aplicaciones: DaiAplicacion[] = appsRaw.map((a: any) => ({
         marca: String(a?.marca ?? '').trim(),
         modelo: String(a?.modelo ?? '').trim(),
-        anio: String(a?.anio ?? '').trim(),
-        anioF: String(a?.anioF ?? '').trim(),
+        anio: String(a?.['año'] ?? a?.anio ?? '').trim(),
+        anioF: String(a?.['añoF'] ?? a?.anioF ?? '').trim(),
         cilindros: String(a?.cilindros ?? '').trim(),
         motor: String(a?.motor ?? '').trim(),
         aplicacion: String(a?.aplicacion ?? '').trim(),

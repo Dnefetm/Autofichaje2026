@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
                 modelo: sku,
                 codigo_universal: ean,
                 codigo_sat: fila.codigo_sat || null,
+                url_imagen: producto?.imagen || null,
                 descripcion: descripcion.slice(0, 2000),
                 activo: true,
             })
