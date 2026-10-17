@@ -54,6 +54,7 @@ export default function PublicarDaiPage() {
             });
             const d = await r.json();
             setResultado((prev) => ({ ...prev, [sku]: d }));
+            if (d.alias_error) setError(`Error al vincular el alias: ${d.alias_error}`);
         } catch (e: any) {
             setError(e.message);
         } finally {
@@ -74,6 +75,8 @@ export default function PublicarDaiPage() {
             }
             const r = await fetch('/api/dai/capturar-360', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: sku, articulo_id: artId }) });
             const d = await r.json();
+            if (!d.ok) { setError(d.error || 'Error al capturar 360'); return; }
+            if (d.capturadas === 0) setError(`No se capturó ningún frame (${d.frames_disponibles ?? 0} disponibles). Verifica que el código tenga vista 360 en DAI.`);
             setResultado((prev) => ({ ...prev, [sku]: { ...(prev[sku] || {}), capturadas360: d.capturadas, frames360: d.frames_disponibles } }));
         } catch (e: any) {
             setError(e.message);

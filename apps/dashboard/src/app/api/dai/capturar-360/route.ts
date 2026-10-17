@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Descargar + subir + registrar
-    const bucket = process.env.SUPABASE_IMAGENES_BUCKET || 'fichas';
+    const bucket = 'ficha-imagenes';
     let orden = 0;
     let capturadas = 0;
     for (const url of elegidos) {

@@ -90,17 +90,38 @@ export async function POST(req: NextRequest) {
         }
     }
 
-    // 4) Vincular alias (proveedor DAI → artículo)
-    const { error: aliasErr } = await supabaseAdmin
+    // 4) Vincular alias (proveedor DAI → artículo). La tabla NO tiene índice único
+    //    sobre (proveedor, modelo_excel) — sus únicos únicos son (proveedor,codigo_excel)
+    //    y (proveedor,marca_excel,modelo_excel) — así que hacemos select + insert/update por id.
+    const aliasPayload = {
+        proveedor: fila.proveedor,
+        codigo_excel: ean || null,
+        modelo_excel: sku,
+        marca_excel: 'DAI',
+        articulo_id: articuloId,
+        locked: true,
+    };
+    let aliasErr: any = null;
+    const { data: aliasExistente, error: aliasLookupErr } = await supabaseAdmin
         .from('proveedor_articulos_alias')
-        .upsert({
-            proveedor: fila.proveedor,
-            codigo_excel: ean || null,
-            modelo_excel: sku,
-            marca_excel: 'DAI',
-            articulo_id: articuloId,
-            locked: true,
-        }, { onConflict: 'proveedor,modelo_excel' });
+        .select('id')
+        .eq('proveedor', fila.proveedor)
+        .eq('modelo_excel', sku)
+        .limit(1);
+    if (aliasLookupErr) {
+        aliasErr = aliasLookupErr;
+    } else if (aliasExistente && aliasExistente.length > 0) {
+        const { error: upErr } = await supabaseAdmin
+            .from('proveedor_articulos_alias')
+            .update(aliasPayload)
+            .eq('id', aliasExistente[0].id);
+        aliasErr = upErr;
+    } else {
+        const { error: insErr } = await supabaseAdmin
+            .from('proveedor_articulos_alias')
+            .insert(aliasPayload);
+        aliasErr = insErr;
+    }
 
     return NextResponse.json({
         ok: true,
