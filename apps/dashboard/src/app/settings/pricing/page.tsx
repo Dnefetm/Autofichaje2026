@@ -10,6 +10,7 @@ export default function PricingSettingsPage() {
     const [marketplaces, setMarketplaces] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [proveedores, setProveedores] = useState<string[]>([]);
     
     const [isEditingRule, setIsEditingRule] = useState<any>(null);
     const [isCreatingRule, setIsCreatingRule] = useState(false);
@@ -25,6 +26,7 @@ export default function PricingSettingsPage() {
             const res = await fetch('/api/settings/pricing');
             const data = await res.json();
             setRules(data.rules || []);
+            setProveedores(data.proveedores || []);
         } finally {
             setLoading(false);
         }
@@ -75,7 +77,7 @@ export default function PricingSettingsPage() {
         const [formData, setFormData] = useState(initialData || {
             name: '', priority: 100, is_active: true, cost_basis: 'menudeo', 
             margen_objetivo: 20, redondeo: 'magic', envio_fijo: 0,
-            marca: '', category_id: '', articulo_id: '',
+            marca: '', category_id: '', articulo_id: '', proveedor: null,
             aplicar_margen: true, aplicar_comision: true, aplicar_envio: true, aplicar_retenciones: true,
             aplicar_redondeo_magico: true, redondeo_target_pct: -10, redondeo_min_pct: 9, redondeo_max_pct: 14
         });
@@ -102,7 +104,14 @@ export default function PricingSettingsPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Filtro Proveedor (Opcional)</label>
+                        <input list="proveedores-list" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.proveedor || ''} onChange={e=>setFormData({...formData, proveedor: e.target.value.trim() || null})} placeholder="Todos (global)" />
+                        <datalist id="proveedores-list">
+                            {proveedores.map(p => <option key={p} value={p} />)}
+                        </datalist>
+                    </div>
                     <div>
                         <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Filtro Marca (Opcional)</label>
                         <input className="w-full border rounded px-3 py-1.5 text-sm" value={formData.marca || ''} onChange={e=>setFormData({...formData, marca: e.target.value || null})} placeholder="Todas" />
@@ -116,6 +125,8 @@ export default function PricingSettingsPage() {
                         <select className="w-full border rounded px-3 py-1.5 text-sm" value={formData.cost_basis} onChange={e=>setFormData({...formData, cost_basis: e.target.value})}>
                             <option value="menudeo">Menudeo</option>
                             <option value="mayoreo">Mayoreo</option>
+                            <option value="distribuidor">Distribuidor</option>
+                            <option value="subdistribuidor">Subdistribuidor</option>
                         </select>
                     </div>
                     <div>
@@ -232,9 +243,10 @@ export default function PricingSettingsPage() {
                                             {!rule.is_active && <span className="px-2 py-0.5 bg-[var(--err)]/10 text-[var(--err)] text-[10px] font-bold rounded">INACTIVA</span>}
                                         </div>
                                         <div className="flex flex-wrap gap-2 text-[11px] text-[var(--text-muted)] mt-2">
+                                            {rule.proveedor && <span className="bg-[var(--accent)]/10 text-[var(--accent)] px-1.5 rounded font-medium">Proveedor: {rule.proveedor}</span>}
                                             {rule.marca && <span className="bg-[var(--accent)]/10 text-[var(--accent)] px-1.5 rounded font-medium">Marca: {rule.marca}</span>}
                                             {rule.category_id && <span className="bg-[var(--accent)]/10 text-[var(--accent)] px-1.5 rounded font-medium">Categoría: {rule.category_id}</span>}
-                                            {!rule.marca && !rule.category_id && <span className="text-[var(--text-faint)] italic">Global (Aplica a todo)</span>}
+                                            {!rule.marca && !rule.category_id && !rule.proveedor && <span className="text-[var(--text-faint)] italic">Global (Aplica a todo)</span>}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-6 md:border-l md:border-[var(--border)] md:pl-6">

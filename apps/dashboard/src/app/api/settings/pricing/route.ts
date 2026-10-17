@@ -13,7 +13,12 @@ export async function GET() {
         .eq('is_current', true)
         .order('category_id', { ascending: true });
         
-    return NextResponse.json({ rules: rules || [], commissions: commissions || [] });
+    const { data: proveedoresRows } = await supabaseAdmin
+        .from('precios_proveedor')
+        .select('proveedor');
+    const proveedores = [...new Set((proveedoresRows || []).map((r: any) => r.proveedor).filter(Boolean))].sort();
+
+    return NextResponse.json({ rules: rules || [], commissions: commissions || [], proveedores });
 }
 
 export async function POST(req: Request) {
@@ -22,6 +27,7 @@ export async function POST(req: Request) {
         const { type, data } = body;
 
         if (type === 'upsert_rule_v3') {
+            if (data?.proveedor === '') data.proveedor = null;
             const { error } = await supabaseAdmin.from('pricing_rule_v3').upsert(data, { onConflict: 'id' });
             if (error) throw error;
         } else if (type === 'delete_rule_v3') {
