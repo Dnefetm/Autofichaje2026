@@ -125,7 +125,7 @@ function buildCompatibilitiesFromAplicaciones(aplicaciones: any[] | null | undef
         }
         if (families.length >= 200) break;
     }
-    return families.length > 0 ? { products_families: families } : null;
+    return families.length > 0 ? { products_families: families, domain_id: DOMAIN } : null;
 }
 
 /** Garantiza que una imagen cumpla el mínimo de MeLi (lado mayor >= 500px, menor >= 250px). */
@@ -1279,7 +1279,7 @@ export async function POST(req: NextRequest) {
                 : null;
             if (Array.isArray(aplicaciones) && aplicaciones.length > 0) {
                 try {
-                    effectiveCompatibilities = await (meli as any).resolveCompatibilityFamilies(marketplace_id, aplicaciones, trace.paso_5_categoria?.domain_id || created?.raw?.domain_id || null);
+                    effectiveCompatibilities = await (meli as any).resolveCompatibilityFamilies(marketplace_id, aplicaciones);
                 } catch (e) {
                     effectiveCompatibilities = buildCompatibilitiesFromAplicaciones(aplicaciones);
                 }
@@ -1289,7 +1289,7 @@ export async function POST(req: NextRequest) {
         }
         if (effectiveCompatibilities && ((effectiveCompatibilities.products || []).length > 0 || (effectiveCompatibilities.products_families || []).length > 0)) {
             try {
-                const compRes = await (meli as any).addCompatibilities(marketplace_id, created.item_id, effectiveCompatibilities, created.user_product_id);
+                const compRes = await (meli as any).addCompatibilities(marketplace_id, created.item_id, effectiveCompatibilities, created.user_product_id, category_id);
                 const enviadas = (effectiveCompatibilities.products?.length ?? 0) + (effectiveCompatibilities.products_families?.length ?? 0);
                 trace.paso_12_5_compatibilidades = { ok: true, enviadas, created_compatibilities_count: compRes?.created_compatibilities_count ?? null };
             } catch (compErr: any) {

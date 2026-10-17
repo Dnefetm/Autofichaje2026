@@ -1639,14 +1639,19 @@ export class MeliAdapter implements MarketplaceAdapter {
      * POST /items/{id}/compatibilities. Body real de MeLi: { products, products_families }.
      * creation_source se inyecta 'DEFAULT' si no viene.
      */
-    async addCompatibilities(accountId: string, itemId: string, payload: any, userProductId?: string | null): Promise<any> {
+    async addCompatibilities(accountId: string, itemId: string, payload: any, userProductId?: string | null, categoryId?: string | null): Promise<any> {
         const accessToken = await this.getAccessToken(accountId);
-        const body: any = { ...payload };
-        if (Array.isArray(body.products)) {
-            body.products = body.products.map((p: any) => ({ creation_source: 'DEFAULT', ...p }));
+        const body: any = {};
+        // User Products requieren domain_id y category_id en la raíz del body.
+        if (userProductId) {
+            if (payload?.domain_id) body.domain_id = payload.domain_id;
+            if (categoryId) body.category_id = categoryId;
         }
-        if (Array.isArray(body.products_families)) {
-            body.products_families = body.products_families.map((f: any) => ({ creation_source: 'DEFAULT', ...f }));
+        if (Array.isArray(payload?.products)) {
+            body.products = payload.products.map((p: any) => ({ creation_source: 'DEFAULT', ...p }));
+        }
+        if (Array.isArray(payload?.products_families)) {
+            body.products_families = payload.products_families.map((f: any) => ({ creation_source: 'DEFAULT', ...f }));
         }
         // User Products usan su propio recurso de compatibilidades.
         const endpoint = userProductId
@@ -1661,40 +1666,13 @@ export class MeliAdapter implements MarketplaceAdapter {
     }
 
     /**
-     * getCompatibleDomainId — Obtiene el dominio compatible (vehículos) para un dominio de ítem,
-     * consultando el dump oficial de compatibilidades. Es la fuente de verdad para el domain_id.
-     */
-    async getCompatibleDomainId(accountId: string, itemDomainId: string): Promise<string | null> {
-        const accessToken = await this.getAccessToken(accountId);
-        try {
-            const resp = await axios.get('https://api.mercadolibre.com/catalog/dumps/domains/MLM/compatibilities', {
-                headers: { Authorization: `Bearer ${accessToken}` },
-            });
-            const groups = Array.isArray(resp.data) ? resp.data : [resp.data];
-            for (const group of groups) {
-                const list = Array.isArray(group) ? group : [group];
-                for (const dom of list) {
-                    if (dom?.domain_id !== itemDomainId) continue;
-                    const comps = Array.isArray(dom?.compatibilities) ? dom.compatibilities : [];
-                    const ext = comps.find((c: any) => c?.type === 'EXTENSION');
-                    if (ext?.compatible_domain_id) return String(ext.compatible_domain_id);
-                }
-            }
-            return null;
-        } catch (err: any) {
-            logger.warn({ accountId, itemDomainId, error: err?.message }, 'getCompatibleDomainId falló');
-            return null;
-        }
-    }
-
-    /**
      * resolveCompatibilityFamilies — Resuelve aplicaciones vehiculares (marca/modelo/año)
-     * a value_id del catálogo de MeLi vía top_values y arma products_families. El domain_id
-     * se obtiene del dump (o cae a MLM-CARS_AND_VANS). Usa value_id cuando lo encuentra.
+     * a value_id del catálogo de MeLi vía top_values y arma products_families para el dominio
+     * MLM-CARS_AND_VANS_FOR_COMPATIBILITIES. Usa value_id cuando lo encuentra.
      */
-    async resolveCompatibilityFamilies(accountId: string, aplicaciones: any[], itemDomainId?: string): Promise<{ products_families: any[] } | null> {
+    async resolveCompatibilityFamilies(accountId: string, aplicaciones: any[]): Promise<{ products_families: any[]; domain_id: string } | null> {
         if (!Array.isArray(aplicaciones) || aplicaciones.length === 0) return null;
-        const DOMAIN = (itemDomainId ? await this.getCompatibleDomainId(accountId, itemDomainId) : null) || 'MLM-CARS_AND_VANS';
+        const DOMAIN = 'MLM-CARS_AND_VANS_FOR_COMPATIBILITIES';
         const accessToken = await this.getAccessToken(accountId);
 
         const brandCache = new Map<string, string>();
@@ -1756,7 +1734,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             }
             if (families.length >= 200) break;
         }
-        return families.length > 0 ? { products_families: families } : null;
+        return families.length > 0 ? { products_families: families, domain_id: DOMAIN } : null;
     }
 
     /**
