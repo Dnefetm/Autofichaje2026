@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
                 codigo_sat: fila.codigo_sat || null,
                 url_imagen: producto?.imagen || null,
                 descripcion: descripcion.slice(0, 2000),
+                atributos_especificos: producto?.oem ? { OEM: producto.oem } : null,
                 activo: true,
             })
             .select('articulo_id')
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
         const appsTxt = (producto?.aplicaciones || []).map((a) => `${a.marca} ${a.modelo} ${a.anio}${a.anioF ? '-' + a.anioF : ''}${a.motor ? ' ' + a.motor : ''}`.trim()).filter(Boolean).join(' | ');
         const patch: Record<string, any> = {};
         if (producto?.imagen) patch.url_imagen = producto.imagen;
+        if (producto?.oem) patch.atributos_especificos = { OEM: producto.oem };
         if (appsTxt) patch.descripcion = [fila.descripcion, 'Aplicaciones: ' + appsTxt].filter(Boolean).join('\n').slice(0, 2000);
         if (Object.keys(patch).length > 0) {
             await supabaseAdmin.from('articulos').update(patch).eq('articulo_id', articuloId);

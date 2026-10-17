@@ -16,6 +16,7 @@ export interface DaiAplicacion {
     motor: string;
     aplicacion: string;
     especificaciones: string;
+    oem: string;
 }
 
 export interface DaiProducto {
@@ -60,14 +61,18 @@ export async function extraerProductoDai(codigo: string): Promise<DaiProducto | 
         motor: String(a?.motor ?? '').trim(),
         aplicacion: String(a?.aplicacion ?? '').trim(),
         especificaciones: String(a?.especificaciones ?? '').trim(),
+        oem: String(a?.oem ?? '').trim(),
     }));
+
+    const oemDeEspecificaciones = aplicaciones.map((a) => a.oem).find((o) => o !== '') || null;
+    const oem = (d.oem ? String(d.oem).trim() : null) || oemDeEspecificaciones;
 
     return {
         dai: String(d.dai ?? '').trim(),
         imagen: d.imagen ? String(d.imagen) : null,
         w360: d.w360 ? String(d.w360) : null,
         linea: d.linea ? String(d.linea) : null,
-        oem: d.oem ? String(d.oem) : null,
+        oem,
         aplicaciones,
     };
 }

@@ -326,13 +326,18 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             .catch(() => { /* silencioso: si falla, el backend igual hereda las fotos al publicar */ });
     }, [sourcePublicacion]);
 
-    // Pre-cargar sugerencias de imágenes del artículo (convierte rutas relativas a públicas).
-    // NO auto-agregar: si el artículo no tiene fotos, el campo queda vacío para subir manualmente.
+    // Pre-cargar y AUTO-AGREGAR las fotos del artículo (url_imagen + ficha + 360).
+    // Antes quedaban solo como "sugerencias" y la publicación salía sin fotografías.
     useEffect(() => {
         const validUrls = imagenesBase
             .map(getPublicImageUrl)
             .filter((u): u is string => !!u);
         setPreloadedSuggestions(validUrls);
+        setImages(prev => {
+            const next = [...prev];
+            for (const u of validUrls) if (!next.includes(u)) next.push(u);
+            return next;
+        });
     }, [imagenesBase]);
 
     // Si viene ficha_id, cargar también las imágenes propias de la ficha (ficha_imagenes)
@@ -786,17 +791,20 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             if (data.ok && data.list_cost != null) {
                 const listCost = Number(data.list_cost);
                 setCotizacionEnvio({ list_cost: listCost, status: data.status });
-                // Recalcular el precio final incluyendo el envío cotizado,
-                // usando los insumos que ya resolvió fn_calcular_precio_prepublicacion.
+                // Recalcular el precio final incluyendo el envío cotizado.
                 const rpc = trace.paso_5_1_precio_prepublicacion;
                 const base = Number(rpc?.base_price);
-                if (base > 0) {
-                    const margen = Number(rpc?.margen_pct ?? 0);
-                    const comision = Number(rpc?.comision_pct ?? 0);
-                    const retenciones = Number(rpc?.retenciones_pct ?? 0);
-                    const denom = 1 - (comision + retenciones) / 100;
-                    if (denom > 0) {
+                const margen = Number(rpc?.margen_pct ?? 0);
+                const comision = Number(rpc?.comision_pct ?? 0);
+                const retenciones = Number(rpc?.retenciones_pct ?? 0);
+                const denom = 1 - (comision + retenciones) / 100;
+                const precioActual = Number(priceOverride || (trace.paso_9_titulo?.price_final ?? trace.paso_3_precio?.sale_price ?? 0));
+                if (denom > 0) {
+                    if (base > 0) {
                         const final = (base * (1 + margen / 100) + listCost) / denom;
+                        setPriceOverride(String(Math.round(final * 100) / 100));
+                    } else if (precioActual > 0) {
+                        const final = precioActual + listCost / denom;
                         setPriceOverride(String(Math.round(final * 100) / 100));
                     }
                 }

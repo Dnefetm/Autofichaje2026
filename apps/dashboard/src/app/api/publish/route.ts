@@ -730,6 +730,15 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // OEM (código original de fábrica) desde atributos_especificos del artículo.
+        // Solo se envía si la categoría reconoce el atributo OEM (evita rechazos).
+        const oemAttr = resolved.atributos_especificos && typeof resolved.atributos_especificos === 'object'
+            ? ((resolved.atributos_especificos as any).OEM || (resolved.atributos_especificos as any).oem || null)
+            : null;
+        if (oemAttr && (attrInfo?.raw || []).some((a: any) => a.id === 'OEM')) {
+            attributes.push({ id: 'OEM', value_name: String(oemAttr) });
+        }
+
         // Atributos de la vidriera origen (copia): portar como hints, preservando
         // value_id/value_name. Se filtran atributos de sistema/obsoletos y los ya mapeados.
         if (sourceData?.attributes && Array.isArray(sourceData.attributes)) {

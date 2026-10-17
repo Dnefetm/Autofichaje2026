@@ -141,6 +141,19 @@ export default function ArticuloDetailPage() {
         }
     };
 
+    const handleDelete = async () => {
+        if (!confirm('¿Eliminar este artículo del catálogo? Se borrará también su ficha técnica, imágenes y vínculos.')) return;
+        try {
+            const res = await fetch(`/api/catalog/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!data?.ok) { toast.error(data?.error || 'No se pudo eliminar el artículo'); return; }
+            toast.success('Artículo eliminado del catálogo');
+            router.push('/catalog');
+        } catch (err: any) {
+            toast.error(err?.message || 'Error al eliminar');
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-32">
@@ -187,9 +200,14 @@ export default function ArticuloDetailPage() {
                 <Link href="/catalog" className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors font-medium">
                     <ArrowLeft className="w-4 h-4" /> Volver al catálogo
                 </Link>
-                <button onClick={() => fetchProduct()} className="p-2 text-[var(--text-faint)] hover:text-[var(--accent)] transition-colors" title="Refrescar">
-                    <RefreshCw className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                    <button onClick={handleDelete} className="px-2.5 py-1.5 text-xs font-bold text-[var(--err)] bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--err)]/20 transition-colors" title="Eliminar artículo del catálogo">
+                        Eliminar artículo
+                    </button>
+                    <button onClick={() => fetchProduct()} className="p-2 text-[var(--text-faint)] hover:text-[var(--accent)] transition-colors" title="Refrescar">
+                        <RefreshCw className="w-5 h-5" />
+                    </button>
+                </div>
             </div>
 
             {/* Header */}
