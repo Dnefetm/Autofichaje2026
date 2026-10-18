@@ -95,7 +95,7 @@ function resolvePublicationData(articulo: any, ficha: any | null, source: any | 
 }
 
 /** Convierte las aplicaciones vehiculares de DAI al contrato de compatibilidades de MeLi (products_families). */
-function buildCompatibilitiesFromAplicaciones(aplicaciones: any[] | null | undefined): { products_families: any[] } | null {
+function buildCompatibilitiesFromAplicaciones(aplicaciones: any[] | null | undefined): { products_families: any[]; domain_id?: string } | null {
     if (!Array.isArray(aplicaciones) || aplicaciones.length === 0) return null;
     const DOMAIN = 'MLM-CARS_AND_VANS_FOR_COMPATIBILITIES';
     const families: any[] = [];

@@ -64,7 +64,7 @@ async function parseExistencias(buffer: Buffer): Promise<FilaCanonica[]> {
         if (r.length === 1 && /^9[01]\d/.test(r[0].replace(/\s+/g, ''))) {
             lastSku = r[0];
         } else if (r.length >= 2 && lastSku) {
-            const stock = parseNumero(r[r.length - 1]);
+            const stock = parseNumero(r[r.length - 1], true);
             const descripcion = r.slice(0, r.length - 1).join(' ').trim();
             if (stock != null) {
                 filas.push({

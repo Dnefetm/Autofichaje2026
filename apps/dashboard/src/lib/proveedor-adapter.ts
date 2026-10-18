@@ -96,18 +96,29 @@ export function mergeFilas(filas: FilaCanonica[]): Map<string, FilaCanonica> {
 }
 
 /** Parseo de números con separador de miles / decimales (ej. '8,045' → 8045, '1.247,74' → 1247.74). */
-export function parseNumero(raw: unknown): number | null {
+export function parseNumero(raw: unknown, esEntero: boolean = false): number | null {
     if (raw == null) return null;
     let s = String(raw).trim();
     if (s === '' || s === '-') return null;
     s = s.replace(/[^\d.,-]/g, '');
+
+    if (esEntero) {
+        // Cantidades/existencias: la coma es separador de miles (8,045 → 8045).
+        s = s.replace(/,/g, '');
+        const n = parseInt(s, 10);
+        return isNaN(n) ? null : n;
+    }
+
     const tieneComa = s.includes(',');
     const tienePunto = s.includes('.');
     if (tieneComa && tienePunto) {
         // punto = miles, coma = decimal
         s = s.replace(/\./g, '').replace(',', '.');
+    } else if (tieneComa && !/,\d{1,2}$/.test(s)) {
+        // coma seguida de 3+ dígitos = separador de miles (8,045)
+        s = s.replace(/,/g, '');
     } else if (tieneComa) {
-        // coma = decimal (o miles si solo hay una coma y 3 dígitos después... asumimos decimal)
+        // coma seguida de 1-2 dígitos = decimal (123,45)
         s = s.replace(',', '.');
     }
     const n = parseFloat(s);
