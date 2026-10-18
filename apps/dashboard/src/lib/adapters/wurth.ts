@@ -21,7 +21,7 @@ export const wurthAdapter: ProveedorAdapter = {
     },
 };
 
-async function parsePrecios(buffer: Buffer): Promise<FilaCanonica[]> {
+async function parsePrecios(buffer: Uint8Array): Promise<FilaCanonica[]> {
     const rows = await leerXlsxFilas(buffer, 0);
     let headerIdx = -1;
     for (let i = 0; i < Math.min(5, rows.length); i++) {
@@ -56,7 +56,7 @@ async function parsePrecios(buffer: Buffer): Promise<FilaCanonica[]> {
  *  - fila DESCRIPCIÓN + STOCK (2 celdas) — la existencia va al final.
  * Cada fila SKU se empareja con la fila siguiente.
  */
-async function parseExistencias(buffer: Buffer): Promise<FilaCanonica[]> {
+async function parseExistencias(buffer: Uint8Array): Promise<FilaCanonica[]> {
     const rows = await leerPdfTabla(buffer);
     const filas: FilaCanonica[] = [];
     let lastSku: string | null = null;
@@ -85,7 +85,7 @@ async function parseExistencias(buffer: Buffer): Promise<FilaCanonica[]> {
  * El PDF SAT intercala una fila "Código + Descripción" (el código puede ir dividido
  * en varias celdas, todas a x<100) y la fila siguiente con la CLAVE SAT (8 dígitos, x>=300).
  */
-async function parseSat(buffer: Buffer): Promise<FilaCanonica[]> {
+async function parseSat(buffer: Uint8Array): Promise<FilaCanonica[]> {
     const rows = await leerPdfFilasPosicion(buffer);
     const filas: FilaCanonica[] = [];
     let last: { code: string; desc: string } | null = null;

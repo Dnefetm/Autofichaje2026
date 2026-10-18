@@ -1,11 +1,16 @@
 'use client';
 import { useRef, useState } from 'react';
 import { FileUp, Loader2 } from 'lucide-react';
-import { supabaseBrowser } from '@/lib/supabase-browser';
+import { obtenerAdapter, mergeFilas } from '@/lib/proveedor-adapter';
+import { registrarAdaptadoresProveedores } from '@/lib/adapters';
+
+// Registro idempotente de adapters (Urrea + Wurth + Tuk)
+registrarAdaptadoresProveedores();
 
 /**
- * Botones para subir feeds complementarios (existencias PDF → stock, SAT PDF → codigo_sat)
- * de un proveedor. Flujo: signed-url → upload directo a Storage → /api/precios/importar/feed-pdf.
+ * Botones para subir feeds complementarios (existencias PDF → stock, SAT PDF → codigo_sat).
+ * El PDF se PARSEA EN EL NAVEGADOR (CPU del cliente, no Vercel); solo se envían las filas
+ * extraídas a /api/precios/importar/feed-pdf para el upsert en catalogo_proveedor.
  */
 export function SubirFeedPdf({ proveedor }: { proveedor: string }) {
     const [tipo, setTipo] = useState<'existencias' | 'sat' | null>(null);
@@ -25,30 +30,34 @@ export function SubirFeedPdf({ proveedor }: { proveedor: string }) {
         setMsg(null);
         try {
             if (!f.name.toLowerCase().endsWith('.pdf')) throw new Error('Solo archivos .pdf');
+            const adapter = obtenerAdapter(proveedor);
+            if (!adapter) throw new Error(`No hay adapter para "${proveedor}"`);
 
-            // 1) Signed URL
-            const r1 = await fetch('/api/precios/importar/signed-url', {
+            // 1) Parsear EN EL NAVEGADOR (pdfjs-dist en el cliente)
+            const buf = new Uint8Array(await f.arrayBuffer());
+            const filas = await adapter.parse({ nombre: f.name, buffer: buf, tipo: 'pdf', feed: tipo });
+            if (!filas.length) throw new Error('No se extrajeron filas del archivo');
+
+            // 2) Merge por (proveedor, sku_norm) en el cliente
+            const merged = mergeFilas(filas);
+            const payload = [...merged.values()].map((x) => ({
+                proveedor: x.proveedor,
+                sku_norm: x.sku_norm,
+                sku_proveedor: x.sku_proveedor,
+                descripcion: x.descripcion ?? null,
+                stock: x.stock ?? null,
+                codigo_sat: x.codigo_sat ?? null,
+            }));
+
+            // 3) Solo enviar filas (sin archivo) al backend para el upsert
+            const r = await fetch('/api/precios/importar/feed-pdf', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ proveedor, fileName: f.name }),
+                body: JSON.stringify({ proveedor: adapter.nombre, tipo, filas: payload, nombre: f.name }),
             });
-            const j1 = await r1.json();
-            if (!j1.ok) throw new Error(j1.error);
-
-            // 2) Upload directo a Storage
-            const supabase = supabaseBrowser();
-            const { error: upErr } = await supabase.storage.from(j1.bucket).uploadToSignedUrl(j1.path, j1.token, f);
-            if (upErr) throw new Error(upErr.message);
-
-            // 3) Procesar (parse + upsert en catalogo_proveedor)
-            const r2 = await fetch('/api/precios/importar/feed-pdf', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ proveedor, tipo, storage_path: j1.path, bucket: j1.bucket, nombre: f.name }),
-            });
-            const j2 = await r2.json();
-            if (!j2.ok) throw new Error(j2.error);
-            setMsg(`✓ ${tipo === 'existencias' ? 'Existencias' : 'SAT'}: ${Number(j2.filas || 0).toLocaleString()} filas`);
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.error);
+            setMsg(`✓ ${tipo === 'existencias' ? 'Existencias' : 'SAT'}: ${Number(d.filas || 0).toLocaleString()} filas`);
         } catch (e: any) {
             setMsg(`✗ ${e.message || 'Error procesando el PDF'}`);
         } finally {
@@ -82,7 +91,7 @@ export function SubirFeedPdf({ proveedor }: { proveedor: string }) {
                 {loading && tipo === 'sat' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileUp className="w-4 h-4 mr-1" />}
                 SAT
             </button>
-            {msg && <span className="text-xs text-[var(--text-muted)] max-w-[220px] truncate" title={msg}>{msg}</span>}
+            {msg && <span className="text-xs text-[var(--text-muted)] max-w-[240px] truncate" title={msg}>{msg}</span>}
         </span>
     );
 }

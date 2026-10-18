@@ -11,10 +11,9 @@ export interface CeldaPdf {
 interface ItemRaw { x: number; str: string; }
 
 /** Lee todas las páginas y devuelve filas (arriba→abajo) de celdas (izquierda→derecha). */
-async function leerPdfPaginas(buffer: Buffer): Promise<ItemRaw[][]> {
+async function leerPdfPaginas(buffer: Uint8Array): Promise<ItemRaw[][]> {
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-    const data = new Uint8Array(buffer);
-    const doc = await pdfjs.getDocument({ data }).promise;
+    const doc = await pdfjs.getDocument({ data: buffer }).promise;
     const filas: ItemRaw[][] = [];
     for (let p = 1; p <= doc.numPages; p++) {
         const page = await doc.getPage(p);
@@ -36,21 +35,21 @@ async function leerPdfPaginas(buffer: Buffer): Promise<ItemRaw[][]> {
 }
 
 /** Filas como texto plano (sin posición). Útil para tablas donde la columna se infiere por orden. */
-export async function leerPdfTabla(buffer: Buffer): Promise<string[][]> {
+export async function leerPdfTabla(buffer: Uint8Array): Promise<string[][]> {
     const filas = await leerPdfPaginas(buffer);
     return filas.map((r) => r.map((c) => c.str));
 }
 
 /** Filas con posición X por celda. Útil para tablas donde el SKU se divide en varias celdas o hay que separar columnas por coordenada. */
-export async function leerPdfFilasPosicion(buffer: Buffer): Promise<CeldaPdf[][]> {
+export async function leerPdfFilasPosicion(buffer: Uint8Array): Promise<CeldaPdf[][]> {
     const filas = await leerPdfPaginas(buffer);
     return filas.map((r) => r.map((c) => ({ x: Math.round(c.x), texto: c.str })));
 }
 
 /** Añade un helper para leer XLSX a filas (header:1), reutilizable. */
-export async function leerXlsxFilas(buffer: Buffer, hoja: number = 0): Promise<any[][]> {
+export async function leerXlsxFilas(buffer: Uint8Array, hoja: number = 0): Promise<any[][]> {
     const XLSX = await import('xlsx');
-    const wb = XLSX.read(buffer, { type: 'buffer' });
+    const wb = XLSX.read(buffer, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[hoja]];
     return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as any[][];
 }

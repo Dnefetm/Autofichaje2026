@@ -24,7 +24,8 @@ export type TipoArchivo = 'xlsx' | 'pdf' | 'csv';
 
 export interface ArchivoProveedor {
     nombre: string;
-    buffer: Buffer;
+    /** Bytes del archivo (Uint8Array = compatible navegador y Node; en Node Buffer lo es). */
+    buffer: Uint8Array;
     tipo: TipoArchivo;
     /** Pista de feed para PDFs complementarios: 'existencias' | 'sat' (opcional). */
     feed?: 'existencias' | 'sat';
@@ -119,8 +120,13 @@ export function parseNumero(raw: unknown, esEntero: boolean = false): number | n
     const tieneComa = s.includes(',');
     const tienePunto = s.includes('.');
     if (tieneComa && tienePunto) {
-        // punto = miles, coma = decimal
-        s = s.replace(/\./g, '').replace(',', '.');
+        if (s.indexOf(',') < s.indexOf('.')) {
+            // Formato México/USA: coma de miles, punto decimal → 1,500.50 → 1500.50
+            s = s.replace(/,/g, '');
+        } else {
+            // Formato europeo: punto de miles, coma decimal → 1.500,50 → 1500.50
+            s = s.replace(/\./g, '').replace(',', '.');
+        }
     } else if (tieneComa && !/,\d{1,2}$/.test(s)) {
         // coma seguida de 3+ dígitos = separador de miles (8,045)
         s = s.replace(/,/g, '');
