@@ -1,4 +1,5 @@
 import { ReglaForm } from '@/components/precios/ReglaForm';
+import { PoliticaStockForm } from '@/components/precios/PoliticaStockForm';
 
 export default async function ReglasProveedorPage(props: { params: Promise<{ proveedor: string }> }) {
     const params = await props.params;
@@ -14,6 +15,8 @@ export default async function ReglasProveedorPage(props: { params: Promise<{ pro
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm p-8">
                 <ReglaForm />
             </div>
+
+            <PoliticaStockForm proveedor={proveedorDecoded} />
         </div>
     );
 }

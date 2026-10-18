@@ -6,10 +6,10 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 /**
- * POST /api/precios/importar/feed-pdf
+ * POST /api/precios/importar/feed
  * { proveedor, tipo: 'existencias'|'sat', filas: FilaCanonica[], nombre? }
  *
- * Recibe las filas YA PARSEADAS EN EL NAVEGADOR (el navegador hace el parseo del PDF,
+ * Recibe las filas YA PARSEADAS EN EL NAVEGADOR (el navegador hace el parseo del archivo,
  * no Vercel) y hace el upsert set-based en catalogo_proveedor. No descarga ni parsea nada.
  */
 export async function POST(req: NextRequest) {
