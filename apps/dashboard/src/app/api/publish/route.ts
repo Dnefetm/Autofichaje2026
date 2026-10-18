@@ -633,20 +633,28 @@ export async function POST(req: NextRequest) {
         };
 
         // -- 4. Calcular stock disponible --------------------------------------
-        // inventory_snapshot.sku almacena articulo_id (migración V27)
+        // inventory_snapshot.sku almacena articulo_id (migración V27).
+        // Si el proveedor tiene política de stock (fijo/proveedor), tiene prioridad.
         let stock = 0;
         let stockFailed = false;
+        let stockOrigen = 'fisico';
         try {
-            const { SKU_Service } = await import('@gestor/shared/sku-service');
-            stock = await SKU_Service.calculateAvailableStock(resolvedArticuloId);
+            const { data: stockPol } = await supabaseAdmin.rpc('fn_stock_publicable', { p_articulo_id: resolvedArticuloId });
+            if (stockPol && stockPol.modo && stockPol.stock != null) {
+                stock = Number(stockPol.stock) || 0;
+                stockOrigen = String(stockPol.modo);
+            } else {
+                const { SKU_Service } = await import('@gestor/shared/sku-service');
+                stock = await SKU_Service.calculateAvailableStock(resolvedArticuloId);
+            }
         } catch (stockErr: any) {
             stockFailed = true;
             // En dry_run permitimos continuar con stock=1 para inspection del trace
             // En publicación real esto se bloquea más abajo en validaciones
             stock = 1;
-            trace.paso_4_stock = { error: `Fallo en calculateAvailableStock: ${stockErr.message}` };
+            trace.paso_4_stock = { error: `Fallo en stock: ${stockErr.message}` };
         }
-        trace.paso_4_stock = { ...trace.paso_4_stock, available_quantity: stock, stock_failed: stockFailed };
+        trace.paso_4_stock = { ...trace.paso_4_stock, available_quantity: stock, stock_failed: stockFailed, origen: stockOrigen };
 
         // -- 5. Predecir o usar categoría --------------------------------------
         // Copia desde vidriera: heredar la categoría de la vidriera origen si no se indicó otra.
