@@ -13,6 +13,7 @@ interface FilaDai {
     descripcion: string;
     valor: number;
     codigo_barra: string;
+    ficha_articulo_id: string | null;
 }
 
 export default function PublicarDaiPage() {
@@ -62,8 +63,12 @@ export default function PublicarDaiPage() {
         }
     }
 
+    function artIdDe(sku: string): string | null {
+        return resultado[sku]?.articulo_id || filas.find((x) => x.sku_proveedor === sku)?.ficha_articulo_id || null;
+    }
+
     async function borrar(sku: string) {
-        const artId = resultado[sku]?.articulo_id;
+        const artId = artIdDe(sku);
         if (!artId) return;
         if (!confirm(`¿Borrar la ficha del código ${sku} del catálogo? Podrás prepararlo de nuevo desde cero.`)) return;
         setPreparando(sku); setError(null);
@@ -72,6 +77,7 @@ export default function PublicarDaiPage() {
             const d = await r.json();
             if (!d.ok) { setError(d.error || 'No se pudo borrar'); return; }
             setResultado((prev) => { const n = { ...prev }; delete n[sku]; return n; });
+            setFilas((prev) => prev.map((x) => x.sku_proveedor === sku ? { ...x, ficha_articulo_id: null } : x));
         } catch (e: any) {
             setError(e.message);
         } finally {
@@ -82,13 +88,14 @@ export default function PublicarDaiPage() {
     async function capturar360(sku: string) {
         setPreparando(sku); setError(null);
         try {
-            let artId = resultado[sku]?.articulo_id;
+            let artId = artIdDe(sku);
             if (!artId) {
                 const rp = await fetch('/api/dai/preparar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, proveedor }) });
                 const dp = await rp.json();
                 if (!dp.ok) throw new Error(dp.error);
                 artId = dp.articulo_id;
                 setResultado((prev) => ({ ...prev, [sku]: dp }));
+                setFilas((prev) => prev.map((x) => x.sku_proveedor === sku ? { ...x, ficha_articulo_id: dp.articulo_id } : x));
             }
             const r = await fetch('/api/dai/capturar-360', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: sku, articulo_id: artId }) });
             const d = await r.json();
@@ -133,17 +140,19 @@ export default function PublicarDaiPage() {
                                     <th className="px-3 py-2 text-xs uppercase">Descripción</th>
                                     <th className="px-3 py-2 text-xs uppercase">EAN</th>
                                     <th className="px-3 py-2 text-xs uppercase">Costo</th>
+                                    <th className="px-3 py-2 text-xs uppercase">Ficha</th>
                                     <th className="px-3 py-2 text-xs uppercase text-right">Acción</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--border)]">
                                 {loading ? (
-                                    <tr><td colSpan={5} className="px-4 py-8 text-center text-[var(--text-faint)]">Cargando…</td></tr>
+                                    <tr><td colSpan={6} className="px-4 py-8 text-center text-[var(--text-faint)]">Cargando…</td></tr>
                                 ) : filas.length === 0 ? (
-                                    <tr><td colSpan={5} className="px-4 py-8 text-center text-[var(--text-faint)]">Sin resultados.</td></tr>
+                                    <tr><td colSpan={6} className="px-4 py-8 text-center text-[var(--text-faint)]">Sin resultados.</td></tr>
                                 ) : (
                                     filas.map((f) => {
                                         const r = resultado[f.sku_proveedor];
+                                        const artId = artIdDe(f.sku_proveedor);
                                         return (
                                             <tr key={f.sku_proveedor} className="hover:bg-[var(--bg)]/60">
                                                 <td className="px-3 py-2 font-mono font-semibold">{f.sku_proveedor}</td>
@@ -153,26 +162,34 @@ export default function PublicarDaiPage() {
                                                 </td>
                                                 <td className="px-3 py-2 font-mono text-[var(--text-faint)]">{f.codigo_barra?.replace(/^'+/, '') || '—'}</td>
                                                 <td className="px-3 py-2 font-mono">${Number(f.valor).toFixed(2)}</td>
+                                                <td className="px-3 py-2 whitespace-nowrap">
+                                                    {artId ? (
+                                                        <Link href={`/catalog/${artId}`} className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--ok)] hover:underline">
+                                                            <CheckCircle2 className="w-3.5 h-3.5" /> Generada <ExternalLink className="w-3 h-3" />
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="text-[var(--text-faint)]">—</span>
+                                                    )}
+                                                </td>
                                                 <td className="px-3 py-2 text-right whitespace-nowrap">
                                                     <div className="flex items-center justify-end gap-1.5">
-                                                        {r?.ok && (
-                                                            <Link href={`/catalog/${r.articulo_id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--accent)] hover:underline">
-                                                                <CheckCircle2 className="w-3.5 h-3.5" /> Ficha <ExternalLink className="w-3 h-3" />
-                                                            </Link>
-                                                        )}
-                                                        {r?.ok && (
+                                                        {artId && (
                                                             <button onClick={() => borrar(f.sku_proveedor)} disabled={preparando === f.sku_proveedor} className="text-[10px] font-semibold text-[var(--err)] hover:underline disabled:opacity-50" title="Borrar ficha del catálogo">
                                                                 Borrar
                                                             </button>
                                                         )}
-                                                        {r?.ok && !r.w360 ? (
+                                                        {artId && !r?.w360 ? (
                                                             <span className="text-[10px] text-[var(--text-faint)] italic">Sin 360 en DAI</span>
                                                         ) : (
                                                             <Btn size="sm" variant="ghost" onClick={() => capturar360(f.sku_proveedor)} loading={preparando === f.sku_proveedor}>
                                                                 {r?.capturadas360 ? `360 (${r.capturadas360})` : 'Capturar 360'}
                                                             </Btn>
                                                         )}
-                                                        {!r?.ok && (
+                                                        {artId ? (
+                                                            <Btn size="sm" variant="ghost" onClick={() => preparar(f.sku_proveedor)} loading={preparando === f.sku_proveedor} title="Regenerar la ficha desde dai.com.mx">
+                                                                Rehacer
+                                                            </Btn>
+                                                        ) : (
                                                             <Btn size="sm" onClick={() => preparar(f.sku_proveedor)} loading={preparando === f.sku_proveedor}>
                                                                 Preparar
                                                             </Btn>
