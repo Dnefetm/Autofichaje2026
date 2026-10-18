@@ -255,6 +255,9 @@ function sincEgresosRango_(rangoInicio, rangoFin) {
             } else {
               errores++;
               Logger.log('Error individual egreso_id: ' + toUpsert[k].egreso_id + ' -> HTTP ' + respInd.getResponseCode());
+              if (respInd.getContentText().indexOf('bloqueado') !== -1) {
+                registrarAvisoBloqueo('egresos', 'UPDATE', toUpsert[k].egreso_id, toUpsert[k].fecha, { movimiento: toUpsert[k], error: respInd.getContentText().substring(0, 500) });
+              }
             }
           }
         }
@@ -382,6 +385,9 @@ function sincEgresosPorFecha(soloNuevos) {
             } else {
               errores++;
               Logger.log('Error individual egreso_id: ' + toUpsert[k].egreso_id + ' -> HTTP ' + respInd.getResponseCode());
+              if (respInd.getContentText().indexOf('bloqueado') !== -1) {
+                registrarAvisoBloqueo('egresos', 'UPDATE', toUpsert[k].egreso_id, toUpsert[k].fecha, { movimiento: toUpsert[k], error: respInd.getContentText().substring(0, 500) });
+              }
             }
           }
         }

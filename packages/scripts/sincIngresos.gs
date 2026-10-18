@@ -225,8 +225,21 @@ function _sincIngresosPorFecha_(soloNuevos) {
     if (lote.length > 0) {
       var resp = upsertLoteIngresos(lote);
       if (resp.code >= 300) {
-        errores++;
         if (!primerError) primerError = 'Lote fila ' + filaInicio + ': HTTP ' + resp.code + ' — ' + resp.body.substring(0, 300);
+        // Reintento individual (desagrupar): si 1 fila vieja está bloqueada por el candado,
+        // sincroniza las demás y registra el aviso del bloqueo.
+        for (var k = 0; k < lote.length; k++) {
+          var respInd = upsertLoteIngresos([lote[k]]);
+          if (respInd.code >= 200 && respInd.code < 300) {
+            upsertados++;
+          } else {
+            errores++;
+            Logger.log('Error individual ingreso_id: ' + lote[k].ingreso_id + ' -> HTTP ' + respInd.code);
+            if (respInd.body && respInd.body.indexOf('bloqueado') !== -1) {
+              registrarAvisoBloqueo('ingresos', 'UPDATE', lote[k].ingreso_id, lote[k].fecha, { movimiento: lote[k], error: respInd.body.substring(0, 500) });
+            }
+          }
+        }
       } else {
         upsertados += lote.length;
       }
