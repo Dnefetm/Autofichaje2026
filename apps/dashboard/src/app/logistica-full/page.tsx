@@ -242,7 +242,7 @@ export default function LogisticaFullPage() {
             const j = await r.json();
             if (j.success) {
                 toast.success(accion === 'recibir' ? 'Envío marcado como recibido' : 'Envío cancelado');
-                await loadEnvios();
+                await Promise.all([loadEnvios(), load()]);
             } else {
                 toast.error(j.error || 'Error');
             }
