@@ -103,5 +103,13 @@ export async function POST(
         return NextResponse.json({ ok: false, error: friendlyError(updateErr) }, { status: 500 });
     }
 
+    // 4. Sincronizar precios vigentes hacia catalogo_proveedor (consolidado precio+stock+SAT).
+    //    No bloquea la activación si falla: catalogo_proveedor es derivado.
+    try {
+        await supabaseAdmin.rpc('fn_sync_catalogo_desde_precios', { p_proveedor: imp.proveedor });
+    } catch (syncErr: any) {
+        console.error('[activar] sync catalogo_proveedor falló:', syncErr?.message);
+    }
+
     return NextResponse.json({ ok: true, proveedor: imp.proveedor });
 }

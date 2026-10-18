@@ -4,6 +4,7 @@ import { ArrowLeft, History } from 'lucide-react';
 import { CatalogoProveedorTable, HubItem, TierCol } from '@/components/precios/CatalogoProveedorTable';
 import { CatalogoProveedorSearch } from '@/components/precios/CatalogoProveedorSearch';
 import { SubirFeedPdf } from '@/components/precios/SubirFeedPdf';
+import { PoliticaStockConfig } from '@/components/precios/PoliticaStockConfig';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -209,6 +210,7 @@ export default async function HubProveedorPage(props: {
                                 <span className="mr-1.5 text-base">+</span> Actualizar lista
                             </Link>
                             <SubirFeedPdf proveedor={proveedorDecoded} />
+                            <PoliticaStockConfig proveedor={proveedorDecoded} />
                         </div>
                     </div>
                 </div>
