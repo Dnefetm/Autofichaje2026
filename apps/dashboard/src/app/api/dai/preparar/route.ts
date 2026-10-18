@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { extraerProductoDai, limpiarEan } from '@/lib/dai-extractor';
+import { construirTituloDai, construirDescripcionDai } from '@/lib/dai-descripcion';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -54,10 +55,8 @@ export async function POST(req: NextRequest) {
         if (porModelo?.articulo_id) articuloId = porModelo.articulo_id;
     }
     if (!articuloId) {
-        const aplicacionesTxt = (producto?.aplicaciones || [])
-            .map((a) => `${a.marca} ${a.modelo} ${a.anio}${a.anioF ? '-' + a.anioF : ''}${a.motor ? ' ' + a.motor : ''}`.trim())
-            .filter(Boolean).join(' | ');
-        const descripcion = [fila.descripcion, aplicacionesTxt].filter(Boolean).join('\nAplicaciones: ');
+        const titulo = construirTituloDai(producto, fila.descripcion, sku);
+        const descripcion = construirDescripcionDai(producto, titulo, fila.descripcion);
         const atrEsp: Record<string, any> = {};
         if (producto?.oem) atrEsp.OEM = producto.oem;
         if (Array.isArray(producto?.aplicaciones) && producto.aplicaciones.length > 0) atrEsp.compatibilidades = producto.aplicaciones;
@@ -65,7 +64,7 @@ export async function POST(req: NextRequest) {
             .from('articulos')
             .insert({
                 articulo_id: crypto.randomUUID(),
-                nombre: (fila.descripcion || sku).slice(0, 200),
+                nombre: titulo.slice(0, 200),
                 marca: 'DAI',
                 modelo: sku,
                 codigo_universal: ean,
@@ -85,18 +84,32 @@ export async function POST(req: NextRequest) {
 
     // Actualizar foto/aplicaciones si el artículo ya existía (re-preparar)
     if (articuloId) {
-        const appsTxt = (producto?.aplicaciones || []).map((a) => `${a.marca} ${a.modelo} ${a.anio}${a.anioF ? '-' + a.anioF : ''}${a.motor ? ' ' + a.motor : ''}`.trim()).filter(Boolean).join(' | ');
+        const titulo = construirTituloDai(producto, fila.descripcion, sku);
+        const descripcionFull = construirDescripcionDai(producto, titulo, fila.descripcion);
         const patch: Record<string, any> = {};
+
+        // Leer estado actual para no sobrescribir ediciones manuales del nombre/descripción.
+        const { data: artActual } = await supabaseAdmin
+            .from('articulos')
+            .select('nombre, descripcion, atributos_especificos')
+            .eq('articulo_id', articuloId)
+            .maybeSingle();
+
         if (producto?.imagen) patch.url_imagen = producto.imagen;
-        if (appsTxt) patch.descripcion = [fila.descripcion, 'Aplicaciones: ' + appsTxt].filter(Boolean).join('\n').slice(0, 2000);
+
+        // Completa el nombre solo si aún conserva la forma abreviada original.
+        const crudo = String(fila.descripcion ?? '').trim();
+        const nombreActual = String(artActual?.nombre ?? '');
+        if (!nombreActual || nombreActual === crudo || nombreActual === sku) {
+            patch.nombre = titulo.slice(0, 200);
+        }
+        const descripcionActual = String(artActual?.descripcion ?? '');
+        if (!descripcionActual || descripcionActual.startsWith(crudo)) {
+            patch.descripcion = descripcionFull;
+        }
 
         // Merge de atributos_especificos (OEM + compatibilidades) sin sobrescribir lo existente
         if (producto?.oem || (Array.isArray(producto?.aplicaciones) && producto.aplicaciones.length > 0)) {
-            const { data: artActual } = await supabaseAdmin
-                .from('articulos')
-                .select('atributos_especificos')
-                .eq('articulo_id', articuloId)
-                .maybeSingle();
             const atrEsp: Record<string, any> = { ...(artActual?.atributos_especificos || {}) };
             if (producto?.oem) atrEsp.OEM = producto.oem;
             if (Array.isArray(producto?.aplicaciones) && producto.aplicaciones.length > 0) atrEsp.compatibilidades = producto.aplicaciones;

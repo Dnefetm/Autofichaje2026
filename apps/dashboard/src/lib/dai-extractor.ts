@@ -24,6 +24,8 @@ export interface DaiProducto {
     imagen: string | null;
     w360: string | null;
     linea: string | null;
+    /** Descripción completa oficial de DAI (ej. "SOPORTE PARA TRANSMISIÓN OEM 12371-0L210"). */
+    aplicacion: string | null;
     oem: string | null;
     aplicaciones: DaiAplicacion[];
 }
@@ -72,6 +74,7 @@ export async function extraerProductoDai(codigo: string): Promise<DaiProducto | 
         imagen: d.imagen ? String(d.imagen) : null,
         w360: d.w360 ? String(d.w360) : null,
         linea: d.linea ? String(d.linea) : null,
+        aplicacion: d.aplicacion ? String(d.aplicacion).trim() : null,
         oem,
         aplicaciones,
     };
