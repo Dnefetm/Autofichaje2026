@@ -26,6 +26,8 @@ export interface ArchivoProveedor {
     nombre: string;
     buffer: Buffer;
     tipo: TipoArchivo;
+    /** Pista de feed para PDFs complementarios: 'existencias' | 'sat' (opcional). */
+    feed?: 'existencias' | 'sat';
 }
 
 export interface ProveedorAdapter {
@@ -44,7 +46,12 @@ export function registrarAdapter(adapter: ProveedorAdapter): void {
 }
 
 export function obtenerAdapter(nombre: string): ProveedorAdapter | undefined {
-    return registry[nombre];
+    if (registry[nombre]) return registry[nombre];
+    const n = String(nombre ?? '').trim().toLowerCase();
+    for (const key of Object.keys(registry)) {
+        if (key.toLowerCase() === n) return registry[key];
+    }
+    return undefined;
 }
 
 // -- Helpers genéricos de normalización ---------------------------------------

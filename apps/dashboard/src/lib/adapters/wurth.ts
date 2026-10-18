@@ -14,8 +14,8 @@ export const wurthAdapter: ProveedorAdapter = {
         if (archivo.tipo === 'xlsx') return parsePrecios(archivo.buffer);
         if (archivo.tipo === 'pdf') {
             const nombre = archivo.nombre.toUpperCase();
-            if (nombre.includes('EXISTENC')) return parseExistencias(archivo.buffer);
-            if (nombre.includes('SAT')) return parseSat(archivo.buffer);
+            if (archivo.feed === 'existencias' || nombre.includes('EXISTENC')) return parseExistencias(archivo.buffer);
+            if (archivo.feed === 'sat' || nombre.includes('SAT')) return parseSat(archivo.buffer);
         }
         return [];
     },
