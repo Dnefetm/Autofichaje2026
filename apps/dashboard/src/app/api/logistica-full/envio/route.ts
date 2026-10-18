@@ -97,6 +97,18 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, cancelados: (upd || []).length });
         }
 
+        // Marcar recibido: MeLi ya recibió el envío; sus egresos salen de "en camino".
+        if (accion === 'recibir') {
+            const { data: upd, error: recErr } = await supabaseAdmin
+                .from('egresos')
+                .update({ estado_envio: 'recibido' })
+                .eq('tipo_egreso', 'envio_full')
+                .eq('guia', guia)
+                .select('egreso_id');
+            if (recErr) throw recErr;
+            return NextResponse.json({ success: true, recibidos: (upd || []).length });
+        }
+
         const { data: egresos, error } = await supabaseAdmin
             .from('egresos')
             .select(`${CAMPOS_EGRESO}`)
