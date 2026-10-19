@@ -59,7 +59,7 @@ export async function POST(req: Request) {
                     type: 'sync_inventory',
                     payload: { accountId: n.accountId, inventoryId: n.inventoryId },
                     status: 'pending',
-                    priority: 10,
+                    priority: 1,
                     scheduled_at: new Date().toISOString(),
                 }))
             );
