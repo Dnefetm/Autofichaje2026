@@ -19,7 +19,7 @@ export async function GET() {
         while (true) {
             const { data, error } = await supabaseAdmin
                 .from('egresos')
-                .select('guia, articulo_id, cantidad, edo_reunido, fecha_preparado, fecha, creado_el, estado_envio')
+                .select('guia, articulo_id, cantidad, edo_reunido, fecha_preparado, fecha, creado_el')
                 .eq('tipo_egreso', 'envio_full')
                 .gte('creado_el', desde)
                 .order('creado_el', { ascending: false })
@@ -38,11 +38,9 @@ export async function GET() {
                         preparado: 0,
                         fecha: r.fecha,
                         creado_el: r.creado_el,
-                        estado_envio: r.estado_envio || 'en_camino',
                     });
                 }
                 const e = envios.get(key);
-                if (r.estado_envio) e.estado_envio = r.estado_envio;
                 e.count++;
                 e.cantidad += Number(r.cantidad || 0);
                 if (r.edo_reunido === 'Preparado') e.preparado++;

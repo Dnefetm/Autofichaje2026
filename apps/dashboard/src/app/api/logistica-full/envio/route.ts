@@ -84,29 +84,8 @@ export async function POST(req: Request) {
         const body = await req.json();
         const { guia, accion } = body;
         if (!guia || !accion) return NextResponse.json({ error: 'guia y accion requeridos' }, { status: 400 });
-
-        // Cancelar el envío completo: saca sus egresos de "en camino" (MeLi no señala cancelación).
-        if (accion === 'cancelar') {
-            const { data: upd, error: cancelErr } = await supabaseAdmin
-                .from('egresos')
-                .update({ estado_envio: 'cancelado' })
-                .eq('tipo_egreso', 'envio_full')
-                .eq('guia', guia)
-                .select('egreso_id');
-            if (cancelErr) throw cancelErr;
-            return NextResponse.json({ success: true, cancelados: (upd || []).length });
-        }
-
-        // Marcar recibido: MeLi ya recibió el envío; sus egresos salen de "en camino".
-        if (accion === 'recibir') {
-            const { data: upd, error: recErr } = await supabaseAdmin
-                .from('egresos')
-                .update({ estado_envio: 'recibido' })
-                .eq('tipo_egreso', 'envio_full')
-                .eq('guia', guia)
-                .select('egreso_id');
-            if (recErr) throw recErr;
-            return NextResponse.json({ success: true, recibidos: (upd || []).length });
+        if (accion !== 'reunir' && accion !== 'preparar') {
+            return NextResponse.json({ error: `acción no soportada: ${accion}` }, { status: 400 });
         }
 
         const { data: egresos, error } = await supabaseAdmin

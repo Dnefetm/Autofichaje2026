@@ -10,7 +10,7 @@ const DIAS_6MESES = 180;
 
 // T1 Logística Full — propuesta de reposición, AGRUPADA POR CÓDIGO ML (inventory_id).
 // Datos de ML (replenishment): sales_30d_full (venta Full 30d), stock_full (aptas),
-// stock_full_total (efectivo = aptas + pendientes + en tránsito).
+// stock_full_total (total_stock de MeLi = aptas + en camino/awaiting arrival).
 // Regla: sugerido = max(0, (Demanda/30) × CoberturaDeseada − StockEfectivo).
 // Sugerencia ML es solo referencia (no entra al cálculo).
 export async function GET(req: Request) {
@@ -150,29 +150,6 @@ export async function GET(req: Request) {
             }
         }
 
-        // "En camino" LOCAL: piezas Full declaradas en egresos envio_full activos.
-        // Reemplaza el stock_full_total de MeLi (gated por fecha de envío y que solo se
-        // refresca en ventas). Solo cuentan los egresos 'en_camino' (nuevos, no recibidos
-        // ni cancelados). Se dedupe por (guía, código) porque un kit tiene 1 egreso por componente.
-        const enCaminoPorCodigo = new Map<string, number>();
-        {
-            const { data: egresosActivos } = await supabaseAdmin
-                .from('egresos')
-                .select('guia, codigo_ml, unidades_full')
-                .eq('tipo_egreso', 'envio_full')
-                .eq('estado_envio', 'en_camino');
-            const vistos = new Set<string>();
-            for (const g of (egresosActivos || [])) {
-                const cod = g.codigo_ml;
-                const un = Number(g.unidades_full || 0);
-                if (!cod || !un) continue;
-                const k = `${g.guia}|${cod}`;
-                if (vistos.has(k)) continue;
-                vistos.add(k);
-                enCaminoPorCodigo.set(cod, (enCaminoPorCodigo.get(cod) || 0) + un);
-            }
-        }
-
         // 4. Cálculo por (cuenta, código ML).
         const propuesta = [...byCuentaInv.values()].map((e: any) => {
             const key = `${e.marketplace_id}|${e.inventory_id}`;
@@ -189,10 +166,15 @@ export async function GET(req: Request) {
             else demanda = Math.min(v30, (v30 + vPromedio6m) / 2);
 
             const demandaDiaria = demanda / DIAS_VENTANA;
-            // "En camino" local (declarado en egresos) + aptas de MeLi = efectivo para decidir
-            // cuánto enviar. Ya no se depende de stock_full_total (gated por fecha de envío).
-            const pendientes = enCaminoPorCodigo.get(e.inventory_id) || 0;
-            const efectivo = e.stock_full + pendientes;
+            // "En camino" y "efectivo" vienen de MeLi (fuente de verdad):
+            //   - aptas = stock_full (available_quantity, /stock/fulfillment)
+            //   - total = stock_full_total (total_stock, /replenishment; incluye awaiting arrival)
+            //   - en camino = total − aptas (nunca negativo)
+            //   - efectivo = max(total, aptas) (protege desfases de segundos entre endpoints)
+            const aptas = e.stock_full;
+            const total = e.stock_full_total != null ? Number(e.stock_full_total) : aptas;
+            const pendientes = Math.max(0, total - aptas);
+            const efectivo = Math.max(total, aptas);
             // Stock de bodega = unidades Full CONSTRUIBLES con el stock físico actual.
             // Para cada componente: piso(stock_componente / cantidad_requerida); el kit se
             // construye al ritmo del componente más limitante (mínimo).

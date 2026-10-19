@@ -43,7 +43,6 @@ interface PropData {
 interface Envio {
     guia: string;
     estado: 'Pendiente' | 'Reunido' | 'Preparado';
-    estado_envio?: string;
     count: number;
     cantidad: number;
     pendiente: number;
@@ -272,28 +271,6 @@ export default function LogisticaFullPage() {
         }
     };
 
-    const accionEnvio = async (guia: string, accion: 'recibir' | 'cancelar') => {
-        setAvanzandoGuia(guia);
-        try {
-            const r = await fetch('/api/logistica-full/envio', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ guia, accion }),
-            });
-            const j = await r.json();
-            if (j.success) {
-                toast.success(accion === 'recibir' ? 'Envío marcado como recibido' : 'Envío cancelado');
-                await Promise.all([loadEnvios(), load()]);
-            } else {
-                toast.error(j.error || 'Error');
-            }
-        } catch (e: any) {
-            toast.error(e.message || 'Error');
-        } finally {
-            setAvanzandoGuia(null);
-        }
-    };
-
     const ajustarCantidad = async (egresoId: string, cantidad: number) => {
         try {
             await fetch('/api/logistica-full/envio', {
@@ -503,16 +480,6 @@ export default function LogisticaFullPage() {
                 </Badge>
             ),
         },
-        {
-            key: 'estado_envio',
-            label: 'Envío',
-            render: (r) => {
-                const e = r.estado_envio || 'en_camino';
-                const tone = e === 'recibido' ? 'success' : e === 'cancelado' ? 'danger' : 'info';
-                const label = e === 'recibido' ? 'Recibido' : e === 'cancelado' ? 'Cancelado' : 'En camino';
-                return <Badge tone={tone}>{label}</Badge>;
-            },
-        },
         { key: 'count', label: 'Productos', align: 'right', render: (r) => <span className="font-mono">{r.count}</span> },
         { key: 'cantidad', label: 'Total uds', align: 'right', render: (r) => <span className="font-mono">{r.cantidad}</span> },
         { key: 'fecha', label: 'Fecha', render: (r) => (r.fecha ? new Date(r.fecha).toLocaleDateString('es-MX') : '—') },
@@ -521,16 +488,6 @@ export default function LogisticaFullPage() {
             label: '',
             render: (r) => (
                 <div className="flex gap-1.5 justify-end flex-wrap">
-                    {(r.estado_envio || 'en_camino') === 'en_camino' && (
-                        <Btn size="sm" variant="primary" loading={avanzandoGuia === r.guia} onClick={() => accionEnvio(r.guia, 'recibir')}>
-                            Marcar recibido
-                        </Btn>
-                    )}
-                    {(r.estado_envio || 'en_camino') === 'en_camino' && (
-                        <Btn size="sm" variant="ghost" loading={avanzandoGuia === r.guia} onClick={() => accionEnvio(r.guia, 'cancelar')}>
-                            Cancelar
-                        </Btn>
-                    )}
                     <Btn size="sm" variant="ghost" onClick={() => verEnvio(r.guia)}>
                         Ver productos
                     </Btn>
