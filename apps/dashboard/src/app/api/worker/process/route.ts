@@ -252,6 +252,9 @@ break;
 case 'sync_item':
 await meli.syncCatalogItem(job.payload.marketplace_id, job.payload.external_item_id);
 break;
+case 'sync_inventory':
+await meli.syncInventoryPuntual(job.payload.accountId, job.payload.inventoryId);
+break;
 case 'recalc_pricing_bundle':
 await handleRecalcPricingBundle(job);
 break;

@@ -65,6 +65,9 @@ export default function LogisticaFullPage() {
     const [busqueda, setBusqueda] = useState('');
     const [importando, setImportando] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
+    const cursorRef = useRef(0);
+    const [sincronizandoLote, setSincronizandoLote] = useState(false);
+    const [mensajeSync, setMensajeSync] = useState<string | null>(null);
 
     // --- Envíos planificados (decisión del operario) ---
     const [planes, setPlanes] = useState<any[]>([]);
@@ -145,6 +148,44 @@ export default function LogisticaFullPage() {
     }, []);
 
     useEffect(() => { load(); loadEnvios(); }, [load, loadEnvios]);
+
+    // Reset del cursor de sincronización focalizada al cambiar filtros (evita saltar filas).
+    useEffect(() => {
+        cursorRef.current = 0;
+        setMensajeSync(null);
+    }, [cuenta, cobertura, metodo, busqueda]);
+
+    const syncLote = async () => {
+        setSincronizandoLote(true);
+        setMensajeSync(null);
+        try {
+            const lote = (data?.propuesta || [])
+                .slice(cursorRef.current, cursorRef.current + 50)
+                .map((p: any) => ({ accountId: p.marketplace_id, inventoryId: p.inventory_id }));
+            if (!lote.length) {
+                setMensajeSync('No quedan productos por sincronizar en esta pasada.');
+                return;
+            }
+            const r = await fetch('/api/logistica-full/sync-lote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: lote }),
+            });
+            const j = await r.json();
+            if (j.success) {
+                cursorRef.current += 50;
+                setMensajeSync(`${j.encolados} encolados · ${j.omitidos_por_pendiente ?? 0} pendientes · ${j.omitidos_por_reciente ?? 0} recientes. Actualizando en segundo plano…`);
+                setTimeout(() => load(), 10000);
+                setTimeout(() => load(), 20000);
+            } else {
+                setMensajeSync(j.error || 'Error');
+            }
+        } catch (e: any) {
+            setMensajeSync(e.message || 'Error');
+        } finally {
+            setSincronizandoLote(false);
+        }
+    };
 
     const propuestaFiltrada = useMemo(() => {
         const q = busqueda.trim().toLowerCase();
@@ -622,6 +663,18 @@ export default function LogisticaFullPage() {
                         className="w-56 px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)]"
                     />
                 </label>
+                <div className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+                    Sync focalizado
+                    <div className="flex items-center gap-2">
+                        <Btn size="sm" variant="outline" onClick={syncLote} loading={sincronizandoLote}>
+                            Sincronizar stock (50)
+                        </Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => { cursorRef.current = 0; setMensajeSync(null); }}>
+                            Reiniciar
+                        </Btn>
+                    </div>
+                    {mensajeSync && <span className="text-[var(--text-muted)] whitespace-normal max-w-xs">{mensajeSync}</span>}
+                </div>
             </div>
 
             {/* Propuesta */}
