@@ -72,11 +72,6 @@ export function skuBaseWurth(raw: unknown): string {
     return s;
 }
 
-/** Colapsa espacios y quita apóstrofe, para el merge genérico. */
-export function skuNormGenerico(raw: unknown): string {
-    return String(raw ?? '').trim().replace(/\s+/g, '').replace(/^'+/, '').toUpperCase();
-}
-
 // -- Merge ---------------------------------------------------------------
 
 /**
