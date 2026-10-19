@@ -22,10 +22,9 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, encolados: 0, omitidos_por_pendiente: 0, omitidos_por_reciente: 0 });
         }
 
-        const inventarioIds = [...new Set(norm.map((n: any) => n.inventoryId))];
-        const corte = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1h
-
-        // Dedup 1 (set-based): jobs sync_inventory pendientes.
+        // Dedup (set-based): jobs sync_inventory pendientes (evita doble encolado de clics rápidos).
+        // NOTA: sin dedup por "reciente <1h" — el sync focalizado es un refresh FORZADO;
+        // el usuario espera que se sincronicen los 50, aunque el webhook los haya tocado hace poco.
         const { data: pendJobs } = await supabaseAdmin
             .from('jobs')
             .select('payload')
@@ -33,22 +32,12 @@ export async function POST(req: Request) {
             .eq('status', 'pending');
         const pendSet = new Set((pendJobs || []).map((j: any) => `${j.payload?.accountId}|${j.payload?.inventoryId}`));
 
-        // Dedup 2 (set-based): sincronizados hace < 1h.
-        const { data: recientes } = await supabaseAdmin
-            .from('publicaciones_externas')
-            .select('inventory_id, marketplace_id')
-            .in('inventory_id', inventarioIds)
-            .gte('stock_full_updated_at', corte);
-        const recSet = new Set((recientes || []).map((p: any) => `${p.marketplace_id}|${p.inventory_id}`));
-
         // Filtrado en memoria (rápido).
         let omitidosPend = 0;
-        let omitidosRec = 0;
         const aEncolar: { accountId: string; inventoryId: string }[] = [];
         for (const n of norm) {
             const key = `${n.accountId}|${n.inventoryId}`;
             if (pendSet.has(key)) { omitidosPend++; continue; }
-            if (recSet.has(key)) { omitidosRec++; continue; }
             aEncolar.push(n);
         }
 
@@ -67,7 +56,7 @@ export async function POST(req: Request) {
         }
 
         await dispatchWorker().catch(() => {});
-        return NextResponse.json({ success: true, encolados: aEncolar.length, omitidos_por_pendiente: omitidosPend, omitidos_por_reciente: omitidosRec });
+        return NextResponse.json({ success: true, encolados: aEncolar.length, omitidos_por_pendiente: omitidosPend, omitidos_por_reciente: 0 });
     } catch (err: any) {
         return NextResponse.json({ error: err.message || 'Error encolando lote' }, { status: 500 });
     }
