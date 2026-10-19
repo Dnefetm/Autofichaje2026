@@ -17,6 +17,9 @@ var COLUMNAS_GESTIONADAS = {
 };
 
 function sincSupabaseASheets() {
+  // Antes de drenar, reactivar los outbox que quedaron en 'error' (reintento).
+  reactivarErroresReverso();
+
   var pendientes = leerOutboxPendiente(500);
   if (!pendientes.length) { Logger.log('Reverso: outbox vacío.'); return; }
 
@@ -29,7 +32,7 @@ function sincSupabaseASheets() {
     if (!items.length) return;
     try {
       var claves = items.map(function(x){ return x.clave; });
-      var filas = leerFilasSupabase(tabla, claves);       // una sola query in.(...)
+      var filas = leerFilasSupabase(tabla, claves);       // chunked: lotes de 40 claves
       var ss = SpreadsheetApp.getActiveSpreadsheet();
       var hoja = ss.getSheetByName(HOJAS_REVERSO[tabla]);
       if (!hoja) { items.forEach(function(x){ marcarOutbox(x.id,'error','hoja no encontrada'); }); errores += items.length; return; }
@@ -91,11 +94,49 @@ function leerOutboxPendiente(limit) {
   return fetchJson(url, 'get');
 }
 
+// Chunking: las claves compuestas (egreso_id = guia-codigo-articulo) miden ~30 chars.
+// UrlFetchApp revienta por encima de ~2048 chars de URL. Se consulta en lotes de 40
+// (~1200 chars) y se concatena, para no volver a tocar el limite nunca.
+var CHUNK_REVERSO = 40;
+
 function leerFilasSupabase(tabla, claves) {
   var pk = { articulos: 'articulo_id', ingresos: 'ingreso_id', egresos: 'egreso_id' }[tabla];
-  var filtro = pk + '=in.(' + claves.map(encodeURIComponent).join(',') + ')';
-  var url = SUPABASE_URL + '/rest/v1/' + tabla + '?select=*&' + filtro + '&limit=' + claves.length;
-  return fetchJson(url, 'get');
+  var filas = [];
+  for (var i = 0; i < claves.length; i += CHUNK_REVERSO) {
+    var lote = claves.slice(i, i + CHUNK_REVERSO);
+    var filtro = pk + '=in.(' + lote.map(encodeURIComponent).join(',') + ')';
+    var url = SUPABASE_URL + '/rest/v1/' + tabla + '?select=*&' + filtro + '&limit=' + lote.length;
+    filas = filas.concat(fetchJson(url, 'get'));
+  }
+  return filas;
+}
+
+// Reintento de errores: los outbox que quedaron en 'error' (p.ej. el fallo historico
+// de URL length) vuelven a 'pendiente' mientras no hayan agotado intentos. Asi el
+// reverso se autodrena y no deja movimientos congelados de por vida.
+var MAX_INTENTOS_REVERSO = 3;
+
+function reactivarErroresReverso() {
+  var url = SUPABASE_URL + '/rest/v1/sync_outbox?select=id,intentos&estado=eq.error&order=creado_el.asc&limit=500';
+  var errs = [];
+  try { errs = fetchJson(url, 'get'); } catch (e) { Logger.log('Reverso: no se pudieron leer errores: ' + e); return 0; }
+  var reactivados = 0;
+  for (var i = 0; i < errs.length; i++) {
+    var intentos = Number(errs[i].intentos || 0);
+    if (intentos >= MAX_INTENTOS_REVERSO) continue;
+    var patch = {
+      method: 'patch', contentType: 'application/json',
+      headers: headersAuth(),
+      payload: JSON.stringify({ estado: 'pendiente', error: null, intentos: intentos + 1 }),
+      muteHttpExceptions: true
+    };
+    try {
+      var r = UrlFetchApp.fetch(SUPABASE_URL + '/rest/v1/sync_outbox?id=eq.' + errs[i].id, patch);
+      if (r.getResponseCode() >= 200 && r.getResponseCode() < 300) reactivados++;
+    } catch (e) { /* seguir con el resto */ }
+  }
+  if (reactivados > 0) Logger.log('Reverso: ' + reactivados + ' outbox en error reactivados a pendiente.');
+  return reactivados;
 }
 
 function marcarOutbox(id, estado, error) {

@@ -82,6 +82,27 @@ function eliminarTriggerSinc() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Trigger del camino REVERSO (Supabase -> Sheets). Antes no existia por
+// codigo: dependia de una config manual en la UI de Apps Script. Este lo
+// versiona. Ejecuta sincSupabaseASheets cada 5 min para bajar los egresos
+// creados en la web (origin='web') a la hoja Egresos y a AppSheet.
+// ─────────────────────────────────────────────────────────────────────
+function crearTriggerReverso() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'sincSupabaseASheets') {
+      ScriptApp.deleteTrigger(triggers[i]);
+      Logger.log('Trigger reverso anterior eliminado.');
+    }
+  }
+  ScriptApp.newTrigger('sincSupabaseASheets')
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+  Logger.log('✅ Trigger reverso creado: sincSupabaseASheets cada 5 min.');
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Ver todos los triggers activos del proyecto
 // ─────────────────────────────────────────────────────────────────────
 function verTriggers() {
