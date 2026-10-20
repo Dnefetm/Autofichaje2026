@@ -685,7 +685,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                 const resp = await Promise.all(
                     tanda.map(chunk => {
                         const idsParam = chunk.join(',');
-                        return axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}&attributes=id,title,price,available_quantity,status,sub_status,listing_type_id,shipping,category_id,domain_id,condition,attributes,channels,date_created,last_updated,currency_id,inventory_id,base_price,buying_mode,catalog_product_id,catalog_listing,parent_item_id,seller_custom_field,variations,thumbnail,permalink,sold_quantity,health,tags`, {
+                        return axios.get(`https://api.mercadolibre.com/items?ids=${idsParam}&attributes=id,title,price,available_quantity,status,sub_status,listing_type_id,shipping,category_id,domain_id,condition,attributes,channels,date_created,last_updated,currency_id,inventory_id,base_price,buying_mode,catalog_product_id,catalog_listing,parent_item_id,user_product_id,seller_custom_field,variations,thumbnail,permalink,sold_quantity,health,tags`, {
                             headers: { Authorization: `Bearer ${accessToken}` }
                         });
                     })
@@ -720,6 +720,7 @@ export class MeliAdapter implements MarketplaceAdapter {
                         id_publicacion_padre: clasificacion.id_publicacion_padre,
                         es_fuente_stock: clasificacion.es_fuente_stock,
                         id_producto_catalogo: clasificacion.id_producto_catalogo,
+                        user_product_id: item.user_product_id || null,
                         actualizado_el: new Date().toISOString(),
                         // --- Campos enriquecidos V17 ---
                         sold_quantity: item.sold_quantity || 0,
