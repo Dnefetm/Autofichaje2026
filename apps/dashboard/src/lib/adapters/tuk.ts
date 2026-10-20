@@ -2,12 +2,10 @@ import { FilaCanonica, ProveedorAdapter, ArchivoProveedor, limpiarSku, parseNume
 import { leerXlsxFilas } from '@/lib/pdf-table';
 
 /**
- * Tuk (Industrias Tuck) — lista de precios xlsx.
- * Formato esperado (propuesta F4): sku | descripción | precio.
- * Header-agnóstico (busca la fila cuyo encabezado de columna A sea SKU/CÓDIGO/CLAVE).
- *
- * ⚠️ VALIDAR contra el archivo real: si el xlsx usa otro orden de columnas
- * (o precio en otra posición), ajustar el mapeo aquí. Hoy no hay archivo de muestra.
+ * Tuk — "LISTA Catálogo y precios Tuk Agosto 2026.ods" (.ods se lee con SheetJS igual que xlsx).
+ * Columnas reales (0-index):
+ *  0 ORDEN | 1 CÓDIGO | 2 FAMILIA | 3 TIPO | 4 PRODUCTO | 5 DESCRIPCIÓN PRODUCTO |
+ *  6 MEDIDA | 7 PZAS X CAJA | 8 $ MÍNIMO | 9 $ UNITARIO
  */
 export const tukAdapter: ProveedorAdapter = {
     nombre: 'Tuk',
@@ -16,28 +14,33 @@ export const tukAdapter: ProveedorAdapter = {
         if (archivo.tipo !== 'xlsx') return [];
         const rows = await leerXlsxFilas(archivo.buffer, 0);
 
-        // header-agnóstico: fila cuya col A sea un encabezado de código
+        // Header: col A = "ORDEN"
         let headerIdx = -1;
-        const headers = ['SKU', 'CODIGO', 'CÓDIGO', 'CLAVE', 'MODELO', 'NO', 'N°', 'NUMERO', 'NUM', 'CVE', 'CLAVE PRODUCTO'];
-        for (let i = 0; i < Math.min(20, rows.length); i++) {
-            const c = String(rows[i][0] ?? '').trim().toUpperCase();
-            if (headers.includes(c)) { headerIdx = i; break; }
+        for (let i = 0; i < Math.min(5, rows.length); i++) {
+            if (String(rows[i][0] ?? '').trim().toUpperCase() === 'ORDEN') { headerIdx = i; break; }
         }
         if (headerIdx < 0) return [];
 
         const filas: FilaCanonica[] = [];
         for (let i = headerIdx + 1; i < rows.length; i++) {
             const r = rows[i];
-            const sku = String(r[0] ?? '').trim();
-            if (!sku) continue;
-            // supuesto: col 1 = descripción, col 2 = precio público
+            const codigo = String(r[1] ?? '').trim();
+            if (!codigo) continue;
+            const familia = String(r[2] ?? '').trim();
+            const tipo = String(r[3] ?? '').trim();
+            const producto = String(r[4] ?? '').trim();
+            const descripcion = String(r[5] ?? '').trim() || producto;
+            const medida = String(r[6] ?? '').trim();
             filas.push({
                 proveedor: 'Tuk',
-                sku_proveedor: sku,
-                sku_norm: limpiarSku(sku),
-                descripcion: String(r[1] ?? '').trim() || null,
-                precio_publico: parseNumero(r[2]),
+                sku_proveedor: codigo,
+                sku_norm: limpiarSku(codigo),
+                descripcion: descripcion || null,
+                multiplicador_venta: parseInt(String(r[7] ?? ''), 10) || null,
+                precio_distribuidor: parseNumero(r[8]),
+                precio_publico: parseNumero(r[9]),
                 tipo_costo: 'publico',
+                extra: { familia: familia || null, tipo: tipo || null, medida: medida || null },
             });
         }
         return filas;
