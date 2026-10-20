@@ -19,7 +19,6 @@ import {
     ChevronDown,
     ChevronRight
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 
@@ -69,23 +68,9 @@ function SettingsContent() {
     async function loadConfigs() {
         try {
             const res = await fetch('/api/settings/meli');
-            if (res.ok) {
-                const data = await res.json();
-                if (Array.isArray(data) && data.length > 0) {
-                    setConfigs(data);
-                    setDbState('online');
-                    return;
-                }
-            }
-
-            const { data: directData, error } = await supabase
-                .from('marketplace_configs')
-                .select('*, marketplace_tokens(access_token, updated_at, expires_at)')
-                .eq('is_active', true)
-                .order('created_at', { ascending: true });
-
-            if (error) throw error;
-            setConfigs(directData || []);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            setConfigs(Array.isArray(data) ? data : []);
             setDbState('online');
         } catch (err) {
             console.error('Load config error:', err);
