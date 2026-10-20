@@ -6,7 +6,7 @@ export async function GET() {
     try {
         const { data, error } = await supabaseAdmin
             .from('marketplace_configs')
-            .select('*, marketplace_tokens(access_token, updated_at, expires_at)') // Join tokens to visually show if linked
+            .select('*, marketplace_tokens(updated_at, expires_at)') // Join tokens to visually show if linked (sin access_token por seguridad)
             .in('marketplace', ['meli', 'mercadolibre'])
             .order('created_at', { ascending: true });
 
