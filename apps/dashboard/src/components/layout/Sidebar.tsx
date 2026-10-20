@@ -10,7 +10,7 @@ import {
     Package, PlusCircle, RefreshCcw, Store,
     ChevronLeft, ChevronRight, ShoppingCart, FileText,
     Upload, ClipboardList, Users, ReceiptText, ShoppingBag, UserPlus,
-    MessageSquare, Truck,
+    MessageSquare, Truck, ArrowUpDown,
 } from 'lucide-react';
 
 export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
@@ -67,6 +67,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
     const menuItems = [
         { name: 'Dashboard',        icon: LayoutDashboard, href: '/' },
         { name: 'Catálogo Maestro', icon: Package,         href: '/catalog' },
+        { name: 'Ingresos y Egresos', icon: ArrowUpDown,   href: '/movimientos' },
         { name: 'Vitrinas MeLi',   icon: Store,            href: '/catalog/external' },
         { name: 'Ventas MeLi',      icon: ShoppingCart,    href: '/ventas' },
         { name: 'Clientes',         icon: Users,           href: '/ventas/clientes' },
