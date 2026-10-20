@@ -580,6 +580,34 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         }
     }
 
+    // Enriquecer descripción + imagen desde la web oficial del proveedor (dai/tuk/urrea)
+    async function enrichFromWeb() {
+        setLoading(true);
+        setErrorMsg(null);
+        try {
+            const res = await fetch('/api/enriquecer-web', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ articulo_id }),
+            });
+            const data = await res.json();
+            if (data.ok && data.enriquecimiento) {
+                const e = data.enriquecimiento;
+                let aplicado = 0;
+                if (e.descripcionLarga) { setDescriptionOverride(e.descripcionLarga); aplicado++; }
+                if (e.imagen) { addSuggestion(e.imagen); aplicado++; }
+                if (Array.isArray(e.imagenes)) { for (const u of e.imagenes) addSuggestion(u); aplicado += e.imagenes.length; }
+                setErrorMsg(aplicado > 0 ? `Enriquecido: ${aplicado} campo(s) desde la web.` : 'La web del proveedor no devolvió datos para este producto.');
+            } else {
+                setErrorMsg(data.error || 'Error enriqueciendo desde la web');
+            }
+        } catch (e: any) {
+            setErrorMsg(e.message || 'Error de red al enriquecer desde la web');
+        } finally {
+            setLoading(false);
+        }
+    }
+
     // Buscar producto en el catálogo de MeLi por GTIN/EAN
     async function searchCatalogByGtin() {
         if (!primaryAccount) { setErrorMsg('Selecciona una cuenta MeLi primero'); return; }
@@ -1536,6 +1564,15 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-50"
                                         >
                                             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />} Completar título y descripción con IA
+                                        </button>
+                                        {/* Enriquecer desde la web del proveedor */}
+                                        <button
+                                            type="button"
+                                            onClick={enrichFromWeb}
+                                            disabled={loading}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--ok)]/20 transition-colors disabled:opacity-50"
+                                        >
+                                            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🌐'} Enriquecer desde la web
                                         </button>
                                         {/* Título (legacy: title completo; UP: family_name) */}
                                         {(() => {
