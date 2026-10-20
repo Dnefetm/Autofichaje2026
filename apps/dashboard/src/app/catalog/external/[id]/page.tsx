@@ -567,14 +567,25 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                     setVariantes(varData || []);
                 }
 
-                // Publicaciones asociadas por id_producto_catalogo
+                // Publicaciones asociadas: por catálogo (Buy Box) o por condición de venta (mismo user_product_id)
+                let asocQuery: any = null;
                 if (pubData.id_producto_catalogo && pubData.marketplace_id) {
-                    const { data: asocData } = await supabase
+                    asocQuery = supabase
                         .from('publicaciones_externas')
-                        .select('id, external_item_id, tipo_publicacion, listing_type_id, status_externo, precio_venta, stock_publicado, sold_quantity, permalink')
+                        .select('id, external_item_id, tipo_publicacion, listing_type_id, status_externo, precio_venta, stock_publicado, sold_quantity, permalink, esta_mapeado')
                         .eq('id_producto_catalogo', pubData.id_producto_catalogo)
                         .eq('marketplace_id', pubData.marketplace_id)
                         .neq('id', id);
+                } else if (pubData.user_product_id && pubData.marketplace_id) {
+                    asocQuery = supabase
+                        .from('publicaciones_externas')
+                        .select('id, external_item_id, tipo_publicacion, listing_type_id, status_externo, precio_venta, stock_publicado, sold_quantity, permalink, esta_mapeado')
+                        .eq('user_product_id', pubData.user_product_id)
+                        .eq('marketplace_id', pubData.marketplace_id)
+                        .neq('id', id);
+                }
+                if (asocQuery) {
+                    const { data: asocData } = await asocQuery;
                     setAsociadas(asocData || []);
                 }
 
@@ -1512,6 +1523,11 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                                                 <span className={cn('text-[10px] px-1 py-0.5 rounded-[var(--radius-sm)] font-semibold border', statusColors[a.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
                                                                     {statusLabels[a.status_externo] || a.status_externo}
                                                                 </span>
+                                                                {a.esta_mapeado ? (
+                                                                    <span className="text-[10px] px-1 py-0.5 rounded-[var(--radius-sm)] font-semibold text-[var(--ok)]">mapeada</span>
+                                                                ) : (
+                                                                    <span className="text-[10px] px-1 py-0.5 rounded-[var(--radius-sm)] font-semibold text-[var(--err)]">sin mapear</span>
+                                                                )}
                                                             </div>
                                                         </td>
                                                         <td className="px-3 py-2">
