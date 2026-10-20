@@ -42,6 +42,8 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
             columna_modelo: body.columna_modelo,
             columna_marca: body.columna_marca ?? null,
             columna_descripcion: body.columna_descripcion ?? null,
+            columna_categoria1: body.columna_categoria1 ?? null,
+            columna_categoria2: body.columna_categoria2 ?? null,
             moneda_default: body.moneda_default ?? 'MXN',
             precios: body.precios, // [{columna, tipo_costo, incluye_iva}]
             columnas_a_guardar: body.columnas_a_guardar ?? [],

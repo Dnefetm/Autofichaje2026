@@ -19,6 +19,8 @@ BEGIN
             MAX(pp.codigo_barra) FILTER (WHERE pp.codigo_barra IS NOT NULL) AS codigo_barra,
             MAX(pp.descripcion) AS descripcion,
             MAX(pp.marca) AS marca,
+            MAX(pp.categoria1) AS categoria1,
+            MAX(pp.categoria2) AS categoria2,
             MAX(pp.codigo_sat) FILTER (WHERE pp.codigo_sat IS NOT NULL) AS codigo_sat,
             MAX(pp.valor) FILTER (WHERE pp.tipo_costo = 'distribuidor') AS precio_distribuidor,
             MAX(pp.valor) FILTER (WHERE pp.tipo_costo = 'subdistribuidor') AS precio_subdistribuidor,
@@ -30,11 +32,13 @@ BEGIN
     )
     INSERT INTO catalogo_proveedor (
         proveedor, sku_proveedor, sku_norm, codigo_barra, descripcion, marca,
+        categoria1, categoria2,
         codigo_sat, precio_distribuidor, precio_subdistribuidor, tipo_costo,
         vigente, origen, actualizado_el
     )
     SELECT
         proveedor, sku_proveedor, sku_norm, codigo_barra, descripcion, marca,
+        categoria1, categoria2,
         codigo_sat, precio_distribuidor, precio_subdistribuidor, tipo_costo,
         true, 'precios', now()
     FROM vigentes
@@ -43,6 +47,8 @@ BEGIN
         codigo_barra          = COALESCE(EXCLUDED.codigo_barra, catalogo_proveedor.codigo_barra),
         descripcion           = COALESCE(EXCLUDED.descripcion, catalogo_proveedor.descripcion),
         marca                 = COALESCE(EXCLUDED.marca, catalogo_proveedor.marca),
+        categoria1            = COALESCE(EXCLUDED.categoria1, catalogo_proveedor.categoria1),
+        categoria2            = COALESCE(EXCLUDED.categoria2, catalogo_proveedor.categoria2),
         codigo_sat            = COALESCE(EXCLUDED.codigo_sat, catalogo_proveedor.codigo_sat),
         precio_distribuidor   = COALESCE(EXCLUDED.precio_distribuidor, catalogo_proveedor.precio_distribuidor),
         precio_subdistribuidor = COALESCE(EXCLUDED.precio_subdistribuidor, catalogo_proveedor.precio_subdistribuidor),

@@ -19,6 +19,8 @@ DECLARE
   v_col_marca    text;
   v_col_desc     text;
   v_col_sat      text;
+  v_col_categoria1 text;
+  v_col_categoria2 text;
   v_moneda       text;
   v_precios      jsonb;
   v_columnas_guardar jsonb;
@@ -41,6 +43,8 @@ BEGIN
   v_col_marca  := v_mapeo->>'columna_marca';
   v_col_desc   := v_mapeo->>'columna_descripcion';
   v_col_sat    := v_mapeo->>'columna_sat';
+  v_col_categoria1 := v_mapeo->>'columna_categoria1';
+  v_col_categoria2 := v_mapeo->>'columna_categoria2';
   v_moneda     := COALESCE(NULLIF(v_mapeo->>'moneda_default',''), 'MXN');
   v_precios    := COALESCE(v_mapeo->'precios', '[]'::jsonb);
   v_columnas_guardar := COALESCE(v_mapeo->'columnas_a_guardar', '[]'::jsonb);
@@ -68,7 +72,7 @@ BEGIN
   -- Insertar filas de la lista nueva, clasificando contra la anterior
   WITH nueva AS (
     SELECT DISTINCT ON (sku, tipo_costo)
-      sku, codigo_barra, codigo_sat, fila_num, columnas, marca, descripcion, tipo_costo, valor, incluye_iva
+      sku, codigo_barra, codigo_sat, fila_num, columnas, marca, descripcion, categoria1, categoria2, tipo_costo, valor, incluye_iva
     FROM (
       SELECT
         r.fila_num,
@@ -81,6 +85,8 @@ BEGIN
             regexp_replace(COALESCE(r.payload->>v_col_desc, ''), '\s*\([^)]*(PRECIO|DESCUENTO|AGOTAR|EXIST)[^)]*\)', '', 'gi')
           ELSE COALESCE(r.payload->>v_col_desc, '')
         END AS descripcion,
+        COALESCE(r.payload->>v_col_categoria1, '') AS categoria1,
+        COALESCE(r.payload->>v_col_categoria2, '') AS categoria2,
         pe->>'tipo_costo' AS tipo_costo,
         public.fn_parse_precio(r.payload->>(pe->>'columna')) AS valor,
         COALESCE((pe->>'incluye_iva')::boolean, false) AS incluye_iva,
@@ -104,7 +110,7 @@ BEGIN
   ),
   comparado AS (
     SELECT
-      n.sku, n.codigo_barra, n.codigo_sat, n.fila_num, n.columnas, n.marca, n.descripcion, n.tipo_costo, n.valor, n.incluye_iva,
+      n.sku, n.codigo_barra, n.codigo_sat, n.fila_num, n.columnas, n.marca, n.descripcion, n.categoria1, n.categoria2, n.tipo_costo, n.valor, n.incluye_iva,
       a.valor AS valor_anterior,
       CASE
         WHEN a.valor IS NULL THEN 'nuevo'
@@ -116,11 +122,11 @@ BEGIN
     WHERE n.sku <> '' AND n.valor IS NOT NULL
   )
   INSERT INTO public.precios_proveedor (
-    proveedor, importacion_id, sku_proveedor, codigo_barra, codigo_sat, fila_num, columnas, marca, descripcion,
+    proveedor, importacion_id, sku_proveedor, codigo_barra, codigo_sat, fila_num, columnas, marca, descripcion, categoria1, categoria2,
     tipo_costo, valor, moneda, incluye_iva, valor_anterior, delta_pct, estado, vigente
   )
   SELECT
-    v_proveedor, p_importacion_id, sku, codigo_barra, codigo_sat, fila_num, columnas, marca, descripcion,
+    v_proveedor, p_importacion_id, sku, codigo_barra, codigo_sat, fila_num, columnas, marca, descripcion, categoria1, categoria2,
     tipo_costo, valor, v_moneda, incluye_iva,
     valor_anterior,
     CASE WHEN valor_anterior IS NOT NULL AND valor_anterior <> 0

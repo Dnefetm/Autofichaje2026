@@ -24,6 +24,8 @@ export default function MapearColumnasPage() {
     const [colModelo, setColModelo] = useState('');
     const [colMarca, setColMarca] = useState('');
     const [colDescripcion, setColDescripcion] = useState('');
+    const [colCategoria1, setColCategoria1] = useState('');
+    const [colCategoria2, setColCategoria2] = useState('');
     const [moneda, setMoneda] = useState('MXN');
     const [precios, setPrecios] = useState<{ columna: string, tipo_costo: string, incluye_iva: boolean }[]>([]);
     const [marcaDefault, setMarcaDefault] = useState('');
@@ -54,6 +56,8 @@ export default function MapearColumnasPage() {
                 setColModelo(m.columna_modelo || '');
                 setColMarca(m.columna_marca || '');
                 setColDescripcion(m.columna_descripcion || '');
+                setColCategoria1(m.columna_categoria1 || '');
+                setColCategoria2(m.columna_categoria2 || '');
                 setMoneda(m.moneda_default || 'MXN');
                 
                 if (Array.isArray(m.precios) && m.precios.length > 0) {
@@ -102,6 +106,8 @@ export default function MapearColumnasPage() {
                 columna_modelo: colModelo,
                 columna_marca: colMarca || null,
                 columna_descripcion: colDescripcion,
+                columna_categoria1: colCategoria1 || null,
+                columna_categoria2: colCategoria2 || null,
                 moneda_default: moneda,
                 precios: precios.filter(p => p.columna),
                 columnas_a_guardar: headers,
@@ -201,6 +207,20 @@ export default function MapearColumnasPage() {
                             </select>
                         </div>
                         <div>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Categoría 1 <span className="text-[var(--text-faint)]">(opcional)</span></label>
+                            <select className="w-full border p-2 rounded-md" value={colCategoria1} onChange={e => setColCategoria1(e.target.value)}>
+                                <option value="">-- Seleccionar --</option>
+                                {headers.map((h, i) => <option key={i} value={h}>{headerLabels[h] ? `${h} · ${headerLabels[h]}` : h}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Categoría 2 <span className="text-[var(--text-faint)]">(opcional)</span></label>
+                            <select className="w-full border p-2 rounded-md" value={colCategoria2} onChange={e => setColCategoria2(e.target.value)}>
+                                <option value="">-- Seleccionar --</option>
+                                {headers.map((h, i) => <option key={i} value={h}>{headerLabels[h] ? `${h} · ${headerLabels[h]}` : h}</option>)}
+                            </select>
+                        </div>
+                        <div>
                             <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Moneda por defecto</label>
                             <select className="w-full border p-2 rounded-md" value={moneda} onChange={e => setMoneda(e.target.value)}>
                                 <option value="MXN">MXN - Peso Mexicano</option>
@@ -276,7 +296,7 @@ export default function MapearColumnasPage() {
             <div className="mt-8 flex justify-end">
                 <button 
                     onClick={handleGuardar}
-                    disabled={saving || !colCodigo || !colModelo}
+                    disabled={saving || !colModelo}
                     className="bg-[var(--accent)] text-[var(--accent-ink)] px-8 py-3 rounded-lg font-medium shadow-sm hover:brightness-110 disabled:opacity-50 flex items-center text-lg"
                 >
                     {saving ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
