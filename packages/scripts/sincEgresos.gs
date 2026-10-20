@@ -1,18 +1,20 @@
 // =============================================================================
-// sincEgresos.gs — Motor de Sincronización Dual-Band (Sheets → Supabase)
+// sincEgresos.gs — Ventana Activa Única (Sheets → Supabase)
 // =============================================================================
-// Arquitectura Dual-Band:
-//   - Banda 1 (Ventana Activa): Escanea siempre las últimas 500 filas en cada turno.
-//     Garantiza que toda orden modificada por el operador viaje a Supabase en máx 45 min.
-//   - Banda 2 (Barrido Histórico Continuo): Escanea 500 filas rotativas por turno
-//     con cursor circular (fila 2 a últimaFila). Audita todo el histórico en 4.3 días.
-//   - Comparación Idempotente por Hash: No satura la base de datos; solo hace UPSERT
-//     si el hash cambió (cantidad modificada).
-//   - Consumo de cuota: ~5.3 min/día (5.8% del límite de 90 min de Google).
+// Regla de oro: Sheets y Supabase solo sincronizan la ventana viva (últimos
+// 30 días). El pasado es inmutable (candado v135). La Banda 2 (barrido circular
+// histórico desde fila 2) fue ELIMINADA: no tiene sentido auditar 71k filas de
+// 2021-2025 si el candado de Postgres va a rechazar cualquier cambio >30 días.
+//   - Ventana Activa: últimas 500 filas (se insertan al final), descartando en
+//     memoria todo lo >30 días.
+//   - Comparación Idempotente por Hash (fecha normalizada a epoch ms/UTC).
+//   - Un fallo de lote se loguea local (Logger.log), sin reintento individual
+//     ni escritura en avisos_movimientos.
 // =============================================================================
 
 var HOJA_EGRESOS_SINC = 'Egresos';
 var BATCH_SIZE_SINC_EGR = 50;
+var CHUNK_HASH_EGRESOS = 40; // blindaje "UrlFetch URL Length" en in.(...)
 
 function filaAObjetoSincEgreso(datos) {
   // Col A(0)=egreso_id, B(1)=importacion_full_id, C(2)=articulo_id, D(3)=cantidad
@@ -63,12 +65,18 @@ function filaAObjetoSincEgreso(datos) {
     origin: 'sheets'
   };
 
+  // Hash sobre epoch ms (timezone-agnóstico): evita re-upserts fantasma por el
+  // cambio de horario de verano de México (abolido en 2022).
+  var fechaEpoch = fecha ? String(new Date(fecha).getTime()) : '';
+  var fechaReunidoEpoch = fecha_reunido ? String(new Date(fecha_reunido).getTime()) : '';
+  var fechaPreparadoEpoch = fecha_preparado ? String(new Date(fecha_preparado).getTime()) : '';
+
   var hashStr = egreso_id + '|' + articulo_id + '|' + cant + '|' +
     (guia || '') + '|' + (transportista || '') + '|' + (tipo_egreso || '') + '|' +
-    (notas || '') + '|' + (fecha || '') + '|' + (operador_id || '') + '|' +
+    (notas || '') + '|' + fechaEpoch + '|' + (operador_id || '') + '|' +
     (importacion_full_id || '') + '|' + (largo || '') + '|' + (ancho || '') + '|' +
     (alto || '') + '|' + (peso || '') + '|' + (edo_reunido || '') + '|' +
-    (fecha_reunido || '') + '|' + (fecha_preparado || '');
+    fechaReunidoEpoch + '|' + fechaPreparadoEpoch;
   obj.sync_hash = md5Egreso(hashStr);
 
   return obj;
@@ -136,18 +144,18 @@ function upsertEgresosBatch(batch) {
 
 /**
  * Función oficial invocada por triggerPeriodico cada 45 minutos.
- * Ejecuta ambas bandas: Ventana Activa + Barrido Circular Histórico.
+ * Ejecuta SOLO la Ventana Activa (últimas 500 filas). El barrido circular
+ * histórico fue eliminado: el candado v135 hace inmutable todo >30 días.
  */
 function sincEgresos() {
-  Logger.log('>>> INICIANDO SINCRONIZACIÓN DUAL-BAND DE EGRESOS <<<');
+  Logger.log('>>> INICIANDO SINCRONIZACIÓN VENTANA ACTIVA DE EGRESOS <<<');
   
-  // Banda 1: Ventana Activa (últimas 500 filas)
+  // Solo Ventana Activa (últimas 500 filas). La Banda 2 (barrido circular
+  // histórico desde fila 2) fue eliminada: el candado v135 hace inmutable
+  // todo movimiento >30 días, así que auditar 2021-2025 es cuota desperdiciada.
   sincEgresosVentanaActiva(500);
   
-  // Banda 2: Barrido Circular Histórico (500 filas rotativas)
-  sincEgresosCircular(500);
-  
-  Logger.log('>>> FIN DE SINCRONIZACIÓN DUAL-BAND <<<');
+  Logger.log('>>> FIN DE SINCRONIZACIÓN VENTANA ACTIVA <<<');
 }
 
 /**
@@ -166,30 +174,10 @@ function sincEgresosVentanaActiva(numFilas) {
 }
 
 /**
- * Banda 2: Barrido circular continuo del histórico.
- * Avanza 500 filas por ejecución y vuelve a empezar al llegar al final.
- */
-function sincEgresosCircular(numFilas) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var hoja = ss.getSheetByName(HOJA_EGRESOS_SINC);
-  if (!hoja) return;
-  var ultimaFila = hoja.getLastRow();
-  var props = PropertiesService.getScriptProperties();
-  var cursor = parseInt(props.getProperty('sincEgresos_cursor_circular') || '2', 10);
-  if (cursor > ultimaFila || cursor < 2) cursor = 2;
-
-  var n = numFilas || 500;
-  var fin = Math.min(cursor + n - 1, ultimaFila);
-  Logger.log('[Banda 2 - Circular] Escaneando filas ' + cursor + ' a ' + fin + ' de ' + ultimaFila);
-  sincEgresosRango_(cursor, fin);
-
-  var nuevoCursor = (fin >= ultimaFila) ? 2 : (fin + 1);
-  props.setProperty('sincEgresos_cursor_circular', String(nuevoCursor));
-  Logger.log('[Banda 2 - Circular] Próximo inicio guardado en fila ' + nuevoCursor);
-}
-
-/**
  * Motor de procesamiento por rango con verificación idempotente de hash.
+ * Descarta en memoria (0 HTTP) todo movimiento >30 días (candado v135).
+ * Hash-check en lotes de CHUNK_HASH_EGRESOS para no exceder la URL.
+ * Sin reintento individual ni avisos de red: fallo de lote se loguea local.
  */
 function sincEgresosRango_(rangoInicio, rangoFin) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -197,8 +185,9 @@ function sincEgresosRango_(rangoInicio, rangoFin) {
   if (!hoja) return;
 
   var filaActual = rangoInicio;
-  var upsertados = 0, saltados = 0, omitidos = 0, errores = 0, primerError = '';
+  var upsertados = 0, saltados = 0, filtrados = 0, omitidos = 0, errores = 0, primerError = '';
   var NUM_COLS = 23;
+  var corte30 = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
   while (filaActual <= rangoFin) {
     var filaLoteFin = Math.min(filaActual + BATCH_SIZE_SINC_EGR - 1, rangoFin);
@@ -209,26 +198,33 @@ function sincEgresosRango_(rangoInicio, rangoFin) {
     for (var i = 0; i < datos.length; i++) {
       var obj = filaAObjetoSincEgreso(datos[i]);
       if (!obj) { omitidos++; continue; }
+      // Descartar en memoria (0 HTTP): el candado v135 bloquea >30 días.
+      if (obj.fecha) {
+        var fEpoch = new Date(obj.fecha).getTime();
+        if (!isNaN(fEpoch) && fEpoch < corte30) { filtrados++; continue; }
+      }
       candidatos.push(obj);
     }
 
     if (candidatos.length > 0) {
-      var ids = candidatos.map(function(c) { return c.egreso_id; });
-      var urlCheck = SUPABASE_URL + '/rest/v1/egresos?select=egreso_id,sync_hash&egreso_id=in.(' + ids.join(',') + ')';
-      var rCheck = UrlFetchApp.fetch(urlCheck, {
-        method: 'get',
-        headers: {
-          'apikey': SUPABASE_SERVICE_KEY,
-          'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY
-        },
-        muteHttpExceptions: true
-      });
-
+      // Hash-check en lotes de 40 (blindaje "UrlFetch URL Length").
       var hashMap = {};
-      if (rCheck.getResponseCode() === 200) {
-        var existentes = JSON.parse(rCheck.getContentText());
-        for (var h = 0; h < existentes.length; h++) {
-          hashMap[existentes[h].egreso_id] = existentes[h].sync_hash;
+      for (var c = 0; c < candidatos.length; c += CHUNK_HASH_EGRESOS) {
+        var loteIds = candidatos.slice(c, c + CHUNK_HASH_EGRESOS).map(function(x) { return x.egreso_id; });
+        var urlCheck = SUPABASE_URL + '/rest/v1/egresos?select=egreso_id,sync_hash&egreso_id=in.(' + loteIds.join(',') + ')';
+        var rCheck = UrlFetchApp.fetch(urlCheck, {
+          method: 'get',
+          headers: {
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY
+          },
+          muteHttpExceptions: true
+        });
+        if (rCheck.getResponseCode() === 200) {
+          var existentes = JSON.parse(rCheck.getContentText());
+          for (var h = 0; h < existentes.length; h++) {
+            hashMap[existentes[h].egreso_id] = existentes[h].sync_hash;
+          }
         }
       }
 
@@ -246,20 +242,9 @@ function sincEgresosRango_(rangoInicio, rangoFin) {
         if (resp.getResponseCode() >= 200 && resp.getResponseCode() < 300) {
           upsertados += toUpsert.length;
         } else {
-          Logger.log('Lote falló (HTTP ' + resp.getResponseCode() + '). Reintentando individualmente...');
+          errores += toUpsert.length;
           if (!primerError) primerError = resp.getContentText().substring(0, 200);
-          for (var k = 0; k < toUpsert.length; k++) {
-            var respInd = upsertEgresosBatch([toUpsert[k]]);
-            if (respInd.getResponseCode() >= 200 && respInd.getResponseCode() < 300) {
-              upsertados++;
-            } else {
-              errores++;
-              Logger.log('Error individual egreso_id: ' + toUpsert[k].egreso_id + ' -> HTTP ' + respInd.getResponseCode());
-              if (respInd.getContentText().indexOf('bloqueado') !== -1) {
-                registrarAvisoBloqueo('egresos', 'UPDATE', toUpsert[k].egreso_id, toUpsert[k].fecha, { movimiento: toUpsert[k], error: respInd.getContentText().substring(0, 500) });
-              }
-            }
-          }
+          Logger.log('Lote falló (HTTP ' + resp.getResponseCode() + '): ' + resp.getContentText().substring(0, 300));
         }
       }
     }
@@ -269,146 +254,22 @@ function sincEgresosRango_(rangoInicio, rangoFin) {
   }
 
   Logger.log('Rango ' + rangoInicio + '-' + rangoFin + ' RESUMEN: upsertados=' + upsertados +
-    ' saltados=' + saltados + ' omitidos=' + omitidos + ' errores=' + errores +
+    ' saltados=' + saltados + ' filtrados=' + filtrados + ' omitidos=' + omitidos + ' errores=' + errores +
     (primerError ? ' | Error: ' + primerError : ''));
 }
 
 /**
- * Resync completo manual o por fecha (mantiene compatibilidad).
+ * sincEgresos_full() — se conserva por compatibilidad, pero ya NO barre el histórico.
+ * Equivale a sincEgresos(): el pasado >30 días es inmutable (candado v135).
  */
 function sincEgresos_full() {
-  sincEgresosPorFecha(false);
+  sincEgresos();
 }
 
 function sincEgresosPorFecha(soloNuevos) {
-  var MAX_TIME = 5 * 60 * 1000;
-  var inicio = Date.now();
-  var props = PropertiesService.getScriptProperties();
-  var maxFecha = null;
-  var resumeRow = parseInt(props.getProperty('sincEgresos_cursor') || '2', 10);
-
-  if (soloNuevos) {
-    var urlMax = SUPABASE_URL + '/rest/v1/egresos?select=fecha&order=fecha.desc&limit=1';
-    var rMax = UrlFetchApp.fetch(urlMax, {
-      method: 'get',
-      headers: {
-        'apikey': SUPABASE_SERVICE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY
-      },
-      muteHttpExceptions: true
-    });
-    if (rMax.getResponseCode() === 200) {
-      var dMax = JSON.parse(rMax.getContentText());
-      if (dMax && dMax.length > 0) maxFecha = new Date(dMax[0].fecha);
-    }
-    Logger.log('Modo incremental. MAX fecha: ' +
-      (maxFecha ? maxFecha.toISOString() : 'ninguna') +
-      ' | Cursor: fila ' + resumeRow);
-  } else {
-    resumeRow = parseInt(props.getProperty('sincEgresos_full_idx') || '2', 10);
-    Logger.log('Modo FULL. Iniciando desde fila: ' + resumeRow);
-  }
-
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var hoja = ss.getSheetByName(HOJA_EGRESOS_SINC);
-  if (!hoja) { Logger.log('Hoja ' + HOJA_EGRESOS_SINC + ' no encontrada.'); return; }
-  var ultimaFila = hoja.getLastRow();
-  var upsertados = 0, saltados = 0, filtrados = 0, omitidos = 0, errores = 0, primerError = '';
-  var filaInicio = resumeRow;
-  var interrumpido = false;
-  var NUM_COLS = 23;
-
-  while (filaInicio <= ultimaFila) {
-    if (Date.now() - inicio > MAX_TIME) {
-      interrumpido = true;
-      props.setProperty('sincEgresos_cursor', String(filaInicio));
-      if (!soloNuevos) {
-        props.setProperty('sincEgresos_full_idx', String(filaInicio));
-      }
-      Logger.log('TIEMPO: guardando cursor en fila ' + filaInicio);
-      break;
-    }
-
-    var filaFin = Math.min(filaInicio + BATCH_SIZE_SINC_EGR - 1, ultimaFila);
-    var datos = hoja.getRange(filaInicio, 1, filaFin - filaInicio + 1, NUM_COLS).getValues();
-    var candidatos = [];
-    for (var i = 0; i < datos.length; i++) {
-      var obj = filaAObjetoSincEgreso(datos[i]);
-      if (!obj) { omitidos++; continue; }
-      // GUARD CORREGIDO: si ya tiene egreso_id, NO se descarta por fecha antigua; se evalúa el hash
-      if (soloNuevos && maxFecha && !obj.egreso_id) {
-        var fechaObj = obj.fecha ? new Date(obj.fecha) : null;
-        if (fechaObj && fechaObj <= maxFecha) { filtrados++; continue; }
-      }
-      candidatos.push(obj);
-    }
-
-    if (candidatos.length > 0) {
-      var ids = candidatos.map(function(c) { return c.egreso_id; });
-      var urlCheck = SUPABASE_URL + '/rest/v1/egresos?select=egreso_id,sync_hash&egreso_id=in.(' + ids.join(',') + ')';
-      var rCheck = UrlFetchApp.fetch(urlCheck, {
-        method: 'get',
-        headers: {
-          'apikey': SUPABASE_SERVICE_KEY,
-          'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY
-        },
-        muteHttpExceptions: true
-      });
-      var hashMap = {};
-      if (rCheck.getResponseCode() === 200) {
-        var existentes = JSON.parse(rCheck.getContentText());
-        for (var h = 0; h < existentes.length; h++) {
-          hashMap[existentes[h].egreso_id] = existentes[h].sync_hash;
-        }
-      }
-
-      var toUpsert = [];
-      for (var j = 0; j < candidatos.length; j++) {
-        if (hashMap[candidatos[j].egreso_id] === candidatos[j].sync_hash) {
-          saltados++;
-        } else {
-          toUpsert.push(candidatos[j]);
-        }
-      }
-
-      if (toUpsert.length > 0) {
-        var resp = upsertEgresosBatch(toUpsert);
-        if (resp.getResponseCode() >= 200 && resp.getResponseCode() < 300) {
-          upsertados += toUpsert.length;
-        } else {
-          Logger.log('Lote de ' + toUpsert.length + ' falló (HTTP ' + resp.getResponseCode() + '). Reintentando individualmente...');
-          if (!primerError) primerError = resp.getContentText().substring(0, 200);
-          for (var k = 0; k < toUpsert.length; k++) {
-            var respInd = upsertEgresosBatch([toUpsert[k]]);
-            if (respInd.getResponseCode() >= 200 && respInd.getResponseCode() < 300) {
-              upsertados++;
-            } else {
-              errores++;
-              Logger.log('Error individual egreso_id: ' + toUpsert[k].egreso_id + ' -> HTTP ' + respInd.getResponseCode());
-              if (respInd.getContentText().indexOf('bloqueado') !== -1) {
-                registrarAvisoBloqueo('egresos', 'UPDATE', toUpsert[k].egreso_id, toUpsert[k].fecha, { movimiento: toUpsert[k], error: respInd.getContentText().substring(0, 500) });
-              }
-            }
-          }
-        }
-      }
-    }
-
-    filaInicio = filaFin + 1;
-    Utilities.sleep(500);
-  }
-
-  if (!interrumpido) {
-    props.setProperty('sincEgresos_cursor', String(ultimaFila + 1));
-    if (!soloNuevos) {
-      props.deleteProperty('sincEgresos_full_idx');
-    }
-  }
-
-  Logger.log('sincEgresos FIN: upsertados=' + upsertados + ' saltados=' + saltados +
-    ' filtrados=' + filtrados + ' omitidos=' + omitidos + ' errores=' + errores +
-    ' interrumpido=' + interrumpido +
-    (primerError ? ' | Error: ' + primerError : ''));
+  // Legacy: re-envía solo la ventana viva (últimos 30 días). El parámetro soloNuevos
+  // se ignora; el filtro por fecha se aplica en memoria dentro de sincEgresosRango_.
+  sincEgresos();
 }
 
 /**

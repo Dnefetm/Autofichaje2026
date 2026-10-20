@@ -1,10 +1,11 @@
-// sincIngresos.gs — V2 (reescrito)
-// Correcciones vs V1:
-//   - Mapeo corregido: articulo_id de fila[2] (Col C), ingreso_id de fila[0] (Col A)
+// sincIngresos.gs — Ventana Activa Única (Sheets → Supabase)
+// Regla de oro: Sheets y Supabase solo sincronizan la ventana viva (últimos
+// 30 días). El pasado es inmutable (candado v135). Se leen solo las últimas N
+// filas (se insertan al final) y se descarta en memoria todo lo >30 días.
 //   - UPSERT via ?on_conflict=ingreso_id + Prefer: resolution=merge-duplicates
-//   - Hash MD5 calculado en JS (misma fórmula que compute_ingreso_hash en Supabase)
-//   - Comparación de hash antes de enviar (skip si hash igual → no dispara triggers)
-//   - sincIngresos_full() para resync completo sin filtro de fecha
+//   - Hash MD5 con fecha normalizada a epoch ms/UTC (timezone-agnóstico)
+//   - Hash-check en lotes de 40 (blindaje "UrlFetch URL Length")
+//   - Sin reintento individual ni avisos de red: fallo de lote se loguea local
 
 const HOJA_INGRESOS_SINC = 'Ingresos';
 const BATCH_SIZE_SINC_ING = 200;
@@ -90,7 +91,11 @@ function filaAObjetoSincIngreso(fila) {
     .map(function(x) { return x ? String(x).trim() : ''; })
     .filter(function(x) { return x !== ''; });
 
-  var hash = computeIngresoHash(articuloId, isNaN(cant) ? 0 : cant, guia, tr, tipo, notas, fecha, op);
+  // Hash sobre epoch ms (timezone-agnóstico): evita re-upserts fantasma por el
+  // cambio de horario de verano de México (abolido en 2022).
+  var fechaEpoch = fecha ? String(new Date(fecha).getTime()) : '';
+
+  var hash = computeIngresoHash(articuloId, isNaN(cant) ? 0 : cant, guia, tr, tipo, notas, fechaEpoch, op);
 
   return {
     ingreso_id:   ingresoId || null,
@@ -110,22 +115,28 @@ function filaAObjetoSincIngreso(fila) {
 // ─────────────────────────────────────────────────────────────────────
 // Obtener hashes existentes en Supabase para un lote de ingreso_ids
 // ─────────────────────────────────────────────────────────────────────
+// Lotes de 40 claves en in.(...): blindaje contra "UrlFetch URL Length"
+// (mismo estándar que CHUNK_REVERSO en el reverso). 40 ids * ~8-30 chars ≈ 1200 chars.
+var CHUNK_HASH_INGRESOS = 40;
+
 function getHashesExistentes(ingresoids) {
   var ids = ingresoids.filter(function(id) { return id; });
-  if (ids.length === 0) return {};
-
-  // PostgREST: ingreso_id=in.(id1,id2,...)
-  var filtro = 'ingreso_id=in.(' + ids.map(function(id) { return encodeURIComponent(id); }).join(',') + ')';
-  var url = SUPABASE_URL + '/rest/v1/ingresos?select=ingreso_id,sync_hash&' + filtro;
-  var resp = UrlFetchApp.fetch(url, {
-    method: 'get',
-    headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY },
-    muteHttpExceptions: true
-  });
-  if (resp.getResponseCode() !== 200) return {};
-  var data = JSON.parse(resp.getContentText());
   var mapa = {};
-  data.forEach(function(row) { mapa[row.ingreso_id] = row.sync_hash; });
+  for (var i = 0; i < ids.length; i += CHUNK_HASH_INGRESOS) {
+    var lote = ids.slice(i, i + CHUNK_HASH_INGRESOS);
+    // PostgREST: ingreso_id=in.(id1,id2,...)
+    var filtro = 'ingreso_id=in.(' + lote.map(function(id) { return encodeURIComponent(id); }).join(',') + ')';
+    var url = SUPABASE_URL + '/rest/v1/ingresos?select=ingreso_id,sync_hash&' + filtro;
+    var resp = UrlFetchApp.fetch(url, {
+      method: 'get',
+      headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY },
+      muteHttpExceptions: true
+    });
+    if (resp.getResponseCode() === 200) {
+      var data = JSON.parse(resp.getContentText());
+      data.forEach(function(row) { mapa[row.ingreso_id] = row.sync_hash; });
+    }
+  }
   return mapa;
 }
 
@@ -150,43 +161,27 @@ function upsertLoteIngresos(lote) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// sincIngresos() — incremental (filtra por MAX fecha, skip si hash igual)
+// Ventana Activa Única (sustituye al barrido desde fila 2 + barrido circular).
+// Regla de oro: Sheets y Supabase solo sincronizan la ventana viva (últimos
+// 30 días). El pasado es inmutable (candado v135). Leer solo las últimas N
+// filas (se insertan al final) y descartar en memoria todo lo >30 días.
+// Sin reintento individual ni avisos de red: un fallo de lote se loguea local.
 // ─────────────────────────────────────────────────────────────────────
+var VENTANA_INGRESOS = 500;
+
 function sincIngresos() {
-  _sincIngresosPorFecha_(true);
-}
-
-// sincIngresos_full() — sin filtro de fecha, re-envía todo (para forzar resync manual)
-function sincIngresos_full() {
-  _sincIngresosPorFecha_(false);
-}
-
-function _sincIngresosPorFecha_(soloNuevos) {
-  var maxFecha = null;
-  if (soloNuevos) {
-    var urlMax = SUPABASE_URL + '/rest/v1/ingresos?select=fecha&order=fecha.desc&limit=1';
-    var rMax = UrlFetchApp.fetch(urlMax, {
-      method: 'get',
-      headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + SUPABASE_SERVICE_KEY },
-      muteHttpExceptions: true
-    });
-    if (rMax.getResponseCode() === 200) {
-      var dMax = JSON.parse(rMax.getContentText());
-      if (dMax && dMax.length > 0) maxFecha = new Date(dMax[0].fecha);
-    }
-    Logger.log('Modo incremental. MAX fecha en Supabase: ' + (maxFecha ? maxFecha.toISOString() : 'ninguna'));
-  } else {
-    Logger.log('Modo FULL — re-enviando todos los registros');
-  }
-
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var hoja = ss.getSheetByName(HOJA_INGRESOS_SINC);
   if (!hoja) { Logger.log('Hoja "' + HOJA_INGRESOS_SINC + '" no encontrada.'); return; }
 
   var ultimaFila = hoja.getLastRow();
-  var upsertados = 0, saltados = 0, filtrados = 0, omitidos = 0, errores = 0, primerError = '';
+  var inicio = Math.max(2, ultimaFila - VENTANA_INGRESOS + 1);
+  var corte30 = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  Logger.log('Ventana activa ingresos: filas ' + inicio + ' a ' + ultimaFila);
 
-  var filaInicio = 2;
+  var upsertados = 0, saltados = 0, filtrados = 0, omitidos = 0, errores = 0, primerError = '';
+  var filaInicio = inicio;
+
   while (filaInicio <= ultimaFila) {
     var filaFin = Math.min(filaInicio + BATCH_SIZE_SINC_ING - 1, ultimaFila);
     var datos = hoja.getRange(filaInicio, 1, filaFin - filaInicio + 1, 13).getValues();
@@ -195,18 +190,15 @@ function _sincIngresosPorFecha_(soloNuevos) {
     for (var i = 0; i < datos.length; i++) {
       var obj = filaAObjetoSincIngreso(datos[i]);
       if (!obj) { omitidos++; continue; }
-
-      // FIX: solo filtrar por fecha si la fila NO tiene ingreso_id.
-      // Filas CON ingreso_id: siempre pasan → el hash comparison decide si hay cambio.
-      // Filas SIN ingreso_id: filtrar por fecha para evitar duplicados infinitos.
-      // Sin esta distinción, ingresos retroactivos de Sheets eran ignorados permanentemente.
-      if (soloNuevos && maxFecha && obj.fecha && !obj.ingreso_id) {
-        if (new Date(obj.fecha) <= maxFecha) { filtrados++; continue; }
+      // Descartar en memoria (0 HTTP): el candado v135 bloquea >30 días.
+      if (obj.fecha) {
+        var fEpoch = new Date(obj.fecha).getTime();
+        if (!isNaN(fEpoch) && fEpoch < corte30) { filtrados++; continue; }
       }
       candidatos.push(obj);
     }
 
-    // Comparar hashes: solo enviar los que cambiaron
+    // Comparar hashes: solo enviar los que cambiaron.
     var lote = [];
     if (candidatos.length > 0) {
       var idsConId = candidatos.map(function(o) { return o.ingreso_id; });
@@ -224,36 +216,30 @@ function _sincIngresosPorFecha_(soloNuevos) {
 
     if (lote.length > 0) {
       var resp = upsertLoteIngresos(lote);
-      if (resp.code >= 300) {
-        if (!primerError) primerError = 'Lote fila ' + filaInicio + ': HTTP ' + resp.code + ' — ' + resp.body.substring(0, 300);
-        // Reintento individual (desagrupar): si 1 fila vieja está bloqueada por el candado,
-        // sincroniza las demás y registra el aviso del bloqueo.
-        for (var k = 0; k < lote.length; k++) {
-          var respInd = upsertLoteIngresos([lote[k]]);
-          if (respInd.code >= 200 && respInd.code < 300) {
-            upsertados++;
-          } else {
-            errores++;
-            Logger.log('Error individual ingreso_id: ' + lote[k].ingreso_id + ' -> HTTP ' + respInd.code);
-            if (respInd.body && respInd.body.indexOf('bloqueado') !== -1) {
-              registrarAvisoBloqueo('ingresos', 'UPDATE', lote[k].ingreso_id, lote[k].fecha, { movimiento: lote[k], error: respInd.body.substring(0, 500) });
-            }
-          }
-        }
-      } else {
+      if (resp.code >= 200 && resp.code < 300) {
         upsertados += lote.length;
+      } else {
+        errores += lote.length;
+        if (!primerError) primerError = 'Lote fila ' + filaInicio + ': HTTP ' + resp.code + ' — ' + resp.body.substring(0, 300);
+        Logger.log('Lote falló (HTTP ' + resp.code + '): ' + resp.body.substring(0, 300));
       }
     }
 
-    Utilities.sleep(200);
     filaInicio = filaFin + 1;
+    Utilities.sleep(200);
   }
 
-  Logger.log('=== sincIngresos' + (soloNuevos ? '' : '_full') + ' FINAL ===');
+  Logger.log('=== sincIngresos FINAL ===');
   Logger.log('Upsertados: ' + upsertados);
   Logger.log('Saltados (hash igual, sin cambios): ' + saltados);
-  Logger.log('Filtrados (ya en Supabase por fecha): ' + filtrados);
+  Logger.log('Filtrados (>30 días, candado): ' + filtrados);
   Logger.log('Omitidos (sin articulo_id): ' + omitidos);
   Logger.log('Errores: ' + errores);
   if (primerError) Logger.log('Primer error: ' + primerError);
+}
+
+// sincIngresos_full() — se conserva por compatibilidad, pero ya NO barre el histórico.
+// Equivale a sincIngresos(): el pasado >30 días es inmutable y no se re-sincroniza.
+function sincIngresos_full() {
+  sincIngresos();
 }

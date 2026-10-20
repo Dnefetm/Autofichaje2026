@@ -28,9 +28,11 @@
 // ─────────────────────────────────────────────────────────────────────
 function sincInventarioCompleto() {
   Logger.log('=== sincInventarioCompleto START ' + new Date().toISOString() + ' ===');
-  sincIngresos();
-  sincEgresos();
-  sincArticulos(); // respaldo: solo aplica el UPSERT a filas que cambiaron (V2 con hash)
+  // Aislamiento estricto: un fallo en una tabla NO debe detener a las demás.
+  // (Antes, un "urlfetch quota exceeded" en sincIngresos mataba sincEgresos y sincArticulos.)
+  try { sincIngresos(); } catch (e) { Logger.log('ERROR sincIngresos: ' + e); }
+  try { sincEgresos(); } catch (e) { Logger.log('ERROR sincEgresos: ' + e); }
+  try { sincArticulos(); } catch (e) { Logger.log('ERROR sincArticulos: ' + e); }
   Logger.log('=== sincInventarioCompleto END ' + new Date().toISOString() + ' ===');
 }
 
