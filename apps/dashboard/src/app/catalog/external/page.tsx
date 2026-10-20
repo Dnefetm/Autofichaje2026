@@ -1012,6 +1012,12 @@ export default function VirtualCatalogPage() {
                     description={`${totalCount.toLocaleString()} publicaciones · ${grouped.length} ítems en esta página`}
                     actions={
                         <>
+                            <Link
+                                href="/catalog/external/mapeo-mixto"
+                                className="touch-target inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors px-3 py-2 text-sm bg-[var(--surface)] text-[var(--accent)] border border-[var(--accent)]/30 hover:bg-[var(--accent)]/10"
+                            >
+                                <Link2 className="w-4 h-4" /> Mapeo mixto
+                            </Link>
                             <Btn variant={showFilters ? 'primary' : 'ghost'} onClick={() => setShowFilters(o => !o)} icon={<SlidersHorizontal className="w-4 h-4" />}>
                                 Filtros
                             </Btn>
