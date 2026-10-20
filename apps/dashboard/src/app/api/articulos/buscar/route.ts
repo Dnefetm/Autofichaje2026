@@ -23,19 +23,48 @@ export async function GET(req: NextRequest) {
     }
 
     const ilikePattern = `%${query}%`;
+    // Escaneo de código de barras (8-14 dígitos) → igualdad exacta sobre el índice
+    // btree de codigo_universal (~1ms). Texto libre → ILIKE normal.
+    const esCodigoBarras = /^\d{8,14}$/.test(query.trim());
+    const selectCols = 'articulo_id, modelo, marca, codigo_universal, descripcion, nombre, caja_madre, variante';
+    const orFiltro = [
+        `modelo.ilike.${ilikePattern}`,
+        `marca.ilike.${ilikePattern}`,
+        `codigo_universal.ilike.${ilikePattern}`,
+        `nombre.ilike.${ilikePattern}`,
+        `articulo_id.ilike.${ilikePattern}`,
+    ].join(',');
 
-    const { data, error } = await supabaseAdmin
-        .from('articulos')
-        .select('articulo_id, modelo, marca, codigo_universal, descripcion, nombre, caja_madre, variante')
-        .or(
-            [
-                `modelo.ilike.${ilikePattern}`,
-                `marca.ilike.${ilikePattern}`,
-                `codigo_universal.ilike.${ilikePattern}`,
-                `nombre.ilike.${ilikePattern}`,
-            ].join(',')
-        )
-        .limit(limit);
+    let data: any[] | null = null;
+    let error: any = null;
+
+    if (esCodigoBarras) {
+        const exact = await supabaseAdmin
+            .from('articulos')
+            .select(selectCols)
+            .eq('codigo_universal', query.trim())
+            .limit(limit);
+        data = exact.data;
+        error = exact.error;
+        if (!error && (!data || data.length === 0)) {
+            // Sin match exacto (código no mapeado): caer a búsqueda libre.
+            const fallback = await supabaseAdmin
+                .from('articulos')
+                .select(selectCols)
+                .or(orFiltro)
+                .limit(limit);
+            data = fallback.data;
+            error = fallback.error;
+        }
+    } else {
+        const res = await supabaseAdmin
+            .from('articulos')
+            .select(selectCols)
+            .or(orFiltro)
+            .limit(limit);
+        data = res.data;
+        error = res.error;
+    }
 
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
