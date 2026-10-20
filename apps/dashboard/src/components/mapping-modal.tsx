@@ -88,6 +88,7 @@ const [smartSuggestions, setSmartSuggestions] = useState<any[]>([]);
 const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 const [siblings, setSiblings] = useState<any[]>([]);
 const [siblingsLoading, setSiblingsLoading] = useState(false);
+const [selectedSiblings, setSelectedSiblings] = useState<Set<string>>(new Set());
 const [costMap, setCostMap] = useState<Map<string, boolean>>(new Map());
 const [topSugerencia, setTopSugerencia] = useState<any>(null);
 // V71: interruptor general de sincronización de stock para este ensamble (vidriera↔catálogo).
@@ -397,11 +398,12 @@ function handleQuantityChange(sku: string, qty: number) { if (qty < 1) return; s
 async function loadSiblings() {
 setSiblingsLoading(true);
 try {
+const SEL = 'id, titulo, external_item_id, tipo_publicacion, listing_type_id, status_externo';
 let sibData: any[] = [];
 if (listing?.id_producto_catalogo) {
 const { data } = await supabase
 .from('publicaciones_externas')
-.select('id, titulo, external_item_id, tipo_publicacion')
+.select(SEL)
 .eq('id_producto_catalogo', listing.id_producto_catalogo)
 .neq('id', listing.id)
 .eq('external_variation_id', '0');
@@ -409,15 +411,29 @@ sibData = data || [];
 }
 const { data: catData } = await supabase
 .from('publicaciones_externas')
-.select('id, titulo, external_item_id, tipo_publicacion')
+.select(SEL)
 .eq('par_item_id', listing.external_item_id)
 .in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
 .eq('external_variation_id', '0');
-const ids = new Set(sibData.map((s: any) => s.id));
-const combined = [
-...sibData,
-...(catData || []).filter((c: any) => !ids.has(c.id)),
-];
+// Condiciones de venta: mismo user_product_id en la misma cuenta (Clásica ↔ Premium)
+let upData: any[] = [];
+if (listing?.user_product_id && listing?.marketplace_id) {
+const { data } = await supabase
+.from('publicaciones_externas')
+.select(SEL)
+.eq('user_product_id', listing.user_product_id)
+.eq('marketplace_id', listing.marketplace_id)
+.neq('id', listing.id)
+.eq('external_variation_id', '0');
+upData = data || [];
+}
+const ids = new Set<string>();
+const combined: any[] = [];
+for (const row of [...sibData, ...(catData || []), ...upData]) {
+if (!row?.id || ids.has(row.id)) continue;
+ids.add(row.id);
+combined.push(row);
+}
 setSiblings(combined);
 } finally {
 setSiblingsLoading(false);
@@ -438,8 +454,8 @@ const { data: mapeosSnap } = await supabase
 mapeosPrevios = mapeosSnap || null;
 
 if (selectedSkus.length === 0) {
-// Desvincular todo: borrar TODOS los mapeos (listing + hermanas) y marcar desmapeado.
-const relacionados = [listing.id, ...siblings.filter(s => s.id !== listing.id).map(s => s.id)];
+// Desvincular todo: borrar mapeos del listing y de las hermanas EXPLÍCITAMENTE marcadas.
+const relacionados = [listing.id, ...siblings.filter(s => s.id !== listing.id && selectedSiblings.has(s.id)).map(s => s.id)];
 await supabase.from('mapeo_publicacion_articulo').delete().in('publicacion_id', relacionados);
 await supabase.from('publicaciones_externas').update({ esta_mapeado: false }).in('id', relacionados);
 fetch(`/api/catalog/external/${listing.id}/audit-mark`, {
@@ -475,8 +491,9 @@ scheduled_at: new Date().toISOString(),
 if (sincronizarStock) {
 await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: listing.id }, status: 'pending', scheduled_at: new Date().toISOString() });
 }
-const propagableSimlings = siblings.filter(s => s.id !== listing.id);
-for (const sib of propagableSimlings) {
+// Solo propaga a las hermanas que el operador marcó explícitamente (nunca automático).
+const propagables = siblings.filter(s => selectedSiblings.has(s.id));
+for (const sib of propagables) {
 
 const sibInserts = selectedSkus.map(s => ({ publicacion_id: sib.id, articulo_id: s.sku, cantidad_requerida: s.quantity, sincronizar_stock: sincronizarStock }));
         await supabase.from('mapeo_publicacion_articulo').upsert(sibInserts, { onConflict: 'publicacion_id,articulo_id' });
@@ -601,9 +618,30 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
                                 </div>
                             )}
                             {!bloqueado && siblings.length > 0 && (
-                                <div className="text-[var(--accent)] text-xs flex items-center gap-1.5">
-                                    <Info size={14} className="shrink-0" />
-                                    <span>Al guardar, propagarás a <strong>{siblings.length}</strong> publicación hermana(s).</span>
+                                <div className="space-y-1.5">
+                                    <div className="text-[var(--accent)] text-xs flex items-center gap-1.5">
+                                        <Info size={14} className="shrink-0" />
+                                        <span>Se detectaron <strong>{siblings.length}</strong> publicación(es) hermana(s). Marca las que también quieras vincular:</span>
+                                    </div>
+                                    {siblings.map((sib: any) => (
+                                        <label key={sib.id} className="flex items-center gap-2 text-xs text-[var(--text-muted)] cursor-pointer pl-1">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedSiblings.has(sib.id)}
+                                                onChange={(e) => {
+                                                    const next = new Set(selectedSiblings);
+                                                    if (e.target.checked) next.add(sib.id); else next.delete(sib.id);
+                                                    setSelectedSiblings(next);
+                                                }}
+                                                className="accent-[var(--accent)]"
+                                            />
+                                            <Link href={`/catalog/external/${sib.id}`} onClick={(e) => e.stopPropagation()} className="font-mono text-[var(--text)] hover:text-[var(--accent)] hover:underline">
+                                                {sib.external_item_id}
+                                            </Link>
+                                            <span className="text-[10px]">{sib.listing_type_id === 'gold_pro' ? 'Premium' : sib.listing_type_id === 'gold_special' ? 'Clásica' : (sib.tipo_publicacion || '—')}</span>
+                                            <span className="text-[10px] text-[var(--text-faint)]">{sib.status_externo}</span>
+                                        </label>
+                                    ))}
                                 </div>
                             )}
                         </div>
