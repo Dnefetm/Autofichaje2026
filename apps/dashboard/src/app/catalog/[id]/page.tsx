@@ -491,6 +491,7 @@ export default function ArticuloDetailPage() {
                     currentFreeShipping={!!newConditionPub.free_shipping}
                     currentPrice={Number(newConditionPub.precio_venta || 0)}
                     articuloId={product.articulo_id || id}
+                    cantidadRequerida={newConditionPub.cantidad_requerida ?? 1}
                     onClose={() => setNewConditionPub(null)}
                     onDone={() => { setNewConditionPub(null); fetchProduct(true); }}
                 />

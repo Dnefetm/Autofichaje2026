@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
             price_override = null as number | null,
             stock_override = null as number | null,
             articulo_id = null as string | null,
+            cantidad_requerida = null as number | null,
             dry_run = false,
         } = body;
 
@@ -263,19 +264,21 @@ export async function POST(req: NextRequest) {
             trace.paso_6_descripcion = { error: e.message };
         }
 
-        // -- 7. Resolver articulo_id para el mapeo ------------------------------
+        // -- 7. Resolver articulo_id y multiplicador para el mapeo --------------
         let targetArticuloId = articulo_id;
+        let sourcePackQty: number | null = null;
         if (!targetArticuloId) {
             const { data: mapRow } = await supabaseAdmin
                 .from('mapeo_publicacion_articulo')
-                .select('articulo_id, publicaciones_externas!inner(external_item_id, marketplace_id)')
+                .select('articulo_id, cantidad_requerida, publicaciones_externas!inner(external_item_id, marketplace_id)')
                 .eq('publicaciones_externas.external_item_id', item_id)
                 .eq('publicaciones_externas.marketplace_id', marketplace_id)
                 .limit(1)
                 .maybeSingle();
             targetArticuloId = mapRow?.articulo_id ?? null;
+            if (mapRow?.cantidad_requerida) sourcePackQty = Number(mapRow.cantidad_requerida);
         }
-        trace.paso_7_articulo = { articulo_id: targetArticuloId };
+        trace.paso_7_articulo = { articulo_id: targetArticuloId, cantidad_requerida: sourcePackQty };
 
         // -- 8. Persistir publicaciones_externas -------------------------------
         const { data: pubInserted, error: pubErr } = await supabaseAdmin
@@ -310,12 +313,14 @@ export async function POST(req: NextRequest) {
 
         // -- 9. Mapeo artículo (enlace vitrina ↔ producto del catálogo) --------
         if (pubInserted?.id && targetArticuloId) {
+            const rawQty = Number(cantidad_requerida ?? sourcePackQty ?? 1);
+            const effectiveQty = Number.isFinite(rawQty) && rawQty >= 1 ? Math.floor(rawQty) : 1;
             const { error: mapErr } = await supabaseAdmin
                 .from('mapeo_publicacion_articulo')
                 .upsert({
                     publicacion_id: pubInserted.id,
                     articulo_id: targetArticuloId,
-                    cantidad_requerida: 1,
+                    cantidad_requerida: effectiveQty,
                 }, { onConflict: 'publicacion_id,articulo_id' });
             trace.paso_9_mapeo = mapErr ? { error: mapErr.message } : { ok: true };
         } else {

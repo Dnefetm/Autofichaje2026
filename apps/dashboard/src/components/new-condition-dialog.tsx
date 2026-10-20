@@ -22,6 +22,7 @@ interface Props {
     currentFreeShipping: boolean;
     currentPrice: number;
     articuloId: string;
+    cantidadRequerida?: number;
     onClose: () => void;
     onDone: (data: any) => void;
 }
@@ -34,6 +35,7 @@ export function NewConditionDialog({
     currentFreeShipping,
     currentPrice,
     articuloId,
+    cantidadRequerida,
     onClose,
     onDone,
 }: Props) {
@@ -42,6 +44,7 @@ export function NewConditionDialog({
     );
     const [freeShipping, setFreeShipping] = useState<boolean>(!currentFreeShipping);
     const [price, setPrice] = useState<string>('');
+    const [qty, setQty] = useState<number>(cantidadRequerida && cantidadRequerida >= 1 ? cantidadRequerida : 1);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -61,6 +64,7 @@ export function NewConditionDialog({
                     free_shipping: freeShipping,
                     price_override: price.trim() ? Number(price) : null,
                     articulo_id: articuloId,
+                    cantidad_requerida: qty,
                     dry_run: dryRun,
                 }),
             });
@@ -157,6 +161,19 @@ export function NewConditionDialog({
                             className="w-full px-3 py-2 rounded-[var(--radius-sm)] bg-[var(--surface-2)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]"
                         />
                         <p className="text-[10px] text-[var(--text-faint)] mt-1">Déjalo vacío para conservar el precio del ítem original.</p>
+                    </div>
+
+                    {/* Piezas por venta */}
+                    <div>
+                        <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Piezas por venta (a restar de catálogo)</p>
+                        <input
+                            type="number"
+                            min="1"
+                            value={qty}
+                            onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-full px-3 py-2 rounded-[var(--radius-sm)] bg-[var(--surface-2)] border border-[var(--border)] text-sm text-[var(--text)] font-mono font-bold text-[var(--accent)] focus:outline-none focus:border-[var(--accent)]"
+                        />
+                        <p className="text-[10px] text-[var(--text-faint)] mt-1">Heredado del ítem base. Ajusta si esta condición es un pack distinto.</p>
                     </div>
 
                     {/* Resultado / error */}

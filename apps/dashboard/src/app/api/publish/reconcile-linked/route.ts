@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
             .from('mapeo_publicacion_articulo')
             .select(`
                 publicacion_id,
+                cantidad_requerida,
                 publicaciones_externas!inner(
                     id, marketplace_id, external_item_id, status_externo, titulo,
                     tipo_publicacion, listing_type_id, free_shipping, precio_venta,
@@ -58,6 +59,13 @@ export async function POST(req: NextRequest) {
         const pubs = (mappings || [])
             .map((m: any) => m.publicaciones_externas)
             .filter(Boolean);
+
+        // cantidad_requerida por publicación (para heredar el multiplicador en nuevas condiciones)
+        const cantPorPub = new Map<string, number>();
+        for (const m of (mappings || []) as any[]) {
+            const pubId = m.publicaciones_externas?.id;
+            if (pubId && m.cantidad_requerida != null) cantPorPub.set(pubId, Number(m.cantidad_requerida));
+        }
 
         if (pubs.length === 0) {
             return NextResponse.json({ ok: true, revisadas: 0, ocultadas: 0, ocultadas_detalle: [], pubs: [] });
@@ -156,6 +164,7 @@ export async function POST(req: NextRequest) {
                 ultima_auditoria_precio_accion: p.ultima_auditoria_precio_accion || null,
                 ultima_auditoria_pub_el: p.ultima_auditoria_pub_el || null,
                 ultima_auditoria_pub_accion: p.ultima_auditoria_pub_accion || null,
+                cantidad_requerida: cantPorPub.get(p.id) ?? 1,
             }));
 
         return NextResponse.json({
