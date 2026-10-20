@@ -715,7 +715,16 @@ export default function LogisticaFullPage() {
                                 return (
                                 <div key={e.egreso_id || e.id} className="px-4 py-2.5 flex flex-wrap items-center gap-3">
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-sm text-[var(--text)] truncate">{e.nombre || e.articulo_id}</p>
+                                        {/* Título de la vitrina (viene del PDF) — fuente de verdad para operar */}
+                                        {e.titulo_ml && <p className="text-sm text-[var(--text)] truncate"><span className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Título PDF</span> {e.titulo_ml}</p>}
+                                        <p className="text-sm font-semibold text-[var(--text)] truncate"><span className="text-[10px] font-bold uppercase text-[var(--text-faint)]">Catálogo</span> {e.nombre || e.articulo_id}</p>
+                                        {(e.sku_ml || e.modelo) && (
+                                            <p className="text-xs text-[var(--text-muted)] font-mono truncate">
+                                                {e.sku_ml ? <span>SKU vitrina: {e.sku_ml}</span> : null}
+                                                {e.modelo ? <span> · Modelo catálogo: {e.modelo}</span> : null}
+                                                {!e.sku_ml && !e.modelo ? <span>{e.articulo_id}</span> : null}
+                                            </p>
+                                        )}
                                         <div className="flex items-center gap-2 mt-0.5">
                                             <Badge tone={estado === 'Preparado' ? 'success' : estado === 'Reunido' ? 'info' : 'neutral'}>{estado}</Badge>
                                             {e.notas && <span className="text-xs text-[var(--warn)] break-words">{e.notas}</span>}

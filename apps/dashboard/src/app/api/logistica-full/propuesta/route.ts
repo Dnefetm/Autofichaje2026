@@ -26,7 +26,7 @@ export async function GET(req: Request) {
             .select(`
                 articulo_id, cantidad_requerida,
                 articulo:articulos(articulo_id, nombre),
-                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, stock_full_total, sales_30d_full, replenishment_suggested, shipping_urgency, marketplace_id, seller_sku, ean, gtin, upc)
+                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, stock_full_total, sales_30d_full, replenishment_suggested, shipping_urgency, marketplace_id, seller_sku, ean, gtin, upc, titulo)
             `)
             .eq('publicacion.logistic_type', 'fulfillment')
             .not('publicacion.inventory_id', 'is', null);
@@ -100,7 +100,7 @@ export async function GET(req: Request) {
                     marketplace_id: mk,
                     cuenta: nombreCuenta.get(mk) || '—',
                     inventory_id: inv,
-                    nombre: art?.nombre || null,
+                    nombre: pub?.titulo || art?.nombre || null,
                     articulo_id: m.articulo_id,
                     componentes: {} as Record<string, number>,
                     seller_sku: pub?.seller_sku || null,
