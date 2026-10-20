@@ -28,17 +28,17 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
         const prev: any = imp.mapeo_columnas || {};
 
-        // Validación mínima
-        if (!body.columna_codigo || !body.columna_modelo || !Array.isArray(body.precios) || body.precios.length === 0) {
+        // Validación mínima (columna_codigo es opcional: no todo proveedor trae EAN/código universal)
+        if (!body.columna_modelo || !Array.isArray(body.precios) || body.precios.length === 0) {
             return NextResponse.json(
-                { ok: false, error: 'Faltan columna_codigo, columna_modelo o al menos un precio' },
+                { ok: false, error: 'Faltan columna_modelo o al menos un precio' },
                 { status: 400 }
             );
         }
 
         const merged = {
             ...prev, // conserva _storage_path y _bucket
-            columna_codigo: body.columna_codigo,
+            columna_codigo: body.columna_codigo ?? null,
             columna_modelo: body.columna_modelo,
             columna_marca: body.columna_marca ?? null,
             columna_descripcion: body.columna_descripcion ?? null,
