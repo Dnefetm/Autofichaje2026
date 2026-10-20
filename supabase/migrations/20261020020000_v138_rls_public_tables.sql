@@ -92,7 +92,7 @@ ALTER TABLE public.webhook_buffer                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.webhook_config                   ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
--- 3. GRUPO B: 3 tablas de lectura cliente (anon) — solo lectura
+-- 3. GRUPO B: 4 tablas de lectura cliente (anon) — solo lectura
 -- ============================================================
 -- costos_articulo: mapping-modal.tsx, vincular-vitrina-modal.tsx ("use client" + supabase)
 ALTER TABLE public.costos_articulo ENABLE ROW LEVEL SECURITY;
