@@ -107,7 +107,7 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
 
   function handleFile(f: File) {
     const ext = f.name.split('.').pop()?.toLowerCase();
-    if (!['xlsx', 'xls'].includes(ext ?? '')) { setError('Solo .xlsx o .xls'); return; }
+    if (!['xlsx', 'xls', 'ods'].includes(ext ?? '')) { setError('Solo .xlsx, .xls o .ods'); return; }
     if (f.size > 50 * 1024 * 1024) { setError('Máximo 50 MB'); return; }
     setFile(f); setError(null);
   }
@@ -187,7 +187,7 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
           onDrop={handleDrop} onClick={() => inputRef.current?.click()}
           className={cn('border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all',
             dragging ? 'border-[var(--accent)]/70 bg-[var(--accent)]/10' : file ? 'border-[var(--ok)]/40 bg-[var(--ok)]/10' : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--bg)]')}>
-          <input ref={inputRef} id="file-input" type="file" accept=".xlsx,.xls" className="hidden"
+          <input ref={inputRef} id="file-input" type="file" accept=".xlsx,.xls,.ods" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
           {file ? (
             <div className="flex items-center justify-center gap-3">
@@ -195,7 +195,7 @@ function PasoSubir({ proveedorInicial, onDone }: { proveedorInicial?: string; on
               <div className="text-left"><p className="font-bold text-sm">{file.name}</p><p className="text-xs text-[var(--text-muted)]">{(file.size / 1024).toFixed(1)} KB</p></div>
             </div>
           ) : (
-            <div><Upload className="mx-auto w-10 h-10 text-[var(--text-faint)] mb-2" /><p className="text-sm font-semibold text-[var(--text-muted)]">Arrastra tu Excel aquí</p><p className="text-xs text-[var(--text-faint)] mt-1">o haz clic • .xlsx, .xls • máx. 50 MB</p></div>
+            <div><Upload className="mx-auto w-10 h-10 text-[var(--text-faint)] mb-2" /><p className="text-sm font-semibold text-[var(--text-muted)]">Arrastra tu Excel aquí</p><p className="text-xs text-[var(--text-faint)] mt-1">o haz clic • .xlsx, .xls, .ods • máx. 50 MB</p></div>
           )}
         </div>
       </div>

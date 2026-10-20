@@ -9,8 +9,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'proveedor y fileName requeridos' }, { status: 400 });
   }
   const ext = fileName.split('.').pop()?.toLowerCase();
-  if (!ext || !['xlsx', 'xls'].includes(ext)) {
-    return NextResponse.json({ ok: false, error: 'Solo .xlsx o .xls' }, { status: 400 });
+  if (!ext || !['xlsx', 'xls', 'ods'].includes(ext)) {
+    return NextResponse.json({ ok: false, error: 'Solo .xlsx, .xls o .ods' }, { status: 400 });
   }
 
   const BUCKET = 'excel-precios';

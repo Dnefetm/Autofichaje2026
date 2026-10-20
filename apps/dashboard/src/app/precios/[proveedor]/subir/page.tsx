@@ -17,7 +17,7 @@ export default function SubirPaso1() {
 
     function handleFile(f: File) {
         const ext = f.name.split('.').pop()?.toLowerCase();
-        if (!['xlsx', 'xls'].includes(ext ?? '')) { setError('Solo .xlsx o .xls'); return; }
+        if (!['xlsx', 'xls', 'ods'].includes(ext ?? '')) { setError('Solo .xlsx, .xls o .ods'); return; }
         if (f.size > 50 * 1024 * 1024) { setError('Máximo 50 MB'); return; }
         setFile(f); setError(null);
     }
@@ -143,7 +143,7 @@ export default function SubirPaso1() {
                 onDrop={handleDrop}
                 onClick={() => inputRef.current?.click()}
             >
-                <input type="file" className="hidden" ref={inputRef} accept=".xlsx, .xls" onChange={e => {
+                <input type="file" className="hidden" ref={inputRef} accept=".xlsx, .xls, .ods" onChange={e => {
                     const f = e.target.files?.[0]; if (f) handleFile(f);
                 }} />
                 

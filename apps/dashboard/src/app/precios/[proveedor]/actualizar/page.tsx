@@ -57,7 +57,7 @@ export default function ActualizarListaPage({ params }: { params: Promise<{ prov
                 <div className="border-2 border-dashed border-[var(--border)] rounded-lg p-10 text-center hover:bg-[var(--bg)] transition">
                     <input 
                         type="file" 
-                        accept=".xlsx, .xls, .csv" 
+                        accept=".xlsx, .xls, .csv, .ods" 
                         onChange={handleFileChange}
                         className="mb-4 block w-full text-sm text-[var(--text-muted)] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[var(--accent)]/10 file:text-[var(--accent)] hover:file:bg-[var(--accent)]/20"
                     />
