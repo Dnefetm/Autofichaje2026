@@ -113,8 +113,8 @@ export default function PublicarDaiPage() {
         <div className="flex-1 overflow-auto bg-[var(--bg)] min-h-screen">
             <Page>
                 <PageHeader
-                    title="Publicar DAI (desde lista de precios)"
-                    description="Elige un código DAI, se enriquece desde dai.com.mx y se crea el artículo para publicar en MeLi."
+                    title="Publicar desde lista de precios"
+                    description="Elige un código, se enriquece desde la web del proveedor y se crea el artículo para publicar en MeLi."
                     actions={<></>}
                 />
                 <Card className="p-4 space-y-4">
@@ -122,7 +122,7 @@ export default function PublicarDaiPage() {
                         <Search className="w-4 h-4 text-[var(--text-faint)]" />
                         <input
                             type="text"
-                            placeholder="Buscar por código DAI o descripción…"
+                            placeholder="Buscar por código o descripción…"
                             value={busqueda}
                             onChange={(e) => setBusqueda(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && cargar(busqueda)}
@@ -178,15 +178,17 @@ export default function PublicarDaiPage() {
                                                                 Borrar
                                                             </button>
                                                         )}
-                                                        {artId && !r?.w360 ? (
-                                                            <span className="text-[10px] text-[var(--text-faint)] italic">Sin 360 en DAI</span>
-                                                        ) : (
-                                                            <Btn size="sm" variant="ghost" onClick={() => capturar360(f.sku_proveedor)} loading={preparando === f.sku_proveedor}>
-                                                                {r?.capturadas360 ? `360 (${r.capturadas360})` : 'Capturar 360'}
-                                                            </Btn>
+                                                        {proveedor === 'DAI Autopartes' && (
+                                                            artId && !r?.w360 ? (
+                                                                <span className="text-[10px] text-[var(--text-faint)] italic">Sin 360 en DAI</span>
+                                                            ) : (
+                                                                <Btn size="sm" variant="ghost" onClick={() => capturar360(f.sku_proveedor)} loading={preparando === f.sku_proveedor}>
+                                                                    {r?.capturadas360 ? `360 (${r.capturadas360})` : 'Capturar 360'}
+                                                                </Btn>
+                                                            )
                                                         )}
                                                         {artId ? (
-                                                            <Btn size="sm" variant="ghost" onClick={() => preparar(f.sku_proveedor)} loading={preparando === f.sku_proveedor} title="Regenerar la ficha desde dai.com.mx">
+                                                            <Btn size="sm" variant="ghost" onClick={() => preparar(f.sku_proveedor)} loading={preparando === f.sku_proveedor} title="Regenerar la ficha desde la web del proveedor">
                                                                 Rehacer
                                                             </Btn>
                                                         ) : (
