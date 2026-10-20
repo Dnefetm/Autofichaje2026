@@ -1,4 +1,3 @@
-import { load } from 'cheerio';
 import { ProveedorWebAdapter, EnriquecimientoWeb } from './proveedor-web';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36';
@@ -14,8 +13,8 @@ async function fetchHtml(url: string): Promise<string | null> {
 }
 
 /**
- * Tuk — busca por TIPO (categoria2), que es la clave real en tuk.com.mx.
- * WordPress hace match por subcadena, por eso se desempata por token exacto.
+ * Tuk — busca por TIPO (categoria2), la clave real en tuk.com.mx.
+ * Extracción con regex nativa (sin cheerio): enlaces de producto + og:image/og:description.
  */
 export const tukWebAdapter: ProveedorWebAdapter = {
     nombre: 'Tuk',
@@ -27,14 +26,9 @@ export const tukWebAdapter: ProveedorWebAdapter = {
         const html = await fetchHtml(searchUrl);
         if (!html) return null;
 
-        const $ = load(html);
-        const links: { href: string; slug: string }[] = [];
-        $('a[href*="/product/"]').each((_, el) => {
-            const href = $(el).attr('href');
-            if (!href) return;
-            const slug = href.split('/').filter(Boolean).pop() || '';
-            if (!links.some((l) => l.href === href)) links.push({ href, slug });
-        });
+        // Enlaces de producto (deduplicados por href)
+        const hrefs = [...html.matchAll(/href="(https:\/\/tuk\.com\.mx\/product\/[^"]+)"/g)].map((m) => m[1]);
+        const links = hrefs.map((href) => ({ href, slug: href.split('/').filter(Boolean).pop() || '' }));
         if (!links.length) return null;
 
         // Desempatar: token EXACTO de categoria2, luego subcadena de categoria1.
@@ -47,11 +41,8 @@ export const tukWebAdapter: ProveedorWebAdapter = {
         const ficha = await fetchHtml(best.href);
         if (!ficha) return { urlFicha: best.href };
 
-        const $f = load(ficha);
-        return {
-            imagen: $f('meta[property="og:image"]').attr('content') || null,
-            descripcionLarga: $f('meta[property="og:description"]').attr('content') || null,
-            urlFicha: best.href,
-        };
+        const ogImg = ficha.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i)?.[1] || null;
+        const ogDesc = ficha.match(/<meta\s+property="og:description"\s+content="([^"]+)"/i)?.[1] || null;
+        return { imagen: ogImg, descripcionLarga: ogDesc, urlFicha: best.href };
     },
 };

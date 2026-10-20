@@ -1,4 +1,3 @@
-import { load } from 'cheerio';
 import { ProveedorWebAdapter, EnriquecimientoWeb } from './proveedor-web';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36';
@@ -9,8 +8,19 @@ function limpiarImagen(src: string): string | null {
     return src.split('?')[0]; // quitar resize/compresión
 }
 
+/** Extrae la primera imagen real (no placeholder) de una etiqueta img de producto. */
+function extraerImagenProducto(html: string): string | null {
+    const imgRe = /<img[^>]+product-image-photo[^>]*>/gi;
+    for (const m of html.matchAll(imgRe)) {
+        const src = m[0].match(/(?:src|data-src)="([^"]+)"/i)?.[1];
+        const limpia = src ? limpiarImagen(src) : null;
+        if (limpia) return limpia;
+    }
+    return null;
+}
+
 /**
- * Urrea — busca por código/SKU en urrea.com (Magento). El EAN no está indexado.
+ * Urrea — busca por código/SKU en urrea.com (Magento). Extracción con regex nativa.
  */
 export const urreaWebAdapter: ProveedorWebAdapter = {
     nombre: 'Urrea Herramientas',
@@ -28,20 +38,8 @@ export const urreaWebAdapter: ProveedorWebAdapter = {
         }
         if (!html) return null;
 
-        const $ = load(html);
-
-        let fichaUrl: string | null = null;
-        $('.product-item-link').each((_, el) => {
-            const href = $(el).attr('href');
-            if (href && !fichaUrl) fichaUrl = href;
-        });
-
-        let imagen: string | null = null;
-        $('.product-image-photo').each((_, el) => {
-            if (imagen) return;
-            const raw = $(el).attr('src') || $(el).attr('data-src') || '';
-            imagen = limpiarImagen(raw);
-        });
+        const fichaUrl = html.match(/class="product-item-link"[^>]*href="([^"]+)"/i)?.[1] || null;
+        const imagen = extraerImagenProducto(html);
 
         if (!fichaUrl && !imagen) return null;
         return { imagen, urlFicha: fichaUrl };

@@ -37,8 +37,13 @@ export function registrarWebAdapter(adapter: ProveedorWebAdapter): void {
 export function obtenerWebAdapter(nombre: string): ProveedorWebAdapter | undefined {
     if (registry[nombre]) return registry[nombre];
     const n = String(nombre ?? '').trim().toLowerCase();
+    if (!n) return undefined;
+    // exacto (case-insensitive)
     for (const key of Object.keys(registry)) {
         if (key.toLowerCase() === n) return registry[key];
     }
-    return undefined;
+    // parcial: 'DAI' ⊂ 'DAI Autopartes', 'Urrea' ⊂ 'Urrea Herramientas'
+    return Object.values(registry).find(
+        (a) => a.nombre.toLowerCase().includes(n) || n.includes(a.nombre.toLowerCase()),
+    );
 }

@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
             .limit(1)
             .maybeSingle();
 
-        if (!proveedor) proveedor = String(alias?.proveedor ?? '');
+        if (!proveedor) proveedor = String(alias?.proveedor ?? art.marca ?? '');
         if (!codigo) codigo = String(alias?.modelo_excel ?? art.modelo ?? '');
         if (!descripcion) descripcion = String(art.nombre ?? art.descripcion ?? '');
         if (!ean) ean = art.codigo_universal ?? null;

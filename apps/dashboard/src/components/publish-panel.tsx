@@ -19,6 +19,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { toHighResMeliUrl, meetsMeliSize } from '@/lib/image-utils';
+import { toast } from 'sonner';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
@@ -593,11 +594,14 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             const data = await res.json();
             if (data.ok && data.enriquecimiento) {
                 const e = data.enriquecimiento;
-                let aplicado = 0;
-                if (e.descripcionLarga) { setDescriptionOverride(e.descripcionLarga); aplicado++; }
-                if (e.imagen) { addSuggestion(e.imagen); aplicado++; }
-                if (Array.isArray(e.imagenes)) { for (const u of e.imagenes) addSuggestion(u); aplicado += e.imagenes.length; }
-                setErrorMsg(aplicado > 0 ? `Enriquecido: ${aplicado} campo(s) desde la web.` : 'La web del proveedor no devolvió datos para este producto.');
+                if (e.descripcionLarga) setDescriptionOverride(e.descripcionLarga);
+                const imgs = Array.from(new Set([e.imagen, ...(e.imagenes || [])].filter(Boolean) as string[]));
+                imgs.forEach((u) => addSuggestion(u));
+                if (imgs.length > 0 || e.descripcionLarga) {
+                    toast.success(`Enriquecido desde la web: ${imgs.length} imagen(es)${e.descripcionLarga ? ' + descripción' : ''}.`);
+                } else {
+                    toast.info('La web del proveedor no devolvió datos para este producto.');
+                }
             } else {
                 setErrorMsg(data.error || 'Error enriqueciendo desde la web');
             }
