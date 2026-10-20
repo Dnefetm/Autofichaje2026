@@ -9,15 +9,15 @@
 -- Estrategia (validada contra el código del dashboard):
 --   - Crítica (1): marketplace_tokens expone tokens OAuth de MeLi a {public}.
 --     Se eliminan sus políticas públicas y queda solo service_role.
---   - Grupo A (54 tablas): sin uso cliente (anon). ENABLE RLS sin políticas = DENY ALL
+--   - Grupo A (53 tablas): sin uso cliente (anon). ENABLE RLS sin políticas = DENY ALL
 --     para anon/authenticated. El servidor Next.js y Apps Script usan service_role
 --     (bypassa RLS), así que siguen funcionando.
---   - Grupo B (3 tablas): lectura desde el navegador con anon. ENABLE RLS +
+--   - Grupo B (4 tablas): lectura desde el navegador con anon. ENABLE RLS +
 --     política SELECT TO anon USING (true): bloquea escritura/borrado, preserva lectura.
 --   - Caso especial (1): fichas_tecnicas YA tiene 9 políticas (authenticated +
 --     public-con-auth.role()). Se le activa RLS y se añade UNA política SELECT para
 --     anon (solo lectura) para no romper fichas/[id]/page.tsx (cliente con anon).
---   Total: 54 + 3 + 1 = 58 tablas sin RLS (verificado en pg_tables) + marketplace_tokens.
+--   Total: 53 + 4 + 1 = 58 tablas sin RLS (verificado en pg_tables) + marketplace_tokens.
 --
 -- NOTA: este script NO revoca los GRANT de tabla de anon. Con RLS activo, Postgres
 -- aplica DENY ALL por defecto cuando no hay política aplicable, lo cual es la
@@ -32,7 +32,7 @@ DROP POLICY IF EXISTS "Public write tokens" ON public.marketplace_tokens;
 ALTER TABLE public.marketplace_tokens ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
--- 2. GRUPO A: 54 tablas sin uso cliente — DENY ALL para anon
+-- 2. GRUPO A: 53 tablas sin uso cliente — DENY ALL para anon
 -- ============================================================
 ALTER TABLE public._val_precios_v116                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.avisos_movimientos               ENABLE ROW LEVEL SECURITY;
@@ -44,7 +44,6 @@ ALTER TABLE public.egresos_backup_sin_id            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.envio_planificado_items          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.envios_planificados              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ficha_auditoria                  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ficha_extracciones               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.historial_cambios_precio         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ingresos                         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ingresos_backup_sin_id           ENABLE ROW LEVEL SECURITY;
@@ -109,6 +108,13 @@ CREATE POLICY publication_pricing_drafts_select_anon ON public.publication_prici
 ALTER TABLE public.importaciones_excel ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS importaciones_excel_select_anon ON public.importaciones_excel;
 CREATE POLICY importaciones_excel_select_anon ON public.importaciones_excel FOR SELECT TO anon USING (true);
+
+-- ficha_extracciones: fichas/[id]/page.tsx la consulta vía select ANIDADO
+-- (fichas_tecnicas → ficha_extracciones(...)). Con RLS y sin política para anon,
+-- PostgREST devuelve [] y el "Historial de extracciones" desaparece de la UI.
+ALTER TABLE public.ficha_extracciones ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ficha_extracciones_select_anon ON public.ficha_extracciones;
+CREATE POLICY ficha_extracciones_select_anon ON public.ficha_extracciones FOR SELECT TO anon USING (true);
 
 -- ============================================================
 -- 4. CASO ESPECIAL: fichas_tecnicas (ya tiene 9 políticas)
