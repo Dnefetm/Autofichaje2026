@@ -31,7 +31,7 @@ export default function MapeoMixtoPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [vinculando, setVinculando] = useState<string | null>(null);
-    const [cantidades, setCantidades] = useState<Record<string, number>>({});
+    const [cantidades, setCantidades] = useState<Record<string, string>>({});
 
     const load = async () => {
         setLoading(true);
@@ -42,8 +42,8 @@ export default function MapeoMixtoPage() {
             if (!res.ok) throw new Error(data.error || 'Error al cargar');
             const casos = (data.casos || []) as Caso[];
             setCasos(casos);
-            const init: Record<string, number> = {};
-            for (const c of casos) for (const s of c.sin_mapear) init[s.id] = c.mapeada.cantidad_requerida ?? 1;
+            const init: Record<string, string> = {};
+            for (const c of casos) for (const s of c.sin_mapear) init[s.id] = String(c.mapeada.cantidad_requerida ?? 1);
             setCantidades(init);
         } catch (e: any) {
             setError(e.message || 'Error');
@@ -58,7 +58,7 @@ export default function MapeoMixtoPage() {
         if (!caso.mapeada.articulo_id) { toast.error('La publicación mapeada no tiene artículo enlazado'); return; }
         setVinculando(sib.id);
         try {
-            const cantidad = cantidades[sib.id] ?? caso.mapeada.cantidad_requerida ?? 1;
+            const cantidad = Math.max(1, parseInt(cantidades[sib.id] ?? '') || 1);
             const res = await fetch('/api/vinculacion/confirmar-lote', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -167,8 +167,12 @@ export default function MapeoMixtoPage() {
                                                     <input
                                                         type="number"
                                                         min="1"
-                                                        value={cantidades[sib.id] ?? caso.mapeada.cantidad_requerida ?? 1}
-                                                        onChange={(e) => setCantidades((prev) => ({ ...prev, [sib.id]: Math.max(1, parseInt(e.target.value) || 1) }))}
+                                                        value={cantidades[sib.id] ?? String(caso.mapeada.cantidad_requerida ?? 1)}
+                                                        onChange={(e) => setCantidades((prev) => ({ ...prev, [sib.id]: e.target.value }))}
+                                                        onBlur={() => {
+                                                            const sid = sib.id;
+                                                            setCantidades((prev) => { const v = prev[sid]; const n = parseInt(v ?? ''); return { ...prev, [sid]: (n && n >= 1) ? String(n) : '1' }; });
+                                                        }}
                                                         className="w-14 px-1.5 py-1 text-xs border border-[var(--border)] rounded bg-[var(--surface)] text-[var(--text)] font-mono"
                                                     />
                                                 </label>

@@ -44,7 +44,8 @@ export function NewConditionDialog({
     );
     const [freeShipping, setFreeShipping] = useState<boolean>(!currentFreeShipping);
     const [price, setPrice] = useState<string>('');
-    const [qty, setQty] = useState<number>(cantidadRequerida && cantidadRequerida >= 1 ? cantidadRequerida : 1);
+    const [qty, setQty] = useState<string>(cantidadRequerida && cantidadRequerida >= 1 ? String(cantidadRequerida) : '1');
+    const qtyNum = Math.max(1, parseInt(qty) || 1);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -64,7 +65,7 @@ export function NewConditionDialog({
                     free_shipping: freeShipping,
                     price_override: price.trim() ? Number(price) : null,
                     articulo_id: articuloId,
-                    cantidad_requerida: qty,
+                    cantidad_requerida: qtyNum,
                     dry_run: dryRun,
                 }),
             });
@@ -170,7 +171,8 @@ export function NewConditionDialog({
                             type="number"
                             min="1"
                             value={qty}
-                            onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+                            onChange={e => setQty(e.target.value)}
+                            onBlur={() => setQty(v => { const n = parseInt(v); return (n && n >= 1) ? String(n) : '1'; })}
                             className="w-full px-3 py-2 rounded-[var(--radius-sm)] bg-[var(--surface-2)] border border-[var(--border)] text-sm text-[var(--text)] font-mono font-bold text-[var(--accent)] focus:outline-none focus:border-[var(--accent)]"
                         />
                         <p className="text-[10px] text-[var(--text-faint)] mt-1">Heredado del ítem base. Ajusta si esta condición es un pack distinto.</p>
