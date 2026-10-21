@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Page } from '@/components/ui/Page';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Card } from '@/components/ui/Card';
+import { FormField } from '@/components/ui/FormField';
+import { DataTable, Column } from '@/components/ui/DataTable';
 import { Btn } from '@/components/ui/Btn';
 import { Badge } from '@/components/ui/Badge';
 import { supabaseBrowser } from '@/lib/supabase-browser';
@@ -42,6 +45,13 @@ interface Movimiento {
   imagenes: string[];
 }
 
+interface Foto {
+  path: string;
+  preview: string;
+}
+
+const MAX_FOTOS = 5;
+
 const TIPOS_INGRESO = ['Compra', 'Otro', 'Retiro Full', 'Devolución a Selecto MX'];
 const TIPOS_EGRESO = ['venta', 'envio_full', 'otro'];
 
@@ -80,8 +90,38 @@ function comprimirImagen(file: File): Promise<File> {
   });
 }
 
-export function MovementOperator() {
-  const [tipo, setTipo] = useState<TipoMovimiento>('egreso');
+// Sube UNA foto comprimida directo cliente → Storage (bucket privado) y devuelve el path.
+async function subirFoto(file: File): Promise<string> {
+  const comprimida = await comprimirImagen(file);
+
+  const r = await fetch('/api/movimientos/foto', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ext: comprimida.type === 'image/webp' ? 'webp' : 'jpg' }),
+  });
+  const j = await r.json();
+  if (!j.ok || !j.path || !j.token) throw new Error(j.error || 'No se pudo preparar la subida');
+
+  const sb = supabaseBrowser();
+  const { error: upErr } = await sb.storage.from(j.bucket).uploadToSignedUrl(j.path, j.token, comprimida);
+  if (upErr) throw new Error(upErr.message || 'Error subiendo foto');
+
+  return j.path;
+}
+
+const inputBase =
+  'w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-[var(--radius-sm)] ' +
+  'px-3 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] ' +
+  'focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 focus:border-[var(--accent)] transition-colors';
+
+export function MovementOperator({
+  articuloId,
+  tipoInicial,
+}: {
+  articuloId?: string | null;
+  tipoInicial?: TipoMovimiento;
+}) {
+  const [tipo, setTipo] = useState<TipoMovimiento>(tipoInicial ?? 'egreso');
 
   // Búsqueda de artículo
   const [query, setQuery] = useState('');
@@ -90,7 +130,7 @@ export function MovementOperator() {
   const [articulo, setArticulo] = useState<Articulo | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Operadores (cache en memoria; 11 filas, casi no cambian)
+  // Operadores (cache en memoria; pocas filas, casi no cambian)
   const [operadores, setOperadores] = useState<Operador[]>([]);
 
   // Formulario
@@ -98,8 +138,7 @@ export function MovementOperator() {
   const [tipoMov, setTipoMov] = useState('');
   const [operadorId, setOperadorId] = useState('');
   const [nota, setNota] = useState('');
-  const [fotoPath, setFotoPath] = useState<string | null>(null);
-  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [fotos, setFotos] = useState<Foto[]>([]);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
 
   const [guardando, setGuardando] = useState(false);
@@ -128,6 +167,31 @@ export function MovementOperator() {
       if (Array.isArray(j.movimientos)) setRecientes(j.movimientos);
     } catch { /* silencioso */ }
   }, []);
+
+  // Pre-carga del artículo cuando se llega desde la ficha del catálogo.
+  useEffect(() => {
+    if (!articuloId) return;
+    (async () => {
+      try {
+        const r = await fetch(`/api/articulos/${encodeURIComponent(articuloId)}`);
+        if (!r.ok) return;
+        const j = await r.json();
+        if (j.articulo) {
+          const a = j.articulo;
+          setArticulo({
+            articulo_id: a.articulo_id,
+            modelo: a.modelo ?? null,
+            marca: a.marca ?? null,
+            codigo_universal: a.codigo_universal ?? null,
+            descripcion: a.descripcion ?? null,
+            nombre: a.nombre ?? null,
+            caja_madre: a.caja_madre ?? null,
+            variante: a.variante ?? null,
+          });
+        }
+      } catch { /* silencioso */ }
+    })();
+  }, [articuloId]);
 
   useEffect(() => { cargarOperadores(); cargarRecientes(); }, [cargarOperadores, cargarRecientes]);
 
@@ -173,7 +237,6 @@ export function MovementOperator() {
             const t = String(text ?? '').trim();
             if (!t) return;
             setEscanerAbierto(false);
-            // Búsqueda exacta por código escaneado.
             try {
               const r = await fetch(`/api/articulos/buscar?query=${encodeURIComponent(t)}&limit=5`);
               const j = await r.json();
@@ -196,31 +259,25 @@ export function MovementOperator() {
     };
   }, [escanerAbierto]);
 
-  const tomarFoto = async (ev: React.ChangeEvent<HTMLInputElement>) => {
-    const file = ev.target.files?.[0];
+  const tomarFotos = async (ev: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(ev.target.files ?? []);
     ev.target.value = '';
-    if (!file) return;
+    if (files.length === 0) return;
+
+    const libres = MAX_FOTOS - fotos.length;
+    if (libres <= 0) { toast.error(`Máximo ${MAX_FOTOS} fotos por movimiento`); return; }
+    const aSubir = files.slice(0, libres);
+    if (files.length > libres) toast.error(`Solo se adjuntan ${libres} foto(s) más (máx ${MAX_FOTOS})`);
+
     setSubiendoFoto(true);
     try {
-      const comprimida = await comprimirImagen(file);
-
-      // 1) signed upload URL (sin bytes por Vercel)
-      const r = await fetch('/api/movimientos/foto', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ext: comprimida.type === 'image/webp' ? 'webp' : 'jpg' }),
-      });
-      const j = await r.json();
-      if (!j.ok || !j.path || !j.token) throw new Error(j.error || 'No se pudo preparar la subida');
-
-      // 2) subida directa cliente -> Storage
-      const sb = supabaseBrowser();
-      const { error: upErr } = await sb.storage.from(j.bucket).uploadToSignedUrl(j.path, j.token, comprimida);
-      if (upErr) throw new Error(upErr.message || 'Error subiendo foto');
-
-      setFotoPath(j.path);
-      setFotoPreview(URL.createObjectURL(comprimida));
-      toast.success('Foto adjuntada');
+      const nuevas: Foto[] = [];
+      for (const file of aSubir) {
+        const path = await subirFoto(file);
+        nuevas.push({ path, preview: URL.createObjectURL(file) });
+      }
+      setFotos((prev) => [...prev, ...nuevas]);
+      toast.success(`${nuevas.length} foto(s) adjuntada(s)`);
     } catch (e: any) {
       toast.error(e?.message || 'Error al subir la foto');
     } finally {
@@ -228,9 +285,12 @@ export function MovementOperator() {
     }
   };
 
-  const quitarFoto = () => {
-    setFotoPath(null);
-    setFotoPreview(null);
+  const quitarFoto = (idx: number) => {
+    setFotos((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      URL.revokeObjectURL(prev[idx]?.preview ?? '');
+      return next;
+    });
   };
 
   const resetForm = () => {
@@ -238,8 +298,7 @@ export function MovementOperator() {
     setCantidad('');
     setTipoMov('');
     setNota('');
-    setFotoPath(null);
-    setFotoPreview(null);
+    setFotos((prev) => { prev.forEach((f) => URL.revokeObjectURL(f.preview)); return []; });
   };
 
   const guardar = async () => {
@@ -251,7 +310,7 @@ export function MovementOperator() {
       if (tipoMov) payload[tipo === 'ingreso' ? 'tipo_ingreso' : 'tipo_egreso'] = tipoMov;
       if (operadorId) payload.operador_id = operadorId;
       if (nota.trim()) payload.notas = nota.trim();
-      if (fotoPath) payload.imagenes = [fotoPath];
+      if (fotos.length > 0) payload.imagenes = fotos.map((f) => f.path);
 
       const r = await fetch('/api/movimientos', {
         method: 'POST',
@@ -275,10 +334,35 @@ export function MovementOperator() {
     return (id: string | null) => (id ? map.get(id) || id : null);
   }, [operadores]);
 
-  const inputBase =
-    'w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-[var(--radius-sm)] ' +
-    'px-3 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] ' +
-    'focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 focus:border-[var(--accent)] transition-colors';
+  const columnas: Column<Movimiento>[] = [
+    {
+      key: 'tipo', label: 'Tipo', width: '64px',
+      render: (m) => <Badge tone={m.tipo === 'ingreso' ? 'success' : 'warning'}>{m.tipo === 'ingreso' ? 'IN' : 'OUT'}</Badge>,
+    },
+    {
+      key: 'articulo', label: 'Artículo',
+      render: (m) => (
+        <div className="min-w-0">
+          <p className="text-sm text-[var(--text)] truncate">{m.nombre_articulo || m.articulo_id || '(sin artículo)'}</p>
+          {m.notas && <p className="text-[11px] text-[var(--text-faint)] truncate">{m.notas}</p>}
+        </div>
+      ),
+    },
+    { key: 'cantidad', label: 'Cant.', align: 'right', width: '70px', render: (m) => m.cantidad != null ? `${m.cantidad}` : '—' },
+    { key: 'tipo_movimiento', label: 'Movimiento', render: (m) => m.tipo_movimiento || '—' },
+    {
+      key: 'operador', label: 'Operador',
+      render: (m) => m.operador_id ? nombreOperador(m.operador_id) : '—',
+    },
+    {
+      key: 'fecha', label: 'Fecha',
+      render: (m) => m.fecha ? new Date(m.fecha).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—',
+    },
+    {
+      key: 'foto', label: 'Foto', align: 'right', width: '56px',
+      render: (m) => m.imagenes.length > 0 ? <Camera className="w-3.5 h-3.5 text-[var(--info)]" /> : null,
+    },
+  ];
 
   return (
     <Page>
@@ -305,140 +389,135 @@ export function MovementOperator() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Columna formulario */}
-        <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] p-4 space-y-3">
-          {/* Artículo */}
-          <div>
-            <label className="block text-[11px] font-semibold text-[var(--text-muted)] mb-1.5">Artículo (opcional)</label>
-            {articulo ? (
-              <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)]">
-                <Package className="w-4 h-4 text-[var(--accent)] mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-[var(--text)] truncate">{articulo.nombre || articulo.articulo_id}</p>
-                  <p className="text-xs text-[var(--text-faint)] font-mono truncate">{articulo.articulo_id}{articulo.marca ? ` · ${articulo.marca}` : ''}{articulo.modelo ? ` · ${articulo.modelo}` : ''}</p>
-                  {articulo.caja_madre && <p className="text-xs text-[var(--info)]">📍 {articulo.caja_madre}</p>}
+        <Card title={`Registrar ${tipo}`}>
+          <div className="p-4 space-y-4">
+            {/* Artículo */}
+            <FormField label="Artículo (opcional)">
+              {articulo ? (
+                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[var(--surface-2)] border border-[var(--border)]">
+                  <Package className="w-4 h-4 text-[var(--accent)] mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-[var(--text)] truncate">{articulo.nombre || articulo.articulo_id}</p>
+                    <p className="text-xs text-[var(--text-faint)] font-mono truncate">{articulo.articulo_id}{articulo.marca ? ` · ${articulo.marca}` : ''}{articulo.modelo ? ` · ${articulo.modelo}` : ''}</p>
+                    {articulo.caja_madre && <p className="text-xs text-[var(--info)]">📍 {articulo.caja_madre}</p>}
+                  </div>
+                  <Btn size="sm" variant="ghost" onClick={() => setArticulo(null)}><X className="w-3.5 h-3.5" /></Btn>
                 </div>
-                <Btn size="sm" variant="ghost" onClick={() => setArticulo(null)}><X className="w-3.5 h-3.5" /></Btn>
-              </div>
-            ) : (
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(e) => { setQuery(e.target.value); buscar(e.target.value); }}
-                  placeholder="Buscar por SKU, EAN, nombre…"
-                  className={`${inputBase} pl-9`}
-                />
-                <button
-                  onClick={() => { setEscanerError(null); setEscanerAbierto(true); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--accent)] hover:brightness-110"
-                  title="Escanear código de barras"
-                >
-                  <ScanLine className="w-5 h-5" />
-                </button>
-              </div>
-            )}
-            {!articulo && buscando && (
-              <p className="text-xs text-[var(--text-faint)] mt-1.5 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Buscando…</p>
-            )}
-            {!articulo && resultados.length > 0 && (
-              <div className="mt-1.5 border border-[var(--border)] rounded-lg divide-y divide-[var(--border)] max-h-60 overflow-auto">
-                {resultados.map((a) => (
-                  <button key={a.articulo_id} onClick={() => elegirArticulo(a)} className="w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] transition-colors">
-                    <p className="text-sm text-[var(--text)] truncate">{a.nombre || a.articulo_id}</p>
-                    <p className="text-[11px] text-[var(--text-faint)] font-mono truncate">{a.articulo_id}{a.caja_madre ? ` · 📍 ${a.caja_madre}` : ''}</p>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => { setQuery(e.target.value); buscar(e.target.value); }}
+                    placeholder="Buscar por SKU, EAN, nombre…"
+                    className={`${inputBase} pl-9`}
+                  />
+                  <button
+                    onClick={() => { setEscanerError(null); setEscanerAbierto(true); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--accent)] hover:brightness-110"
+                    title="Escanear código de barras"
+                  >
+                    <ScanLine className="w-5 h-5" />
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+              {!articulo && buscando && (
+                <p className="text-xs text-[var(--text-faint)] mt-1.5 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Buscando…</p>
+              )}
+              {!articulo && resultados.length > 0 && (
+                <div className="mt-1.5 border border-[var(--border)] rounded-lg divide-y divide-[var(--border)] max-h-60 overflow-auto">
+                  {resultados.map((a) => (
+                    <button key={a.articulo_id} onClick={() => elegirArticulo(a)} className="w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] transition-colors">
+                      <p className="text-sm text-[var(--text)] truncate">{a.nombre || a.articulo_id}</p>
+                      <p className="text-[11px] text-[var(--text-faint)] font-mono truncate">{a.articulo_id}{a.caja_madre ? ` · 📍 ${a.caja_madre}` : ''}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </FormField>
 
-          {/* Cantidad + tipo */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-semibold text-[var(--text-muted)] mb-1.5">Cantidad</label>
-              <input
-                type="number" min={0} inputMode="numeric" value={cantidad}
-                onChange={(e) => setCantidad(e.target.value)}
-                placeholder="0"
-                className={inputBase}
-              />
+            {/* Cantidad + tipo */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Cantidad">
+                <input
+                  type="number" min={0} inputMode="numeric" value={cantidad}
+                  onChange={(e) => setCantidad(e.target.value)}
+                  placeholder="0"
+                  className={inputBase}
+                />
+              </FormField>
+              <FormField label="Tipo">
+                <select value={tipoMov} onChange={(e) => setTipoMov(e.target.value)} className={inputBase}>
+                  <option value="">—</option>
+                  {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </FormField>
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[var(--text-muted)] mb-1.5">Tipo</label>
-              <select value={tipoMov} onChange={(e) => setTipoMov(e.target.value)} className={inputBase}>
+
+            {/* Operador */}
+            <FormField label="Operador">
+              <select value={operadorId} onChange={(e) => setOperadorId(e.target.value)} className={inputBase}>
                 <option value="">—</option>
-                {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
+                {operadores.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
               </select>
+            </FormField>
+
+            {/* Nota */}
+            <FormField label="Nota">
+              <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} placeholder="Ej. Merma, caja dañada…" className={`${inputBase} resize-y`} />
+            </FormField>
+
+            {/* Fotos (hasta 5) */}
+            <FormField label={`Fotos (${fotos.length}/${MAX_FOTOS}, opcional)`}>
+              {fotos.length > 0 && (
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-2">
+                  {fotos.map((f, i) => (
+                    <div key={f.path} className="relative aspect-square rounded-lg border border-[var(--border)] overflow-hidden group">
+                      <img src={f.preview} alt="" className="w-full h-full object-cover bg-white" />
+                      <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">#{i + 1}</span>
+                      <button
+                        onClick={() => quitarFoto(i)}
+                        className="absolute top-1 right-1 p-1 bg-[var(--err)]/80 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Quitar foto"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Btn
+                size="sm"
+                variant="outline"
+                loading={subiendoFoto}
+                icon={<Camera className="w-4 h-4" />}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={fotos.length >= MAX_FOTOS}
+              >
+                {subiendoFoto ? 'Subiendo…' : fotos.length >= MAX_FOTOS ? 'Máx. 5 fotos' : 'Tomar foto'}
+              </Btn>
+              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={tomarFotos} />
+            </FormField>
+
+            <div className="flex justify-end pt-1">
+              <Btn onClick={guardar} loading={guardando} icon={tipo === 'ingreso' ? <ArrowDownToLine className="w-4 h-4" /> : <ArrowUpFromLine className="w-4 h-4" />}>
+                {guardando ? 'Guardando…' : `Guardar ${tipo}`}
+              </Btn>
             </div>
           </div>
-
-          {/* Operador */}
-          <div>
-            <label className="block text-[11px] font-semibold text-[var(--text-muted)] mb-1.5">Operador</label>
-            <select value={operadorId} onChange={(e) => setOperadorId(e.target.value)} className={inputBase}>
-              <option value="">—</option>
-              {operadores.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
-            </select>
-          </div>
-
-          {/* Nota */}
-          <div>
-            <label className="block text-[11px] font-semibold text-[var(--text-muted)] mb-1.5">Nota</label>
-            <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} placeholder="Ej. Merma, caja dañada…" className={`${inputBase} resize-y`} />
-          </div>
-
-          {/* Foto (opcional) */}
-          <div>
-            <label className="block text-[11px] font-semibold text-[var(--text-muted)] mb-1.5">Foto (opcional)</label>
-            {fotoPreview ? (
-              <div className="flex items-center gap-3">
-                <img src={fotoPreview} alt="" className="w-20 h-20 rounded-lg object-cover bg-white border border-[var(--border)]" />
-                <Btn size="sm" variant="ghost" onClick={quitarFoto}><X className="w-3.5 h-3.5" /> Quitar</Btn>
-              </div>
-            ) : (
-              <Btn size="sm" variant="outline" loading={subiendoFoto} icon={<Camera className="w-4 h-4" />} onClick={() => fileInputRef.current?.click()}>
-                {subiendoFoto ? 'Subiendo…' : 'Tomar foto'}
-              </Btn>
-            )}
-            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={tomarFoto} />
-          </div>
-
-          <div className="flex justify-end pt-1">
-            <Btn onClick={guardar} loading={guardando} icon={tipo === 'ingreso' ? <ArrowDownToLine className="w-4 h-4" /> : <ArrowUpFromLine className="w-4 h-4" />}>
-              {guardando ? 'Guardando…' : `Guardar ${tipo}`}
-            </Btn>
-          </div>
-        </div>
+        </Card>
 
         {/* Columna historial */}
-        <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] p-4">
-          <h3 className="text-sm font-bold text-[var(--text)] uppercase tracking-wider mb-3">Últimos movimientos</h3>
-          {recientes.length === 0 ? (
-            <p className="text-sm text-[var(--text-faint)]">Sin movimientos recientes.</p>
-          ) : (
-            <div className="divide-y divide-[var(--border)]">
-              {recientes.map((m) => (
-                <div key={`${m.tipo}-${m.id}`} className="py-2 flex items-center gap-2">
-                  <Badge tone={m.tipo === 'ingreso' ? 'success' : 'warning'}>
-                    {m.tipo === 'ingreso' ? 'IN' : 'OUT'}
-                  </Badge>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-[var(--text)] truncate">{m.nombre_articulo || m.articulo_id || '(sin artículo)'}</p>
-                    <p className="text-[11px] text-[var(--text-faint)] truncate">
-                      {m.cantidad != null ? `${m.cantidad} uds` : ''}{m.tipo_movimiento ? ` · ${m.tipo_movimiento}` : ''}{m.notas ? ` · ${m.notas}` : ''}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-[var(--text-muted)]">{m.fecha ? new Date(m.fecha).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</p>
-                    {m.imagenes.length > 0 && <Camera className="w-3.5 h-3.5 text-[var(--info)] ml-auto" />}
-                    {m.operador_id && <p className="text-[10px] text-[var(--text-faint)]">{nombreOperador(m.operador_id)}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <Card title="Últimos movimientos">
+          <DataTable
+            columns={columnas}
+            rows={recientes}
+            rowKey={(m) => `${m.tipo}-${m.id}`}
+            empty="Sin movimientos recientes."
+            dense
+          />
+        </Card>
       </div>
 
       {/* Modal escáner */}

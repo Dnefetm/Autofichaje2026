@@ -7,7 +7,8 @@ import Link from 'next/link';
 import {
     ArrowLeft, AlertCircle, Image as ImageIcon,
     ExternalLink, RefreshCw,
-    FileText, XCircle, CheckCircle, Link2, Plus, Sparkles, Clock, Globe
+    FileText, XCircle, CheckCircle, Link2, Plus, Sparkles, Clock, Globe,
+    ArrowDownToLine, ArrowUpFromLine
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -266,6 +267,22 @@ export default function ArticuloDetailPage() {
                             <span className={cn("text-3xl font-black tabular-nums", isLowStock ? "text-[var(--err)]" : "text-[var(--ok)]")}>
                                 {stock}
                             </span>
+                        </div>
+
+                        {/* Registrar movimientos directo desde el catálogo */}
+                        <div className="flex gap-2">
+                            <Link
+                                href={`/movimientos?articulo=${encodeURIComponent(product.articulo_id || id)}&tipo=ingreso`}
+                                className="inline-flex items-center justify-center gap-1.5 flex-1 px-3 py-2 text-xs font-bold text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--ok)]/20 transition-colors"
+                            >
+                                <ArrowDownToLine className="w-3.5 h-3.5" /> Registrar entrada
+                            </Link>
+                            <Link
+                                href={`/movimientos?articulo=${encodeURIComponent(product.articulo_id || id)}&tipo=egreso`}
+                                className="inline-flex items-center justify-center gap-1.5 flex-1 px-3 py-2 text-xs font-bold text-[var(--warn)] bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--warn)]/20 transition-colors"
+                            >
+                                <ArrowUpFromLine className="w-3.5 h-3.5" /> Registrar salida
+                            </Link>
                         </div>
 
                         {/* Boolean Flags */}

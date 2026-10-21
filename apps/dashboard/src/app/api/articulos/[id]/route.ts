@@ -30,7 +30,7 @@ export async function GET(
         .from('articulos')
         .select(`
             articulo_id, nombre, marca, modelo, variante, categoria,
-            descripcion, codigo_universal, codigo_sat,
+            descripcion, codigo_universal, codigo_sat, caja_madre,
             peso_kg, largo_cm, ancho_cm, alto_cm, materiales, pais_origen
         `)
         .eq('articulo_id', id.trim())
