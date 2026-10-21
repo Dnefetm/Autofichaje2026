@@ -7,7 +7,7 @@ import Link from 'next/link';
 import {
     ArrowLeft, AlertCircle, Image as ImageIcon,
     ExternalLink, RefreshCw,
-    FileText, XCircle, CheckCircle, Link2, Plus, Sparkles, Clock
+    FileText, XCircle, CheckCircle, Link2, Plus, Sparkles, Clock, Globe
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ import { PublishPanel } from '@/components/publish-panel';
 import { NewConditionDialog } from '@/components/new-condition-dialog';
 import VincularVitrinaModal from '@/components/vincular-vitrina-modal';
 import RellenarDesdeFichaModal from '@/components/rellenar-desde-ficha-modal';
+import EnrichReviewModal from '@/components/enrich-review-modal';
 import { ArticleEditForm } from '@/components/article-edit-form';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -59,6 +60,7 @@ export default function ArticuloDetailPage() {
     const [reconcileNote, setReconcileNote] = useState<string | null>(null);
     const [showVincularVitrina, setShowVincularVitrina] = useState(false);
     const [showRellenarFicha, setShowRellenarFicha] = useState(false);
+    const [showEnrichWeb, setShowEnrichWeb] = useState(false);
     const [creatingFicha, setCreatingFicha] = useState(false);
 
     useEffect(() => {
@@ -201,6 +203,9 @@ export default function ArticuloDetailPage() {
                     <ArrowLeft className="w-4 h-4" /> Volver al catálogo
                 </Link>
                 <div className="flex items-center gap-1">
+                    <button onClick={() => setShowEnrichWeb(true)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-[var(--info)] bg-[var(--info)]/10 border border-[var(--info)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--info)]/20 transition-colors" title="Extraer imagen y descripción desde la web del proveedor">
+                        <Globe className="w-3.5 h-3.5" /> Extraer de la web
+                    </button>
                     <button onClick={handleDelete} className="px-2.5 py-1.5 text-xs font-bold text-[var(--err)] bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--err)]/20 transition-colors" title="Eliminar artículo del catálogo">
                         Eliminar artículo
                     </button>
@@ -520,6 +525,17 @@ export default function ArticuloDetailPage() {
                     articuloId={product.articulo_id || id}
                     onClose={() => setShowRellenarFicha(false)}
                     onSuccess={() => { setShowRellenarFicha(false); fetchProduct(true); }}
+                />
+            )}
+
+            {/* Modal: enriquecer artículo desde la web del proveedor */}
+            {showEnrichWeb && (
+                <EnrichReviewModal
+                    articuloId={product.articulo_id || id}
+                    descripcionActual={product.descripcion}
+                    imagenesActuales={Array.isArray(product.imagenes) ? product.imagenes : []}
+                    onClose={() => setShowEnrichWeb(false)}
+                    onSuccess={() => { setShowEnrichWeb(false); fetchProduct(true); }}
                 />
             )}
         </div>
