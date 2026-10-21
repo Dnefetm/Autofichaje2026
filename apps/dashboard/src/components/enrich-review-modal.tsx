@@ -225,7 +225,7 @@ export default function EnrichReviewModal({
                                 <textarea
                                     value={descEditable}
                                     onChange={(ev) => setDescEditable(ev.target.value)}
-                                    rows={5}
+                                    rows={10}
                                     className="w-full px-3 py-2 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:ring-2 focus:ring-[var(--accent)] focus:outline-none"
                                     placeholder="Descripción propuesta (editable)"
                                 />
