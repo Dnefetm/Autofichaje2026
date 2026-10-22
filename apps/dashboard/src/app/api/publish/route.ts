@@ -711,6 +711,10 @@ export async function POST(req: NextRequest) {
             alternativas: category_info?.candidates || [],
         };
 
+        // Cantidad de piezas del paquete. Se multiplica el COSTO base (no el precio de venta)
+        // para que el envío fijo se cobre una sola vez y el precio de pack sea correcto.
+        const effectivePackQty = Math.max(1, Number(cantidad_requerida ?? (body as any)?.pack_quantity ?? sourcePackQty ?? 1));
+
         // -- 5.1 Precio pre-publicación (Motor V2 orientado a proveedor) ---------
         // Usa la MISMA fórmula que post-publicación, resuelta antes de crear el item.
         // Si la RPC no está aplicada o no devuelve precio, cae a marketplace_prices.
@@ -720,6 +724,7 @@ export async function POST(req: NextRequest) {
                 p_marketplace_id:  marketplace_id,
                 p_category_id:     category_id,
                 p_listing_type_id: listing_type_id,
+                p_cantidad_requerida: effectivePackQty,
                 ...(force_rule_id ? { p_force_rule_id: force_rule_id } : {}),
             });
             if (!rpcErr && rpcPrice?.sale_price != null && Number(rpcPrice.sale_price) > 0) {
@@ -1381,7 +1386,6 @@ export async function POST(req: NextRequest) {
             if (pubInserted?.id) {
                 persistedIds.push(pubInserted.id);
                 const isFulfillment = (sourceData?.shipping?.logistic_type === 'fulfillment') || (sourceItem?.shipping?.logistic_type === 'fulfillment');
-                const effectivePackQty = Math.max(1, Number(cantidad_requerida ?? (body as any)?.pack_quantity ?? sourcePackQty ?? 1));
                 const { error: mapErr } = await supabaseAdmin
                     .from('mapeo_publicacion_articulo')
                     .upsert({

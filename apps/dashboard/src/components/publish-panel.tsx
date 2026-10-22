@@ -1000,6 +1000,18 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             placeholder={sourcePublicacion?.sku || articleData?.modelo || ''}
                                             className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
                                         />
+                                        {packQtyNum > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSkuOverride(() => {
+                                                    const base = (skuOverride || sourcePublicacion?.sku || articleData?.modelo || '').replace(/\s*-\s*\d+X\s*$/i, '').trim();
+                                                    return base ? `${base}-${packQtyNum}X` : `${packQtyNum}X`;
+                                                })}
+                                                className="text-[10px] font-bold text-[var(--accent)] hover:underline mt-1"
+                                            >
+                                                Sugerir sufijo de pack: {`${(skuOverride || sourcePublicacion?.sku || articleData?.modelo || '').replace(/\s*-\s*\d+X\s*$/i, '').trim()}-${packQtyNum}X`}
+                                            </button>
+                                        )}
                                     </label>
                                     <label className="block">
                                         <span className="text-[10px] font-semibold text-[var(--text-muted)]">Marca</span>
@@ -1291,6 +1303,32 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 <p className="font-bold text-[var(--ok)] text-sm">Preview listo — revisa y confirma</p>
                                                 <p className="text-xs text-[var(--ok)]">Cuenta: <strong>{accountName}</strong>{t?.paso_3_precio?.sale_price ? <span> · Precio: <strong>{new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(t.paso_3_precio.sale_price)}</strong></span> : null}</p>
                                             </div>
+                                        </div>
+
+                                        {/* SKU — confirmación final editable (paquete) */}
+                                        <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2">
+                                            <label className="block">
+                                                <span className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider">SKU en MeLi</span>
+                                                <input
+                                                    type="text"
+                                                    value={skuOverride}
+                                                    onChange={e => setSkuOverride(e.target.value)}
+                                                    placeholder={sourcePublicacion?.sku || articleData?.modelo || ''}
+                                                    className="mt-1 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
+                                                />
+                                            </label>
+                                            {packQtyNum > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSkuOverride(() => {
+                                                        const base = (skuOverride || sourcePublicacion?.sku || articleData?.modelo || '').replace(/\s*-\s*\d+X\s*$/i, '').trim();
+                                                        return base ? `${base}-${packQtyNum}X` : `${packQtyNum}X`;
+                                                    })}
+                                                    className="text-[10px] font-bold text-[var(--accent)] hover:underline"
+                                                >
+                                                    Sugerir sufijo de pack: {`${(skuOverride || sourcePublicacion?.sku || articleData?.modelo || '').replace(/\s*-\s*\d+X\s*$/i, '').trim()}-${packQtyNum}X`}
+                                                </button>
+                                            )}
                                         </div>
 
                                         {/* Advertencia informativa de publicación existente / paquete */}
