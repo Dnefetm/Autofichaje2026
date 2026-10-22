@@ -24,6 +24,8 @@ export interface FilterState {
     stockRange: '0' | '1-5' | '6-20' | '20+' | null;
     sortBy: 'creado_el' | 'precio_venta' | 'sold_quantity' | 'health' | 'stock_publicado' | 'titulo' | 'ultima_auditoria_precio_el';
     sortDir: 'asc' | 'desc';
+    auditoriaPrecioFilter: 'all' | 'sin_auditar' | 'mas_7_dias' | 'auditado';
+    brechaPrecioFilter: 'all' | 'con_costo' | 'perdida' | 'sobreprecio' | 'sin_precio' | 'alineado';
 }
 
 export const defaultFilters: FilterState = {
@@ -46,6 +48,8 @@ export const defaultFilters: FilterState = {
     stockRange: null,
     sortBy: 'creado_el',
     sortDir: 'desc',
+    auditoriaPrecioFilter: 'all',
+    brechaPrecioFilter: 'all',
 };
 
 interface FacetItem { value: string; label: string; count?: number; }
@@ -122,6 +126,8 @@ function countActive(filters: FilterState): number {
     if (filters.priceMin !== null || filters.priceMax !== null) c++;
     if (filters.salesRange) c++;
     if (filters.stockRange) c++;
+    if (filters.auditoriaPrecioFilter !== 'all') c++;
+    if (filters.brechaPrecioFilter !== 'all') c++;
     return c;
 }
 
@@ -275,6 +281,42 @@ export function FiltersSidebar({ filters, onChange, facets, marketplaces }: Filt
                             label={m === 'all' ? 'Todos' : m === 'mapped' ? 'Solo mapeados' : 'Sin mapear'}
                             selected={filters.mapeoFilter === m}
                             onChange={() => set({ mapeoFilter: m })}
+                        />
+                    ))}
+                </Accordion>
+
+                {/* Auditoría de Precio */}
+                <Accordion title="Auditoría de Precio" defaultOpen>
+                    {([
+                        { val: 'all', label: 'Todas' },
+                        { val: 'sin_auditar', label: '🔴 Sin auditar' },
+                        { val: 'mas_7_dias', label: '🟡 Auditoría > 7 días' },
+                        { val: 'auditado', label: '🟢 Auditado reciente' },
+                    ] as const).map(({ val, label }) => (
+                        <RadioItem
+                            key={val}
+                            label={label}
+                            selected={filters.auditoriaPrecioFilter === val}
+                            onChange={() => set({ auditoriaPrecioFilter: val })}
+                        />
+                    ))}
+                </Accordion>
+
+                {/* Brecha con Motor (Costo Activo) */}
+                <Accordion title="Brecha Motor (con Costo)" defaultOpen>
+                    {([
+                        { val: 'all', label: 'Todas' },
+                        { val: 'con_costo', label: 'Con lista de precio activa' },
+                        { val: 'perdida', label: '🔴 En pérdida (subprecio)' },
+                        { val: 'sobreprecio', label: '🟡 Sobreprecio' },
+                        { val: 'sin_precio', label: '🟣 Sin precio ($0)' },
+                        { val: 'alineado', label: '🟢 Alineadas' },
+                    ] as const).map(({ val, label }) => (
+                        <RadioItem
+                            key={val}
+                            label={label}
+                            selected={filters.brechaPrecioFilter === val}
+                            onChange={() => set({ brechaPrecioFilter: val })}
                         />
                     ))}
                 </Accordion>

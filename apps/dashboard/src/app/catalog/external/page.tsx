@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -156,6 +157,127 @@ function AuditBadge({ precioEl, pubEl }: { precioEl: string | null; pubEl: strin
     return null; // reciente: no destacar
 }
 
+// Badge específico de auditoría de precio (independiente de publicación)
+function PrecioAuditBadge({ precioEl, compact = false }: { precioEl: string | null; compact?: boolean }) {
+    if (!precioEl) {
+        return (
+            <span
+                className={cn(
+                    "inline-flex items-center gap-1 font-semibold rounded-full border shrink-0",
+                    "bg-[var(--err)]/15 text-[var(--err)] border-[var(--err)]/30",
+                    compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]"
+                )}
+                title="Precio nunca auditado manualmente"
+            >
+                <AlertCircle className={compact ? "w-2.5 h-2.5" : "w-3 h-3"} />
+                Sin auditar
+            </span>
+        );
+    }
+    const ageDays = (Date.now() - new Date(precioEl).getTime()) / 86400000;
+    if (ageDays > 7) {
+        const days = Math.floor(ageDays);
+        return (
+            <span
+                className={cn(
+                    "inline-flex items-center gap-1 font-semibold rounded-full border shrink-0",
+                    "bg-[var(--warn)]/15 text-[var(--warn)] border-[var(--warn)]/30",
+                    compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]"
+                )}
+                title={`Precio auditado hace ${days} días (${new Date(precioEl).toLocaleDateString('es-MX')})`}
+            >
+                <Clock className={compact ? "w-2.5 h-2.5" : "w-3 h-3"} />
+                +7d ({days}d)
+            </span>
+        );
+    }
+    return (
+        <span
+            className={cn(
+                "inline-flex items-center gap-1 font-semibold rounded-full border shrink-0",
+                "bg-[var(--ok)]/15 text-[var(--ok)] border-[var(--ok)]/30",
+                compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]"
+            )}
+            title={`Precio auditado recientemente: ${new Date(precioEl).toLocaleDateString('es-MX')}`}
+        >
+            <CheckCircle2 className={compact ? "w-2.5 h-2.5" : "w-3 h-3"} />
+            Auditado
+        </span>
+    );
+}
+
+function getPricingDraft(listing: any): { draft_price: number; draft_cost: number; pricing_status: string } | null {
+    const raw = listing?.publication_pricing_drafts;
+    if (!raw) return null;
+    const d = Array.isArray(raw) ? raw[0] : raw;
+    if (!d || !d.draft_price || d.draft_price <= 0 || d.pricing_status === 'missing_cost') {
+        return null;
+    }
+    return d;
+}
+
+function MotorSuggestedBadge({ listing }: { listing: any }) {
+    const draft = getPricingDraft(listing);
+    if (!draft) return null;
+
+    const precioVenta = Number(listing.precio_venta || 0);
+    const sugerido = Number(draft.draft_price);
+    const dif = precioVenta - sugerido;
+    const format = (n: number) => `$${Number(n).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
+
+    if (precioVenta <= 0) {
+        return (
+            <div className="mt-1 px-1.5 py-1 rounded bg-purple-500/10 border border-purple-500/30 text-[10px]" title="La publicación no tiene precio en MeLi ($0)">
+                <div className="flex items-center justify-between gap-1 text-purple-700 font-bold">
+                    <span>Sin precio MeLi</span>
+                    <span>Sug: {format(sugerido)}</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (dif < 0) {
+        const pct = Math.round((dif / sugerido) * 100);
+        return (
+            <div className="mt-1 px-1.5 py-1 rounded bg-[var(--err)]/10 border border-[var(--err)]/30 text-[10px]" title={`Venta a pérdida / subprecio: MeLi ${format(precioVenta)} vs Sugerido ${format(sugerido)} (Costo base: ${format(draft.draft_cost)})`}>
+                <div className="flex items-center justify-between gap-1 text-[var(--err)] font-bold">
+                    <span>Subprecio</span>
+                    <span>{format(dif)} ({pct}%)</span>
+                </div>
+                <div className="text-[9px] text-[var(--text-muted)] flex items-center justify-between mt-0.5">
+                    <span>Motor:</span>
+                    <span className="font-semibold text-[var(--text)]">{format(sugerido)}</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (dif > 0) {
+        const pct = Math.round((dif / sugerido) * 100);
+        return (
+            <div className="mt-1 px-1.5 py-1 rounded bg-[var(--warn)]/10 border border-[var(--warn)]/30 text-[10px]" title={`Sobreprecio respecto al motor: MeLi ${format(precioVenta)} vs Sugerido ${format(sugerido)} (Costo base: ${format(draft.draft_cost)})`}>
+                <div className="flex items-center justify-between gap-1 text-[var(--warn)] font-bold">
+                    <span>Sobreprecio</span>
+                    <span>+{format(dif)} (+{pct}%)</span>
+                </div>
+                <div className="text-[9px] text-[var(--text-muted)] flex items-center justify-between mt-0.5">
+                    <span>Motor:</span>
+                    <span className="font-semibold text-[var(--text)]">{format(sugerido)}</span>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-1 px-1.5 py-0.5 rounded bg-[var(--ok)]/10 border border-[var(--ok)]/30 text-[10px]" title="Precio en MeLi alineado exactamente con el motor de precios">
+            <div className="flex items-center justify-between gap-1 text-[var(--ok)] font-medium">
+                <span>Motor: {format(sugerido)}</span>
+                <span className="font-bold">Alineado</span>
+            </div>
+        </div>
+    );
+}
+
 // --- Agrupación: solo variaciones del mismo external_item_id ---------------------
 // Los catálogos con par se excluyen de la query principal (server-side).
 // Los hijos de catálogo se cargan lazy cuando el usuario expande la fila.
@@ -186,15 +308,37 @@ function ListingRow({
     listing,
     onMapear,
     indent = false,
+    onPriceAudited,
 }: {
     listing: any;
     onMapear: (l: any) => void;
     indent?: boolean;
+    onPriceAudited?: (id: string) => void;
 }) {
     const [menuOpen, setMenuOpen] = useState(false);
+    const [auditingPrice, setAuditingPrice] = useState(false);
 
     const formatPrice = (p: number | null) =>
         p != null ? `$${Number(p).toLocaleString('es-MX', { minimumFractionDigits: 0 })}` : '—';
+
+    const handleAuditPrice = async () => {
+        setAuditingPrice(true);
+        try {
+            const res = await fetch(`/api/catalog/external/${listing.id}/audit-mark`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ambito: 'precio', accion: 'revisada_ok' })
+            });
+            if (!res.ok) throw new Error('Error al registrar auditoría');
+            toast.success(`Precio de ${listing.external_item_id} auditado`);
+            onPriceAudited?.(listing.id);
+            setMenuOpen(false);
+        } catch (e: any) {
+            toast.error('Error al auditar precio');
+        } finally {
+            setAuditingPrice(false);
+        }
+    };
 
     return (
         <tr className={cn("hover:bg-[var(--bg)]/70 transition-colors group", indent && "bg-[var(--bg)]/50")}>
@@ -274,12 +418,16 @@ function ListingRow({
 
             {/* 4 — PRECIO / VENTAS */}
             <td className="px-4 py-3 align-top">
-                <div className="text-sm font-bold text-[var(--text)]">{formatPrice(listing.precio_venta)}</div>
+                <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                    <span className="text-sm font-bold text-[var(--text)]">{formatPrice(listing.precio_venta)}</span>
+                    <PrecioAuditBadge precioEl={listing.ultima_auditoria_precio_el} compact />
+                </div>
                 {listing.original_price && listing.original_price > listing.precio_venta && (
                     <div className="text-[10px] text-[var(--text-faint)] line-through">{formatPrice(listing.original_price)}</div>
                 )}
+                <MotorSuggestedBadge listing={listing} />
                 {listing.comision_porcentaje != null && (
-                    <div className="text-[10px] text-[var(--text-faint)]">{listing.comision_porcentaje.toFixed(1)}% com.</div>
+                    <div className="text-[10px] text-[var(--text-faint)] mt-1">{listing.comision_porcentaje.toFixed(1)}% com.</div>
                 )}
                 {listing.sold_quantity > 0 && (
                     <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{listing.sold_quantity} vendidos</div>
@@ -324,6 +472,14 @@ function ListingRow({
                                 onMouseLeave={() => setMenuOpen(false)}
                             >
                                 <button
+                                    onClick={handleAuditPrice}
+                                    disabled={auditingPrice}
+                                    className="w-full text-left px-4 py-2 text-xs hover:bg-[var(--bg)] flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--ok)] transition-colors"
+                                >
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-[var(--ok)]" />
+                                    {auditingPrice ? 'Auditando…' : 'Marcar precio auditado'}
+                                </button>
+                                <button
                                     onClick={() => { onMapear(listing); setMenuOpen(false); }}
                                     className="w-full text-left px-4 py-2 text-xs hover:bg-[var(--bg)] flex items-center gap-2"
                                 >
@@ -352,13 +508,42 @@ function ListingRow({
 }
 
 // --- Fila de grupo con variantes ------------------------------------------------
-function GroupedListingRows({ group, onMapear, mappingIds }: { group: GroupedListing; onMapear: (l: any) => void; mappingIds: Set<string> }) {
+function GroupedListingRows({
+    group,
+    onMapear,
+    mappingIds,
+    onPriceAudited,
+}: {
+    group: GroupedListing;
+    onMapear: (l: any) => void;
+    mappingIds: Set<string>;
+    onPriceAudited?: (id: string) => void;
+}) {
     const [expanded, setExpanded] = useState(false);
+    const [auditingPrice, setAuditingPrice] = useState(false);
     // Lazy-load unificado de catálogos hijos + asociadas en una sola operación
     const [relatedExpanded, setRelatedExpanded] = useState(false);
     const [relatedChildren, setRelatedChildren] = useState<any[] | null>(null);
     const [relatedLoading, setRelatedLoading] = useState(false);
     const { parent, variations } = group;
+
+    const handleAuditPrice = async (pubId: string) => {
+        setAuditingPrice(true);
+        try {
+            const res = await fetch(`/api/catalog/external/${pubId}/audit-mark`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ambito: 'precio', accion: 'revisada_ok' })
+            });
+            if (!res.ok) throw new Error('Error al registrar auditoría');
+            toast.success(`Precio de ${parent.external_item_id} auditado`);
+            onPriceAudited?.(pubId);
+        } catch (e: any) {
+            toast.error('Error al auditar precio');
+        } finally {
+            setAuditingPrice(false);
+        }
+    };
 
     const hasCatalogChildren = (parent.catalog_count ?? 0) > 0;
     const catalogCount = parent.catalog_count ?? 0;
@@ -534,11 +719,15 @@ function GroupedListingRows({ group, onMapear, mappingIds }: { group: GroupedLis
 
                 {/* 4 — PRECIO / VENTAS */}
                 <td className="px-4 py-3 align-top">
-                    <div className="text-sm font-bold text-[var(--text)]">
-                        {priceDisplay || (parent.precio_venta ? `$${Number(parent.precio_venta).toLocaleString('es-MX')}` : '—')}
+                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                        <span className="text-sm font-bold text-[var(--text)]">
+                            {priceDisplay || (parent.precio_venta ? `$${Number(parent.precio_venta).toLocaleString('es-MX')}` : '—')}
+                        </span>
+                        <PrecioAuditBadge precioEl={parent.ultima_auditoria_precio_el} compact />
                     </div>
+                    <MotorSuggestedBadge listing={parent} />
                     {parent.comision_porcentaje != null && (
-                        <div className="text-[10px] text-[var(--text-faint)]">{parent.comision_porcentaje.toFixed(1)}% com.</div>
+                        <div className="text-[10px] text-[var(--text-faint)] mt-1">{parent.comision_porcentaje.toFixed(1)}% com.</div>
                     )}
                     {parent.sold_quantity > 0 && (
                         <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{parent.sold_quantity} vendidos</div>
@@ -560,6 +749,14 @@ function GroupedListingRows({ group, onMapear, mappingIds }: { group: GroupedLis
                 {/* 6 — ACCIÓN */}
                 <td className="px-4 py-3 align-top text-right">
                     <div className="flex items-center justify-end gap-1.5">
+                        <button
+                            onClick={() => handleAuditPrice(parent.id)}
+                            disabled={auditingPrice}
+                            className="p-1.5 rounded-lg text-[var(--text-faint)] hover:text-[var(--ok)] hover:bg-[var(--ok)]/10 transition-colors"
+                            title="Marcar precio como auditado"
+                        >
+                            <CheckCircle2 className="w-4 h-4" />
+                        </button>
                         <Link
                             href={`/catalog/external/${parent.id}`}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 text-[var(--accent)] text-xs font-semibold rounded-lg transition-colors border border-[var(--accent)]/30"
@@ -743,6 +940,19 @@ export default function VirtualCatalogPage() {
     const [marketplaces, setMarketplaces] = useState<{ id: string; account_name: string; count?: number }[]>([]);
     const [loadError, setLoadError] = useState<string | null>(null);
 
+    const handlePriceAudited = (id: string) => {
+        setListings(prev => prev.map(item => {
+            if (item.id === id) {
+                return {
+                    ...item,
+                    ultima_auditoria_precio_el: new Date().toISOString(),
+                    ultima_auditoria_precio_accion: 'revisada_ok'
+                };
+            }
+            return item;
+        }));
+    };
+
     const addLog = (msg: string) => {
         const time = new Date().toLocaleTimeString();
         setDebugLogs(prev => [...prev.slice(-50), `[${time}] ${msg}`]);
@@ -818,15 +1028,39 @@ export default function VirtualCatalogPage() {
                 if (seq !== requestSeq.current) return; // respuesta obsoleta: ignorar
                 setLoadError(null);
                 const rows = (searchData as any[]) || [];
+                // Enriquecer resultados con datos de auditoría y precio sugerido por motor
+                if (rows.length > 0) {
+                    const ids = rows.map(r => r.id);
+                    const { data: enriched } = await supabase
+                        .from('publicaciones_externas')
+                        .select('id, ultima_auditoria_precio_el, ultima_auditoria_precio_accion, publication_pricing_drafts (draft_price, draft_cost, pricing_status)')
+                        .in('id', ids);
+                    if (enriched && enriched.length > 0) {
+                        const enrichMap = new Map(enriched.map((e: any) => [e.id, e]));
+                        for (const r of rows) {
+                            const e = enrichMap.get(r.id);
+                            if (e) {
+                                r.ultima_auditoria_precio_el = e.ultima_auditoria_precio_el;
+                                r.ultima_auditoria_precio_accion = e.ultima_auditoria_precio_accion;
+                                r.publication_pricing_drafts = e.publication_pricing_drafts;
+                            }
+                        }
+                    }
+                }
                 setListings(rows);
                 setTotalCount(rows[0]?.total_count ? Number(rows[0].total_count) : rows.length);
                 return;
             }
 
+            const isFilteringCost = filters.brechaPrecioFilter !== 'all';
+            const draftsJoin = isFilteringCost
+                ? 'publication_pricing_drafts!inner (draft_price, draft_cost, pricing_status)'
+                : 'publication_pricing_drafts (draft_price, draft_cost, pricing_status)';
+
             let query = supabase
                 .from('publicaciones_externas')
                 // count 'estimated' (no COUNT(*) escaneo completo) para no reventar el statement_timeout
-                .select(`*, par_item_id, es_bundle, catalog_count, associated_count`, { count: 'estimated' });
+                .select(`*, par_item_id, es_bundle, catalog_count, associated_count, ${draftsJoin}`, { count: 'estimated' });
 
             // Auditoría: los más urgentes primero (nunca auditados = NULL primero, luego los más antiguos).
             if (filters.sortBy === 'ultima_auditoria_precio_el') {
@@ -907,11 +1141,53 @@ export default function VirtualCatalogPage() {
             else if (filters.stockRange === '6-20') query = query.gte(stockCol, 6).lte(stockCol, 20);
             else if (filters.stockRange === '20+') query = query.gte(stockCol, 21);
 
+            // Auditoría de precio
+            const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+            if (filters.auditoriaPrecioFilter === 'sin_auditar') {
+                query = query.is('ultima_auditoria_precio_el', null);
+            } else if (filters.auditoriaPrecioFilter === 'mas_7_dias') {
+                query = query.not('ultima_auditoria_precio_el', 'is', null).lt('ultima_auditoria_precio_el', sevenDaysAgo);
+            } else if (filters.auditoriaPrecioFilter === 'auditado') {
+                query = query.gte('ultima_auditoria_precio_el', sevenDaysAgo);
+            }
+
+            // Brecha de motor con costo activo
+            if (filters.brechaPrecioFilter === 'con_costo') {
+                query = query.gt('publication_pricing_drafts.draft_price', 0)
+                             .neq('publication_pricing_drafts.pricing_status', 'missing_cost');
+            } else if (filters.brechaPrecioFilter === 'sin_precio') {
+                query = query.gt('publication_pricing_drafts.draft_price', 0)
+                             .neq('publication_pricing_drafts.pricing_status', 'missing_cost')
+                             .lte('precio_venta', 0);
+            } else if (filters.brechaPrecioFilter !== 'all') {
+                query = query.gt('publication_pricing_drafts.draft_price', 0)
+                             .neq('publication_pricing_drafts.pricing_status', 'missing_cost');
+            }
+
             const { data, error, count } = await query;
             if (error) throw error;
             if (seq !== requestSeq.current) return; // respuesta obsoleta: ignorar
             setLoadError(null);
-            setListings(data || []);
+
+            let rows = data || [];
+            if (filters.brechaPrecioFilter === 'perdida') {
+                rows = rows.filter((r: any) => {
+                    const d = getPricingDraft(r);
+                    return d && (r.precio_venta || 0) > 0 && (r.precio_venta < d.draft_price);
+                });
+            } else if (filters.brechaPrecioFilter === 'sobreprecio') {
+                rows = rows.filter((r: any) => {
+                    const d = getPricingDraft(r);
+                    return d && (r.precio_venta || 0) > 0 && (r.precio_venta > d.draft_price);
+                });
+            } else if (filters.brechaPrecioFilter === 'alineado') {
+                rows = rows.filter((r: any) => {
+                    const d = getPricingDraft(r);
+                    return d && (r.precio_venta || 0) === d.draft_price;
+                });
+            }
+
+            setListings(rows);
             setTotalCount(count || 0);
         } catch (error: any) {
             if (seq === requestSeq.current) {
@@ -1013,6 +1289,12 @@ export default function VirtualCatalogPage() {
                     actions={
                         <>
                             <Link
+                                href="/catalog/external/urgencia-precios"
+                                className="touch-target inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors px-3 py-2 text-sm bg-[var(--surface)] text-[var(--err)] border border-[var(--err)]/30 hover:bg-[var(--err)]/10"
+                            >
+                                <AlertCircle className="w-4 h-4 text-[var(--err)]" /> Urgencia Precios
+                            </Link>
+                            <Link
                                 href="/catalog/external/mapeo-mixto"
                                 className="touch-target inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors px-3 py-2 text-sm bg-[var(--surface)] text-[var(--accent)] border border-[var(--accent)]/30 hover:bg-[var(--accent)]/10"
                             >
@@ -1088,6 +1370,7 @@ export default function VirtualCatalogPage() {
                                                     group={group}
                                                     onMapear={setSelectedListing}
                                                     mappingIds={mappingIds}
+                                                    onPriceAudited={handlePriceAudited}
                                                 />
                                             ))
                                         )}
@@ -1136,7 +1419,7 @@ export default function VirtualCatalogPage() {
                                                                 {statusLabels[p.status_externo] || p.status_externo}
                                                             </span>
                                                             {p.posible_eliminada && <PosibleEliminadaBadge />}
-                                                            <AuditBadge precioEl={p.ultima_auditoria_precio_el ?? null} pubEl={p.ultima_auditoria_pub_el ?? null} />
+                                                            <PrecioAuditBadge precioEl={p.ultima_auditoria_precio_el ?? null} />
                                                             {mappingIds.has(p.id) ? (
                                                                 <span className="inline-flex items-center gap-1 text-[10px] text-[var(--info)] font-semibold"><RefreshCw className="w-3 h-3 animate-spin" /> Mapeando…</span>
                                                             ) : p.esta_mapeado ? (
@@ -1152,6 +1435,7 @@ export default function VirtualCatalogPage() {
                                                     <div className="min-w-0">
                                                         <div className="text-[var(--text-faint)] uppercase text-[10px]">Precio</div>
                                                         <div className="font-bold text-[var(--text)] truncate">{p.precio_venta ? `$${Number(p.precio_venta).toLocaleString('es-MX')}` : '—'}</div>
+                                                        <MotorSuggestedBadge listing={p} />
                                                     </div>
                                                     <div className="min-w-0">
                                                         <div className="text-[var(--text-faint)] uppercase text-[10px]">Stock</div>
