@@ -33,12 +33,15 @@ export async function POST(req: Request) {
             .eq('status', 'pending');
         const pendSet = new Set((pendJobs || []).map((j: any) => `${j.payload?.accountId}|${j.payload?.inventoryId}`));
 
-        // Dedup 2 (set-based): sincronizados hace < 1h (regla).
+        // Dedup 2 (set-based): replenishment sincronizado hace < 1h (regla).
+        // Usa replenishment_updated_at (no stock_full_updated_at): el sync de catálogo
+        // actualiza stock_full (aptas) pero NO el replenishment (en camino/total), así que
+        // dedupear por stock_full_updated_at bloqueaba el refresh de reposición durante 1h.
         const { data: recientes } = await supabaseAdmin
             .from('publicaciones_externas')
             .select('inventory_id, marketplace_id')
             .in('inventory_id', inventarioIds)
-            .gte('stock_full_updated_at', corte);
+            .gte('replenishment_updated_at', corte);
         const recSet = new Set((recientes || []).map((p: any) => `${p.marketplace_id}|${p.inventory_id}`));
 
         // Filtrado en memoria (rápido).

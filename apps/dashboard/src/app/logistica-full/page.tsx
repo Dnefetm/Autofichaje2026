@@ -64,8 +64,6 @@ export default function LogisticaFullPage() {
     const [busqueda, setBusqueda] = useState('');
     const [importando, setImportando] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
-    const cursorRef = useRef(0);
-    const [sincronizandoLote, setSincronizandoLote] = useState(false);
     const [mensajeSync, setMensajeSync] = useState<string | null>(null);
 
     // --- Envíos planificados (decisión del operario) ---
@@ -148,41 +146,30 @@ export default function LogisticaFullPage() {
 
     useEffect(() => { load(); loadEnvios(); }, [load, loadEnvios]);
 
-    // Reset del cursor de sincronización focalizada al cambiar filtros (evita saltar filas).
-    useEffect(() => {
-        cursorRef.current = 0;
-        setMensajeSync(null);
-    }, [cuenta, cobertura, metodo, busqueda]);
-
-    const syncLote = async () => {
-        setSincronizandoLote(true);
-        setMensajeSync(null);
+    // Sincronizar stock: dispara el sync de catálogo + el carrusel de replenishment
+    // en segundo plano. Ya NO hace load() inmediato a ciegas (los datos viejos se
+    // recargaban antes de que el worker procesara); ahora hace polling con backoff.
+    const sync = async () => {
+        setSyncing(true);
+        setMensajeSync('Encolando sincronización en segundo plano…');
         try {
-            const lote = (data?.propuesta || [])
-                .slice(cursorRef.current, cursorRef.current + 50)
-                .map((p: any) => ({ accountId: p.marketplace_id, inventoryId: p.inventory_id }));
-            if (!lote.length) {
-                setMensajeSync('No quedan productos por sincronizar en esta pasada.');
-                return;
-            }
-            const r = await fetch('/api/logistica-full/sync-lote', {
+            await fetch('/api/logistica-full/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items: lote }),
+                body: '{}',
             });
-            const j = await r.json();
-            if (j.success) {
-                cursorRef.current += 50;
-                setMensajeSync(`${j.encolados} encolados · ${j.omitidos_por_pendiente ?? 0} pendientes · ${j.omitidos_por_reciente ?? 0} recientes. Actualizando en segundo plano…`);
-                setTimeout(() => load(), 10000);
-                setTimeout(() => load(), 20000);
-            } else {
-                setMensajeSync(j.error || 'Error');
+            // Polling con backoff: el worker tarda en procesar (chunks de 20 + pausas).
+            const delays = [8000, 15000, 30000];
+            for (const d of delays) {
+                await new Promise((r) => setTimeout(r, d));
+                await load();
             }
-        } catch (e: any) {
-            setMensajeSync(e.message || 'Error');
+            setMensajeSync('Sincronización encolada. Los datos se irán actualizando en las próximas pasadas.');
+        } catch (e) {
+            console.error(e);
+            setMensajeSync('Error al encolar la sincronización.');
         } finally {
-            setSincronizandoLote(false);
+            setSyncing(false);
         }
     };
 
@@ -196,22 +183,6 @@ export default function LogisticaFullPage() {
             )
         );
     }, [data, busqueda]);
-
-    const sync = async () => {
-        setSyncing(true);
-        try {
-            await fetch('/api/logistica-full/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: '{}',
-            });
-            await load();
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setSyncing(false);
-        }
-    };
 
     const exportarCSV = () => {
         if (!data?.propuesta?.length) return;
@@ -620,18 +591,7 @@ export default function LogisticaFullPage() {
                         className="w-56 px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)]"
                     />
                 </label>
-                <div className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
-                    Sync focalizado
-                    <div className="flex items-center gap-2">
-                        <Btn size="sm" variant="outline" onClick={syncLote} loading={sincronizandoLote}>
-                            Sincronizar stock (50)
-                        </Btn>
-                        <Btn size="sm" variant="ghost" onClick={() => { cursorRef.current = 0; setMensajeSync(null); }}>
-                            Reiniciar
-                        </Btn>
-                    </div>
-                    {mensajeSync && <span className="text-[var(--text-muted)] whitespace-normal max-w-xs">{mensajeSync}</span>}
-                </div>
+                {mensajeSync && <span className="text-xs text-[var(--text-muted)] whitespace-normal max-w-xs self-end">{mensajeSync}</span>}
             </div>
 
             {/* Propuesta */}

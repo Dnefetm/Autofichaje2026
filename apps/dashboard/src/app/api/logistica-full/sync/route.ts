@@ -40,6 +40,26 @@ export async function POST(req: Request) {
             if (!error) encolados++;
         }
 
+        // Sembrar el carrusel de replenishment (stock_full_total/en camino) si no hay
+        // ninguno pendiente. Es la raíz del bug de sugerencias congeladas: el catálogo
+        // NO trae replenishment, solo aptas (stock_full). Este job lo recorre en FIFO
+        // por inventory_id, con chunks de 20 y re-encolado cada 5 min.
+        const { data: pendReplenishment } = await supabaseAdmin
+            .from('jobs')
+            .select('id')
+            .eq('type', 'sync_full_replenishment')
+            .eq('status', 'pending')
+            .limit(1);
+        if (!pendReplenishment || pendReplenishment.length === 0) {
+            await supabaseAdmin.from('jobs').insert({
+                type: 'sync_full_replenishment',
+                payload: {},
+                status: 'pending',
+                priority: 3,
+                scheduled_at: new Date().toISOString(),
+            });
+        }
+
         await dispatchWorker().catch(() => {});
         return NextResponse.json({ success: true, encolados });
     } catch (err: any) {
