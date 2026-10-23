@@ -64,7 +64,6 @@ export default function LogisticaFullPage() {
     const [busqueda, setBusqueda] = useState('');
     const [importando, setImportando] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
-    const [mensajeSync, setMensajeSync] = useState<string | null>(null);
 
     // --- Envíos planificados (decisión del operario) ---
     const [planes, setPlanes] = useState<any[]>([]);
@@ -151,23 +150,23 @@ export default function LogisticaFullPage() {
     // recargaban antes de que el worker procesara); ahora hace polling con backoff.
     const sync = async () => {
         setSyncing(true);
-        setMensajeSync('Encolando sincronización en segundo plano…');
         try {
-            await fetch('/api/logistica-full/sync', {
+            const r = await fetch('/api/logistica-full/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: '{}',
             });
-            // Polling con backoff: el worker tarda en procesar (chunks de 20 + pausas).
-            const delays = [8000, 15000, 30000];
-            for (const d of delays) {
-                await new Promise((r) => setTimeout(r, d));
-                await load();
-            }
-            setMensajeSync('Sincronización encolada. Los datos se irán actualizando en las próximas pasadas.');
-        } catch (e) {
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(j.error || 'Error al encolar');
+            // El worker procesa en segundo plano (chunks + pausas). Esperamos una sola
+            // vez un intervalo corto y recargamos; el resto de pasadas las verá el
+            // operario al refrescar. Evita bloquear el botón ~53s con 3 load() pesados.
+            await new Promise((res) => setTimeout(res, 12000));
+            await load();
+            toast.success('Sincronización encolada en segundo plano. Los datos se actualizarán en las próximas pasadas.');
+        } catch (e: any) {
             console.error(e);
-            setMensajeSync('Error al encolar la sincronización.');
+            toast.error(e?.message || 'Error al encolar la sincronización');
         } finally {
             setSyncing(false);
         }
@@ -591,7 +590,6 @@ export default function LogisticaFullPage() {
                         className="w-56 px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)]"
                     />
                 </label>
-                {mensajeSync && <span className="text-xs text-[var(--text-muted)] whitespace-normal max-w-xs self-end">{mensajeSync}</span>}
             </div>
 
             {/* Propuesta */}

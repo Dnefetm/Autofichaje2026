@@ -411,11 +411,14 @@ const REPLENISHMENT_RESCHEDULE_MIN = 5; // re-encolar con +5 min
 
 async function handleSyncFullReplenishment(job: any, meli: MeliAdapter): Promise<void> {
     // 1. inventory_id únicos Full, más rezagados primero (FIFO por replenishment_updated_at).
+    // .limit(5000): PostgREST trunca a 1,000 filas por defecto; sin esto, las ~900
+    // publicaciones Full que exceden ese techo quedarían fuera del carrusel para siempre.
     const { data: pubs } = await supabaseAdmin
         .from('publicaciones_externas')
         .select('marketplace_id, inventory_id, replenishment_updated_at')
         .eq('logistic_type', 'fulfillment')
-        .not('inventory_id', 'is', null);
+        .not('inventory_id', 'is', null)
+        .limit(5000);
 
     // Deducir el "más rezagado" por inventory_id: si un inventory_id tiene varias
     // listings, usamos el replenishment más viejo de todas (NULL = nunca sincronizado).
