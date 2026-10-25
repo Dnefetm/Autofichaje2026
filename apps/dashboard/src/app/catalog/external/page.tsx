@@ -348,6 +348,11 @@ function ListingRow({
                     <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", statusColors[listing.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
                         {statusLabels[listing.status_externo] || listing.status_externo}
                     </span>
+                    {listing.sub_status && Array.isArray(listing.sub_status) && listing.sub_status.includes('forbidden') && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/10 text-rose-600 border border-rose-500/30" title="Publicación bloqueada / sancionada por MeLi">
+                            ⛔ Forbidden
+                        </span>
+                    )}
                     {listing.esta_mapeado ? (
                         <span className="inline-flex items-center gap-1 text-[10px] text-[var(--ok)] font-medium">
                             <CheckCircle2 className="w-3 h-3" /> Mapeado
@@ -1351,6 +1356,13 @@ export default function VirtualCatalogPage() {
                                 className="touch-target inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors px-3 py-2 text-sm bg-[var(--surface)] text-[var(--err)] border border-[var(--err)]/30 hover:bg-[var(--err)]/10"
                             >
                                 <AlertCircle className="w-4 h-4 text-[var(--err)]" /> Urgencia Precios
+                            </Link>
+                            <Link
+                                href="/catalog/external/en-revision"
+                                className="touch-target inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors px-3 py-2 text-sm bg-[var(--surface)] text-amber-500 border border-amber-500/30 hover:bg-amber-500/10"
+                                title="Publicaciones bloqueadas, en revisión o con causas de MeLi"
+                            >
+                                <AlertCircle className="w-4 h-4 text-amber-500" /> En Revisión / Bloqueadas
                             </Link>
                             <Link
                                 href="/catalog/external/mapeo-mixto"

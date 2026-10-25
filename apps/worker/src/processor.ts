@@ -166,7 +166,11 @@ async function handleSyncStock(job: any) {
                 marketplace_id,
                 external_item_id,
                 es_fuente_stock,
-            logistic_type
+                logistic_type,
+                status_externo,
+                sub_status,
+                tipo_publicacion,
+                par_item_id
             )
         `)
         .eq('articulo_id', sku);
@@ -197,7 +201,20 @@ async function handleSyncStock(job: any) {
         const pub = mapping.publicaciones_externas as any;
         const pubId = pub?.id;
 
-                            // Publicaciones Full: obtener stock real desde MeLi (no usar stock de bodega)
+        // Omitir publicaciones cerradas o eliminadas en MeLi
+        if (pub?.status_externo === 'closed' || (Array.isArray(pub?.sub_status) && pub.sub_status.includes('deleted'))) {
+            continue;
+        }
+
+        // Si es catálogo y tiene par tradicional vivo en este SKU, MeLi hereda el stock desde el par
+        if ((pub?.tipo_publicacion === 'catalogo' || pub?.tipo_publicacion === 'catalogo_derivada') && pub?.par_item_id) {
+            const hasLivePar = fuentesStock.some((f: any) => f.publicaciones_externas?.external_item_id === pub.par_item_id);
+            if (hasLivePar) {
+                continue;
+            }
+        }
+
+        // Publicaciones Full: obtener stock real desde MeLi (no usar stock de bodega)
             if (pub?.logistic_type === 'fulfillment') {
                 const mlStock = await meliAdapter.getStock(pub?.marketplace_id, pub?.external_item_id);
                 logger.info({ sku, pubId, external_id: pub?.external_item_id, mlStock }, 'Stock Full obtenido desde MeLi API');
@@ -411,11 +428,30 @@ async function handleSyncStockMapped(job: any) {
     // 1. Obtener publicación y verificar que es fuente de stock
     const { data: pub, error: pubErr } = await supabase
         .from('publicaciones_externas')
-        .select('marketplace_id, external_item_id, es_fuente_stock, tipo_publicacion, logistic_type')
+        .select('marketplace_id, external_item_id, es_fuente_stock, tipo_publicacion, logistic_type, status_externo, sub_status, par_item_id')
         .eq('id', publicacion_id)
         .single();
 
     if (pubErr || !pub) throw new Error(`Publicación externa no encontrada: ${publicacion_id}`);
+
+    // Omitir publicaciones cerradas o eliminadas en MeLi
+    if (pub?.status_externo === 'closed' || (Array.isArray(pub?.sub_status) && pub.sub_status.includes('deleted'))) {
+        logger.info({ publicacion_id }, 'Publicación cerrada o eliminada en MeLi. Omitiendo sync de stock.');
+        return;
+    }
+
+    // Si es catálogo y tiene par tradicional vivo, MeLi sincroniza vía la tradicional
+    if ((pub?.tipo_publicacion === 'catalogo' || pub?.tipo_publicacion === 'catalogo_derivada') && pub?.par_item_id) {
+        const { data: parPub } = await supabase
+            .from('publicaciones_externas')
+            .select('id, status_externo')
+            .eq('external_item_id', pub.par_item_id)
+            .single();
+        if (parPub && parPub.status_externo !== 'closed') {
+            logger.info({ publicacion_id, par_item_id: pub.par_item_id }, 'Catálogo con par tradicional vivo. Sincronización delegada a la tradicional.');
+            return;
+        }
+    }
     // Publicaciones Full: obtener stock real desde MeLi (no usar stock de bodega)
     if (pub?.logistic_type === 'fulfillment') {
         const mlStock = await meliAdapter.getStock(pub?.marketplace_id, pub?.external_item_id);

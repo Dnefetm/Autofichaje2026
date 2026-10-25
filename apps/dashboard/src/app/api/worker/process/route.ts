@@ -612,7 +612,7 @@ const { data: mappings } = await supabaseAdmin
 publicacion_id,
 cantidad_requerida,
 sincronizar_stock,
-publicaciones_externas!inner (id, marketplace_id, external_item_id, es_fuente_stock, status_externo, sync_disabled, logistic_type)
+publicaciones_externas!inner (id, marketplace_id, external_item_id, es_fuente_stock, status_externo, sub_status, sync_disabled, logistic_type, tipo_publicacion, par_item_id)
 `)
 .eq('articulo_id', sku);
 if (!mappings || mappings.length === 0) return;
@@ -640,6 +640,21 @@ const pub = mapping.publicaciones_externas as any;
 try {
 if (pub.sync_disabled === true) { successCount++; continue; }
 if (pub.logistic_type === 'fulfillment') { successCount++; continue; }
+
+// 1. Omitir publicaciones cerradas o eliminadas en MeLi
+if (pub.status_externo === 'closed' || (Array.isArray(pub.sub_status) && pub.sub_status.includes('deleted'))) {
+  successCount++;
+  continue;
+}
+
+// 2. Si es catálogo y tiene par tradicional en las fuentes de este SKU, MeLi hereda el stock desde el par
+if ((pub.tipo_publicacion === 'catalogo' || pub.tipo_publicacion === 'catalogo_derivada') && pub.par_item_id) {
+  const hasLiveParInSku = fuentesStock.some((f: any) => f.publicaciones_externas?.external_item_id === pub.par_item_id);
+  if (hasLiveParInSku) {
+    successCount++;
+    continue;
+  }
+}
 
 const allComponents = componentsByPub.get(pub.id) || [];
 
@@ -675,6 +690,20 @@ successCount++;
 } catch (err: any) {
 const errMsg = err.message || '';
 if (errMsg.toLowerCase().includes('not_modifiable') || errMsg.toLowerCase().includes('not modifiable')) {
+if (errMsg.includes('item.catalog_listing') || errMsg.toLowerCase().includes('catalog_listing')) {
+  // Publicación de catálogo vinculada a tradicional: MeLi replica stock desde la tradicional.
+  // Apagar sincronizar_stock para este mapeo pero NUNCA apagar la vitrina con sync_disabled=true
+  await supabaseAdmin.from('mapeo_publicacion_articulo').update({
+    sincronizar_stock: false
+  }).eq('publicacion_id', pub.id);
+  await supabaseAdmin.from('publicaciones_externas').update({
+    sync_disabled: false,
+    sync_disabled_reason: null,
+    actualizado_el: new Date().toISOString()
+  }).eq('id', pub.id);
+  successCount++;
+  continue;
+}
 // Publicación Full en MeLi: el stock lo gestiona la bodega de MeLi.
 // Auto-corregir: marcar logistic_type='fulfillment' y apagar sincronizar_stock en el mapeo.
 // NO apagar la vitrina completa con sync_disabled=true para permitir que sigan funcionando precios y estado.
@@ -714,10 +743,27 @@ async function handleSyncStockMapped(job: any, meli: MeliAdapter) {
 const { publicacion_id } = job.payload;
 const { data: pub } = await supabaseAdmin
 .from('publicaciones_externas')
-.select('id, marketplace_id, external_item_id, es_fuente_stock, logistic_type, status_externo')
+.select('id, marketplace_id, external_item_id, es_fuente_stock, logistic_type, status_externo, sub_status, tipo_publicacion, par_item_id')
 .eq('id', publicacion_id)
 .single();
 if (!pub) return;
+
+// 1. Omitir publicaciones cerradas o eliminadas en MeLi
+if (pub.status_externo === 'closed' || (Array.isArray(pub.sub_status) && pub.sub_status.includes('deleted'))) {
+  return;
+}
+
+// 2. Si es catálogo y tiene par tradicional vivo, MeLi sincroniza vía la tradicional
+if ((pub.tipo_publicacion === 'catalogo' || pub.tipo_publicacion === 'catalogo_derivada') && pub.par_item_id) {
+  const { data: parPub } = await supabaseAdmin
+    .from('publicaciones_externas')
+    .select('id, status_externo')
+    .eq('external_item_id', pub.par_item_id)
+    .single();
+  if (parPub && parPub.status_externo !== 'closed') {
+    return;
+  }
+}
 if (pub.logistic_type === 'fulfillment') {
 // Self-healing: verificar en MeLi si sigue Full (pudo cambiar a no-full sin detectarse).
 try {
@@ -762,6 +808,17 @@ await supabaseAdmin.from('publicaciones_externas')
 } catch (err: any) {
 const errMsg = err.message || '';
 if (errMsg.toLowerCase().includes('not_modifiable') || errMsg.toLowerCase().includes('not modifiable')) {
+if (errMsg.includes('item.catalog_listing') || errMsg.toLowerCase().includes('catalog_listing')) {
+  await supabaseAdmin.from('mapeo_publicacion_articulo').update({
+    sincronizar_stock: false
+  }).eq('publicacion_id', pub.id);
+  await supabaseAdmin.from('publicaciones_externas').update({
+    sync_disabled: false,
+    sync_disabled_reason: null,
+    actualizado_el: new Date().toISOString()
+  }).eq('id', pub.id);
+  return;
+}
 await supabaseAdmin.from('publicaciones_externas').update({
   logistic_type: 'fulfillment',
   sync_disabled: false,
