@@ -52,23 +52,34 @@ const { count } = await supabaseAdmin
 const isMaintenanceWindow = (currentMinute % 5 === 0);
 const isReconciliationHour = (currentHour % 6 === 0 && currentMinute < 2);
 
-// El catálogo ya NO se encola por ventana de reloj (hora%12 && minuto<2), que era
+// El catálogo YA NO se encola por ventana de reloj (hora%12 && minuto<2), que era
 // casi imposible de coincidir con cron-job.org a intervalos de 10 min. Ahora se
-// consulta webhook_config (topic 'catalog_sync_last'): si pasaron >12h desde el
-// último encolado, toca encolar. Se evalúa ANTES del guard de salida rápida
-// (si la cola está vacía), que era el punto ciego por el que nunca se encolaba.
+// consulta webhook_config: si pasaron >12h desde el último encolado, toca encolar.
+// Se evalúa ANTES del guard de salida rápida (si la cola está vacía), que era el
+// punto ciego por el que nunca se encolaba.
+//
+// CAMBIO 4+5: leemos DOS topics en una sola consulta (0 queries extra en el guard):
+//   - catalog_sync_last      → dispara el catálogo cada 12h
+//   - replenishment_sync_last → dispara el carrusel de replenishment cada 12h
+//     (y de inmediato la primera vez, porque el topic aún no existe → timestamp 0).
 let isCatalogDue = false;
+let isReplenishmentDue = false;
 try {
-    const { data: catRow } = await supabaseAdmin
+    const { data: rows } = await supabaseAdmin
         .from('webhook_config')
-        .select('updated_at')
-        .eq('topic', 'catalog_sync_last')
-        .maybeSingle();
-    const lastCatalogSync = catRow?.updated_at ? new Date(catRow.updated_at).getTime() : 0;
-    isCatalogDue = (Date.now() - lastCatalogSync) > 12 * 60 * 60 * 1000;
+        .select('topic, updated_at')
+        .in('topic', ['catalog_sync_last', 'replenishment_sync_last']);
+    const tsPorTopic = new Map<string, number>();
+    for (const r of (rows || []) as any[]) {
+        tsPorTopic.set(r.topic, r.updated_at ? new Date(r.updated_at).getTime() : 0);
+    }
+    const catTs = tsPorTopic.get('catalog_sync_last') ?? 0;
+    const repTs = tsPorTopic.get('replenishment_sync_last') ?? 0;
+    isCatalogDue = (Date.now() - catTs) > 12 * 60 * 60 * 1000;
+    isReplenishmentDue = (Date.now() - repTs) > 12 * 60 * 60 * 1000;
 } catch { /* silencioso: si la tabla no responde, no bloquear el worker */ }
 
-if (count === 0 && !isMaintenanceWindow && !isReconciliationHour && !isCatalogDue) {
+if (count === 0 && !isMaintenanceWindow && !isReconciliationHour && !isCatalogDue && !isReplenishmentDue) {
 return NextResponse.json({ ...results, skipped: true, reason: 'no_jobs', ms: Date.now() - now.getTime() });
 }
 
@@ -93,7 +104,7 @@ logger.info({ zombiesReleased: zombieData }, 'Reaper: jobs zombi liberados');
 }
 }
 
-if (count === 0 && !isReconciliationHour && !isCatalogDue) {
+if (count === 0 && !isReconciliationHour && !isCatalogDue && !isReplenishmentDue) {
 return NextResponse.json({ ...results, skipped: true, reason: 'no_jobs_maintenance_done' });
 }
 
@@ -189,6 +200,37 @@ updated_at: new Date().toISOString(),
 (results as any).catalog_sync_queued = true;
 } catch (catalogErr: any) {
 results.errors.push(`sync_account_catalog hook failed: ${catalogErr.message}`);
+}
+}
+
+// CAMBIO 4+5: sembrar el carrusel de replenishment de forma AUTOMÁTICA cada 12h
+// (y la primera vez de inmediato, porque replenishment_sync_last aún no existe).
+// No depende del botón ni del catálogo. Una vez sembrado, el propio job se
+// re-encola cada 5 min hasta recorrer todos los inventarios rezagados.
+if (isReplenishmentDue) {
+try {
+const { data: pendReplenishment } = await supabaseAdmin
+    .from('jobs')
+    .select('id')
+    .eq('type', 'sync_full_replenishment')
+    .eq('status', 'pending')
+    .limit(1);
+if (!pendReplenishment || pendReplenishment.length === 0) {
+    await supabaseAdmin.from('jobs').insert({
+        type: 'sync_full_replenishment',
+        payload: {},
+        status: 'pending',
+        priority: 3,
+        scheduled_at: new Date().toISOString(),
+    });
+}
+await supabaseAdmin.from('webhook_config').upsert({
+    topic: 'replenishment_sync_last',
+    updated_at: new Date().toISOString(),
+}, { onConflict: 'topic' });
+(results as any).replenishment_queued = true;
+} catch (repErr: any) {
+results.errors.push(`sync_full_replenishment hook failed: ${repErr.message}`);
 }
 }
 } catch (err: any) {
@@ -408,6 +450,7 @@ async function handleSyncAccountCatalog(job: any, meli: MeliAdapter): Promise<{ 
 // en 66s con 0 errores 429. Un chunk de 20 es conservador y seguro.
 const REPLENISHMENT_CHUNK = 20;
 const REPLENISHMENT_RESCHEDULE_MIN = 5; // re-encolar con +5 min
+const REPLENISHMENT_REZAGO_MS = 10 * 60 * 60 * 1000; // 10h: corte para considerar "rezagado"
 
 async function handleSyncFullReplenishment(job: any, meli: MeliAdapter): Promise<void> {
     // 1. inventory_id únicos Full, más rezagados primero (FIFO por replenishment_updated_at).
@@ -433,12 +476,19 @@ async function handleSyncFullReplenishment(job: any, meli: MeliAdapter): Promise
         }
     }
 
-    const cola = [...rezagoPorInv.values()].sort((a, b) => a.ts - b.ts);
+    // CAMBIO 1: solo entran a la cola los inventarios REALMENTE rezagados:
+    // nunca sincronizados (ts === 0) o con >10h de antigüedad. Esto garantiza que
+    // la cola SE REDUZCA entre pasadas (845 → 825 → ... → 0) y el carrusel se
+    // detenga limpiamente en vez de iterar para siempre (bucle infinito previo).
+    const ahora = Date.now();
+    const cola = [...rezagoPorInv.values()]
+        .filter((inv) => inv.ts === 0 || (ahora - inv.ts) > REPLENISHMENT_REZAGO_MS)
+        .sort((a, b) => a.ts - b.ts);
     const chunk = cola.slice(0, REPLENISHMENT_CHUNK);
 
     if (chunk.length === 0) {
         // Nada por sincronizar: no re-encolar (evita loop infinito).
-        logger.info({}, 'sync_full_replenishment: sin inventarios Full pendientes');
+        logger.info({}, 'sync_full_replenishment: sin inventarios Full rezagados');
         return;
     }
 
@@ -454,12 +504,31 @@ async function handleSyncFullReplenishment(job: any, meli: MeliAdapter): Promise
                 { accountId: it.accountId, inventoryId: it.inventoryId, error: err?.message },
                 'sync_full_replenishment: fallo puntual'
             );
+        } finally {
+            // CAMBIO 2: sello anti-bloqueo. Aunque syncInventoryPuntual falle o el
+            // inventario no tenga upId (variante sin resolver, publicación cerrada),
+            // sellamos replenishment_updated_at en TODAS las filas de ese
+            // (accountId, inventoryId) para que el inventario avance al final de la
+            // cola de 10h y no tape a los demás (head-of-line blocking). Solo toca
+            // replenishment_updated_at; NO pisa stock_full_total/replenishment_suggested.
+            try {
+                await supabaseAdmin
+                    .from('publicaciones_externas')
+                    .update({ replenishment_updated_at: new Date().toISOString() })
+                    .eq('marketplace_id', it.accountId)
+                    .eq('inventory_id', it.inventoryId);
+            } catch (selladoErr: any) {
+                logger.warn(
+                    { accountId: it.accountId, inventoryId: it.inventoryId, error: selladoErr?.message },
+                    'sync_full_replenishment: fallo sellado anti-bloqueo'
+                );
+            }
         }
         // Pausa corta entre llamadas: amortigua rate-limit y no revienta el timeout de 25s.
         await new Promise((r) => setTimeout(r, 400));
     }
 
-    // 2. Re-encolar la siguiente pasada con +5 min (solo si quedan inventarios por procesar).
+    // 2. Re-encolar la siguiente pasada con +5 min (solo si quedan rezagados por procesar).
     if (cola.length > chunk.length) {
         const { data: pending } = await supabaseAdmin
             .from('jobs')
