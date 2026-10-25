@@ -576,12 +576,15 @@ export class MeliAdapter implements MarketplaceAdapter {
         // 3. Resolver body vía multiGET (deduplicando external_item_id, máx 20 por llamada).
         // Guardamos el body COMPLETO (no solo user_product_id) porque para variantes el
         // user_product_id vive dentro de body.variations[].user_product_id, no en la raíz.
+        // IMPORTANTE: el multiGET por defecto NO devuelve user_product_id ni variations;
+        // hay que pedirlos explícitamente en `attributes` (igual que syncCatalogBatchFast).
         const uniqueItemIds = [...new Set(items.map(p => p.external_item_id))].slice(0, 20).join(',');
         const bodyByItem = new Map<string, any>();
         try {
-            const ir = await axios.get(`https://api.mercadolibre.com/items?ids=${uniqueItemIds}`, {
-                headers: { Authorization: `Bearer ${accessToken}` },
-            });
+            const ir = await axios.get(
+                `https://api.mercadolibre.com/items?ids=${uniqueItemIds}&attributes=id,status,shipping,user_product_id,variations,inventory_id`,
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
             for (const r of (ir.data || [])) {
                 if (r.code === 200 && r.body?.id) bodyByItem.set(r.body.id, r.body);
             }
