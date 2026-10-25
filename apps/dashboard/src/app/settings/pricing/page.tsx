@@ -39,6 +39,9 @@ export default function PricingSettingsPage() {
             if (dataToSave.redondeo === 'magic') {
                 dataToSave.redondeo = null;
             }
+            dataToSave.redondeo_target_pct = Number(dataToSave.redondeo_target_pct) || 0;
+            dataToSave.redondeo_min_pct = Number(dataToSave.redondeo_min_pct) || 0;
+            dataToSave.redondeo_max_pct = Number(dataToSave.redondeo_max_pct) || 0;
 
             await fetch('/api/settings/pricing', {
                 method: 'POST',
@@ -79,7 +82,7 @@ export default function PricingSettingsPage() {
             margen_objetivo: 20, redondeo: 'magic', envio_fijo: 0,
             marca: '', category_id: '', articulo_id: '', proveedor: null,
             aplicar_margen: true, aplicar_comision: true, aplicar_envio: true, aplicar_retenciones: true,
-            aplicar_redondeo_magico: true, redondeo_target_pct: -10, redondeo_min_pct: 9, redondeo_max_pct: 14
+            aplicar_redondeo_magico: true, redondeo_target_pct: 0, redondeo_min_pct: -4, redondeo_max_pct: 3
         });
 
         return (
@@ -164,16 +167,58 @@ export default function PricingSettingsPage() {
                 {formData.redondeo === 'magic' && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-[var(--surface-2)] p-3 rounded border border-[var(--border)]">
                         <div>
-                            <label className="block text-xs font-bold text-[var(--accent)] mb-1">Objetivo Reducción (%)</label>
-                            <input type="number" step="0.1" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.redondeo_target_pct} onChange={e=>setFormData({...formData, redondeo_target_pct: parseFloat(e.target.value)})} />
+                            <label className="block text-xs font-bold text-[var(--accent)] mb-1">
+                                Modificador Objetivo (%)
+                                <span className="block text-[10px] text-[var(--text-muted)] font-normal font-sans">0 = equilibrio, + = sube, - = baja</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                inputMode="decimal" 
+                                className="w-full border rounded px-3 py-1.5 text-sm font-mono" 
+                                value={formData.redondeo_target_pct ?? 0} 
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === '' || val === '-' || /^-?\d*\.?\d*$/.test(val)) {
+                                        setFormData({...formData, redondeo_target_pct: val});
+                                    }
+                                }} 
+                            />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-[var(--accent)] mb-1">Tolerancia Mínima (%)</label>
-                            <input type="number" step="0.1" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.redondeo_min_pct} onChange={e=>setFormData({...formData, redondeo_min_pct: parseFloat(e.target.value)})} />
+                            <label className="block text-xs font-bold text-[var(--accent)] mb-1">
+                                Tolerancia Mínima (%)
+                                <span className="block text-[10px] text-[var(--text-muted)] font-normal font-sans">Acepta negativos (ej: -3)</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                inputMode="decimal" 
+                                className="w-full border rounded px-3 py-1.5 text-sm font-mono" 
+                                value={formData.redondeo_min_pct ?? 0} 
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === '' || val === '-' || /^-?\d*\.?\d*$/.test(val)) {
+                                        setFormData({...formData, redondeo_min_pct: val});
+                                    }
+                                }} 
+                            />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-[var(--accent)] mb-1">Tolerancia Máxima (%)</label>
-                            <input type="number" step="0.1" className="w-full border rounded px-3 py-1.5 text-sm" value={formData.redondeo_max_pct} onChange={e=>setFormData({...formData, redondeo_max_pct: parseFloat(e.target.value)})} />
+                            <label className="block text-xs font-bold text-[var(--accent)] mb-1">
+                                Tolerancia Máxima (%)
+                                <span className="block text-[10px] text-[var(--text-muted)] font-normal font-sans">Acepta positivos (ej: 3)</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                inputMode="decimal" 
+                                className="w-full border rounded px-3 py-1.5 text-sm font-mono" 
+                                value={formData.redondeo_max_pct ?? 0} 
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === '' || val === '-' || /^-?\d*\.?\d*$/.test(val)) {
+                                        setFormData({...formData, redondeo_max_pct: val});
+                                    }
+                                }} 
+                            />
                         </div>
                     </div>
                 )}

@@ -2,10 +2,11 @@
 import { toast } from 'sonner';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
     DollarSign, ShieldCheck, AlertCircle, Clock, Save, X, 
     Edit2, Loader2, ArrowRight, RefreshCw, CheckCircle2, 
-    Sliders, Sparkles, HelpCircle, ChevronDown, ChevronUp, Check, Info
+    Sliders, Sparkles, HelpCircle, ChevronDown, ChevronUp, Check, Info, ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { calculateFullPriceBreakdown, PricingModifiers, FullPriceBreakdown } from '@/lib/magic-rounding';
@@ -59,9 +60,9 @@ export default function PricingAuditCard({
         aplicar_retenciones: true,
         retenciones_pct: 9,
         aplicar_redondeo_magico: true,
-        redondeo_target_pct: -10,
-        redondeo_min_pct: 9,
-        redondeo_max_pct: 14,
+        redondeo_target_pct: 0,
+        redondeo_min_pct: -4,
+        redondeo_max_pct: 3,
         redondeo_modo: 'magic'
     });
 
@@ -88,9 +89,9 @@ export default function PricingAuditCard({
                 aplicar_retenciones: mods.aplicar_retenciones !== false,
                 retenciones_pct: mods.retenciones_pct ?? draftDetails.retenciones_pct ?? 9,
                 aplicar_redondeo_magico: mods.aplicar_redondeo_magico !== false,
-                redondeo_target_pct: mods.redondeo_target_pct ?? -10,
-                redondeo_min_pct: mods.redondeo_range?.min ?? 9,
-                redondeo_max_pct: mods.redondeo_range?.max ?? 14,
+                redondeo_target_pct: mods.redondeo_target_pct ?? 0,
+                redondeo_min_pct: mods.redondeo_range?.min ?? -4,
+                redondeo_max_pct: mods.redondeo_range?.max ?? 3,
                 redondeo_modo: mods.redondeo_modo || 'magic'
             });
         }
@@ -164,11 +165,17 @@ export default function PricingAuditCard({
     const handleSaveModifiersOverride = async (updatedMods: PricingModifiers) => {
         setSaving(true);
         try {
+            const cleanedMods: PricingModifiers = {
+                ...updatedMods,
+                redondeo_target_pct: Number(updatedMods.redondeo_target_pct) || 0,
+                redondeo_min_pct: Number(updatedMods.redondeo_min_pct) || 0,
+                redondeo_max_pct: Number(updatedMods.redondeo_max_pct) || 0,
+            };
             const res = await fetch(`/api/catalog/external/${publicacionId}/pricing`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    modifiers_override: updatedMods
+                    modifiers_override: cleanedMods
                 })
             });
             const data = await res.json();
@@ -459,29 +466,47 @@ export default function PricingAuditCard({
                                         {modifiers.aplicar_redondeo_magico && (
                                             <div className="grid grid-cols-3 gap-2 pl-6 mt-1">
                                                 <div className="flex flex-col gap-1">
-                                                    <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold">Objetivo (%)</span>
+                                                    <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold" title="0 = equilibrio exacto, + sube, - baja">Modificador Objetivo (%)</span>
                                                     <input 
-                                                        type="number"
-                                                        value={modifiers.redondeo_target_pct}
-                                                        onChange={(e) => setModifiers(prev => ({ ...prev, redondeo_target_pct: parseFloat(e.target.value) || 0 }))}
+                                                        type="text"
+                                                        inputMode="decimal"
+                                                        value={modifiers.redondeo_target_pct ?? 0}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            if (val === '' || val === '-' || /^-?\d*\.?\d*$/.test(val)) {
+                                                                setModifiers(prev => ({ ...prev, redondeo_target_pct: val as any }));
+                                                            }
+                                                        }}
                                                         className="w-full text-right p-1 bg-[var(--surface)] border border-[var(--border)] rounded font-mono text-xs font-bold text-[var(--accent)]"
                                                     />
                                                 </div>
                                                 <div className="flex flex-col gap-1">
-                                                    <span className="text-[var(--text-faint)] text-[10px] uppercase font-bold">Mínimo (%)</span>
+                                                    <span className="text-[var(--text-faint)] text-[10px] uppercase font-bold" title="Acepta negativos (ej: -3)">Tolerancia Mínima (%)</span>
                                                     <input 
-                                                        type="number"
-                                                        value={modifiers.redondeo_min_pct}
-                                                        onChange={(e) => setModifiers(prev => ({ ...prev, redondeo_min_pct: parseFloat(e.target.value) || 0 }))}
+                                                        type="text"
+                                                        inputMode="decimal"
+                                                        value={modifiers.redondeo_min_pct ?? 0}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            if (val === '' || val === '-' || /^-?\d*\.?\d*$/.test(val)) {
+                                                                setModifiers(prev => ({ ...prev, redondeo_min_pct: val as any }));
+                                                            }
+                                                        }}
                                                         className="w-full text-right p-1 bg-[var(--surface)] border border-[var(--border)] rounded font-mono text-xs"
                                                     />
                                                 </div>
                                                 <div className="flex flex-col gap-1">
-                                                    <span className="text-[var(--text-faint)] text-[10px] uppercase font-bold">Máximo (%)</span>
+                                                    <span className="text-[var(--text-faint)] text-[10px] uppercase font-bold" title="Acepta positivos (ej: 3)">Tolerancia Máxima (%)</span>
                                                     <input 
-                                                        type="number"
-                                                        value={modifiers.redondeo_max_pct}
-                                                        onChange={(e) => setModifiers(prev => ({ ...prev, redondeo_max_pct: parseFloat(e.target.value) || 0 }))}
+                                                        type="text"
+                                                        inputMode="decimal"
+                                                        value={modifiers.redondeo_max_pct ?? 0}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            if (val === '' || val === '-' || /^-?\d*\.?\d*$/.test(val)) {
+                                                                setModifiers(prev => ({ ...prev, redondeo_max_pct: val as any }));
+                                                            }
+                                                        }}
                                                         className="w-full text-right p-1 bg-[var(--surface)] border border-[var(--border)] rounded font-mono text-xs"
                                                     />
                                                 </div>
@@ -512,9 +537,14 @@ export default function PricingAuditCard({
                         {/* DESGLOSE MATEMÁTICO TRANSPARENTE EN PASOS (MINIMALISTA) */}
                         <div className="mt-3 text-xs font-mono bg-transparent border border-[var(--border)] rounded px-4 py-3 shadow-sm relative">
                             {draftDetails.rule_name && (
-                                <div className="absolute top-2 right-2 text-[9px] uppercase tracking-wider font-bold text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded">
-                                    Perfil: {draftDetails.rule_name}
-                                </div>
+                                <Link 
+                                    href="/settings/pricing" 
+                                    className="absolute top-2 right-2 text-[10px] uppercase tracking-wider font-bold text-[var(--accent)] bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 px-2 py-0.5 rounded border border-[var(--accent)]/20 flex items-center gap-1 transition-colors"
+                                    title="Abrir panel de reglas de precios"
+                                >
+                                    <span>Regla: {draftDetails.rule_name}</span>
+                                    <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                                </Link>
                             )}
 
                             <div className="space-y-1.5 w-full sm:w-2/3 lg:w-1/2">

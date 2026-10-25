@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
-import { Package, Calendar, Clock, ArrowRight } from 'lucide-react';
+import { Package, Calendar, Clock, ArrowRight, Sliders } from 'lucide-react';
 import { ProveedorArchivarButton } from '@/components/precios/ProveedorArchivarButton';
 import { ProveedorRenombrarButton } from '@/components/precios/ProveedorRenombrarButton';
 import { NuevoProveedorButton } from '@/components/precios/NuevoProveedorButton';
@@ -37,12 +37,22 @@ export default async function PreciosPage() {
 
     return (
         <div className="p-6 max-w-7xl mx-auto">
-            <header className="flex items-center justify-between mb-8">
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                 <div>
                     <h1 className="text-2xl font-bold text-[var(--text)] tracking-tight">Listas de Precios</h1>
                     <p className="text-[var(--text-muted)] mt-1">Gestión de costos y precios por proveedor comercial. Selecciona un proveedor para actualizar su lista.</p>
                 </div>
-                <NuevoProveedorButton />
+                <div className="flex items-center gap-3">
+                    <Link
+                        href="/settings/pricing"
+                        className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)] text-[var(--text)] transition-colors shadow-sm"
+                        title="Configurar reglas de precios en cascada y redondeo"
+                    >
+                        <Sliders className="w-4 h-4 text-[var(--accent)]" />
+                        Reglas de Precios V3
+                    </Link>
+                    <NuevoProveedorButton />
+                </div>
             </header>
 
             {error ? (

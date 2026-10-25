@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import {
     ArrowLeft, AlertCircle, CheckCircle2, Clock, RefreshCw,
-    Search, ExternalLink, Package, ArrowUpDown, ChevronLeft, ChevronRight
+    Search, ExternalLink, Package, ArrowUpDown, ChevronLeft, ChevronRight, Sliders
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -38,6 +38,7 @@ interface UrgenciaItem {
     draft_price: number;
     draft_cost: number;
     pricing_status: string;
+    precio_equilibrio: number;
     gap_dinero: number;
     gap_pct: number;
     categoria: TabCategory;
@@ -257,7 +258,14 @@ function UrgenciaPreciosInner() {
                     title="Urgencia de Precios y Auditoría"
                     description={`${kpis.total.toLocaleString()} publicaciones analizadas en servidor`}
                     actions={
-                        <>
+                        <div className="flex items-center gap-2">
+                            <Link
+                                href="/settings/pricing"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)] text-[var(--text)] transition-colors shadow-sm"
+                                title="Configurar reglas de precios en cascada"
+                            >
+                                <Sliders className="w-3.5 h-3.5 text-[var(--accent)]" /> Configurar Reglas V3
+                            </Link>
                             <Btn
                                 variant="ghost"
                                 onClick={() => { loadKpis(); loadPageData(); }}
@@ -267,7 +275,7 @@ function UrgenciaPreciosInner() {
                             >
                                 Refrescar
                             </Btn>
-                        </>
+                        </div>
                     }
                 />
 
@@ -433,8 +441,9 @@ function UrgenciaPreciosInner() {
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Estado</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Costo Base</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Precio MeLi</th>
-                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Sugerido Motor</th>
-                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Brecha</th>
+                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Equilibrio Exacto</th>
+                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Sugerido Final</th>
+                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right" title="Brecha calculada sobre el Equilibrio Matemático Exacto">Brecha (vs Eq.)</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-center">Auditoría</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Acción</th>
                                 </tr>
@@ -442,14 +451,14 @@ function UrgenciaPreciosInner() {
                             <tbody className="divide-y divide-[var(--border)]">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={8} className="px-6 py-12 text-center text-[var(--text-faint)]">
+                                        <td colSpan={9} className="px-6 py-12 text-center text-[var(--text-faint)]">
                                             <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[var(--accent)]" />
                                             Cargando publicaciones desde el motor...
                                         </td>
                                     </tr>
                                 ) : items.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="px-6 py-12 text-center text-[var(--text-faint)]">
+                                        <td colSpan={9} className="px-6 py-12 text-center text-[var(--text-faint)]">
                                             No se encontraron publicaciones con estos criterios.
                                         </td>
                                     </tr>
@@ -527,14 +536,27 @@ function UrgenciaPreciosInner() {
                                                     )}
                                                 </td>
 
-                                                {/* 5 — SUGERIDO MOTOR */}
+                                                {/* 5 — EQUILIBRIO EXACTO */}
+                                                <td className="px-4 py-3 align-top text-right">
+                                                    <span className="text-xs font-mono font-bold text-[var(--accent)]">
+                                                        {formatCurrency(item.precio_equilibrio)}
+                                                    </span>
+                                                    <div className="text-[10px] text-[var(--text-faint)]">
+                                                        sin redondeo
+                                                    </div>
+                                                </td>
+
+                                                {/* 6 — SUGERIDO FINAL */}
                                                 <td className="px-4 py-3 align-top text-right">
                                                     <span className="text-xs font-mono font-bold text-[var(--text)]">
                                                         {formatCurrency(item.draft_price)}
                                                     </span>
+                                                    <div className="text-[10px] text-[var(--text-faint)]">
+                                                        con redondeo
+                                                    </div>
                                                 </td>
 
-                                                {/* 6 — BRECHA */}
+                                                {/* 7 — BRECHA */}
                                                 <td className="px-4 py-3 align-top text-right">
                                                     {item.categoria === 'sin_precio' ? (
                                                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-purple-500/10 text-purple-700 border border-purple-500/30">
