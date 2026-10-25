@@ -563,9 +563,11 @@ export class MeliAdapter implements MarketplaceAdapter {
         // En Full, cada variante tiene su propio inventory_id, pero un mismo producto
         // puede tener varias publicaciones (tradicional + catálogo + derivada) que
         // comparten inventory_id. Se traen todas, sin filtrar por variación 0.
+        // También se trae user_product_id ya guardado (el 98% de las Full ya lo tienen,
+        // lo escribe syncCatalogBatchFast) para usarlo como fuente primaria.
         const { data: pubs } = await supabase
             .from('publicaciones_externas')
-            .select('id, external_item_id, external_variation_id')
+            .select('id, external_item_id, external_variation_id, user_product_id')
             .eq('marketplace_id', accountId)
             .eq('inventory_id', inventoryId);
         const items = (pubs || []).filter(p => p.external_item_id);
@@ -573,35 +575,42 @@ export class MeliAdapter implements MarketplaceAdapter {
             return { accountId, inventoryId, stock_full: stockQty, items: 0, replenishment: { updated: 0, errors: 0, upIds: [] } };
         }
 
-        // 3. Resolver body vía multiGET (deduplicando external_item_id, máx 20 por llamada).
-        // Guardamos el body COMPLETO (no solo user_product_id) porque para variantes el
-        // user_product_id vive dentro de body.variations[].user_product_id, no en la raíz.
-        // IMPORTANTE: el multiGET por defecto NO devuelve user_product_id ni variations;
-        // hay que pedirlos explícitamente en `attributes` (igual que syncCatalogBatchFast).
-        const uniqueItemIds = [...new Set(items.map(p => p.external_item_id))].slice(0, 20).join(',');
-        const bodyByItem = new Map<string, any>();
-        try {
-            const ir = await axios.get(
-                `https://api.mercadolibre.com/items?ids=${uniqueItemIds}&attributes=id,status,shipping,user_product_id,variations,inventory_id`,
-                { headers: { Authorization: `Bearer ${accessToken}` } }
-            );
-            for (const r of (ir.data || [])) {
-                if (r.code === 200 && r.body?.id) bodyByItem.set(r.body.id, r.body);
+        // 3. Resolver user_product_id: fuente primaria = BD; fallback = multiGET para
+        // las filas que aún tienen user_product_id NULL (el multiGET debe pedir
+        // user_product_id y variations explícitamente, no vienen por defecto).
+        const upIdPorFila = new Map<string, string>();
+        const sinUpId = items.filter(p => !p.user_product_id);
+        for (const p of items) if (p.user_product_id) upIdPorFila.set(p.id, p.user_product_id);
+
+        if (sinUpId.length > 0) {
+            const uniqueItemIds = [...new Set(sinUpId.map(p => p.external_item_id))].slice(0, 20).join(',');
+            try {
+                const ir = await axios.get(
+                    `https://api.mercadolibre.com/items?ids=${uniqueItemIds}&attributes=id,user_product_id,variations`,
+                    { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                const bodyByItem = new Map<string, any>();
+                for (const r of (ir.data || [])) {
+                    if (r.code === 200 && r.body?.id) bodyByItem.set(r.body.id, r.body);
+                }
+                for (const p of sinUpId) {
+                    const body = bodyByItem.get(p.external_item_id);
+                    // Para variantes el upId puede estar en variations[]; fallback a la raíz.
+                    const upId = (p.external_variation_id && p.external_variation_id !== '0')
+                        ? (body?.variations?.find((v: any) => String(v.id) === String(p.external_variation_id))?.user_product_id ?? body?.user_product_id)
+                        : body?.user_product_id;
+                    if (upId) upIdPorFila.set(p.id, upId);
+                }
+            } catch (e: any) {
+                logger.warn({ accountId, inventoryId, error: e?.message }, 'puntual: fallo multiGET user_product_id');
             }
-        } catch (e: any) {
-            logger.warn({ accountId, inventoryId, error: e?.message }, 'puntual: fallo multiGET user_product_id');
         }
 
-        // 4. Replenishment por user_product_id (resolviendo variantes).
+        // 4. Replenishment por user_product_id.
         let updated = 0;
         let errors = 0;
         for (const it of items) {
-            const body = bodyByItem.get(it.external_item_id);
-            // Para variantes, el user_product_id está en variations[]; para ítems sin
-            // variantes, en la raíz del body.
-            const upId = (it.external_variation_id && it.external_variation_id !== '0')
-                ? (body?.variations?.find((v: any) => String(v.id) === String(it.external_variation_id))?.user_product_id ?? body?.user_product_id)
-                : body?.user_product_id;
+            const upId = upIdPorFila.get(it.id);
             if (!upId) { errors++; continue; }
             try {
                 const rr = await axios.get(
@@ -630,7 +639,7 @@ export class MeliAdapter implements MarketplaceAdapter {
             }
         }
 
-        return { accountId, inventoryId, stock_full: stockQty, items: items.length, replenishment: { updated, errors, upIds: [...bodyByItem.values()].map((b: any) => b?.user_product_id).filter(Boolean) } };
+        return { accountId, inventoryId, stock_full: stockQty, items: items.length, replenishment: { updated, errors, upIds: [...new Set([...upIdPorFila.values()])] } };
     }
 
     // Consulta el historial de operaciones de stock Full (INBOUND_RECEPTION, ventas, bajas, etc.)
