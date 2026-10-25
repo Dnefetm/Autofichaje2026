@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
@@ -79,7 +79,7 @@ function formatCurrency(n: number | null | undefined): string {
     return `$${Number(n).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-export default function UrgenciaPreciosPage() {
+function UrgenciaPreciosInner() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const pathname = usePathname();
@@ -643,5 +643,17 @@ export default function UrgenciaPreciosPage() {
                 </Card>
             </Page>
         </div>
+    );
+}
+
+export default function UrgenciaPreciosPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex-1 flex items-center justify-center min-h-screen">
+                <RefreshCw className="w-8 h-8 animate-spin text-[var(--accent)]" />
+            </div>
+        }>
+            <UrgenciaPreciosInner />
+        </Suspense>
     );
 }

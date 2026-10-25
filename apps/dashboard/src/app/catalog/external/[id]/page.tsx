@@ -9,7 +9,7 @@ import {
     Clock, Globe, DollarSign, Pencil, X, Check, Loader2, Layers, Copy, Lock, Image as ImageIcon
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { use } from 'react';
 import { cn } from '@/lib/utils';
 import MappingModal from '@/components/mapping-modal';
@@ -423,8 +423,15 @@ function StatusToggle({ id, current, disabled }: { id: string; current: string; 
 export default function PublicacionDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = React.use(params);
     const router = useRouter();
-    const searchParams = useSearchParams();
-    const fromUrl = searchParams.get('from');
+    const [fromUrl, setFromUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const from = params.get('from');
+            if (from) setFromUrl(from);
+        }
+    }, []);
 
     const isFromUrgencia = fromUrl?.includes('urgencia-precios');
     const backLabel = isFromUrgencia ? 'Volver a Urgencia de Precios' : 'Vitrinas de MeLi';
