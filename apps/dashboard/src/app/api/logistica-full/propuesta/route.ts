@@ -7,6 +7,7 @@ export const maxDuration = 60;
 const DIAS_VENTANA = 30;
 const MESES_HISTORICO = 6;
 const DIAS_6MESES = 180;
+const MESES_UMBRAL_UNIFORMIDAD = 4;
 
 // T1 Logística Full — propuesta de reposición, AGRUPADA POR CÓDIGO ML (inventory_id).
 // Datos de ML (replenishment): sales_30d_full (venta Full 30d), stock_full (aptas),
@@ -46,7 +47,7 @@ export async function GET(req: Request) {
         const corte30 = Date.now() - DIAS_VENTANA * 24 * 60 * 60 * 1000;
         const ventas30PorCuentaCodigo = new Map<string, number>();
         const ventas6mPorCuentaCodigo = new Map<string, number>();
-        const semanalPorCuentaCodigo = new Map<string, number[]>();
+        const mensualPorCuentaCodigo = new Map<string, number[]>();
         let tieneVentasDiarias = true;
         try {
             let from = 0;
@@ -72,11 +73,11 @@ export async function GET(req: Request) {
                     if (Number.isFinite(fecha) && fecha >= corte30) {
                         ventas30PorCuentaCodigo.set(key, (ventas30PorCuentaCodigo.get(key) || 0) + uni);
                     }
-                    const bucket = Math.floor((Date.now() - fecha) / (7 * 24 * 60 * 60 * 1000));
-                    if (bucket >= 0 && bucket < 12) {
-                        let arr = semanalPorCuentaCodigo.get(key);
-                        if (!arr) { arr = new Array(12).fill(0); semanalPorCuentaCodigo.set(key, arr); }
-                        arr[bucket] += uni;
+                    const bucketMes = Math.floor((Date.now() - fecha) / (30 * 24 * 60 * 60 * 1000));
+                    if (bucketMes >= 0 && bucketMes < 6) {
+                        let arr = mensualPorCuentaCodigo.get(key);
+                        if (!arr) { arr = new Array(6).fill(0); mensualPorCuentaCodigo.set(key, arr); }
+                        arr[bucketMes] += uni;
                     }
                 }
                 if (rows.length < PAGE) break;
@@ -153,17 +154,32 @@ export async function GET(req: Request) {
         // 4. Cálculo por (cuenta, código ML).
         const propuesta = [...byCuentaInv.values()].map((e: any) => {
             const key = `${e.marketplace_id}|${e.inventory_id}`;
+            const meses6m = mensualPorCuentaCodigo.get(key) || new Array(6).fill(0);
             const v30 = tieneVentasDiarias ? (ventas30PorCuentaCodigo.get(key) || 0) : e.sales_30d_full;
+            const vMesPrevio = tieneVentasDiarias ? (meses6m[1] || 0) : e.sales_30d_full;
             const total6m = ventas6mPorCuentaCodigo.get(key) || 0;
-            const vPromedio6m = tieneVentasDiarias ? Math.round(total6m / MESES_HISTORICO) : e.sales_30d_full;
-            const semanas = semanalPorCuentaCodigo.get(key) || new Array(12).fill(0);
-            const vMediana = Math.round(mediana(semanas) * 4.33);
+            const vPromedio6mExacto = tieneVentasDiarias ? (total6m / MESES_HISTORICO) : e.sales_30d_full;
+            const vPromedio6m = Math.round(vPromedio6mExacto * 10) / 10;
+            const vMediana = Math.round(mediana(meses6m) * 10) / 10;
+
+            const mesesConVenta = meses6m.filter((m: number) => m > 0).length;
+            const factorUniformidad = Math.min(1, mesesConVenta / MESES_UMBRAL_UNIFORMIDAD);
+            const historicoAjustado = vPromedio6mExacto * factorUniformidad;
+            const ventaReciente = tieneVentasDiarias ? (0.75 * v30 + 0.25 * vMesPrevio) : v30;
 
             let demanda: number;
             if (metodo === 'ultimo_mes') demanda = v30;
-            else if (metodo === 'historico_promedio') demanda = vPromedio6m;
+            else if (metodo === 'historico_promedio') demanda = vPromedio6mExacto;
             else if (metodo === 'historico_mediana') demanda = vMediana;
-            else demanda = Math.min(v30, (v30 + vPromedio6m) / 2);
+            else {
+                if (v30 > 0) {
+                    demanda = Math.min(v30, (ventaReciente + historicoAjustado) / 2);
+                } else if (total6m > 0) {
+                    demanda = Math.max(1, redondeoSuave(historicoAjustado / 2));
+                } else {
+                    demanda = 0;
+                }
+            }
 
             const demandaDiaria = demanda / DIAS_VENTANA;
             // "En camino" y "efectivo" vienen de MeLi (fuente de verdad):
@@ -195,7 +211,7 @@ export async function GET(req: Request) {
 
             // A enviar = lo que Full necesita, acotado a lo que puedo construir ya (no puedo enviar
             // más de lo que tengo componentes para armar).
-            const necesario = Math.max(0, Math.round(demandaDiaria * coberturaDeseada - efectivo));
+            const necesario = Math.max(0, redondeoSuave(demandaDiaria * coberturaDeseada - efectivo));
             const sugerido = Math.min(necesario, construible);
             const cobertura = demandaDiaria > 0 ? Math.round((efectivo / demandaDiaria) * 10) / 10 : null;
 
@@ -208,6 +224,7 @@ export async function GET(req: Request) {
                 seller_sku: e.seller_sku,
                 codigo_universal: e.codigo_universal,
                 ventas_ultimo_mes: v30,
+                ventas_promedio_6m: vPromedio6m,
                 stock_full: e.stock_full,
                 stock_bodega: construible,
                 stock_disponible: construibleDisponible,
@@ -245,4 +262,8 @@ function mediana(arr: number[]): number {
     if (n === 0) return 0;
     const mid = Math.floor(n / 2);
     return n % 2 === 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid];
+}
+
+function redondeoSuave(x: number): number {
+    return Math.floor(x + 0.4);
 }

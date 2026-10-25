@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Loader2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -167,14 +167,26 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--border)]">
-          {sorted.map((row) => (
-            <tr key={rowKey(row)} className={rowClassName?.(row)}>
-              {columns.map((c) => (
-                <td key={c.key} className={cn(cellPad, 'align-middle overflow-hidden', c.align === 'right' && 'text-right', c.nowrap && 'whitespace-nowrap')}>
-                  {value(row, c)}
-                </td>
-              ))}
-            </tr>
+          {sorted.map((row, i) => (
+            <Fragment key={rowKey(row)}>
+              {i > 0 && i % 20 === 0 && (
+                <tr className="bg-[var(--surface-2)] border-y border-[var(--border)]">
+                  {columns.map((c) => (
+                    <td key={`hdr-${i}-${c.key}`} className={cn('px-2 py-1.5 text-[10px] leading-tight font-semibold text-[var(--text-muted)]', c.align === 'right' && 'text-right', c.nowrap && 'whitespace-nowrap')}>
+                      {c.group && <div className="text-[9px] uppercase tracking-wider text-[var(--text-faint)] font-normal">{c.group}</div>}
+                      <div>{c.label}</div>
+                    </td>
+                  ))}
+                </tr>
+              )}
+              <tr className={rowClassName?.(row)}>
+                {columns.map((c) => (
+                  <td key={c.key} className={cn(cellPad, 'align-middle overflow-hidden', c.align === 'right' && 'text-right', c.nowrap && 'whitespace-nowrap')}>
+                    {value(row, c)}
+                  </td>
+                ))}
+              </tr>
+            </Fragment>
           ))}
         </tbody>
       </table>

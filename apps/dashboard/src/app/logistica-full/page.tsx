@@ -19,6 +19,7 @@ interface PropItem {
     seller_sku: string | null;
     codigo_universal: string | null;
     ventas_ultimo_mes: number;
+    ventas_promedio_6m?: number;
     stock_full: number;
     stock_bodega: number | null;
     stock_disponible: number | null;
@@ -362,6 +363,7 @@ export default function LogisticaFullPage() {
             ),
         },
         { key: 'ventas_ultimo_mes', label: 'Mes', group: 'Ventas', width: '46px', nowrap: true, align: 'right', sortValue: (r) => r.ventas_ultimo_mes, render: (r) => <span className="font-mono">{r.ventas_ultimo_mes}</span> },
+        { key: 'ventas_promedio_6m', label: 'Prom 6m', group: 'Ventas', width: '58px', nowrap: true, align: 'right', sortValue: (r) => r.ventas_promedio_6m ?? 0, render: (r) => <span className="font-mono text-[var(--text-muted)]">{r.ventas_promedio_6m ?? 0}</span> },
         { key: 'stock_full', label: 'Aptas', group: 'Stock Full', width: '52px', nowrap: true, align: 'right', sortValue: (r) => r.stock_full, render: (r) => <span className="font-mono">{r.stock_full}</span> },
         {
             key: 'pendientes',
