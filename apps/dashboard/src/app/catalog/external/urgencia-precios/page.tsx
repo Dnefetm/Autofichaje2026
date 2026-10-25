@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import {
     ArrowLeft, AlertCircle, CheckCircle2, Clock, RefreshCw,
-    Search, ExternalLink, Package, Truck, Filter, ArrowUpDown, ChevronDown
+    Search, ExternalLink, Package, ArrowUpDown, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -14,7 +15,7 @@ import { Btn } from '@/components/ui/Btn';
 import { Card } from '@/components/ui/Card';
 import { Page } from '@/components/ui/Page';
 
-interface PricingItem {
+interface UrgenciaItem {
     id: string;
     external_item_id: string;
     titulo: string;
@@ -34,15 +35,30 @@ interface PricingItem {
     esta_mapeado: boolean;
     ultima_auditoria_precio_el: string | null;
     ultima_auditoria_precio_accion: string | null;
-    publication_pricing_drafts: {
-        draft_price: number;
-        draft_cost: number;
-        pricing_status: string;
-    } | null;
+    draft_price: number;
+    draft_cost: number;
+    pricing_status: string;
+    gap_dinero: number;
+    gap_pct: number;
+    categoria: TabCategory;
+    estado_auditoria: 'sin_auditar' | 'mas_7_dias' | 'auditado';
+}
+
+interface UrgenciaKpis {
+    total: number;
+    count_perdida: number;
+    sum_perdida: number;
+    count_sobreprecio: number;
+    sum_sobreprecio: number;
+    count_sin_precio: number;
+    count_alineado: number;
+    count_sin_auditar: number;
 }
 
 type TabCategory = 'all' | 'perdida' | 'sobreprecio' | 'sin_precio' | 'alineado';
 type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'audit_urgente' | 'ventas_desc';
+
+const PAGE_SIZE = 50;
 
 const statusColors: Record<string, string> = {
     active: 'bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30',
@@ -64,68 +80,142 @@ function formatCurrency(n: number | null | undefined): string {
 }
 
 export default function UrgenciaPreciosPage() {
-    const [items, setItems] = useState<PricingItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState<TabCategory>('all');
-    const [soloSinAuditar, setSoloSinAuditar] = useState(false);
-    const [sortBy, setSortBy] = useState<SortOption>('perdida_desc');
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
+
+    // 1. Inicializar filtros desde la URL
+    const urlTab = (searchParams.get('tab') as TabCategory) || 'all';
+    const urlSearch = searchParams.get('search') || '';
+    const urlSort = (searchParams.get('sort') as SortOption) || 'perdida_desc';
+    const urlSoloSinAuditar = searchParams.get('unreviewed') === '1';
+    const urlPage = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+
+    const [activeTab, setActiveTab] = useState<TabCategory>(urlTab);
+    const [searchTerm, setSearchTerm] = useState<string>(urlSearch);
+    const [debouncedSearch, setDebouncedSearch] = useState<string>(urlSearch);
+    const [sortBy, setSortBy] = useState<SortOption>(urlSort);
+    const [soloSinAuditar, setSoloSinAuditar] = useState<boolean>(urlSoloSinAuditar);
+    const [page, setPage] = useState<number>(urlPage);
+
+    // 2. Datos
+    const [kpis, setKpis] = useState<UrgenciaKpis>({
+        total: 0,
+        count_perdida: 0,
+        sum_perdida: 0,
+        count_sobreprecio: 0,
+        sum_sobreprecio: 0,
+        count_sin_precio: 0,
+        count_alineado: 0,
+        count_sin_auditar: 0,
+    });
+    const [items, setItems] = useState<UrgenciaItem[]>([]);
+    const [totalCount, setTotalCount] = useState<number>(0);
+    const [loading, setLoading] = useState<boolean>(true);
     const [auditingId, setAuditingId] = useState<string | null>(null);
 
-    const loadData = async () => {
+    // URL completa para el parámetro `?from=`
+    const currentUrl = useMemo(() => {
+        const params = new URLSearchParams();
+        if (activeTab !== 'all') params.set('tab', activeTab);
+        if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+        if (sortBy !== 'perdida_desc') params.set('sort', sortBy);
+        if (soloSinAuditar) params.set('unreviewed', '1');
+        if (page > 1) params.set('page', String(page));
+        const qs = params.toString();
+        return qs ? `${pathname}?${qs}` : pathname;
+    }, [pathname, activeTab, debouncedSearch, sortBy, soloSinAuditar, page]);
+
+    // Sincronizar URL cuando cambian los filtros
+    useEffect(() => {
+        router.replace(currentUrl, { scroll: false });
+    }, [currentUrl, router]);
+
+    // Debounce del buscador
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            setPage(1);
+        }, 350);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    // 3. Cargar KPIs (1 llamada rápida al servidor)
+    const loadKpis = useCallback(async () => {
+        try {
+            const { data, error } = await supabase.rpc('fn_urgencia_precios_kpis');
+            if (error) throw error;
+            if (data) setKpis(data as UrgenciaKpis);
+        } catch (e: any) {
+            console.error('Error cargando KPIs de urgencia:', e);
+        }
+    }, []);
+
+    // 4. Cargar página de datos (servidor: filtra, ordena y pagina 50 filas)
+    const loadPageData = useCallback(async () => {
         setLoading(true);
         try {
-            // Traemos únicamente las publicaciones que cuentan con cálculo y lista de costos activa
-            const { data, error } = await supabase
-                .from('publicaciones_externas')
-                .select(`
-                    id,
-                    external_item_id,
-                    titulo,
-                    precio_venta,
-                    original_price,
-                    seller_custom_field,
-                    seller_sku,
-                    brand,
-                    url_imagen,
-                    permalink,
-                    status_externo,
-                    listing_type_id,
-                    logistic_type,
-                    sold_quantity,
-                    stock_publicado,
-                    health,
-                    esta_mapeado,
-                    ultima_auditoria_precio_el,
-                    ultima_auditoria_precio_accion,
-                    publication_pricing_drafts!inner (
-                        draft_price,
-                        draft_cost,
-                        pricing_status
-                    )
-                `)
-                .gt('publication_pricing_drafts.draft_price', 0)
-                .neq('publication_pricing_drafts.pricing_status', 'missing_cost')
-                .or('external_variation_id.is.null,external_variation_id.eq.0')
-                .order('sold_quantity', { ascending: false })
-                .limit(2000);
+            let query = supabase
+                .from('v_urgencia_precios')
+                .select('*', { count: 'exact' });
 
+            // Filtro por tab
+            if (activeTab !== 'all') {
+                query = query.eq('categoria', activeTab);
+            }
+
+            // Filtro solo sin auditar
+            if (soloSinAuditar) {
+                query = query.eq('estado_auditoria', 'sin_auditar');
+            }
+
+            // Buscador
+            if (debouncedSearch.trim()) {
+                const t = debouncedSearch.trim();
+                query = query.or(`titulo.ilike.%${t}%,external_item_id.ilike.%${t}%,seller_custom_field.ilike.%${t}%,seller_sku.ilike.%${t}%,brand.ilike.%${t}%`);
+            }
+
+            // Ordenamiento en servidor
+            if (sortBy === 'perdida_desc') {
+                query = query.order('gap_dinero', { ascending: true }); // Más negativo = mayor pérdida
+            } else if (sortBy === 'sobreprecio_desc') {
+                query = query.order('gap_dinero', { ascending: false }); // Más positivo = mayor sobreprecio
+            } else if (sortBy === 'pct_desc') {
+                query = query.order('gap_pct', { ascending: true });
+            } else if (sortBy === 'audit_urgente') {
+                query = query.order('ultima_auditoria_precio_el', { ascending: true, nullsFirst: true });
+            } else if (sortBy === 'ventas_desc') {
+                query = query.order('sold_quantity', { ascending: false });
+            }
+
+            // Paginación server-side (50 filas)
+            const from = (page - 1) * PAGE_SIZE;
+            const to = from + PAGE_SIZE - 1;
+            query = query.range(from, to);
+
+            const { data, count, error } = await query;
             if (error) throw error;
-            setItems((data as any[]) || []);
+
+            setItems((data as UrgenciaItem[]) || []);
+            setTotalCount(count || 0);
         } catch (e: any) {
             console.error(e);
             toast.error(e.message || 'Error al cargar urgencia de precios');
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeTab, soloSinAuditar, debouncedSearch, sortBy, page]);
 
     useEffect(() => {
-        loadData();
-    }, []);
+        loadKpis();
+    }, [loadKpis]);
+
+    useEffect(() => {
+        loadPageData();
+    }, [loadPageData]);
 
     // Quick audit handler
-    const handleQuickAudit = async (item: PricingItem) => {
+    const handleQuickAudit = async (item: UrgenciaItem) => {
         setAuditingId(item.id);
         try {
             const res = await fetch(`/api/catalog/external/${item.id}/audit-mark`, {
@@ -135,7 +225,11 @@ export default function UrgenciaPreciosPage() {
             });
             if (!res.ok) throw new Error('Error al registrar auditoría');
             const now = new Date().toISOString();
-            setItems(prev => prev.map(p => p.id === item.id ? { ...p, ultima_auditoria_precio_el: now, ultima_auditoria_precio_accion: 'revisada_ok' } : p));
+            setItems(prev => prev.map(p => p.id === item.id ? { ...p, ultima_auditoria_precio_el: now, ultima_auditoria_precio_accion: 'revisada_ok', estado_auditoria: 'auditado' } : p));
+            setKpis(prev => ({
+                ...prev,
+                count_sin_auditar: Math.max(0, prev.count_sin_auditar - 1)
+            }));
             toast.success(`Precio de ${item.external_item_id} auditado`);
         } catch (e: any) {
             toast.error(e.message || 'Error al auditar precio');
@@ -144,139 +238,7 @@ export default function UrgenciaPreciosPage() {
         }
     };
 
-    // Procesamiento y métricas
-    const processedItems = useMemo(() => {
-        return items.map(item => {
-            const rawDraft = item.publication_pricing_drafts;
-            const draft = Array.isArray(rawDraft) ? rawDraft[0] : rawDraft;
-            const draftPrice = draft?.draft_price || 0;
-            const draftCost = draft?.draft_cost || 0;
-            const precioVenta = Number(item.precio_venta || 0);
-
-            // Brecha financiera (positivo si estamos cobrando MENOS que el sugerido = pérdida)
-            const gapDinero = precioVenta - draftPrice;
-            const gapPct = draftPrice > 0 ? Math.round((gapDinero / draftPrice) * 100) : 0;
-
-            let categoria: TabCategory = 'alineado';
-            if (precioVenta <= 0) {
-                categoria = 'sin_precio';
-            } else if (gapDinero < 0) {
-                categoria = 'perdida';
-            } else if (gapDinero > 0) {
-                categoria = 'sobreprecio';
-            }
-
-            const ageDays = item.ultima_auditoria_precio_el
-                ? (Date.now() - new Date(item.ultima_auditoria_precio_el).getTime()) / 86400000
-                : Infinity;
-
-            const estadoAuditoria = ageDays === Infinity ? 'sin_auditar' : ageDays > 7 ? 'mas_7_dias' : 'auditado';
-
-            return {
-                ...item,
-                draftPrice,
-                draftCost,
-                precioVenta,
-                gapDinero,
-                gapPct,
-                categoria,
-                ageDays,
-                estadoAuditoria
-            };
-        });
-    }, [items]);
-
-    // Métricas globales para las tarjetas de resumen
-    const metrics = useMemo(() => {
-        let countPerdida = 0;
-        let sumPerdida = 0;
-        let countSobreprecio = 0;
-        let sumSobreprecio = 0;
-        let countSinPrecio = 0;
-        let countAlineado = 0;
-        let countSinAuditar = 0;
-
-        for (const item of processedItems) {
-            if (item.categoria === 'perdida') {
-                countPerdida++;
-                sumPerdida += Math.abs(item.gapDinero);
-            } else if (item.categoria === 'sobreprecio') {
-                countSobreprecio++;
-                sumSobreprecio += item.gapDinero;
-            } else if (item.categoria === 'sin_precio') {
-                countSinPrecio++;
-            } else if (item.categoria === 'alineado') {
-                countAlineado++;
-            }
-
-            if (item.estadoAuditoria === 'sin_auditar') {
-                countSinAuditar++;
-            }
-        }
-
-        return {
-            total: processedItems.length,
-            countPerdida,
-            sumPerdida,
-            countSobreprecio,
-            sumSobreprecio,
-            countSinPrecio,
-            countAlineado,
-            countSinAuditar
-        };
-    }, [processedItems]);
-
-    // Filtrado y ordenamiento
-    const filteredItems = useMemo(() => {
-        let list = [...processedItems];
-
-        // Filtro por tab
-        if (activeTab !== 'all') {
-            list = list.filter(item => item.categoria === activeTab);
-        }
-
-        // Filtro solo sin auditar
-        if (soloSinAuditar) {
-            list = list.filter(item => item.estadoAuditoria === 'sin_auditar');
-        }
-
-        // Buscador
-        if (searchTerm.trim()) {
-            const term = searchTerm.toLowerCase().trim();
-            list = list.filter(item =>
-                item.titulo.toLowerCase().includes(term) ||
-                item.external_item_id.toLowerCase().includes(term) ||
-                (item.seller_custom_field && item.seller_custom_field.toLowerCase().includes(term)) ||
-                (item.seller_sku && item.seller_sku.toLowerCase().includes(term)) ||
-                (item.brand && item.brand.toLowerCase().includes(term))
-            );
-        }
-
-        // Ordenamiento
-        list.sort((a, b) => {
-            if (sortBy === 'perdida_desc') {
-                // Mayor pérdida primero (gapDinero más negativo)
-                return a.gapDinero - b.gapDinero;
-            }
-            if (sortBy === 'sobreprecio_desc') {
-                // Mayor sobreprecio primero (gapDinero más positivo)
-                return b.gapDinero - a.gapDinero;
-            }
-            if (sortBy === 'pct_desc') {
-                return a.gapPct - b.gapPct;
-            }
-            if (sortBy === 'audit_urgente') {
-                // Más días sin auditar primero
-                return b.ageDays - a.ageDays;
-            }
-            if (sortBy === 'ventas_desc') {
-                return (b.sold_quantity || 0) - (a.sold_quantity || 0);
-            }
-            return 0;
-        });
-
-        return list;
-    }, [processedItems, activeTab, soloSinAuditar, searchTerm, sortBy]);
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
 
     return (
         <div className="flex-1 overflow-auto bg-[var(--bg)] min-h-screen">
@@ -293,12 +255,12 @@ export default function UrgenciaPreciosPage() {
 
                 <PageHeader
                     title="Urgencia de Precios y Auditoría"
-                    description={`${metrics.total.toLocaleString()} publicaciones con lista de precios activa analizadas`}
+                    description={`${kpis.total.toLocaleString()} publicaciones analizadas en servidor`}
                     actions={
                         <>
                             <Btn
                                 variant="ghost"
-                                onClick={loadData}
+                                onClick={() => { loadKpis(); loadPageData(); }}
                                 disabled={loading}
                                 loading={loading}
                                 icon={<RefreshCw className="w-4 h-4" />}
@@ -309,11 +271,11 @@ export default function UrgenciaPreciosPage() {
                     }
                 />
 
-                {/* Tarjetas de Resumen KPI */}
+                {/* Tarjetas de Resumen KPI (calculadas al instante en Postgres) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Tarjeta Pérdida */}
                     <div
-                        onClick={() => setActiveTab(activeTab === 'perdida' ? 'all' : 'perdida')}
+                        onClick={() => { setActiveTab(activeTab === 'perdida' ? 'all' : 'perdida'); setPage(1); }}
                         className={cn(
                             "cursor-pointer p-4 rounded-xl border transition-all",
                             activeTab === 'perdida'
@@ -326,8 +288,8 @@ export default function UrgenciaPreciosPage() {
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[var(--err)]/20 text-[var(--err)]">Urgente</span>
                         </div>
                         <div className="mt-2 flex items-baseline justify-between">
-                            <span className="text-2xl font-black text-[var(--text)]">{metrics.countPerdida}</span>
-                            <span className="text-xs font-semibold text-[var(--err)]">-{formatCurrency(metrics.sumPerdida)} MXN</span>
+                            <span className="text-2xl font-black text-[var(--text)]">{kpis.count_perdida}</span>
+                            <span className="text-xs font-semibold text-[var(--err)]">-{formatCurrency(kpis.sum_perdida)} MXN</span>
                         </div>
                         <p className="text-[11px] text-[var(--text-muted)] mt-1">
                             Venta en MeLi por debajo del motor
@@ -336,7 +298,7 @@ export default function UrgenciaPreciosPage() {
 
                     {/* Tarjeta Sobreprecio */}
                     <div
-                        onClick={() => setActiveTab(activeTab === 'sobreprecio' ? 'all' : 'sobreprecio')}
+                        onClick={() => { setActiveTab(activeTab === 'sobreprecio' ? 'all' : 'sobreprecio'); setPage(1); }}
                         className={cn(
                             "cursor-pointer p-4 rounded-xl border transition-all",
                             activeTab === 'sobreprecio'
@@ -349,8 +311,8 @@ export default function UrgenciaPreciosPage() {
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[var(--warn)]/20 text-[var(--warn)]">Competitividad</span>
                         </div>
                         <div className="mt-2 flex items-baseline justify-between">
-                            <span className="text-2xl font-black text-[var(--text)]">{metrics.countSobreprecio}</span>
-                            <span className="text-xs font-semibold text-[var(--warn)]">+{formatCurrency(metrics.sumSobreprecio)} MXN</span>
+                            <span className="text-2xl font-black text-[var(--text)]">{kpis.count_sobreprecio}</span>
+                            <span className="text-xs font-semibold text-[var(--warn)]">+{formatCurrency(kpis.sum_sobreprecio)} MXN</span>
                         </div>
                         <p className="text-[11px] text-[var(--text-muted)] mt-1">
                             Precio más alto que la regla óptima
@@ -359,7 +321,7 @@ export default function UrgenciaPreciosPage() {
 
                     {/* Tarjeta Sin Precio */}
                     <div
-                        onClick={() => setActiveTab(activeTab === 'sin_precio' ? 'all' : 'sin_precio')}
+                        onClick={() => { setActiveTab(activeTab === 'sin_precio' ? 'all' : 'sin_precio'); setPage(1); }}
                         className={cn(
                             "cursor-pointer p-4 rounded-xl border transition-all",
                             activeTab === 'sin_precio'
@@ -372,7 +334,7 @@ export default function UrgenciaPreciosPage() {
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-700">$0</span>
                         </div>
                         <div className="mt-2 flex items-baseline justify-between">
-                            <span className="text-2xl font-black text-[var(--text)]">{metrics.countSinPrecio}</span>
+                            <span className="text-2xl font-black text-[var(--text)]">{kpis.count_sin_precio}</span>
                             <span className="text-xs text-[var(--text-muted)]">Sin auditar</span>
                         </div>
                         <p className="text-[11px] text-[var(--text-muted)] mt-1">
@@ -382,7 +344,7 @@ export default function UrgenciaPreciosPage() {
 
                     {/* Tarjeta Auditoría Pendiente */}
                     <div
-                        onClick={() => setSoloSinAuditar(prev => !prev)}
+                        onClick={() => { setSoloSinAuditar(prev => !prev); setPage(1); }}
                         className={cn(
                             "cursor-pointer p-4 rounded-xl border transition-all",
                             soloSinAuditar
@@ -395,9 +357,9 @@ export default function UrgenciaPreciosPage() {
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[var(--surface-2)] text-[var(--text-muted)]">Faltan</span>
                         </div>
                         <div className="mt-2 flex items-baseline justify-between">
-                            <span className="text-2xl font-black text-[var(--text)]">{metrics.countSinAuditar}</span>
+                            <span className="text-2xl font-black text-[var(--text)]">{kpis.count_sin_auditar}</span>
                             <span className="text-xs text-[var(--text-muted)]">
-                                {metrics.total > 0 ? `${Math.round((metrics.countSinAuditar / metrics.total) * 100)}%` : '0%'}
+                                {kpis.total > 0 ? `${Math.round((kpis.count_sin_auditar / kpis.total) * 100)}%` : '0%'}
                             </span>
                         </div>
                         <p className="text-[11px] text-[var(--text-muted)] mt-1">
@@ -411,15 +373,15 @@ export default function UrgenciaPreciosPage() {
                     {/* Tabs de Categoría */}
                     <div className="flex flex-wrap gap-1 p-1 bg-[var(--surface-2)] rounded-xl border border-[var(--border)]">
                         {[
-                            { id: 'all', label: `Todas (${metrics.total})` },
-                            { id: 'perdida', label: `🔴 En pérdida (${metrics.countPerdida})` },
-                            { id: 'sobreprecio', label: `🟡 Sobreprecio (${metrics.countSobreprecio})` },
-                            { id: 'sin_precio', label: `🟣 Sin precio (${metrics.countSinPrecio})` },
-                            { id: 'alineado', label: `🟢 Alineadas (${metrics.countAlineado})` },
+                            { id: 'all', label: `Todas (${kpis.total})` },
+                            { id: 'perdida', label: `🔴 En pérdida (${kpis.count_perdida})` },
+                            { id: 'sobreprecio', label: `🟡 Sobreprecio (${kpis.count_sobreprecio})` },
+                            { id: 'sin_precio', label: `🟣 Sin precio (${kpis.count_sin_precio})` },
+                            { id: 'alineado', label: `🟢 Alineadas (${kpis.count_alineado})` },
                         ].map(tab => (
                             <button
                                 key={tab.id}
-                                onClick={() => setActiveTab(tab.id as TabCategory)}
+                                onClick={() => { setActiveTab(tab.id as TabCategory); setPage(1); }}
                                 className={cn(
                                     "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all",
                                     activeTab === tab.id
@@ -437,7 +399,7 @@ export default function UrgenciaPreciosPage() {
                         <ArrowUpDown className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
                         <select
                             value={sortBy}
-                            onChange={e => setSortBy(e.target.value as SortOption)}
+                            onChange={e => { setSortBy(e.target.value as SortOption); setPage(1); }}
                             className="text-xs bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-[var(--text)] focus:ring-[var(--accent)]"
                         >
                             <option value="perdida_desc">Mayor pérdida ($)</option>
@@ -482,17 +444,17 @@ export default function UrgenciaPreciosPage() {
                                     <tr>
                                         <td colSpan={8} className="px-6 py-12 text-center text-[var(--text-faint)]">
                                             <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[var(--accent)]" />
-                                            Cargando publicaciones con cálculo de motor...
+                                            Cargando publicaciones desde el motor...
                                         </td>
                                     </tr>
-                                ) : filteredItems.length === 0 ? (
+                                ) : items.length === 0 ? (
                                     <tr>
                                         <td colSpan={8} className="px-6 py-12 text-center text-[var(--text-faint)]">
                                             No se encontraron publicaciones con estos criterios.
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredItems.map(item => {
+                                    items.map(item => {
                                         const sku = item.seller_custom_field || item.seller_sku;
                                         return (
                                             <tr key={item.id} className="hover:bg-[var(--surface-2)]/60 transition-colors">
@@ -512,7 +474,7 @@ export default function UrgenciaPreciosPage() {
                                                         )}
                                                         <div className="min-w-0">
                                                             <Link
-                                                                href={`/catalog/external/${item.id}`}
+                                                                href={`/catalog/external/${item.id}?from=${encodeURIComponent(currentUrl)}`}
                                                                 className="text-xs font-semibold text-[var(--text)] hover:text-[var(--accent)] line-clamp-2 leading-tight"
                                                             >
                                                                 {item.titulo}
@@ -549,16 +511,16 @@ export default function UrgenciaPreciosPage() {
                                                 {/* 3 — COSTO BASE */}
                                                 <td className="px-4 py-3 align-top text-right">
                                                     <span className="text-xs font-mono font-medium text-[var(--text-muted)]">
-                                                        {formatCurrency(item.draftCost)}
+                                                        {formatCurrency(item.draft_cost)}
                                                     </span>
                                                 </td>
 
                                                 {/* 4 — PRECIO MELI */}
                                                 <td className="px-4 py-3 align-top text-right">
                                                     <div className="text-xs font-bold text-[var(--text)]">
-                                                        {item.precioVenta > 0 ? formatCurrency(item.precioVenta) : <span className="text-purple-600 font-bold">$0</span>}
+                                                        {item.precio_venta && item.precio_venta > 0 ? formatCurrency(item.precio_venta) : <span className="text-purple-600 font-bold">$0</span>}
                                                     </div>
-                                                    {item.original_price && item.original_price > item.precioVenta && (
+                                                    {item.original_price && item.precio_venta && item.original_price > item.precio_venta && (
                                                         <div className="text-[10px] text-[var(--text-faint)] line-through">
                                                             {formatCurrency(item.original_price)}
                                                         </div>
@@ -568,7 +530,7 @@ export default function UrgenciaPreciosPage() {
                                                 {/* 5 — SUGERIDO MOTOR */}
                                                 <td className="px-4 py-3 align-top text-right">
                                                     <span className="text-xs font-mono font-bold text-[var(--text)]">
-                                                        {formatCurrency(item.draftPrice)}
+                                                        {formatCurrency(item.draft_price)}
                                                     </span>
                                                 </td>
 
@@ -580,13 +542,13 @@ export default function UrgenciaPreciosPage() {
                                                         </span>
                                                     ) : item.categoria === 'perdida' ? (
                                                         <div className="inline-flex flex-col items-end px-2 py-0.5 rounded bg-[var(--err)]/10 text-[var(--err)] border border-[var(--err)]/30">
-                                                            <span className="text-xs font-black">{formatCurrency(item.gapDinero)}</span>
-                                                            <span className="text-[10px] font-semibold">{item.gapPct}%</span>
+                                                            <span className="text-xs font-black">{formatCurrency(item.gap_dinero)}</span>
+                                                            <span className="text-[10px] font-semibold">{item.gap_pct}%</span>
                                                         </div>
                                                     ) : item.categoria === 'sobreprecio' ? (
                                                         <div className="inline-flex flex-col items-end px-2 py-0.5 rounded bg-[var(--warn)]/10 text-[var(--warn)] border border-[var(--warn)]/30">
-                                                            <span className="text-xs font-black">+{formatCurrency(item.gapDinero)}</span>
-                                                            <span className="text-[10px] font-semibold">+{item.gapPct}%</span>
+                                                            <span className="text-xs font-black">+{formatCurrency(item.gap_dinero)}</span>
+                                                            <span className="text-[10px] font-semibold">+{item.gap_pct}%</span>
                                                         </div>
                                                     ) : (
                                                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[var(--ok)]/10 text-[var(--ok)] border border-[var(--ok)]/30">
@@ -597,13 +559,13 @@ export default function UrgenciaPreciosPage() {
 
                                                 {/* 7 — AUDITORÍA */}
                                                 <td className="px-4 py-3 align-top text-center">
-                                                    {item.estadoAuditoria === 'sin_auditar' ? (
+                                                    {item.estado_auditoria === 'sin_auditar' ? (
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--err)]/15 text-[var(--err)] border border-[var(--err)]/30">
                                                             <AlertCircle className="w-3 h-3" /> Sin auditar
                                                         </span>
-                                                    ) : item.estadoAuditoria === 'mas_7_dias' ? (
+                                                    ) : item.estado_auditoria === 'mas_7_dias' ? (
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--warn)]/15 text-[var(--warn)] border border-[var(--warn)]/30" title={`Auditado el ${new Date(item.ultima_auditoria_precio_el!).toLocaleDateString('es-MX')}`}>
-                                                            <Clock className="w-3 h-3" /> +7d ({Math.floor(item.ageDays)}d)
+                                                            <Clock className="w-3 h-3" /> +7d
                                                         </span>
                                                     ) : (
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--ok)]/15 text-[var(--ok)] border border-[var(--ok)]/30" title={`Auditado el ${new Date(item.ultima_auditoria_precio_el!).toLocaleDateString('es-MX')}`}>
@@ -618,14 +580,14 @@ export default function UrgenciaPreciosPage() {
                                                         <button
                                                             onClick={() => handleQuickAudit(item)}
                                                             disabled={auditingId === item.id}
-                                                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-lg bg-[var(--ok)]/10 hover:bg-[var(--ok)]/20 text-[var(--ok)] border border-[var(--ok)]/30 transition-colors disabled:opacity-50"
+                                                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-lg bg-[var(--ok)]/10 hover:bg-[var(--ok)]/20 text-[var(--ok)] border border-[var(--ok)]/30 transition-colors disabled:opacity-50 cursor-pointer"
                                                             title="Marcar como precio revisado y conforme"
                                                         >
                                                             <CheckCircle2 className="w-3.5 h-3.5" />
                                                             {auditingId === item.id ? '...' : 'Auditar'}
                                                         </button>
                                                         <Link
-                                                            href={`/catalog/external/${item.id}`}
+                                                            href={`/catalog/external/${item.id}?from=${encodeURIComponent(currentUrl)}`}
                                                             className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/30 transition-colors"
                                                         >
                                                             Ficha
@@ -650,6 +612,34 @@ export default function UrgenciaPreciosPage() {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Paginador Server-Side */}
+                    {!loading && totalCount > 0 && (
+                        <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)] bg-[var(--surface)] text-xs text-[var(--text-muted)]">
+                            <div>
+                                Mostrando <span className="font-semibold text-[var(--text)]">{((page - 1) * PAGE_SIZE) + 1}</span> a <span className="font-semibold text-[var(--text)]">{Math.min(page * PAGE_SIZE, totalCount)}</span> de <span className="font-semibold text-[var(--text)]">{totalCount.toLocaleString()}</span> resultados
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                                    disabled={page <= 1}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium text-[var(--text)]"
+                                >
+                                    <ChevronLeft className="w-3.5 h-3.5" /> Anterior
+                                </button>
+                                <span className="px-2 font-medium">
+                                    Página {page} de {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={page >= totalPages}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium text-[var(--text)]"
+                                >
+                                    Siguiente <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </Card>
             </Page>
         </div>

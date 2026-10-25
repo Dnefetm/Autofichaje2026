@@ -9,6 +9,7 @@ import {
     Clock, Globe, DollarSign, Pencil, X, Check, Loader2, Layers, Copy, Lock, Image as ImageIcon
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { use } from 'react';
 import { cn } from '@/lib/utils';
 import MappingModal from '@/components/mapping-modal';
@@ -421,6 +422,22 @@ function StatusToggle({ id, current, disabled }: { id: string; current: string; 
 // --- Página ------------------------------------------------------------------
 export default function PublicacionDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = React.use(params);
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const fromUrl = searchParams.get('from');
+
+    const isFromUrgencia = fromUrl?.includes('urgencia-precios');
+    const backLabel = isFromUrgencia ? 'Volver a Urgencia de Precios' : 'Vitrinas de MeLi';
+
+    const handleBack = () => {
+        if (fromUrl) {
+            router.push(fromUrl);
+        } else if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer.includes(window.location.host)) {
+            router.back();
+        } else {
+            router.push('/catalog/external');
+        }
+    };
 
     const [pub, setPub] = useState<any>(null);
     const [mapeos, setMapeos] = useState<any[]>([]);
@@ -847,7 +864,9 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         <div className="flex-1 flex flex-col items-center justify-center min-h-screen gap-4 text-[var(--text-faint)]">
             <AlertCircle className="w-12 h-12" />
             <p className="text-lg font-semibold">Publicación no encontrada</p>
-            <Link href="/catalog/external" className="text-[var(--accent)] hover:underline text-sm">← Volver al catálogo</Link>
+            <button onClick={handleBack} className="text-[var(--accent)] hover:underline text-sm cursor-pointer">
+                ← {backLabel}
+            </button>
         </div>
     );
 
@@ -862,10 +881,14 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             <div className="py-6 max-w-6xl mx-auto space-y-4">
 
                 {/* Breadcrumb */}
-                <Link href="/catalog/external" className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors">
+                <button
+                    type="button"
+                    onClick={handleBack}
+                    className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors cursor-pointer"
+                >
                     <ArrowLeft className="w-4 h-4" />
-                    Vitrinas de MeLi
-                </Link>
+                    <span>{backLabel}</span>
+                </button>
 
                 {/* Banner de Kit/Bundle */}
                 {(pub.es_bundle || pub.tags?.includes('bundle')) && (

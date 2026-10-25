@@ -646,7 +646,7 @@ function GroupedListingRows({
                             </div>
                         )}
                         <div className="min-w-0">
-                            <Link href={`/catalog/external/${parent.id}`} className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] line-clamp-2 leading-tight block">
+                            <Link href={`/catalog/external/${parent.id}?from=/catalog/external`} className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] line-clamp-2 leading-tight block">
                                 {parent.titulo}
                             </Link>
                             <p className="text-[10px] font-mono text-[var(--text-faint)] mt-0.5">{parent.external_item_id}</p>
@@ -758,7 +758,7 @@ function GroupedListingRows({
                             <CheckCircle2 className="w-4 h-4" />
                         </button>
                         <Link
-                            href={`/catalog/external/${parent.id}`}
+                            href={`/catalog/external/${parent.id}?from=/catalog/external`}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 text-[var(--accent)] text-xs font-semibold rounded-lg transition-colors border border-[var(--accent)]/30"
                         >
                             Abrir Ficha
@@ -844,7 +844,7 @@ function GroupedListingRows({
                                 }
                                 <div>
                                     <Link
-                                        href={`/catalog/external/${rel.id}`}
+                                        href={`/catalog/external/${rel.id}?from=/catalog/external`}
                                         className={cn('text-xs font-medium transition-colors line-clamp-1', isCatalog ? 'text-[var(--text-muted)] hover:text-[var(--accent)]' : 'text-[var(--text-muted)] hover:text-[var(--ok)]')}
                                     >
                                         {rel.titulo?.slice(0, 55)}{(rel.titulo?.length ?? 0) > 55 ? '…' : ''}
@@ -881,7 +881,7 @@ function GroupedListingRows({
                         <td className="px-4 py-2 align-top text-right">
                             <div className="flex items-center justify-end gap-1.5">
                                 <Link
-                                    href={`/catalog/external/${rel.id}`}
+                                    href={`/catalog/external/${rel.id}?from=/catalog/external`}
                                     className={cn('inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-lg border transition-colors', isCatalog ? 'bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 text-[var(--accent)] border-[var(--accent)]/30' : 'bg-[var(--ok)]/10 hover:bg-[var(--ok)]/20 text-[var(--ok)] border-[var(--ok)]/30')}
                                 >
                                     Ver ficha →
@@ -908,10 +908,28 @@ function GroupedListingRows({
 export default function VirtualCatalogPage() {
     const [listings, setListings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [searchTerm, setSearchTerm] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return sessionStorage.getItem('catalog_external_search') || '';
+        }
+        return '';
+    });
+    const [debouncedSearch, setDebouncedSearch] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return sessionStorage.getItem('catalog_external_search') || '';
+        }
+        return '';
+    });
     const [selectedListing, setSelectedListing] = useState<any | null>(null);
-    const [filters, setFilters] = useState<FilterState>(defaultFilters);
+    const [filters, setFilters] = useState<FilterState>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = sessionStorage.getItem('catalog_external_filters');
+            if (saved) {
+                try { return JSON.parse(saved); } catch {}
+            }
+        }
+        return defaultFilters;
+    });
     const [showFilters, setShowFilters] = useState(false);
     // Publicaciones cuyo mapeo se está guardando en background.
     const [mappingIds, setMappingIds] = useState<Set<string>>(new Set());
@@ -924,9 +942,39 @@ export default function VirtualCatalogPage() {
     };
 
     // Paginación
-    const [page, setPage] = useState(0);
+    const [page, setPage] = useState<number>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = sessionStorage.getItem('catalog_external_page');
+            if (saved) {
+                const p = parseInt(saved, 10);
+                if (!isNaN(p)) return p;
+            }
+        }
+        return 0;
+    });
     const [totalCount, setTotalCount] = useState(0);
     const PAGE_SIZE = 100;
+    const isFilterInit = useRef(true);
+    const isSearchInit = useRef(true);
+
+    // Persistir filtros, paginación y búsqueda en sessionStorage
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('catalog_external_filters', JSON.stringify(filters));
+        }
+    }, [filters]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('catalog_external_page', String(page));
+        }
+    }, [page]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('catalog_external_search', searchTerm);
+        }
+    }, [searchTerm]);
 
     // Guardia anti-race: solo la request más reciente puede escribir el estado.
     const requestSeq = useRef(0);
@@ -960,12 +1008,22 @@ export default function VirtualCatalogPage() {
 
     // Debounce
     useEffect(() => {
+        if (isSearchInit.current) {
+            isSearchInit.current = false;
+            return;
+        }
         const t = setTimeout(() => { setDebouncedSearch(searchTerm); setPage(0); }, 400);
         return () => clearTimeout(t);
     }, [searchTerm]);
 
     // Reset page on filter change
-    useEffect(() => { setPage(0); }, [filters]);
+    useEffect(() => {
+        if (isFilterInit.current) {
+            isFilterInit.current = false;
+            return;
+        }
+        setPage(0);
+    }, [filters]);
 
     useEffect(() => { loadListings(); }, [page, debouncedSearch, filters]);
     useEffect(() => { loadFacets(); loadMarketplaces(); }, []);
@@ -1411,7 +1469,7 @@ export default function VirtualCatalogPage() {
                                                         </div>
                                                     )}
                                                     <div className="min-w-0 flex-1">
-                                                        <Link href={`/catalog/external/${p.id}`} className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] line-clamp-2 leading-tight block">
+                                                        <Link href={`/catalog/external/${p.id}?from=/catalog/external`} className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] line-clamp-2 leading-tight block">
                                                             {p.titulo}
                                                         </Link>
                                                         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
@@ -1447,7 +1505,7 @@ export default function VirtualCatalogPage() {
                                                     </div>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-2">
-                                                    <Link href={`/catalog/external/${p.id}`} className="min-w-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-semibold rounded-lg border border-[var(--accent)]/30">
+                                                    <Link href={`/catalog/external/${p.id}?from=/catalog/external`} className="min-w-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-semibold rounded-lg border border-[var(--accent)]/30">
                                                         Abrir Ficha
                                                     </Link>
                                                     <Btn size="sm" variant="ghost" onClick={() => setSelectedListing(p)} icon={<Link2 className="w-4 h-4" />} className="min-w-0">
