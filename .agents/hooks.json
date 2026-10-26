@@ -1,0 +1,17 @@
+{
+  "enforce-flash-high-subagent": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "invoke_subagent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/enforce-flash-high.cjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
