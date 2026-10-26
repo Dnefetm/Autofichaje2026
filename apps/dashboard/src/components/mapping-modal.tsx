@@ -398,7 +398,10 @@ function handleQuantityChange(sku: string, qty: number) { if (qty < 1) return; s
 async function loadSiblings() {
 setSiblingsLoading(true);
 try {
-const SEL = 'id, titulo, external_item_id, tipo_publicacion, listing_type_id, status_externo';
+const SEL = 'id, titulo, external_item_id, tipo_publicacion, listing_type_id, status_externo, channels';
+const isExcluded = (s: any) =>
+  s?.status_externo === 'closed' ||
+  (Array.isArray(s?.channels) && s.channels.includes('private') && !s.channels.includes('marketplace'));
 let sibData: any[] = [];
 if (listing?.id_producto_catalogo) {
 const { data } = await supabase
@@ -407,14 +410,15 @@ const { data } = await supabase
 .eq('id_producto_catalogo', listing.id_producto_catalogo)
 .neq('id', listing.id)
 .eq('external_variation_id', '0');
-sibData = data || [];
+sibData = (data || []).filter(s => !isExcluded(s));
 }
-const { data: catData } = await supabase
+const { data: rawCatData } = await supabase
 .from('publicaciones_externas')
 .select(SEL)
 .eq('par_item_id', listing.external_item_id)
 .in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
 .eq('external_variation_id', '0');
+const catData = (rawCatData || []).filter(s => !isExcluded(s));
 // Condiciones de venta: mismo user_product_id en la misma cuenta (Clásica ↔ Premium)
 let upData: any[] = [];
 if (listing?.user_product_id && listing?.marketplace_id) {
@@ -425,12 +429,12 @@ const { data } = await supabase
 .eq('marketplace_id', listing.marketplace_id)
 .neq('id', listing.id)
 .eq('external_variation_id', '0');
-upData = data || [];
+upData = (data || []).filter(s => !isExcluded(s));
 }
 const ids = new Set<string>();
 const combined: any[] = [];
-for (const row of [...sibData, ...(catData || []), ...upData]) {
-if (!row?.id || ids.has(row.id)) continue;
+for (const row of [...sibData, ...catData, ...upData]) {
+if (!row?.id || ids.has(row.id) || isExcluded(row)) continue;
 ids.add(row.id);
 combined.push(row);
 }

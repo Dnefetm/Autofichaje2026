@@ -565,6 +565,8 @@ function GroupedListingRows({
                 .eq('par_item_id', parent.external_item_id)
                 .in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
                 .eq('external_variation_id', '0')
+                .neq('status_externo', 'closed')
+                .not('channels', 'eq', '{"private"}')
                 .order('status_externo', { ascending: true });
             // Query 2: asociadas por id_producto_catalogo (hermanas tradicionales)
             let assocData: any[] = [];
@@ -575,6 +577,8 @@ function GroupedListingRows({
                     .eq('id_producto_catalogo', parent.id_producto_catalogo)
                     .neq('external_item_id', parent.external_item_id)
                     .eq('external_variation_id', '0')
+                    .neq('status_externo', 'closed')
+                    .not('channels', 'eq', '{"private"}')
                     .order('status_externo', { ascending: true });
                 assocData = data || [];
             }
@@ -1148,6 +1152,9 @@ export default function VirtualCatalogPage() {
                 );
             }
 
+            // Excluir siempre registros de canal private exclusivo
+            query = query.not('channels', 'eq', '{"private"}');
+
             // Marketplace (vidriera)
             if (filters.marketplace_id) query = query.eq('marketplace_id', filters.marketplace_id);
             // Tipo de publicación
@@ -1162,6 +1169,10 @@ export default function VirtualCatalogPage() {
                 query = query.in('status_externo', filters.statusExterno);
             } else if (filters.statusExterno.length === 0) {
                 query = query.in('status_externo', ['active', 'paused', 'under_review']);
+            }
+
+            if (!filters.statusExterno.includes('closed') && !filters.posiblesEliminadas) {
+                query = query.neq('status_externo', 'closed');
             }
             // Mapeo
             if (filters.mapeoFilter === 'unmapped') query = query.eq('esta_mapeado', false);

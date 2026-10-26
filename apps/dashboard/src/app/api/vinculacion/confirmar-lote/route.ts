@@ -83,14 +83,16 @@ export async function POST(req: NextRequest) {
 
     const { data: hermanas } = await supabaseAdmin
       .from('publicaciones_externas')
-      .select('id')
+      .select('id, channels, status_externo')
       .or(`id_producto_catalogo.eq.${key},par_item_id.eq.${key}`)
       .eq('external_variation_id', '0')
+      .neq('status_externo', 'closed')
       .or('esta_mapeado.is.null,esta_mapeado.eq.false')
       .limit(50);
 
     for (const h of hermanas || []) {
       if (yaVinculadas.has(h.id)) continue;
+      if (Array.isArray(h.channels) && h.channels.includes('private') && !h.channels.includes('marketplace')) continue;
       yaVinculadas.add(h.id);
       propagaciones.push({ publicacion_id: h.id, articulo_id: art, cantidad_requerida: cantidad, sincronizar_stock: sincronizar });
     }
