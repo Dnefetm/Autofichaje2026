@@ -10,8 +10,8 @@ process.stdin.on('end', () => {
     if (args.Model !== 'flash') {
       overwrite.Model = 'flash';
     }
-    if (args.TypeName === 'research' || !args.TypeName) {
-      overwrite.TypeName = 'self';
+    if (!args.TypeName || args.TypeName === 'research') {
+      overwrite.TypeName = 'ejecutor';
     }
     if (Object.keys(overwrite).length > 0) {
       process.stdout.write(JSON.stringify({ decision: 'allow', overwrite }));
