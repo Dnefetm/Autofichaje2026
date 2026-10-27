@@ -620,9 +620,31 @@ export async function sugerirExactoEnLote(
     if (norm(p.model)) allModelos.add(norm(p.model));
   }
 
-  const skuArts = new Map<string, any>();
-  const codigoArts = new Map<string, any>();
-  const modeloArts = new Map<string, any>();
+  const skuArts = new Map<string, any[]>();
+  const codigoArts = new Map<string, any[]>();
+  const modeloArts = new Map<string, any[]>();
+
+  const pushCandidate = (map: Map<string, any[]>, key: string, art: any) => {
+    if (!key || !art || esDevolucion(art.caja_madre)) return;
+    const list = map.get(key) || [];
+    if (!list.some((x) => x.articulo_id === art.articulo_id)) list.push(art);
+    map.set(key, list);
+  };
+
+  const pickBestArt = (candidates: any[] | undefined, pub: PublicacionSugerible): any | null => {
+    if (!candidates || candidates.length === 0) return null;
+    if (candidates.length === 1) return candidates[0];
+    const pBrand = norm(pub.brand);
+    const pTitle = norm(pub.titulo);
+    return [...candidates].sort((a, b) => {
+      const aBrandMatch = pBrand && norm(a.marca) === pBrand ? 1 : 0;
+      const bBrandMatch = pBrand && norm(b.marca) === pBrand ? 1 : 0;
+      if (aBrandMatch !== bBrandMatch) return bBrandMatch - aBrandMatch;
+      const aSim = stringSimilarity(pTitle, norm(a.nombre));
+      const bSim = stringSimilarity(pTitle, norm(b.nombre));
+      return bSim - aSim;
+    })[0];
+  };
 
   if (allSkus.size) {
     const parts = Array.from(allSkus).flatMap((s) => [`articulo_id.ilike.${s}`, `modelo.ilike.${s}`]);
@@ -633,8 +655,8 @@ export async function sugerirExactoEnLote(
       .or(parts.join(','))
       .limit(1000);
     for (const a of data || []) {
-      if (allSkus.has(norm(a.articulo_id))) skuArts.set(norm(a.articulo_id), a);
-      if (allSkus.has(norm(a.modelo))) skuArts.set(norm(a.modelo), a);
+      if (allSkus.has(norm(a.articulo_id))) pushCandidate(skuArts, norm(a.articulo_id), a);
+      if (allSkus.has(norm(a.modelo))) pushCandidate(skuArts, norm(a.modelo), a);
     }
   }
   if (allCodigos.size) {
@@ -645,7 +667,7 @@ export async function sugerirExactoEnLote(
       .not('nombre', 'like', '%PLACEHOLDER%')
       .or(parts.join(','))
       .limit(1000);
-    for (const a of data || []) codigoArts.set(normalizeCode(a.codigo_universal), a);
+    for (const a of data || []) pushCandidate(codigoArts, normalizeCode(a.codigo_universal), a);
   }
   if (allModelos.size) {
     const parts = Array.from(allModelos).map((m) => `modelo.ilike.${m}`);
@@ -655,7 +677,7 @@ export async function sugerirExactoEnLote(
       .not('nombre', 'like', '%PLACEHOLDER%')
       .or(parts.join(','))
       .limit(1000);
-    for (const a of data || []) modeloArts.set(norm(a.modelo), a);
+    for (const a of data || []) pushCandidate(modeloArts, norm(a.modelo), a);
   }
 
   for (const p of pubs) {
@@ -671,25 +693,39 @@ export async function sugerirExactoEnLote(
         .select(ARTICULO_COLS)
         .eq('articulo_id', heredada)
         .limit(1);
-      if (data && data[0]) best = toSugerencia(data[0], 98, 'hermana_mapeada', 'Misma catalogación ya vinculada');
+      if (data && data[0] && !esDevolucion(data[0].caja_madre)) {
+        best = toSugerencia(data[0], 98, 'hermana_mapeada', 'Misma catalogación ya vinculada');
+      }
     }
 
     if (!best) {
-      const sku = norm(p.seller_sku) || norm(p.seller_custom_field);
-      if (sku && skuArts.has(sku)) best = toSugerencia(skuArts.get(sku), 100, 'sku_exacto', 'SKU coincide exactamente');
+      const sku = [norm(p.seller_sku), norm(p.seller_custom_field)].find((s) => s && skuArts.has(s));
+      const a = sku ? pickBestArt(skuArts.get(sku), p) : null;
+      if (a) best = toSugerencia(a, 100, 'sku_exacto', 'SKU coincide exactamente');
     }
     if (!best) {
       const c = [normalizeCode(p.ean), normalizeCode(p.gtin), normalizeCode(p.upc)].find((x) => x && codigoArts.has(x));
-      if (c) best = toSugerencia(codigoArts.get(c)!, 100, 'codigo_exacto', 'Código de barras coincide exactamente');
+      const a = c ? pickBestArt(codigoArts.get(c), p) : null;
+      if (a) best = toSugerencia(a, 100, 'codigo_exacto', 'Código de barras coincide exactamente');
     }
     if (!best) {
       const m = norm(p.model);
       if (m && modeloArts.has(m)) {
-        const a = modeloArts.get(m);
-        if (norm(p.brand) && norm(a.marca) === norm(p.brand)) {
-          best = toSugerencia(a, 95, 'marca_modelo', 'Marca y modelo coinciden exactamente');
-        } else if (!norm(p.brand)) {
-          best = toSugerencia(a, 80, 'marca_modelo', 'Modelo coincide exactamente');
+        const candidates = modeloArts.get(m) || [];
+        const pBrand = norm(p.brand);
+        const exactBrandCands = pBrand ? candidates.filter((x) => norm(x.marca) === pBrand) : [];
+        if (exactBrandCands.length > 0) {
+          const a = pickBestArt(exactBrandCands, p)!;
+          const nameSim = Math.round(stringSimilarity(norm(p.titulo), norm(a.nombre)) * 4);
+          best = toSugerencia(a, Math.min(97, 93 + nameSim), 'marca_modelo', 'Marca y modelo coinciden exactamente');
+        } else {
+          const a = pickBestArt(candidates, p);
+          if (a) {
+            const nameSim = stringSimilarity(norm(p.titulo), norm(a.nombre));
+            if (!pBrand || nameSim >= 0.35) {
+              best = toSugerencia(a, Math.round(78 + nameSim * 12), 'marca_modelo', 'Modelo y nombre coinciden');
+            }
+          }
         }
       }
     }

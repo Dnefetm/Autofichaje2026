@@ -24,35 +24,61 @@ export async function GET(req: NextRequest) {
       Math.max(10, parseInt(searchParams.get('pageSize') || '50', 10))
     );
 
-    // 1) Consulta inicial de publicaciones sin mapear
-    let q = supabase
-      .from('publicaciones_externas')
-      .select(
-        `id, external_item_id, titulo, brand, model, precio_venta, visits_30d,
+    // 1) Pre-ordenamiento grueso en SQL antes del LIMIT (Criterio 5.2: SQL filtra/pre-ordena
+    //    candidatos probables en todo el universo pendiente; sugerencias.ts calcula el score definitivo).
+    const selectCols = `id, external_item_id, titulo, brand, model, precio_venta, visits_30d,
          url_imagen, marketplace_id, marketplace_configs(account_name), ean, gtin, upc, seller_sku, seller_custom_field,
          domain_id, condition, tipo_publicacion, variation_attributes, par_item_id, id_producto_catalogo,
          es_bundle, tags,
          sync_disabled, sync_disabled_reason, pricing_status, sale_price_calculated,
-         actualizado_el`,
-        { count: 'estimated' }
-      )
-      .or('and(or(esta_mapeado.is.null,esta_mapeado.eq.false),not.and(tipo_publicacion.eq.catalogo,par_item_id.not.is.null))')
-      .not('es_bundle', 'is', true)
-      .not('tags', 'cs', '{bundle}')
-      .eq('external_variation_id', '0')
-      .order(orderBy, { ascending: false, nullsFirst: false })
-      .range(page * pageSize, page * pageSize + pageSize - 1);
+         actualizado_el`;
 
-    if (search.length >= 2) {
-      q = q.or(
-        `titulo.ilike.%${search}%,external_item_id.ilike.%${search}%,brand.ilike.%${search}%,model.ilike.%${search}%,seller_sku.ilike.%${search}%,ean.ilike.%${search}%,gtin.ilike.%${search}%`
-      );
+    let list: any[] = [];
+    let count: number | null = 0;
+
+    const { data: preSorted, error: rpcError } = await supabase.rpc('fn_cola_mapeo_pendientes', {
+      p_search: search,
+      p_order_by: orderBy,
+      p_limit: pageSize,
+      p_offset: page * pageSize,
+    });
+
+    if (!rpcError && Array.isArray(preSorted)) {
+      count = preSorted.length > 0 ? Number(preSorted[0].total_count || 0) : 0;
+      const orderedIds = preSorted.map((x: any) => x.pub_id).filter(Boolean);
+      if (orderedIds.length > 0) {
+        const { data: fetchedRows, error: fetchErr } = await supabase
+          .from('publicaciones_externas')
+          .select(selectCols)
+          .in('id', orderedIds);
+        if (fetchErr) throw fetchErr;
+        const byId = new Map((fetchedRows || []).map((r: any) => [r.id, r]));
+        list = orderedIds.map((id: string) => byId.get(id)).filter(Boolean);
+      }
+    } else {
+      // Fallback directo si la RPC aún no existe
+      let q = supabase
+        .from('publicaciones_externas')
+        .select(selectCols, { count: 'estimated' })
+        .or('and(or(esta_mapeado.is.null,esta_mapeado.eq.false),not.and(tipo_publicacion.eq.catalogo,par_item_id.not.is.null))')
+        .not('es_bundle', 'is', true)
+        .not('tags', 'cs', '{bundle}')
+        .not('channels', 'cs', '{private}')
+        .eq('external_variation_id', '0')
+        .order(orderBy, { ascending: false, nullsFirst: false })
+        .range(page * pageSize, page * pageSize + pageSize - 1);
+
+      if (search.length >= 2) {
+        q = q.or(
+          `titulo.ilike.%${search}%,external_item_id.ilike.%${search}%,brand.ilike.%${search}%,model.ilike.%${search}%,seller_sku.ilike.%${search}%,ean.ilike.%${search}%,gtin.ilike.%${search}%`
+        );
+      }
+
+      const { data: rows, count: fallbackCount, error } = await q;
+      if (error) throw error;
+      list = rows || [];
+      count = fallbackCount || 0;
     }
-
-    const { data: rows, count, error } = await q;
-    if (error) throw error;
-
-    const list = rows || [];
 
     // 2) Enriquecimiento: ¿la publicación tiene mapeo existente y si sí, sus artículos tienen costo vigente?
     const pubIds = list.map((r) => r.id);

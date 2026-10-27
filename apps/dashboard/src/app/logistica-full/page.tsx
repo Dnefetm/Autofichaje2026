@@ -19,6 +19,7 @@ interface PropItem {
     seller_sku: string | null;
     codigo_universal: string | null;
     ventas_ultimo_mes: number;
+    ventas_2m?: number;
     ventas_promedio_6m?: number;
     stock_full: number;
     stock_bodega: number | null;
@@ -400,7 +401,12 @@ export default function LogisticaFullPage() {
             width: '72px',
             nowrap: true,
             align: 'right',
-            sortValue: (r) => r.cobertura_dias ?? -1,
+            nullsLast: true,
+            sortValue: (r) => {
+                const ventasRecientes = r.ventas_2m ?? r.ventas_ultimo_mes ?? 0;
+                if (r.cobertura_dias == null || ventasRecientes <= 0) return null;
+                return r.cobertura_dias;
+            },
             render: (r) => {
                 const bajo = r.cobertura_dias != null && r.cobertura_dias < (data?.cobertura_deseada ?? 30);
                 return r.cobertura_dias != null ? (

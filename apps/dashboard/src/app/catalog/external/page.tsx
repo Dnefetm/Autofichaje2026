@@ -1053,6 +1053,15 @@ export default function VirtualCatalogPage() {
     }
 
     async function loadFacets() {
+        const { data: rpcFacets, error: rpcErr } = await supabase.rpc('fn_facets_publicaciones_externas');
+        if (!rpcErr && rpcFacets && typeof rpcFacets === 'object') {
+            setFacets({
+                brands: Array.isArray((rpcFacets as any).brands) ? (rpcFacets as any).brands : [],
+                domains: Array.isArray((rpcFacets as any).domains) ? (rpcFacets as any).domains : [],
+            });
+            return;
+        }
+
         const [brandsResult, domainsResult] = await Promise.all([
             supabase.from('publicaciones_externas').select('brand').not('brand', 'is', null),
             supabase.from('publicaciones_externas').select('domain_id').not('domain_id', 'is', null),

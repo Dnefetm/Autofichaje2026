@@ -16,6 +16,8 @@ export interface Column<T> {
   width?: string;
   /** Evita el salto de línea del contenido de la celda. */
   nowrap?: boolean;
+  /** Si es true, los valores null/undefined se colocan siempre al final (tanto en asc como en desc). */
+  nullsLast?: boolean;
 }
 
 export function DataTable<T>({
@@ -51,6 +53,13 @@ export function DataTable<T>({
     return [...rows].sort((a, b) => {
       const va = getVal(a);
       const vb = getVal(b);
+      if (col?.nullsLast) {
+        const aNull = va == null || (typeof va === 'number' && Number.isNaN(va));
+        const bNull = vb == null || (typeof vb === 'number' && Number.isNaN(vb));
+        if (aNull && bNull) return 0;
+        if (aNull) return 1;
+        if (bNull) return -1;
+      }
       const na = va == null ? '' : va;
       const nb = vb == null ? '' : vb;
       let cmp: number;

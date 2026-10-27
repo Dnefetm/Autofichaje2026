@@ -224,6 +224,7 @@ export async function GET(req: Request) {
                 seller_sku: e.seller_sku,
                 codigo_universal: e.codigo_universal,
                 ventas_ultimo_mes: v30,
+                ventas_2m: v30 + vMesPrevio,
                 ventas_promedio_6m: vPromedio6m,
                 stock_full: e.stock_full,
                 stock_bodega: construible,
