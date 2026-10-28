@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sugerirExactoEnLote, type PublicacionSugerible } from '@/lib/vinculacion/sugerencias';
+import {
+  multiplicadorDePublicacion,
+  sugerirExactoEnLote,
+  type PublicacionSugerible,
+  type Sugerencia,
+} from '@/lib/vinculacion/sugerencias';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,8 +29,6 @@ export async function GET(req: NextRequest) {
       Math.max(10, parseInt(searchParams.get('pageSize') || '50', 10))
     );
 
-    // 1) Pre-ordenamiento grueso en SQL antes del LIMIT (Criterio 5.2: SQL filtra/pre-ordena
-    //    candidatos probables en todo el universo pendiente; sugerencias.ts calcula el score definitivo).
     const selectCols = `id, external_item_id, titulo, brand, model, precio_venta, visits_30d,
          url_imagen, marketplace_id, marketplace_configs(account_name), ean, gtin, upc, seller_sku, seller_custom_field,
          domain_id, condition, tipo_publicacion, variation_attributes, par_item_id, id_producto_catalogo,
@@ -35,6 +38,8 @@ export async function GET(req: NextRequest) {
 
     let list: any[] = [];
     let count: number | null = 0;
+    const sqlSugerenciaMap = new Map<string, Omit<Sugerencia, 'cantidad_sugerida'> | null>();
+    let usedUnifiedSqlScore = false;
 
     const { data: preSorted, error: rpcError } = await supabase.rpc('fn_cola_mapeo_pendientes', {
       p_search: search,
@@ -44,8 +49,29 @@ export async function GET(req: NextRequest) {
     });
 
     if (!rpcError && Array.isArray(preSorted)) {
+      usedUnifiedSqlScore = true;
       count = preSorted.length > 0 ? Number(preSorted[0].total_count || 0) : 0;
       const orderedIds = preSorted.map((x: any) => x.pub_id).filter(Boolean);
+
+      for (const row of preSorted) {
+        if (row.pub_id && row.art_id && row.sug_score != null && Number(row.sug_score) > 0) {
+          sqlSugerenciaMap.set(row.pub_id, {
+            articulo_id: row.art_id,
+            nombre: row.art_nombre ?? '',
+            marca: row.art_marca ?? null,
+            modelo: row.art_modelo ?? null,
+            variante: row.art_variante ?? null,
+            codigo_universal: row.art_codigo_universal ?? null,
+            caja_madre: row.art_caja_madre ?? null,
+            score: Number(row.sug_score),
+            metodo: row.sug_metodo ?? 'marca_modelo',
+            motivo: row.sug_motivo ?? 'Coincidencia de catálogo',
+          });
+        } else if (row.pub_id) {
+          sqlSugerenciaMap.set(row.pub_id, null);
+        }
+      }
+
       if (orderedIds.length > 0) {
         const { data: fetchedRows, error: fetchErr } = await supabase
           .from('publicaciones_externas')
@@ -56,7 +82,6 @@ export async function GET(req: NextRequest) {
         list = orderedIds.map((id: string) => byId.get(id)).filter(Boolean);
       }
     } else {
-      // Fallback directo si la RPC aún no existe
       let q = supabase
         .from('publicaciones_externas')
         .select(selectCols, { count: 'estimated' })
@@ -80,9 +105,8 @@ export async function GET(req: NextRequest) {
       count = fallbackCount || 0;
     }
 
-    // 2) Enriquecimiento: ¿la publicación tiene mapeo existente y si sí, sus artículos tienen costo vigente?
     const pubIds = list.map((r) => r.id);
-    let mapMap = new Map<string, string[]>(); // publicacion_id -> [articulo_id]
+    const mapMap = new Map<string, string[]>();
     if (pubIds.length) {
       const { data: mapeos } = await supabase
         .from('mapeo_publicacion_articulo')
@@ -106,7 +130,6 @@ export async function GET(req: NextRequest) {
       (costs || []).forEach((c: any) => costSet.add(c.articulo_id));
     }
 
-    // 3) Adjuntar señales de costo por fila
     const enriched = list.map((r: any) => {
       const arts = mapMap.get(r.id) || [];
       const conCosto = arts.filter((a) => costSet.has(a)).length;
@@ -127,32 +150,37 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // 4) Sugerencia EN LOTE (rápida): señales fuertes (hermana/SKU/código/modelo) sin
-    //    fuzzy. Evita ~50×4 queries por página. El modal individual sigue usando el
-    //    motor completo (con fuzzy) para una sola publicación.
-    const pubs: PublicacionSugerible[] = list.map((r: any) => ({
-      id: r.id,
-      external_item_id: r.external_item_id,
-      seller_sku: r.seller_sku,
-      seller_custom_field: r.seller_custom_field,
-      ean: r.ean,
-      gtin: r.gtin,
-      upc: r.upc,
-      model: r.model,
-      brand: r.brand,
-      titulo: r.titulo,
-      marketplace_id: r.marketplace_id,
-      id_producto_catalogo: r.id_producto_catalogo,
-      par_item_id: r.par_item_id,
-      tipo_publicacion: r.tipo_publicacion,
-    }));
-
-    const sugerenciaMap = await sugerirExactoEnLote(pubs);
-
-    const enrichedConSugerencia = enriched
-      .map((r: any) => ({ ...r, _sugerencia: sugerenciaMap.get(r.id) ?? null }))
-      // Coincidencias primero (mayor score arriba); sin sugerencia al final.
-      .sort((a: any, b: any) => (b._sugerencia?.score ?? -1) - (a._sugerencia?.score ?? -1));
+    let enrichedConSugerencia: any[];
+    if (usedUnifiedSqlScore) {
+      enrichedConSugerencia = enriched.map((r: any) => {
+        const baseSug = sqlSugerenciaMap.get(r.id) ?? null;
+        const _sugerencia: Sugerencia | null = baseSug
+          ? { ...baseSug, cantidad_sugerida: multiplicadorDePublicacion(r) }
+          : null;
+        return { ...r, _sugerencia };
+      });
+    } else {
+      const pubs: PublicacionSugerible[] = list.map((r: any) => ({
+        id: r.id,
+        external_item_id: r.external_item_id,
+        seller_sku: r.seller_sku,
+        seller_custom_field: r.seller_custom_field,
+        ean: r.ean,
+        gtin: r.gtin,
+        upc: r.upc,
+        model: r.model,
+        brand: r.brand,
+        titulo: r.titulo,
+        marketplace_id: r.marketplace_id,
+        id_producto_catalogo: r.id_producto_catalogo,
+        par_item_id: r.par_item_id,
+        tipo_publicacion: r.tipo_publicacion,
+      }));
+      const sugerenciaMap = await sugerirExactoEnLote(pubs);
+      enrichedConSugerencia = enriched
+        .map((r: any) => ({ ...r, _sugerencia: sugerenciaMap.get(r.id) ?? null }))
+        .sort((a: any, b: any) => (b._sugerencia?.score ?? -1) - (a._sugerencia?.score ?? -1));
+    }
 
     return NextResponse.json({
       total: count || 0,
