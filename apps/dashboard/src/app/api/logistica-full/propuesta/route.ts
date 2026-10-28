@@ -27,7 +27,7 @@ export async function GET(req: Request) {
             .select(`
                 articulo_id, cantidad_requerida,
                 articulo:articulos(articulo_id, nombre),
-                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, stock_full_total, sales_30d_full, replenishment_suggested, shipping_urgency, marketplace_id, seller_sku, ean, gtin, upc, titulo)
+                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, stock_full_total, sales_30d_full, sold_quantity, replenishment_suggested, shipping_urgency, marketplace_id, seller_sku, ean, gtin, upc, titulo)
             `)
             .eq('publicacion.logistic_type', 'fulfillment')
             .not('publicacion.inventory_id', 'is', null);
@@ -109,6 +109,7 @@ export async function GET(req: Request) {
                     stock_full: 0,
                     stock_full_total: null,
                     sales_30d_full: 0,
+                    sold_quantity: 0,
                     replenishment_suggested: null,
                     shipping_urgency: null,
                 });
@@ -131,6 +132,7 @@ export async function GET(req: Request) {
                 e.stock_full_total = Math.max(e.stock_full_total ?? 0, Number(pub.stock_full_total));
             }
             e.sales_30d_full = Math.max(e.sales_30d_full, pub?.sales_30d_full != null ? Number(pub.sales_30d_full) : 0);
+            e.sold_quantity = Math.max(e.sold_quantity, pub?.sold_quantity != null ? Number(pub.sold_quantity) : 0);
             if (pub?.replenishment_suggested != null) e.replenishment_suggested = pub.replenishment_suggested;
             if (pub?.shipping_urgency != null) e.shipping_urgency = pub.shipping_urgency;
         }
@@ -174,9 +176,11 @@ export async function GET(req: Request) {
             else {
                 if (v30 > 0) {
                     demanda = Math.min(v30, (ventaReciente + historicoAjustado) / 2);
-                } else if (total6m > 0) {
+                } else if (total6m > 0 && vPromedio6mExacto >= 0.6) {
+                    // Solo forzar demanda mínima si hay rotación real (4+ ventas en 6m).
                     demanda = Math.max(1, redondeoSuave(historicoAjustado / 2));
                 } else {
+                    // Baja rotación (1-3 ventas en 6m) o sin ventas: no inventar demanda.
                     demanda = 0;
                 }
             }
@@ -215,6 +219,19 @@ export async function GET(req: Request) {
             const sugerido = Math.min(necesario, construible);
             const cobertura = demandaDiaria > 0 ? Math.round((efectivo / demandaDiaria) * 10) / 10 : null;
 
+            // Clasificación operativa para las 3 pestañas.
+            const ventasHistoricas = Math.max(total6m, e.sold_quantity || 0);
+            const esPrioridad = vPromedio6mExacto >= 0.6 || v30 > 0;
+            const esQuiebre = !esPrioridad && ventasHistoricas > 0 && aptas === 0 && v30 === 0;
+            const clasificacion: string = esPrioridad
+                ? 'prioridad'
+                : esQuiebre
+                ? 'quiebre_stock'
+                : ventasHistoricas > 0
+                ? 'baja_rotacion'
+                : 'sin_movimiento';
+            const es_recuperable = esQuiebre && construible > 0;
+
             return {
                 marketplace_id: e.marketplace_id,
                 cuenta: e.cuenta,
@@ -233,6 +250,8 @@ export async function GET(req: Request) {
                 stock_efectivo: efectivo,
                 cobertura_dias: cobertura,
                 sugerido,
+                clasificacion,
+                es_recuperable,
                 sugerencia_ml: e.replenishment_suggested,
                 shipping_urgency: e.shipping_urgency,
             };

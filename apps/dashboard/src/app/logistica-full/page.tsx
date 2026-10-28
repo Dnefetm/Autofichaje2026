@@ -28,6 +28,8 @@ interface PropItem {
     stock_efectivo: number;
     cobertura_dias: number | null;
     sugerido: number;
+    clasificacion?: 'prioridad' | 'quiebre_stock' | 'baja_rotacion' | 'sin_movimiento';
+    es_recuperable?: boolean;
     sugerencia_ml: number | null;
     shipping_urgency: string | null;
 }
@@ -64,6 +66,7 @@ export default function LogisticaFullPage() {
     const [cuentas, setCuentas] = useState<{ id: string; nombre: string }[]>([]);
     const [cuenta, setCuenta] = useState<string>('');
     const [busqueda, setBusqueda] = useState('');
+    const [tab, setTab] = useState<'prioridad' | 'quiebre_stock' | 'baja_rotacion' | 'todas'>('prioridad');
     const [importando, setImportando] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
 
@@ -176,14 +179,32 @@ export default function LogisticaFullPage() {
 
     const propuestaFiltrada = useMemo(() => {
         const q = busqueda.trim().toLowerCase();
-        const rows = data?.propuesta || [];
+        let rows = data?.propuesta || [];
+        if (tab !== 'todas') {
+            rows = rows.filter((p) => {
+                const c = p.clasificacion || 'sin_movimiento';
+                if (tab === 'prioridad') return c === 'prioridad';
+                if (tab === 'quiebre_stock') return c === 'quiebre_stock';
+                if (tab === 'baja_rotacion') return c === 'baja_rotacion' || c === 'sin_movimiento';
+                return true;
+            });
+        }
         if (!q) return rows;
         return rows.filter((p) =>
             [p.inventory_id, p.nombre, p.seller_sku, p.codigo_universal, p.cuenta].some((v) =>
                 (v || '').toLowerCase().includes(q)
             )
         );
-    }, [data, busqueda]);
+    }, [data, busqueda, tab]);
+
+    const conteoPorTab = useMemo(() => {
+        const rows = data?.propuesta || [];
+        const n = (c: string) => rows.filter((p) => (p.clasificacion || 'sin_movimiento') === c).length;
+        const prioridad = n('prioridad');
+        const quiebre = n('quiebre_stock');
+        const baja = n('baja_rotacion') + n('sin_movimiento');
+        return { prioridad, quiebre, baja, total: rows.length };
+    }, [data]);
 
     const exportarCSV = () => {
         if (!data?.propuesta?.length) return;
@@ -598,6 +619,28 @@ export default function LogisticaFullPage() {
                         className="w-56 px-2 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)]"
                     />
                 </label>
+            </div>
+
+            {/* Pestañas de clasificación */}
+            <div className="flex flex-wrap gap-2">
+                {([
+                    ['prioridad', `Prioridad / Reposición (${conteoPorTab.prioridad})`],
+                    ['quiebre_stock', `Quiebre de Stock (${conteoPorTab.quiebre})`],
+                    ['baja_rotacion', `Baja Rotación (${conteoPorTab.baja})`],
+                    ['todas', `Todas (${conteoPorTab.total})`],
+                ] as const).map(([key, label]) => (
+                    <button
+                        key={key}
+                        onClick={() => setTab(key)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+                            tab === key
+                                ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
+                                : 'bg-[var(--surface)] text-[var(--text)] border-[var(--border)] hover:border-[var(--accent)]'
+                        }`}
+                    >
+                        {label}
+                    </button>
+                ))}
             </div>
 
             {/* Propuesta */}
