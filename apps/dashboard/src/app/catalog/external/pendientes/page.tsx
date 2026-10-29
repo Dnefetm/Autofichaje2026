@@ -35,6 +35,7 @@ interface Pendiente {
     score: number;
     metodo: string;
     motivo: string;
+    es_univoco?: boolean;
   } | null;
 }
 
@@ -53,6 +54,7 @@ export default function PendientesPage() {
   const [sugerenciaInicial, setSugerenciaInicial] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkVinculando, setBulkVinculando] = useState(false);
+  const [confirmBatch, setConfirmBatch] = useState(false);
   // Publicaciones cuyo mapeo se está guardando en background.
   const [mappingIds, setMappingIds] = useState<Set<string>>(new Set());
   const toggleMapping = (id: string, inProgress: boolean) => {
@@ -138,15 +140,43 @@ export default function PendientesPage() {
     });
   }
 
-  async function vincularSeleccionadas() {
-    const vinculos = rows
-      .filter((r) => selectedIds.has(r.id) && r._sugerencia)
-      .map((r) => ({ publicacion_id: r.id, articulo_id: r._sugerencia!.articulo_id }));
+  // Elegibles: publicaciones visibles con sugerencia (solo esas se pueden vincular en lote).
+  const elegibles = rows.filter((r) => r._sugerencia);
+  const seleccionadasVinculables = rows.filter((r) => selectedIds.has(r.id) && r._sugerencia);
+
+  function seleccionarTodasVisibles() {
+    setSelectedIds(new Set(elegibles.map((r) => r.id)));
+  }
+
+  function seleccionarSoloUnivocos() {
+    setSelectedIds(
+      new Set(
+        elegibles
+          .filter((r) => r._sugerencia!.score === 100 && r._sugerencia!.es_univoco !== false)
+          .map((r) => r.id)
+      )
+    );
+  }
+
+  function deseleccionarTodas() {
+    setSelectedIds(new Set());
+  }
+
+  function abrirConfirmacionLote() {
+    if (seleccionadasVinculables.length === 0) return;
+    setConfirmBatch(true);
+  }
+
+  async function confirmarVinculacion() {
+    const vinculos = seleccionadasVinculables.map((r) => ({
+      publicacion_id: r.id,
+      articulo_id: r._sugerencia!.articulo_id,
+    }));
     if (vinculos.length === 0) return;
-    if (!confirm(`¿Vincular ${vinculos.length} publicaciones a sus productos sugeridos? Se propagará a sus relacionadas.`)) return;
     const idsVinculados = new Set(vinculos.map((v) => v.publicacion_id));
     const snapshot = rows; // para rollback si falla
     setBulkVinculando(true);
+    setConfirmBatch(false);
     // Optimista: quita las tarjetas de inmediato.
     setRows((prev) => prev.filter((r) => !idsVinculados.has(r.id)));
     setSelectedIds(new Set());
@@ -210,6 +240,37 @@ export default function PendientesPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+      </div>
+
+      {/* Barra de selección masiva */}
+      <div className="flex flex-wrap items-center gap-3 mb-4 text-sm">
+        <label className="flex items-center gap-2 text-[var(--text-muted)] cursor-pointer">
+          <input
+            type="checkbox"
+            checked={elegibles.length > 0 && seleccionadasVinculables.length === elegibles.length}
+            ref={(el) => {
+              if (el) el.indeterminate = seleccionadasVinculables.length > 0 && seleccionadasVinculables.length < elegibles.length;
+            }}
+            onChange={() =>
+              seleccionadasVinculables.length === elegibles.length ? deseleccionarTodas() : seleccionarTodasVisibles()
+            }
+            className="w-4 h-4 accent-[var(--accent)]"
+          />
+          Todas las visibles
+        </label>
+        <button
+          onClick={seleccionarSoloUnivocos}
+          className="px-3 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] rounded-lg text-[var(--text)]"
+        >
+          Solo 100% Unívocos ({elegibles.filter((r) => r._sugerencia!.score === 100 && r._sugerencia!.es_univoco !== false).length})
+        </button>
+        <button
+          onClick={deseleccionarTodas}
+          className="px-3 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--bg)] rounded-lg text-[var(--text-muted)]"
+        >
+          Deseleccionar todas
+        </button>
+        <span className="text-[var(--text-muted)]">{seleccionadasVinculables.length} seleccionadas</span>
       </div>
 
       {/* Tarjetas de ancho completo */}
@@ -295,6 +356,11 @@ export default function PendientesPage() {
               <div className="mt-3">
                 <div className="text-xs font-bold uppercase tracking-wider text-[var(--ok)] mb-1">
                   Sugerencia {r._sugerencia.score}% · {r._sugerencia.motivo}
+                  {r._sugerencia.score === 100 && r._sugerencia.es_univoco === false && (
+                    <span className="ml-2 inline-block px-2 py-0.5 rounded-full text-xs bg-[var(--warn)]/15 text-[var(--warn)] normal-case">
+                      ⚠ Variante múltiple (revisar a mano)
+                    </span>
+                  )}
                 </div>
                 <SugerenciaComparacion
                   pub={{
@@ -359,15 +425,55 @@ export default function PendientesPage() {
       {selectedIds.size > 0 && (
         <div className="fixed bottom-4 left-4 right-4 z-40 space-y-1">
           <button
-            onClick={vincularSeleccionadas}
+            onClick={abrirConfirmacionLote}
             disabled={bulkVinculando}
             className="w-full py-3 bg-[var(--accent)] text-[var(--accent-ink)] rounded-xl text-base font-bold shadow-xl disabled:opacity-50"
           >
-            {bulkVinculando ? 'Vinculando…' : `Vincular 1 unidad por publicación (${selectedIds.size})`}
+            {bulkVinculando ? 'Vinculando…' : `Vincular 1 unidad por publicación (${seleccionadasVinculables.length})`}
           </button>
           <p className="text-center text-xs text-[var(--text-muted)]">
             Cada publicación se vincula al producto sugerido con 1 unidad y se propaga a sus relacionadas.
           </p>
+        </div>
+      )}
+
+      {/* Modal de confirmación de lote */}
+      {confirmBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl max-w-lg w-full p-5 space-y-3">
+            <h2 className="text-lg font-bold text-[var(--text)]">Confirmar vinculación en lote</h2>
+            <p className="text-sm text-[var(--text-muted)]">
+              Se vincularán <b>{seleccionadasVinculables.length}</b> publicaciones a sus productos sugeridos con 1 unidad. Se propagará a sus publicaciones relacionadas.
+            </p>
+            <ul className="max-h-60 overflow-auto divide-y divide-[var(--border)] text-sm">
+              {seleccionadasVinculables.map((r) => (
+                <li key={r.id} className="py-1.5 flex flex-col">
+                  <span className="font-mono text-xs text-[var(--text-muted)]">{r.external_item_id}</span>
+                  <span className="text-[var(--text)] line-clamp-1">{r.titulo}</span>
+                  {r._sugerencia && (
+                    <span className="text-xs text-[var(--accent)]">
+                      → {r._sugerencia.modelo || r._sugerencia.articulo_id} ({r._sugerencia.marca || '—'})
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmBatch(false)}
+                className="px-4 py-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] rounded-lg text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarVinculacion}
+                disabled={bulkVinculando}
+                className="px-4 py-2 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg text-sm font-semibold disabled:opacity-50"
+              >
+                Confirmar y Vincular ({seleccionadasVinculables.length})
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

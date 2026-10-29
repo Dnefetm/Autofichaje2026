@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
             score: Number(row.sug_score),
             metodo: row.sug_metodo ?? 'marca_modelo',
             motivo: row.sug_motivo ?? 'Coincidencia de catálogo',
+            es_univoco: row.es_univoco != null ? Boolean(row.es_univoco) : true,
           });
         } else if (row.pub_id) {
           sqlSugerenciaMap.set(row.pub_id, null);

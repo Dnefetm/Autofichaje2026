@@ -28,6 +28,7 @@ export interface Sugerencia {
   metodo: string; // 'hermana_mapeada' | 'alias' | 'sku_exacto' | 'codigo_exacto' | 'marca_modelo' | 'fuzzy'
   motivo: string; // texto legible para el operador
   cantidad_sugerida: number; // multiplicador detectado en la vitrina (ej. "3x sku" → 3)
+  es_univoco?: boolean; // false si el artículo sugerido tiene hermano con distinta variante
 }
 
 export interface PublicacionSugerible {

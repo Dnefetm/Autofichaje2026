@@ -28,6 +28,35 @@ export async function POST(req: NextRequest) {
 
   const now = new Date().toISOString();
   const ids = vinculos.map((v) => v.publicacion_id);
+  const loteBatchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  // 0. Respaldo de mapeos existentes (reversibilidad total del lote).
+  const { data: mapeosPrevios } = await supabaseAdmin
+    .from('mapeo_publicacion_articulo')
+    .select('publicacion_id, articulo_id, cantidad_requerida, sincronizar_stock')
+    .in('publicacion_id', ids);
+  if (mapeosPrevios && mapeosPrevios.length > 0) {
+    const { data: pubsPrevios } = await supabaseAdmin
+      .from('publicaciones_externas')
+      .select('id, external_item_id, titulo, status_externo, sub_status')
+      .in('id', ids);
+    const pubMap = new Map((pubsPrevios || []).map((p) => [p.id, p]));
+    await supabaseAdmin.from('mapeo_desvinculados_log').insert(
+      mapeosPrevios.map((m) => ({
+        publicacion_id: m.publicacion_id,
+        articulo_id: m.articulo_id,
+        cantidad_requerida: m.cantidad_requerida,
+        sincronizar_stock: m.sincronizar_stock,
+        motivo: 'reemplazo_por_lote',
+        metadata: { lote_batch_id: loteBatchId },
+        external_item_id: pubMap.get(m.publicacion_id)?.external_item_id ?? null,
+        titulo: pubMap.get(m.publicacion_id)?.titulo ?? null,
+        status_externo: pubMap.get(m.publicacion_id)?.status_externo ?? null,
+        sub_status: pubMap.get(m.publicacion_id)?.sub_status ?? null,
+        usuario_o_proceso: 'confirmar-lote',
+      }))
+    );
+  }
 
   // 1. Upsert de mapeos (cantidad por vínculo, 1 por defecto; sincronizar_stock default true)
   const { error: mapErr } = await supabaseAdmin
@@ -121,5 +150,5 @@ export async function POST(req: NextRequest) {
   // Disparar el worker al instante: el sync de stock/precio no debe esperar al cron (15 min).
   await dispatchWorker();
 
-  return NextResponse.json({ ok: true, vinculados: vinculos.length, propagados });
+  return NextResponse.json({ ok: true, vinculados: vinculos.length, propagados, lote_batch_id: loteBatchId });
 }
