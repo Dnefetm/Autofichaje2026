@@ -206,6 +206,14 @@ export default function LogisticaFullPage() {
         return { prioridad, quiebre, baja, total: rows.length };
     }, [data]);
 
+    const kpis = useMemo(() => {
+        const rows = propuestaFiltrada;
+        const total = rows.length;
+        const requieren = rows.filter((p) => (p.sugerido || 0) > 0).length;
+        const sugerido = rows.reduce((s, p) => s + (p.sugerido || 0), 0);
+        return { total, requieren, sugerido };
+    }, [propuestaFiltrada]);
+
     const exportarCSV = () => {
         if (!data?.propuesta?.length) return;
         const head = ['codigo_ml', 'sku', 'upc', 'producto', 'ventas_mes', 'full_aptas', 'en_camino', 'full_total', 'bodega_construible', 'cobertura_dias', 'a_enviar', 'urgencia'];
@@ -530,19 +538,19 @@ export default function LogisticaFullPage() {
                 <Card title="Artículos Full mapeados">
                     <div className="px-4 py-3 flex items-center gap-3">
                         <Boxes className="w-8 h-8 text-[var(--info)]" />
-                        <p className="text-2xl font-bold text-[var(--text)]">{data?.total_items ?? '—'}</p>
+                        <p className="text-2xl font-bold text-[var(--text)]">{kpis.total}</p>
                     </div>
                 </Card>
                 <Card title="Requieren envío">
                     <div className="px-4 py-3 flex items-center gap-3">
                         <Truck className="w-8 h-8 text-[var(--warn)]" />
-                        <p className="text-2xl font-bold text-[var(--warn)]">{data?.requieren_envio ?? '—'}</p>
+                        <p className="text-2xl font-bold text-[var(--warn)]">{kpis.requieren}</p>
                     </div>
                 </Card>
                 <Card title="Total sugerido (uds)">
                     <div className="px-4 py-3 flex items-center gap-3">
                         <PackageSearch className="w-8 h-8 text-[var(--accent)]" />
-                        <p className="text-2xl font-bold text-[var(--accent)]">{data?.total_sugerido ?? '—'}</p>
+                        <p className="text-2xl font-bold text-[var(--accent)]">{kpis.sugerido}</p>
                     </div>
                 </Card>
             </div>
