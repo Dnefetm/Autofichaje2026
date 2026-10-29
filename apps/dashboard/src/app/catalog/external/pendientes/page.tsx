@@ -88,11 +88,13 @@ export default function PendientesPage() {
   }, [search, orderBy, page]);
 
   useEffect(() => {
+    setSelectedIds(new Set());
     load();
   }, [page, orderBy]);
 
   useEffect(() => {
     const t = setTimeout(() => {
+      setSelectedIds(new Set());
       setPage(0);
       load();
     }, 350);
