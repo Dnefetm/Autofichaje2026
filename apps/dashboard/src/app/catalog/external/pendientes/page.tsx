@@ -101,6 +101,12 @@ export default function PendientesPage() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Leer ?q= al montar (enlace desde "Sin vincular" de Logística Full).
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q) setSearch(q);
+  }, []);
+
   function costBadge(r: Pendiente) {
     switch (r._cost_status) {
       case 'costo_completo':

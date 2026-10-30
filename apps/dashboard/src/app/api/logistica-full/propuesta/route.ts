@@ -37,7 +37,6 @@ export async function GET(req: Request) {
                     `)
                     .eq('logistic_type', 'fulfillment')
                     .not('inventory_id', 'is', null)
-                    .eq('external_variation_id', '0')
                     .order('id')
                     .range(from, from + PAGE - 1);
                 if (accountId) q = q.eq('marketplace_id', accountId);
@@ -235,8 +234,8 @@ export async function GET(req: Request) {
             // A enviar = lo que Full necesita, acotado a lo que puedo construir ya (no puedo enviar
             // más de lo que tengo componentes para armar).
             let necesario = Math.max(0, redondeoSuave(demandaDiaria * coberturaDeseada - efectivo));
-            // Recuperable: mapeado, Full en 0, bodega disponible y ventas históricas → mínimo 1.
-            if (!sinMapeo && efectivo === 0 && construible > 0 && ventasHistoricas > 0) {
+            // Agotado con ventas históricas (mapeado con bodega, o sin mapear) → mínimo 1.
+            if (efectivo === 0 && ventasHistoricas > 0 && (sinMapeo || construible > 0)) {
                 necesario = Math.max(1, necesario);
             }
             const sugerido = sinMapeo ? 0 : Math.min(necesario, construible);

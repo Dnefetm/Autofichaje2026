@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { RefreshCw, PackageSearch, Truck, Boxes, Download, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import Link from 'next/link';
 
 interface PropItem {
     marketplace_id: string;
@@ -421,7 +422,12 @@ export default function LogisticaFullPage() {
             render: (r) => (
                 <div className="text-right">
                     {r.sin_mapeo ? (
-                        <span className="text-[11px] text-[var(--warn)]">⚠ Sin vincular</span>
+                        <Link
+                            href={`/catalog/external/pendientes?q=${encodeURIComponent(r.seller_sku || r.codigo_universal || r.nombre || '')}`}
+                            className="text-[11px] text-[var(--warn)] underline hover:text-[var(--accent)]"
+                        >
+                            ⚠ Sin vincular
+                        </Link>
                     ) : (
                         <>
                             <span className="font-mono font-semibold">{r.stock_bodega}</span>
