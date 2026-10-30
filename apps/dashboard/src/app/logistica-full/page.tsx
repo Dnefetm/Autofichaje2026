@@ -27,8 +27,10 @@ interface PropItem {
     pendientes: number | null;
     stock_efectivo: number;
     cobertura_dias: number | null;
+    necesario?: number;
     sugerido: number;
-    clasificacion?: 'prioridad' | 'quiebre_stock' | 'baja_rotacion' | 'sin_movimiento';
+    sin_mapeo?: boolean;
+    clasificacion?: 'prioridad' | 'quiebre_stock' | 'baja_rotacion' | 'sin_movimiento' | 'sin_mapeo';
     es_recuperable?: boolean;
     sugerencia_ml: number | null;
     shipping_urgency: string | null;
@@ -66,7 +68,7 @@ export default function LogisticaFullPage() {
     const [cuentas, setCuentas] = useState<{ id: string; nombre: string }[]>([]);
     const [cuenta, setCuenta] = useState<string>('');
     const [busqueda, setBusqueda] = useState('');
-    const [tab, setTab] = useState<'prioridad' | 'quiebre_stock' | 'baja_rotacion' | 'todas'>('prioridad');
+    const [tab, setTab] = useState<'prioridad' | 'quiebre_stock' | 'baja_rotacion' | 'sin_mapeo' | 'todas'>('prioridad');
     const [importando, setImportando] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
 
@@ -186,6 +188,7 @@ export default function LogisticaFullPage() {
                 if (tab === 'prioridad') return c === 'prioridad';
                 if (tab === 'quiebre_stock') return c === 'quiebre_stock';
                 if (tab === 'baja_rotacion') return c === 'baja_rotacion' || c === 'sin_movimiento';
+                if (tab === 'sin_mapeo') return c === 'sin_mapeo';
                 return true;
             });
         }
@@ -203,7 +206,8 @@ export default function LogisticaFullPage() {
         const prioridad = n('prioridad');
         const quiebre = n('quiebre_stock');
         const baja = n('baja_rotacion') + n('sin_movimiento');
-        return { prioridad, quiebre, baja, total: rows.length };
+        const sinMapear = n('sin_mapeo');
+        return { prioridad, quiebre, baja, sinMapear, total: rows.length };
     }, [data]);
 
     const kpis = useMemo(() => {
@@ -416,9 +420,15 @@ export default function LogisticaFullPage() {
             sortValue: (r) => r.stock_bodega,
             render: (r) => (
                 <div className="text-right">
-                    <span className="font-mono font-semibold">{r.stock_bodega}</span>
-                    {r.stock_disponible != null && r.stock_disponible !== r.stock_bodega && (
-                        <p className="text-[10px] text-[var(--text-faint)] font-mono">disp {r.stock_disponible}</p>
+                    {r.sin_mapeo ? (
+                        <span className="text-[11px] text-[var(--warn)]">⚠ Sin vincular</span>
+                    ) : (
+                        <>
+                            <span className="font-mono font-semibold">{r.stock_bodega}</span>
+                            {r.stock_disponible != null && r.stock_disponible !== r.stock_bodega && (
+                                <p className="text-[10px] text-[var(--text-faint)] font-mono">disp {r.stock_disponible}</p>
+                            )}
+                        </>
                     )}
                 </div>
             ),
@@ -454,7 +464,13 @@ export default function LogisticaFullPage() {
             align: 'right',
             sortValue: (r) => r.sugerido,
             render: (r) =>
-                r.sugerido > 0 ? (
+                r.sin_mapeo ? (
+                    (r.necesario ?? 0) > 0 ? (
+                        <span className="text-[11px] text-[var(--warn)]">pide {r.necesario}</span>
+                    ) : (
+                        <span className="font-mono text-[var(--text-faint)]">—</span>
+                    )
+                ) : r.sugerido > 0 ? (
                     <Badge tone="warning"><Truck className="w-3 h-3" /> {r.sugerido}</Badge>
                 ) : (
                     <span className="font-mono text-[var(--text-faint)]">—</span>
@@ -635,6 +651,7 @@ export default function LogisticaFullPage() {
                     ['prioridad', `Prioridad / Reposición (${conteoPorTab.prioridad})`],
                     ['quiebre_stock', `Quiebre de Stock (${conteoPorTab.quiebre})`],
                     ['baja_rotacion', `Baja Rotación (${conteoPorTab.baja})`],
+                    ['sin_mapeo', `Sin Mapear (${conteoPorTab.sinMapear})`],
                     ['todas', `Todas (${conteoPorTab.total})`],
                 ] as const).map(([key, label]) => (
                     <button

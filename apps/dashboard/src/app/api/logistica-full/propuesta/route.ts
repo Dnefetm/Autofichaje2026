@@ -21,19 +21,34 @@ export async function GET(req: Request) {
         const metodo = searchParams.get('metodo') || 'hibrido';
         const accountId = searchParams.get('cuenta') || undefined;
 
-        // 1. Publicaciones Full mapeadas (con artículo + datos de ML).
-        let query = supabaseAdmin
-            .from('mapeo_publicacion_articulo')
-            .select(`
-                articulo_id, cantidad_requerida,
-                articulo:articulos(articulo_id, nombre),
-                publicacion:publicaciones_externas!inner(id, external_item_id, inventory_id, stock_full, stock_full_total, sales_30d_full, sold_quantity, replenishment_suggested, shipping_urgency, marketplace_id, seller_sku, ean, gtin, upc, titulo)
-            `)
-            .eq('publicacion.logistic_type', 'fulfillment')
-            .not('publicacion.inventory_id', 'is', null);
-        if (accountId) query = query.eq('publicacion.marketplace_id', accountId);
-        const { data: mapeos, error: mapeosErr } = await query;
-        if (mapeosErr) throw mapeosErr;
+        // 1. TODAS las publicaciones Full (mapeadas y sin mapear), con LEFT JOIN al mapeo,
+        //    paginadas en bloques para no truncar por PostgREST (límite 1,000).
+        const pubs: any[] = [];
+        {
+            let from = 0;
+            const PAGE = 1000;
+            while (true) {
+                let q = supabaseAdmin
+                    .from('publicaciones_externas')
+                    .select(`
+                        id, external_item_id, inventory_id, stock_full, stock_full_total, sales_30d_full, sold_quantity,
+                        replenishment_suggested, shipping_urgency, marketplace_id, seller_sku, ean, gtin, upc, titulo,
+                        mapeos:mapeo_publicacion_articulo(articulo_id, cantidad_requerida)
+                    `)
+                    .eq('logistic_type', 'fulfillment')
+                    .not('inventory_id', 'is', null)
+                    .eq('external_variation_id', '0')
+                    .order('id')
+                    .range(from, from + PAGE - 1);
+                if (accountId) q = q.eq('marketplace_id', accountId);
+                const { data, error } = await q;
+                if (error) throw error;
+                const rows = data || [];
+                pubs.push(...rows);
+                if (rows.length < PAGE) break;
+                from += PAGE;
+            }
+        }
 
         // 2. Ventas por (cuenta + código ML) desde la tabla de agregación diaria.
         //    Las cuentas Full están segregadas: las ventas se filtran por marketplace_id
@@ -89,11 +104,9 @@ export async function GET(req: Request) {
 
         // 3. Agrupar por (CUENTA, código ML), sumando stock entre listings de la misma cuenta.
         const byCuentaInv = new Map<string, any>();
-        for (const m of (mapeos || []) as any[]) {
-            const pub: any = m.publicacion;
-            const art: any = m.articulo;
-            const inv = pub?.inventory_id;
-            const mk = pub?.marketplace_id;
+        for (const pub of pubs) {
+            const inv = pub.inventory_id;
+            const mk = pub.marketplace_id;
             if (!inv || !mk) continue;
             const key = `${mk}|${inv}`;
             if (!byCuentaInv.has(key)) {
@@ -101,11 +114,11 @@ export async function GET(req: Request) {
                     marketplace_id: mk,
                     cuenta: nombreCuenta.get(mk) || '—',
                     inventory_id: inv,
-                    nombre: pub?.titulo || art?.nombre || null,
-                    articulo_id: m.articulo_id,
+                    nombre: pub.titulo || null,
+                    articulo_id: null,
                     componentes: {} as Record<string, number>,
-                    seller_sku: pub?.seller_sku || null,
-                    codigo_universal: pub?.ean || pub?.gtin || pub?.upc || null,
+                    seller_sku: pub.seller_sku || null,
+                    codigo_universal: pub.ean || pub.gtin || pub.upc || null,
                     stock_full: 0,
                     stock_full_total: null,
                     sales_30d_full: 0,
@@ -115,26 +128,29 @@ export async function GET(req: Request) {
                 });
             }
             const e = byCuentaInv.get(key);
-            if (m.articulo_id) {
-                // Componente del kit: cuántas unidades de este artículo físico se requieren
-                // para construir UNA unidad Full. Puede haber varios componentes por inventory_id.
-                e.componentes[m.articulo_id] = Math.max(1, Number(m.cantidad_requerida) || 1);
+            // PostgREST devuelve la relación como array; iterar todos los mapeos del código.
+            for (const m of (pub.mapeos || [])) {
+                if (m.articulo_id) {
+                    // Componente del kit: cuántas unidades de este artículo físico se requieren
+                    // para construir UNA unidad Full. Puede haber varios componentes por inventory_id.
+                    e.componentes[m.articulo_id] = Math.max(1, Number(m.cantidad_requerida) || 1);
+                }
             }
-            if (!e.seller_sku && pub?.seller_sku) e.seller_sku = pub.seller_sku;
-            if (!e.codigo_universal && (pub?.ean || pub?.gtin || pub?.upc)) {
-                e.codigo_universal = pub?.ean || pub?.gtin || pub?.upc;
+            if (!e.seller_sku && pub.seller_sku) e.seller_sku = pub.seller_sku;
+            if (!e.codigo_universal && (pub.ean || pub.gtin || pub.upc)) {
+                e.codigo_universal = pub.ean || pub.gtin || pub.upc;
             }
             // stock_full YA es el total del inventario: syncFullStock escribe el mismo
             // available_quantity en todas las listings del inventory_id. Se toma el MÁXIMO,
             // no la suma, para no duplicar el total.
-            e.stock_full = Math.max(e.stock_full, pub?.stock_full != null ? Number(pub.stock_full) : 0);
-            if (pub?.stock_full_total != null) {
+            e.stock_full = Math.max(e.stock_full, pub.stock_full != null ? Number(pub.stock_full) : 0);
+            if (pub.stock_full_total != null) {
                 e.stock_full_total = Math.max(e.stock_full_total ?? 0, Number(pub.stock_full_total));
             }
-            e.sales_30d_full = Math.max(e.sales_30d_full, pub?.sales_30d_full != null ? Number(pub.sales_30d_full) : 0);
-            e.sold_quantity = Math.max(e.sold_quantity, pub?.sold_quantity != null ? Number(pub.sold_quantity) : 0);
-            if (pub?.replenishment_suggested != null) e.replenishment_suggested = pub.replenishment_suggested;
-            if (pub?.shipping_urgency != null) e.shipping_urgency = pub.shipping_urgency;
+            e.sales_30d_full = Math.max(e.sales_30d_full, pub.sales_30d_full != null ? Number(pub.sales_30d_full) : 0);
+            e.sold_quantity = Math.max(e.sold_quantity, pub.sold_quantity != null ? Number(pub.sold_quantity) : 0);
+            if (pub.replenishment_suggested != null) e.replenishment_suggested = pub.replenishment_suggested;
+            if (pub.shipping_urgency != null) e.shipping_urgency = pub.shipping_urgency;
         }
 
         // Stock de bodega (inventory_snapshot) por CADA componente del kit mapeado.
@@ -199,9 +215,10 @@ export async function GET(req: Request) {
             // Para cada componente: piso(stock_componente / cantidad_requerida); el kit se
             // construye al ritmo del componente más limitante (mínimo).
             const comps = Object.entries(e.componentes || {}) as [string, number][];
+            const sinMapeo = comps.length === 0;
             let construible = 0;
             let construibleDisponible = 0;
-            if (comps.length) {
+            if (!sinMapeo) {
                 construible = Infinity;
                 construibleDisponible = Infinity;
                 for (const [artId, qty] of comps) {
@@ -213,24 +230,31 @@ export async function GET(req: Request) {
                 if (!Number.isFinite(construibleDisponible)) construibleDisponible = 0;
             }
 
+            const ventasHistoricas = Math.max(total6m, e.sold_quantity || 0);
+
             // A enviar = lo que Full necesita, acotado a lo que puedo construir ya (no puedo enviar
             // más de lo que tengo componentes para armar).
-            const necesario = Math.max(0, redondeoSuave(demandaDiaria * coberturaDeseada - efectivo));
-            const sugerido = Math.min(necesario, construible);
+            let necesario = Math.max(0, redondeoSuave(demandaDiaria * coberturaDeseada - efectivo));
+            // Recuperable: mapeado, Full en 0, bodega disponible y ventas históricas → mínimo 1.
+            if (!sinMapeo && efectivo === 0 && construible > 0 && ventasHistoricas > 0) {
+                necesario = Math.max(1, necesario);
+            }
+            const sugerido = sinMapeo ? 0 : Math.min(necesario, construible);
             const cobertura = demandaDiaria > 0 ? Math.round((efectivo / demandaDiaria) * 10) / 10 : null;
 
-            // Clasificación operativa para las 3 pestañas.
-            const ventasHistoricas = Math.max(total6m, e.sold_quantity || 0);
-            const esPrioridad = vPromedio6mExacto >= 0.6 || v30 > 0;
-            const esQuiebre = !esPrioridad && ventasHistoricas > 0 && aptas === 0 && v30 === 0;
-            const clasificacion: string = esPrioridad
+            // Clasificación operativa en 5 categorías.
+            const esPrioridad = !sinMapeo && (vPromedio6mExacto >= 0.6 || v30 > 0) && (efectivo > 0 || construible > 0);
+            const esQuiebre = !sinMapeo && ventasHistoricas > 0 && efectivo === 0;
+            const clasificacion: string = sinMapeo
+                ? 'sin_mapeo'
+                : esPrioridad
                 ? 'prioridad'
                 : esQuiebre
                 ? 'quiebre_stock'
                 : ventasHistoricas > 0
                 ? 'baja_rotacion'
                 : 'sin_movimiento';
-            const es_recuperable = esQuiebre && construible > 0;
+            const es_recuperable = !sinMapeo && esQuiebre && construible > 0;
 
             return {
                 marketplace_id: e.marketplace_id,
@@ -244,12 +268,14 @@ export async function GET(req: Request) {
                 ventas_2m: v30 + vMesPrevio,
                 ventas_promedio_6m: vPromedio6m,
                 stock_full: e.stock_full,
-                stock_bodega: construible,
-                stock_disponible: construibleDisponible,
+                stock_bodega: sinMapeo ? null : construible,
+                stock_disponible: sinMapeo ? null : construibleDisponible,
                 pendientes,
                 stock_efectivo: efectivo,
                 cobertura_dias: cobertura,
+                necesario,
                 sugerido,
+                sin_mapeo: sinMapeo,
                 clasificacion,
                 es_recuperable,
                 sugerencia_ml: e.replenishment_suggested,
@@ -257,7 +283,15 @@ export async function GET(req: Request) {
             };
         });
 
-        propuesta.sort((a: any, b: any) => (b.sugerido || 0) - (a.sugerido || 0) || (a.nombre || '').localeCompare(b.nombre || ''));
+        propuesta.sort((a: any, b: any) => {
+            if ((b.sugerido || 0) !== (a.sugerido || 0)) return (b.sugerido || 0) - (a.sugerido || 0);
+            // Agotados con ventas (efectivo 0) arriba, antes que el orden alfabético.
+            const aUrg = a.stock_efectivo === 0 && (a.ventas_ultimo_mes > 0 || a.ventas_2m > 0) ? 1 : 0;
+            const bUrg = b.stock_efectivo === 0 && (b.ventas_ultimo_mes > 0 || b.ventas_2m > 0) ? 1 : 0;
+            if (aUrg !== bUrg) return bUrg - aUrg;
+            if ((b.ventas_ultimo_mes || 0) !== (a.ventas_ultimo_mes || 0)) return (b.ventas_ultimo_mes || 0) - (a.ventas_ultimo_mes || 0);
+            return (a.nombre || '').localeCompare(b.nombre || '');
+        });
 
         const totalSugerido = propuesta.reduce((s: number, p: any) => s + (p.sugerido || 0), 0);
         const requierenEnvio = propuesta.filter((p: any) => (p.sugerido || 0) > 0).length;
