@@ -83,8 +83,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // 7) Actualiza el precio "actual" interno en base de datos
     await supabaseAdmin.from('publicaciones_externas')
-      .update({ base_price: newPrice, precio_venta: newPrice, actualizado_el: new Date().toISOString() })
+      .update({ base_price: newPrice, precio_venta: newPrice, sale_price_calculated: newPrice, actualizado_el: new Date().toISOString() })
       .eq('id', id);
+
+    // 7b) Marcar el borrador como aprobado en la misma operación (evita doble sync).
+    await supabaseAdmin.from('publication_pricing_drafts')
+      .update({ pricing_review_status: 'approved', updated_at: new Date().toISOString() })
+      .eq('publicacion_id', id);
 
     await registrarAuditoria(id, 'precio', 'precio_manual', { new_price: newPrice });
 

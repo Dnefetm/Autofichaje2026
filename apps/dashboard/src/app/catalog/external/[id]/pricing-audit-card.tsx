@@ -265,15 +265,10 @@ export default function PricingAuditCard({
             if (data.requires_confirmation) {
                 setConfirmingDelta({ delta: data.delta_percent, price: finalPrice });
             } else if (data.success) {
-                if (draftPrice && !editablePrice) {
-                    await fetch(`/api/pricing/approve-drafts`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ publicaciones: [publicacionId] })
-                    });
-                }
+                setConfirmingDelta(null);
                 setEditablePrice('');
                 onOverrideUpdated();
+                toast.success('Precio aplicado y sincronizado a Mercado Libre.');
             } else if (data.error) {
                 toast.error('Error: ' + data.error);
             }
@@ -657,7 +652,7 @@ export default function PricingAuditCard({
                             className="bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] rounded-[var(--radius-sm)] px-3 py-2 w-full sm:w-36 text-sm outline-none focus:border-[var(--accent)] font-mono"
                         />
                         <button
-                            disabled={applying || (draftPrice ? (draftStatus !== 'valid' && draftStatus !== 'estimated_params' && draftStatus !== 'override_active') : (pricingStatus !== 'valid' && pricingStatus !== 'estimated_params' && pricingStatus !== 'override_active'))}
+                            disabled={applying || (!(editablePrice && Number(editablePrice) > 0) && (draftPrice ? (draftStatus !== 'valid' && draftStatus !== 'estimated_params' && draftStatus !== 'override_active') : (pricingStatus !== 'valid' && pricingStatus !== 'estimated_params' && pricingStatus !== 'override_active')))}
                             onClick={() => handleApply(false)}
                             className="bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] px-4 py-2 rounded-[var(--radius-sm)] flex items-center gap-1.5 text-xs font-bold transition-all disabled:opacity-50 shadow-sm"
                         >
@@ -735,6 +730,34 @@ export default function PricingAuditCard({
                     )}
                 </div>
             </div>
+
+            {/* Modal de confirmación de variación > 50% */}
+            {confirmingDelta && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl max-w-md w-full p-5 space-y-3">
+                        <h3 className="text-base font-bold text-[var(--text)]">Confirmar variación de precio</h3>
+                        <p className="text-sm text-[var(--text-muted)]">
+                            El nuevo precio (<b>{fmt(confirmingDelta.price)}</b>) varía{' '}
+                            <b className="text-[var(--warn)]">{confirmingDelta.delta.toFixed(1)}%</b> respecto al precio actual.
+                        </p>
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                onClick={() => setConfirmingDelta(null)}
+                                className="px-4 py-2 bg-[var(--surface-2)] hover:bg-[var(--bg)] rounded-lg text-sm"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={() => handleApply(true)}
+                                disabled={applying}
+                                className="px-4 py-2 bg-[var(--accent)] text-[var(--accent-ink)] rounded-lg text-sm font-semibold disabled:opacity-50"
+                            >
+                                {applying ? 'Aplicando…' : 'Confirmar y Aplicar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
