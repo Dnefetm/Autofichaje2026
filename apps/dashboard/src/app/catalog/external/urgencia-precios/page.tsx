@@ -7,7 +7,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import {
     ArrowLeft, AlertCircle, CheckCircle2, Clock, RefreshCw,
-    Search, ExternalLink, Package, ArrowUpDown, ChevronLeft, ChevronRight, Sliders
+    Search, ExternalLink, Package, ArrowUpDown, ChevronLeft, ChevronRight, Sliders,
+    CheckSquare, AlertTriangle, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -43,6 +44,9 @@ interface UrgenciaItem {
     gap_pct: number;
     categoria: TabCategory;
     estado_auditoria: 'sin_auditar' | 'mas_7_dias' | 'auditado';
+    tipo_publicacion?: string;
+    par_item_id?: string | null;
+    id_producto_catalogo?: string | null;
 }
 
 interface UrgenciaKpis {
@@ -115,6 +119,16 @@ function UrgenciaPreciosInner() {
     const [loading, setLoading] = useState<boolean>(true);
     const [auditingId, setAuditingId] = useState<string | null>(null);
 
+    // 3. Selección masiva
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [selectAllUniverse, setSelectAllUniverse] = useState<boolean>(false);
+    const [showApproveModal, setShowApproveModal] = useState<boolean>(false);
+    const [forceApproval, setForceApproval] = useState<boolean>(false);
+    const [approving, setApproving] = useState<boolean>(false);
+    const [bulkAuditing, setBulkAuditing] = useState<boolean>(false);
+
+    const headerCheckboxRef = useRef<HTMLInputElement>(null);
+
     // URL completa para el parámetro `?from=`
     const currentUrl = useMemo(() => {
         const params = new URLSearchParams();
@@ -141,7 +155,7 @@ function UrgenciaPreciosInner() {
         return () => clearTimeout(handler);
     }, [searchTerm]);
 
-    // 3. Cargar KPIs (1 llamada rápida al servidor)
+    // 4. Cargar KPIs (1 llamada rápida al servidor)
     const loadKpis = useCallback(async () => {
         try {
             const { data, error } = await supabase.rpc('fn_urgencia_precios_kpis');
@@ -152,7 +166,7 @@ function UrgenciaPreciosInner() {
         }
     }, []);
 
-    // 4. Cargar página de datos (servidor: filtra, ordena y pagina 50 filas)
+    // 5. Cargar página de datos (servidor: filtra, ordena y pagina 50 filas)
     const loadPageData = useCallback(async () => {
         setLoading(true);
         try {
@@ -215,7 +229,69 @@ function UrgenciaPreciosInner() {
         loadPageData();
     }, [loadPageData]);
 
-    // Quick audit handler
+    // Limpiar selección al cambiar filtros o tabs
+    const clearSelection = useCallback(() => {
+        setSelectedIds(new Set());
+        setSelectAllUniverse(false);
+    }, []);
+
+    useEffect(() => {
+        clearSelection();
+    }, [activeTab, debouncedSearch, soloSinAuditar, clearSelection]);
+
+    // Gestión de Checkbox Cabecera
+    const isAllPageSelected = useMemo(() => {
+        if (items.length === 0) return false;
+        return items.every(item => selectedIds.has(item.id));
+    }, [items, selectedIds]);
+
+    const isSomePageSelected = useMemo(() => {
+        if (items.length === 0) return false;
+        return items.some(item => selectedIds.has(item.id)) && !isAllPageSelected;
+    }, [items, selectedIds, isAllPageSelected]);
+
+    useEffect(() => {
+        if (headerCheckboxRef.current) {
+            headerCheckboxRef.current.indeterminate = isSomePageSelected && !selectAllUniverse;
+        }
+    }, [isSomePageSelected, selectAllUniverse]);
+
+    const toggleSelectAllPage = () => {
+        if (selectAllUniverse) {
+            clearSelection();
+            return;
+        }
+        if (isAllPageSelected) {
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                items.forEach(it => next.delete(it.id));
+                return next;
+            });
+        } else {
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                items.forEach(it => next.add(it.id));
+                return next;
+            });
+        }
+    };
+
+    const toggleSelectItem = (id: string) => {
+        if (selectAllUniverse) {
+            setSelectAllUniverse(false);
+        }
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    // Quick audit handler individual
     const handleQuickAudit = async (item: UrgenciaItem) => {
         setAuditingId(item.id);
         try {
@@ -239,10 +315,139 @@ function UrgenciaPreciosInner() {
         }
     };
 
+    // Auditoría Masiva
+    const handleBulkAudit = async () => {
+        setBulkAuditing(true);
+        try {
+            let targetIds: string[] = [];
+            if (selectAllUniverse) {
+                let q = supabase.from('v_urgencia_precios').select('id');
+                if (activeTab !== 'all') q = q.eq('categoria', activeTab);
+                if (soloSinAuditar) q = q.eq('estado_auditoria', 'sin_auditar');
+                if (debouncedSearch.trim()) {
+                    const t = debouncedSearch.trim();
+                    q = q.or(`titulo.ilike.%${t}%,external_item_id.ilike.%${t}%,seller_custom_field.ilike.%${t}%,seller_sku.ilike.%${t}%,brand.ilike.%${t}%`);
+                }
+                const { data, error } = await q;
+                if (error) throw error;
+                targetIds = data?.map(d => d.id) || [];
+            } else {
+                targetIds = Array.from(selectedIds);
+            }
+
+            if (targetIds.length === 0) {
+                toast.error('No hay publicaciones seleccionadas');
+                return;
+            }
+
+            const res = await fetch('/api/catalog/external/bulk-audit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: targetIds, ambito: 'precio', accion: 'revisada_ok' })
+            });
+            const resJson = await res.json();
+            if (!res.ok) throw new Error(resJson.error || 'Error al auditar en lote');
+
+            toast.success(resJson.message || `${targetIds.length} publicaciones marcadas como auditadas.`);
+            clearSelection();
+            loadKpis();
+            loadPageData();
+        } catch (e: any) {
+            toast.error(e.message || 'Error al marcar auditoría');
+        } finally {
+            setBulkAuditing(false);
+        }
+    };
+
+    // Confirmación de Aprobación Masiva
+    const handleConfirmApprove = async () => {
+        setApproving(true);
+        try {
+            let targetIds: string[] = [];
+            if (selectAllUniverse) {
+                let q = supabase.from('v_urgencia_precios').select('id');
+                if (activeTab !== 'all') q = q.eq('categoria', activeTab);
+                if (soloSinAuditar) q = q.eq('estado_auditoria', 'sin_auditar');
+                if (debouncedSearch.trim()) {
+                    const t = debouncedSearch.trim();
+                    q = q.or(`titulo.ilike.%${t}%,external_item_id.ilike.%${t}%,seller_custom_field.ilike.%${t}%,seller_sku.ilike.%${t}%,brand.ilike.%${t}%`);
+                }
+                const { data, error } = await q;
+                if (error) throw error;
+                targetIds = data?.map(d => d.id) || [];
+            } else {
+                targetIds = Array.from(selectedIds);
+            }
+
+            if (targetIds.length === 0) {
+                toast.error('No hay publicaciones seleccionadas');
+                return;
+            }
+
+            const res = await fetch('/api/pricing/approve-drafts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ publicaciones: targetIds, force: forceApproval })
+            });
+            const resJson = await res.json();
+            if (!res.ok) throw new Error(resJson.error || 'Error al procesar aprobación');
+
+            toast.success(resJson.message || `${targetIds.length} publicaciones aprobadas.`);
+            setShowApproveModal(false);
+            clearSelection();
+            loadKpis();
+            loadPageData();
+        } catch (e: any) {
+            toast.error(e.message || 'Error al aprobar borradores');
+        } finally {
+            setApproving(false);
+        }
+    };
+
+    // Cálculos para el Modal de Confirmación
+    const selectedCount = selectAllUniverse ? totalCount : selectedIds.size;
+    const selectedItemsList = useMemo(() => {
+        return items.filter(it => selectedIds.has(it.id));
+    }, [items, selectedIds]);
+
+    const modalBreakdown = useMemo(() => {
+        if (selectAllUniverse) {
+            return {
+                total: totalCount,
+                perdida: activeTab === 'perdida' ? totalCount : kpis.count_perdida,
+                sobreprecio: activeTab === 'sobreprecio' ? totalCount : kpis.count_sobreprecio,
+                sin_precio: activeTab === 'sin_precio' ? totalCount : kpis.count_sin_precio,
+                hasHighDelta: true,
+            };
+        }
+        let perdida = 0;
+        let sobreprecio = 0;
+        let sin_precio = 0;
+        let hasHighDelta = false;
+
+        selectedItemsList.forEach(it => {
+            if (it.categoria === 'perdida') perdida++;
+            else if (it.categoria === 'sobreprecio') sobreprecio++;
+            else if (it.categoria === 'sin_precio') sin_precio++;
+
+            if (Math.abs(it.gap_pct) >= 50) {
+                hasHighDelta = true;
+            }
+        });
+
+        return {
+            total: selectedIds.size,
+            perdida,
+            sobreprecio,
+            sin_precio,
+            hasHighDelta,
+        };
+    }, [selectAllUniverse, totalCount, kpis, activeTab, selectedIds.size, selectedItemsList]);
+
     const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
 
     return (
-        <div className="flex-1 overflow-auto bg-[var(--bg)] min-h-screen">
+        <div className="flex-1 overflow-auto bg-[var(--bg)] min-h-screen pb-24">
             <Page>
                 {/* Cabecera */}
                 <div className="mb-2">
@@ -256,7 +461,7 @@ function UrgenciaPreciosInner() {
 
                 <PageHeader
                     title="Urgencia de Precios y Auditoría"
-                    description={`${kpis.total.toLocaleString()} publicaciones analizadas en servidor`}
+                    description={`${kpis.total.toLocaleString()} publicaciones analizadas en servidor (vista deduplicada con prioridad tradicional)`}
                     actions={
                         <div className="flex items-center gap-2">
                             <Link
@@ -279,7 +484,7 @@ function UrgenciaPreciosInner() {
                     }
                 />
 
-                {/* Tarjetas de Resumen KPI (calculadas al instante en Postgres) */}
+                {/* Tarjetas de Resumen KPI */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Tarjeta Pérdida */}
                     <div
@@ -431,12 +636,56 @@ function UrgenciaPreciosInner() {
                     />
                 </div>
 
+                {/* Banner de selección de universo cuando toda la página está marcada */}
+                {isAllPageSelected && totalCount > items.length && (
+                    <div className="p-3 bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-xl text-xs flex items-center justify-between gap-2 text-[var(--text)] animate-in fade-in">
+                        <div>
+                            {selectAllUniverse ? (
+                                <span>
+                                    Están seleccionadas las <strong>{totalCount.toLocaleString()}</strong> publicaciones de este filtro.
+                                </span>
+                            ) : (
+                                <span>
+                                    Has seleccionado las <strong>{items.length}</strong> publicaciones de esta página.
+                                </span>
+                            )}
+                        </div>
+                        <div>
+                            {selectAllUniverse ? (
+                                <button
+                                    onClick={clearSelection}
+                                    className="font-bold text-[var(--accent)] hover:underline ml-2"
+                                >
+                                    Limpiar selección
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => setSelectAllUniverse(true)}
+                                    className="font-bold text-[var(--accent)] hover:underline ml-2"
+                                >
+                                    Seleccionar las {totalCount.toLocaleString()} publicaciones de este filtro
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* Tabla Principal de Urgencia */}
                 <Card className="overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-[var(--surface-2)] text-[var(--text-muted)] border-b border-[var(--border)]">
                                 <tr>
+                                    <th className="px-3 py-3 w-10 text-center">
+                                        <input
+                                            type="checkbox"
+                                            ref={headerCheckboxRef}
+                                            checked={isAllPageSelected}
+                                            onChange={toggleSelectAllPage}
+                                            className="w-4 h-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                                            title="Seleccionar / deseleccionar página actual"
+                                        />
+                                    </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Producto</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Estado</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Costo Base</th>
@@ -451,22 +700,39 @@ function UrgenciaPreciosInner() {
                             <tbody className="divide-y divide-[var(--border)]">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={9} className="px-6 py-12 text-center text-[var(--text-faint)]">
+                                        <td colSpan={10} className="px-6 py-12 text-center text-[var(--text-faint)]">
                                             <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[var(--accent)]" />
                                             Cargando publicaciones desde el motor...
                                         </td>
                                     </tr>
                                 ) : items.length === 0 ? (
                                     <tr>
-                                        <td colSpan={9} className="px-6 py-12 text-center text-[var(--text-faint)]">
+                                        <td colSpan={10} className="px-6 py-12 text-center text-[var(--text-faint)]">
                                             No se encontraron publicaciones con estos criterios.
                                         </td>
                                     </tr>
                                 ) : (
                                     items.map(item => {
                                         const sku = item.seller_custom_field || item.seller_sku;
+                                        const isSelected = selectAllUniverse || selectedIds.has(item.id);
                                         return (
-                                            <tr key={item.id} className="hover:bg-[var(--surface-2)]/60 transition-colors">
+                                            <tr
+                                                key={item.id}
+                                                className={cn(
+                                                    "transition-colors",
+                                                    isSelected ? "bg-[var(--accent)]/5 hover:bg-[var(--accent)]/10" : "hover:bg-[var(--surface-2)]/60"
+                                                )}
+                                            >
+                                                {/* 0 — SELECCIÓN */}
+                                                <td className="px-3 py-3 align-top text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleSelectItem(item.id)}
+                                                        className="w-4 h-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                                                    />
+                                                </td>
+
                                                 {/* 1 — PRODUCTO */}
                                                 <td className="px-4 py-3 align-top max-w-xs">
                                                     <div className="flex items-start gap-3">
@@ -498,6 +764,11 @@ function UrgenciaPreciosInner() {
                                                                 {item.brand && (
                                                                     <span className="text-[10px] text-[var(--text-muted)] font-medium">
                                                                         {item.brand}
+                                                                    </span>
+                                                                )}
+                                                                {item.tipo_publicacion === 'catalogo' && (
+                                                                    <span className="text-[9px] font-bold bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 px-1 py-0.5 rounded" title="Publicación de catálogo única (sin par tradicional activa)">
+                                                                        Catálogo
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -579,7 +850,7 @@ function UrgenciaPreciosInner() {
                                                     )}
                                                 </td>
 
-                                                {/* 7 — AUDITORÍA */}
+                                                {/* 8 — AUDITORÍA */}
                                                 <td className="px-4 py-3 align-top text-center">
                                                     {item.estado_auditoria === 'sin_auditar' ? (
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--err)]/15 text-[var(--err)] border border-[var(--err)]/30">
@@ -596,7 +867,7 @@ function UrgenciaPreciosInner() {
                                                     )}
                                                 </td>
 
-                                                {/* 8 — ACCIÓN */}
+                                                {/* 9 — ACCIÓN */}
                                                 <td className="px-4 py-3 align-top text-right">
                                                     <div className="flex items-center justify-end gap-1.5">
                                                         <button
@@ -663,6 +934,151 @@ function UrgenciaPreciosInner() {
                         </div>
                     )}
                 </Card>
+
+                {/* Barra Flotante de Acciones Masivas */}
+                {(selectedIds.size > 0 || selectAllUniverse) && (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-2xl w-full px-4 animate-in slide-in-from-bottom-4 duration-200">
+                        <div className="bg-[var(--surface)]/95 backdrop-blur-md border-2 border-[var(--accent)] shadow-2xl rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <span className="flex h-2.5 w-2.5 rounded-full bg-[var(--accent)] animate-pulse" />
+                                <span className="text-xs sm:text-sm font-bold text-[var(--text)]">
+                                    {selectedCount.toLocaleString()} {selectedCount === 1 ? 'publicación seleccionada' : 'publicaciones seleccionadas'}
+                                </span>
+                                {selectAllUniverse && (
+                                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30">
+                                        Universo completo
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                <button
+                                    onClick={clearSelection}
+                                    className="px-3 py-1.5 text-xs font-semibold rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleBulkAudit}
+                                    disabled={bulkAuditing || approving}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[var(--ok)]/15 hover:bg-[var(--ok)]/25 text-[var(--ok)] border border-[var(--ok)]/30 transition-colors disabled:opacity-50 cursor-pointer"
+                                >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    {bulkAuditing ? 'Auditando...' : 'Marcar OK'}
+                                </button>
+                                <button
+                                    onClick={() => setShowApproveModal(true)}
+                                    disabled={bulkAuditing || approving}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover,var(--accent))] text-white shadow-md shadow-[var(--accent)]/20 transition-all disabled:opacity-50 cursor-pointer"
+                                >
+                                    <CheckSquare className="w-3.5 h-3.5" />
+                                    Aprobar Sugeridos
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal de Confirmación de Aprobación Masiva */}
+                {showApproveModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4">
+                            <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
+                                <div className="flex items-center gap-2">
+                                    <CheckSquare className="w-5 h-5 text-[var(--accent)]" />
+                                    <h3 className="text-base font-bold text-[var(--text)]">
+                                        Aprobar Precios Sugeridos ({selectedCount.toLocaleString()})
+                                    </h3>
+                                </div>
+                                <button
+                                    onClick={() => setShowApproveModal(false)}
+                                    className="p-1 rounded-lg text-[var(--text-faint)] hover:text-[var(--text)] hover:bg-[var(--surface-2)] transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                                Se aplicará el precio sugerido del auditor de precios a las <strong>{selectedCount.toLocaleString()}</strong> publicaciones seleccionadas.
+                            </p>
+
+                            {/* Desglose */}
+                            <div className="grid grid-cols-3 gap-2 py-2">
+                                <div className="p-2.5 rounded-xl bg-[var(--err)]/10 border border-[var(--err)]/20 text-center">
+                                    <span className="text-xs font-bold text-[var(--err)] block">Subprecio / Pérdida</span>
+                                    <span className="text-base font-black text-[var(--text)] mt-0.5 block">{modalBreakdown.perdida}</span>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-[var(--warn)]/10 border border-[var(--warn)]/20 text-center">
+                                    <span className="text-xs font-bold text-[var(--warn)] block">Sobreprecio</span>
+                                    <span className="text-base font-black text-[var(--text)] mt-0.5 block">{modalBreakdown.sobreprecio}</span>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-center">
+                                    <span className="text-xs font-bold text-purple-700 dark:text-purple-300 block">Sin Precio</span>
+                                    <span className="text-base font-black text-[var(--text)] mt-0.5 block">{modalBreakdown.sin_precio}</span>
+                                </div>
+                            </div>
+
+                            {/* Aviso de variación alta */}
+                            {modalBreakdown.hasHighDelta && (
+                                <div className="p-3 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl text-xs space-y-2">
+                                    <div className="flex items-center gap-2 font-bold text-[var(--warn)]">
+                                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                                        <span>Variaciones de precio significativas (&gt; 50%)</span>
+                                    </div>
+                                    <p className="text-[var(--text-muted)] leading-relaxed">
+                                        Existen publicaciones con variación de precio mayor al 50%. Por protección del motor, estos cambios requieren confirmación explícita.
+                                    </p>
+                                    <label className="flex items-center gap-2 pt-2 border-t border-[var(--warn)]/20 cursor-pointer font-medium text-[var(--text)]">
+                                        <input
+                                            type="checkbox"
+                                            checked={forceApproval}
+                                            onChange={e => setForceApproval(e.target.checked)}
+                                            className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                                        />
+                                        <span>Forzar aprobación de cambios mayores al 50%</span>
+                                    </label>
+                                </div>
+                            )}
+
+                            {/* Explicación de Sincronización en Espejo */}
+                            <div className="p-3 bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-xl text-xs space-y-1">
+                                <div className="font-bold text-[var(--accent)] flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                    <span>Sincronización Inteligente en Espejo</span>
+                                </div>
+                                <p className="text-[var(--text-muted)] leading-relaxed">
+                                    Se sincronizarán a Mercado Libre únicamente las publicaciones tradicionales. Los pares de catálogo se actualizarán de forma nativa en Mercado Libre y quedarán aprobados en la base de datos sin llamadas redundantes.
+                                </p>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2">
+                                <button
+                                    onClick={() => setShowApproveModal(false)}
+                                    disabled={approving}
+                                    className="px-4 py-2 text-xs font-semibold rounded-xl border border-[var(--border)] hover:bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleConfirmApprove}
+                                    disabled={approving}
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover,var(--accent))] text-white shadow-md shadow-[var(--accent)]/20 transition-all disabled:opacity-50 cursor-pointer"
+                                >
+                                    {approving ? (
+                                        <>
+                                            <RefreshCw className="w-4 h-4 animate-spin" />
+                                            Aprobando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckSquare className="w-4 h-4" />
+                                            Confirmar y Aplicar Precios
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </Page>
         </div>
     );
