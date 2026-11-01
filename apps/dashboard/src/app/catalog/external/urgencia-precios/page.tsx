@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import {
     ArrowLeft, AlertCircle, CheckCircle2, Clock, RefreshCw,
     Search, ExternalLink, Package, ArrowUpDown, ChevronLeft, ChevronRight, Sliders,
-    CheckSquare, AlertTriangle, X
+    CheckSquare, AlertTriangle, X, Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -126,6 +126,13 @@ function UrgenciaPreciosInner() {
     const [forceApproval, setForceApproval] = useState<boolean>(false);
     const [approving, setApproving] = useState<boolean>(false);
     const [bulkAuditing, setBulkAuditing] = useState<boolean>(false);
+
+    // 4. Recalculo masivo y edición directa de precio
+    const [recalculando, setRecalculando] = useState<boolean>(false);
+    const [recalcProgress, setRecalcProgress] = useState<{ done: number; total: number } | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editValue, setEditValue] = useState<string>('');
+    const [editSaving, setEditSaving] = useState<boolean>(false);
 
     const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
@@ -404,6 +411,88 @@ function UrgenciaPreciosInner() {
         }
     };
 
+    // Recalculo Masivo de Precios Sugeridos (lotes de 200, con barra de progreso)
+    const recalcularPrecios = async () => {
+        if (recalculando) return;
+        setRecalculando(true);
+        try {
+            let targetIds: string[] = [];
+            if (selectAllUniverse) {
+                let q = supabase.from('v_urgencia_precios').select('id');
+                if (activeTab !== 'all') q = q.eq('categoria', activeTab);
+                if (soloSinAuditar) q = q.eq('estado_auditoria', 'sin_auditar');
+                if (debouncedSearch.trim()) {
+                    const t = debouncedSearch.trim();
+                    q = q.or(`titulo.ilike.%${t}%,external_item_id.ilike.%${t}%,seller_custom_field.ilike.%${t}%,seller_sku.ilike.%${t}%,brand.ilike.%${t}%`);
+                }
+                const { data, error } = await q;
+                if (error) throw error;
+                targetIds = data?.map((d: any) => d.id) || [];
+            } else if (selectedIds.size > 0) {
+                targetIds = Array.from(selectedIds);
+            } else {
+                targetIds = items.map((it) => it.id);
+            }
+
+            if (targetIds.length === 0) {
+                toast.error('No hay publicaciones para recalcular');
+                return;
+            }
+
+            const BATCH = 200;
+            let done = 0;
+            for (let i = 0; i < targetIds.length; i += BATCH) {
+                const batch = targetIds.slice(i, i + BATCH);
+                setRecalcProgress({ done, total: targetIds.length });
+                const res = await fetch('/api/pricing/recalcular-lote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: batch })
+                });
+                const j = await res.json();
+                if (!res.ok) throw new Error(j.error || 'Error al recalcular');
+                done += batch.length;
+            }
+            setRecalcProgress({ done, total: targetIds.length });
+            toast.success(`${targetIds.length} publicaciones recalculadas.`);
+            loadKpis();
+            loadPageData();
+        } catch (e: any) {
+            toast.error(e.message || 'Error al recalcular precios');
+        } finally {
+            setRecalculando(false);
+            setRecalcProgress(null);
+        }
+    };
+
+    // Guardado de edición directa del precio sugerido (spreadsheet style)
+    const guardarEdicion = async (item: UrgenciaItem) => {
+        if (editingId !== item.id) return;
+        const nuevo = parseFloat(editValue);
+        if (!Number.isFinite(nuevo) || nuevo <= 0 || nuevo === item.draft_price) {
+            setEditingId(null);
+            return;
+        }
+        setEditSaving(true);
+        try {
+            const res = await fetch('/api/pricing/edit-draft', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ publicacion_id: item.id, nuevo_precio: nuevo })
+            });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || 'Error al guardar precio');
+            toast.success('Precio guardado');
+            setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, draft_price: nuevo } : it)));
+            loadKpis();
+        } catch (e: any) {
+            toast.error(e.message || 'Error al guardar precio');
+        } finally {
+            setEditSaving(false);
+            setEditingId(null);
+        }
+    };
+
     // Cálculos para el Modal de Confirmación
     const selectedCount = selectAllUniverse ? totalCount : selectedIds.size;
     const selectedItemsList = useMemo(() => {
@@ -471,6 +560,15 @@ function UrgenciaPreciosInner() {
                             >
                                 <Sliders className="w-3.5 h-3.5 text-[var(--accent)]" /> Configurar Reglas V3
                             </Link>
+                            <Btn
+                                variant="primary"
+                                onClick={recalcularPrecios}
+                                disabled={recalculando}
+                                loading={recalculando}
+                                icon={<Zap className="w-4 h-4" />}
+                            >
+                                Recalcular Precios
+                            </Btn>
                             <Btn
                                 variant="ghost"
                                 onClick={() => { loadKpis(); loadPageData(); }}
@@ -817,11 +915,32 @@ function UrgenciaPreciosInner() {
                                                     </div>
                                                 </td>
 
-                                                {/* 6 — SUGERIDO FINAL */}
+                                                {/* 6 — SUGERIDO FINAL (celda editable directa) */}
                                                 <td className="px-4 py-3 align-top text-right">
-                                                    <span className="text-xs font-mono font-bold text-[var(--text)]">
-                                                        {formatCurrency(item.draft_price)}
-                                                    </span>
+                                                    {editingId === item.id ? (
+                                                        <input
+                                                            type="number"
+                                                            autoFocus
+                                                            value={editValue}
+                                                            onChange={(e) => setEditValue(e.target.value)}
+                                                            onFocus={(e) => e.currentTarget.select()}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') e.currentTarget.blur();
+                                                                else if (e.key === 'Escape') setEditingId(null);
+                                                            }}
+                                                            onBlur={() => guardarEdicion(item)}
+                                                            disabled={editSaving}
+                                                            className="w-24 text-right text-xs font-mono font-bold bg-[var(--surface)] border border-[var(--accent)] rounded px-2 py-1 outline-none"
+                                                        />
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => { setEditingId(item.id); setEditValue(String(item.draft_price)); }}
+                                                            className="text-xs font-mono font-bold text-[var(--text)] hover:text-[var(--accent)] cursor-text"
+                                                            title="Clic para editar"
+                                                        >
+                                                            {formatCurrency(item.draft_price)}
+                                                        </button>
+                                                    )}
                                                     <div className="text-[10px] text-[var(--text-faint)]">
                                                         con redondeo
                                                     </div>
@@ -979,6 +1098,27 @@ function UrgenciaPreciosInner() {
                 )}
 
                 {/* Modal de Confirmación de Aprobación Masiva */}
+                {recalcProgress && (
+                    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4">
+                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl p-4 space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                                <span className="font-semibold text-[var(--text)] flex items-center gap-1.5">
+                                    <Zap className="w-3.5 h-3.5 text-[var(--accent)]" /> Recalculando en Supabase…
+                                </span>
+                                <span className="font-mono text-[var(--text-muted)]">
+                                    {recalcProgress.done.toLocaleString()} / {recalcProgress.total.toLocaleString()} ({recalcProgress.total > 0 ? Math.round((recalcProgress.done / recalcProgress.total) * 100) : 0}%)
+                                </span>
+                            </div>
+                            <div className="h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-[var(--accent)] rounded-full transition-all duration-300"
+                                    style={{ width: `${recalcProgress.total > 0 ? (recalcProgress.done / recalcProgress.total) * 100 : 0}%` }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {showApproveModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
                         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4">
