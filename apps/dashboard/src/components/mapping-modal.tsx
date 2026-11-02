@@ -438,10 +438,12 @@ if (self?.external_item_id) {
 const espejo: any[] = [];
 const comerciales: any[] = [];
 for (const c of candidates.values()) {
-  const esEspejo = self?.id_producto_catalogo != null
-    && c.id_producto_catalogo === self.id_producto_catalogo
+  const esEspejo = c.tipo_publicacion !== self.tipo_publicacion
     && c.listing_type_id === self.listing_type_id
-    && c.tipo_publicacion !== self.tipo_publicacion;
+    && (
+      (self?.id_producto_catalogo != null && c.id_producto_catalogo === self.id_producto_catalogo)
+      || (c.par_item_id != null && c.par_item_id === self.external_item_id)
+    );
   if (esEspejo) espejo.push(c); else comerciales.push(c);
 }
 setEspejoSiblings(espejo);
