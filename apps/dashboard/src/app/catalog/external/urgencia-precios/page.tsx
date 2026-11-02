@@ -61,7 +61,7 @@ interface UrgenciaKpis {
 }
 
 type TabCategory = 'all' | 'perdida' | 'sobreprecio' | 'sin_precio' | 'alineado';
-type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'audit_urgente' | 'ventas_desc' | 'precio_desc' | 'sugerido_desc' | 'equilibrio_desc' | 'costo_desc';
+type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'audit_urgente' | 'ventas_desc' | 'precio_desc' | 'precio_asc' | 'sugerido_desc' | 'sugerido_asc' | 'equilibrio_desc' | 'equilibrio_asc' | 'costo_desc' | 'costo_asc';
 
 const PAGE_SIZE = 50;
 
@@ -178,9 +178,13 @@ function UrgenciaPreciosInner() {
     const loadPageData = useCallback(async () => {
         setLoading(true);
         try {
+            // Solo pedir conteo exacto con búsqueda o filtro sin-auditar (filtros que
+            // los KPIs no reflejan por pestaña). En navegación normal el total sale de
+            // fn_urgencia_precios_kpis en milisegundos y no forzamos el count(*) OVER().
+            const necesitaConteo = debouncedSearch.trim().length > 0 || soloSinAuditar;
             let query = supabase
                 .from('v_urgencia_precios')
-                .select('*', { count: 'exact' });
+                .select('*', { count: necesitaConteo ? 'exact' : undefined });
 
             // Filtro por tab
             if (activeTab !== 'all') {
@@ -211,12 +215,20 @@ function UrgenciaPreciosInner() {
                 query = query.order('sold_quantity', { ascending: false }).order('id', { ascending: true });
             } else if (sortBy === 'precio_desc') {
                 query = query.order('precio_venta', { ascending: false, nullsFirst: false }).order('id', { ascending: true });
+            } else if (sortBy === 'precio_asc') {
+                query = query.order('precio_venta', { ascending: true, nullsFirst: false }).order('id', { ascending: true });
             } else if (sortBy === 'sugerido_desc') {
                 query = query.order('draft_price', { ascending: false }).order('id', { ascending: true });
+            } else if (sortBy === 'sugerido_asc') {
+                query = query.order('draft_price', { ascending: true }).order('id', { ascending: true });
             } else if (sortBy === 'equilibrio_desc') {
                 query = query.order('precio_equilibrio', { ascending: false }).order('id', { ascending: true });
+            } else if (sortBy === 'equilibrio_asc') {
+                query = query.order('precio_equilibrio', { ascending: true }).order('id', { ascending: true });
             } else if (sortBy === 'costo_desc') {
                 query = query.order('draft_cost', { ascending: false, nullsFirst: false }).order('id', { ascending: true });
+            } else if (sortBy === 'costo_asc') {
+                query = query.order('draft_cost', { ascending: true, nullsFirst: false }).order('id', { ascending: true });
             }
 
             // Paginación server-side (50 filas)
@@ -228,7 +240,9 @@ function UrgenciaPreciosInner() {
             if (error) throw error;
 
             setItems((data as UrgenciaItem[]) || []);
-            setTotalCount(count || 0);
+            if (necesitaConteo) {
+                setTotalCount(count || 0);
+            }
         } catch (e: any) {
             console.error(e);
             toast.error(e.message || 'Error al cargar urgencia de precios');
@@ -244,6 +258,17 @@ function UrgenciaPreciosInner() {
     useEffect(() => {
         loadPageData();
     }, [loadPageData]);
+
+    // Total por pestaña desde KPIs (evita count(*) OVER() en cada navegación).
+    useEffect(() => {
+        if (debouncedSearch.trim() || soloSinAuditar) return;
+        const t = activeTab === 'perdida' ? kpis.count_perdida
+            : activeTab === 'sobreprecio' ? kpis.count_sobreprecio
+            : activeTab === 'sin_precio' ? kpis.count_sin_precio
+            : activeTab === 'alineado' ? kpis.count_alineado
+            : kpis.total;
+        setTotalCount(t);
+    }, [kpis, activeTab, debouncedSearch, soloSinAuditar]);
 
     // Limpiar selección al cambiar filtros o tabs
     const clearSelection = useCallback(() => {
@@ -704,7 +729,13 @@ function UrgenciaPreciosInner() {
                         ].map(tab => (
                             <button
                                 key={tab.id}
-                                onClick={() => { setActiveTab(tab.id as TabCategory); setPage(1); }}
+                                onClick={() => {
+                                    setActiveTab(tab.id as TabCategory);
+                                    setPage(1);
+                                    // Pestañas inteligentes: alinean el orden con la pestaña.
+                                    if (tab.id === 'perdida') setSortBy('perdida_desc');
+                                    else if (tab.id === 'sobreprecio') setSortBy('sobreprecio_desc');
+                                }}
                                 className={cn(
                                     "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all",
                                     activeTab === tab.id
@@ -799,16 +830,16 @@ function UrgenciaPreciosInner() {
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Producto</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Estado</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">
-                                        <button onClick={() => setSortBy('costo_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Costo Base{sortBy === 'costo_desc' ? ' ▼' : ''}</button>
+                                        <button onClick={() => setSortBy(sortBy === 'costo_desc' ? 'costo_asc' : 'costo_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Costo Base{sortBy === 'costo_desc' ? ' ▼' : sortBy === 'costo_asc' ? ' ▲' : ''}</button>
                                     </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">
-                                        <button onClick={() => setSortBy('precio_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Precio MeLi{sortBy === 'precio_desc' ? ' ▼' : ''}</button>
+                                        <button onClick={() => setSortBy(sortBy === 'precio_desc' ? 'precio_asc' : 'precio_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Precio MeLi{sortBy === 'precio_desc' ? ' ▼' : sortBy === 'precio_asc' ? ' ▲' : ''}</button>
                                     </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">
-                                        <button onClick={() => setSortBy('equilibrio_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Equilibrio Exacto{sortBy === 'equilibrio_desc' ? ' ▼' : ''}</button>
+                                        <button onClick={() => setSortBy(sortBy === 'equilibrio_desc' ? 'equilibrio_asc' : 'equilibrio_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Equilibrio Exacto{sortBy === 'equilibrio_desc' ? ' ▼' : sortBy === 'equilibrio_asc' ? ' ▲' : ''}</button>
                                     </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">
-                                        <button onClick={() => setSortBy('sugerido_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Sugerido Final{sortBy === 'sugerido_desc' ? ' ▼' : ''}</button>
+                                        <button onClick={() => setSortBy(sortBy === 'sugerido_desc' ? 'sugerido_asc' : 'sugerido_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Sugerido Final{sortBy === 'sugerido_desc' ? ' ▼' : sortBy === 'sugerido_asc' ? ' ▲' : ''}</button>
                                     </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right" title="Brecha calculada sobre el Equilibrio Matemático Exacto">
                                         <button onClick={() => setSortBy(sortBy === 'perdida_desc' ? 'sobreprecio_desc' : 'perdida_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Brecha (vs Eq.){(sortBy === 'perdida_desc' || sortBy === 'sobreprecio_desc') ? ' ▼' : ''}</button>
