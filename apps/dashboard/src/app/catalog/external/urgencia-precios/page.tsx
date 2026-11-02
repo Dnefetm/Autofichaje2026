@@ -61,7 +61,7 @@ interface UrgenciaKpis {
 }
 
 type TabCategory = 'all' | 'perdida' | 'sobreprecio' | 'sin_precio' | 'alineado';
-type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'audit_urgente' | 'ventas_desc' | 'precio_desc' | 'precio_asc' | 'sugerido_desc' | 'sugerido_asc' | 'equilibrio_desc' | 'equilibrio_asc' | 'costo_desc' | 'costo_asc';
+type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'audit_urgente' | 'ventas_desc' | 'ventas_asc' | 'precio_desc' | 'precio_asc' | 'sugerido_desc' | 'sugerido_asc' | 'equilibrio_desc' | 'equilibrio_asc' | 'costo_desc' | 'costo_asc';
 
 const PAGE_SIZE = 50;
 
@@ -213,6 +213,8 @@ function UrgenciaPreciosInner() {
                 query = query.order('ultima_auditoria_precio_el', { ascending: true, nullsFirst: true }).order('sold_quantity', { ascending: false }).order('id', { ascending: true });
             } else if (sortBy === 'ventas_desc') {
                 query = query.order('sold_quantity', { ascending: false }).order('id', { ascending: true });
+            } else if (sortBy === 'ventas_asc') {
+                query = query.order('sold_quantity', { ascending: true }).order('id', { ascending: true });
             } else if (sortBy === 'precio_desc') {
                 query = query.order('precio_venta', { ascending: false, nullsFirst: false }).order('id', { ascending: true });
             } else if (sortBy === 'precio_asc') {
@@ -756,11 +758,26 @@ function UrgenciaPreciosInner() {
                             onChange={e => { setSortBy(e.target.value as SortOption); setPage(1); }}
                             className="text-xs bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-[var(--text)] focus:ring-[var(--accent)]"
                         >
-                            <option value="perdida_desc">Mayor pérdida ($)</option>
-                            <option value="sobreprecio_desc">Mayor sobreprecio ($)</option>
-                            <option value="pct_desc">Mayor desviación (%)</option>
-                            <option value="audit_urgente">Más urgente de auditar</option>
-                            <option value="ventas_desc">Más vendidos</option>
+                            <optgroup label="Brecha">
+                                <option value="perdida_desc">Mayor pérdida ($)</option>
+                                <option value="sobreprecio_desc">Mayor sobreprecio ($)</option>
+                                <option value="pct_desc">Mayor desviación (%)</option>
+                            </optgroup>
+                            <optgroup label="Precios">
+                                <option value="precio_desc">Mayor precio MeLi</option>
+                                <option value="precio_asc">Menor precio MeLi</option>
+                                <option value="sugerido_desc">Mayor sugerido</option>
+                                <option value="sugerido_asc">Menor sugerido</option>
+                                <option value="equilibrio_desc">Mayor equilibrio</option>
+                                <option value="equilibrio_asc">Menor equilibrio</option>
+                                <option value="costo_desc">Mayor costo base</option>
+                                <option value="costo_asc">Menor costo base</option>
+                            </optgroup>
+                            <optgroup label="Actividad">
+                                <option value="ventas_desc">Más vendidos</option>
+                                <option value="ventas_asc">Menos vendidos</option>
+                                <option value="audit_urgente">Más urgente de auditar</option>
+                            </optgroup>
                         </select>
                     </div>
                 </div>
