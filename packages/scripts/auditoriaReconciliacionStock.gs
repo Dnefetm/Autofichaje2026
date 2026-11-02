@@ -167,18 +167,27 @@ function cruzarBidireccional3Niveles_(itemsSheets, itemsSupa, campoPk) {
   const zombisARevisar = [];      // En Supabase pero NO en Sheets (origin = NULL / otro)
   const protegidosWeb = [];       // En Supabase pero NO en Sheets (origin = 'web', NO TOCAR)
 
-  // 1. Evaluar lo que está en Sheets contra Supabase
+  // 1. Evaluar lo que está en Sheets contra Supabase.
+  // El buffer de 15 días en Sheets (corteSheetsEpoch) solo sirve para NO marcar
+  // zombis falsos en la dirección inversa. Para "faltantes" solo cuenta lo que
+  // Supabase realmente descargó (>= FECHA_CORTE_SUPABASE); el resto se marcaría
+  // como faltante aunque no lo sea.
+  const corteSupaEpoch = new Date(FECHA_CORTE_SUPABASE).getTime();
   itemsSheets.forEach(sItem => {
     const supaItem = mapSupa[sItem.id];
     if (!supaItem) {
-      faltantesEnSupabase.push(sItem);
-    } else if (supaItem.cantidad !== sItem.cantidad) {
+      if (new Date(sItem.fecha).getTime() >= corteSupaEpoch) {
+        faltantesEnSupabase.push(sItem);
+      }
+    } else if (Number(supaItem.cantidad ?? 0) !== Number(sItem.cantidad ?? 0)) {
+      const cantSheets = Number(sItem.cantidad ?? 0);
+      const cantSupa = Number(supaItem.cantidad ?? 0);
       cantidadDiscrepante.push({
         id: sItem.id,
         articulo_id: sItem.articulo_id,
-        cant_sheets: sItem.cantidad,
-        cant_supabase: supaItem.cantidad,
-        diferencia: sItem.cantidad - supaItem.cantidad,
+        cant_sheets: cantSheets,
+        cant_supabase: cantSupa,
+        diferencia: cantSheets - cantSupa,
         fecha: sItem.fecha,
         fila_sheet: sItem.fila_sheet
       });
