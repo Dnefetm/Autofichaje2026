@@ -133,6 +133,7 @@ function UrgenciaPreciosInner() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editValue, setEditValue] = useState<string>('');
     const [editSaving, setEditSaving] = useState<boolean>(false);
+    const isCancellingRef = useRef<boolean>(false);
 
     const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
@@ -467,7 +468,10 @@ function UrgenciaPreciosInner() {
 
     // Guardado de edición directa del precio sugerido (spreadsheet style)
     const guardarEdicion = async (item: UrgenciaItem) => {
-        if (editingId !== item.id) return;
+        if (isCancellingRef.current || editingId !== item.id) {
+            isCancellingRef.current = false;
+            return;
+        }
         const nuevo = parseFloat(editValue);
         if (!Number.isFinite(nuevo) || nuevo <= 0 || nuevo === item.draft_price) {
             setEditingId(null);
@@ -919,24 +923,41 @@ function UrgenciaPreciosInner() {
                                                 <td className="px-4 py-3 align-top text-right">
                                                     {editingId === item.id ? (
                                                         <input
-                                                            type="number"
+                                                            type="text"
+                                                            inputMode="decimal"
                                                             autoFocus
                                                             value={editValue}
-                                                            onChange={(e) => setEditValue(e.target.value)}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value.replace(/[^0-9.]/g, '');
+                                                                const parts = val.split('.');
+                                                                if (parts.length > 2) return;
+                                                                setEditValue(val);
+                                                            }}
                                                             onFocus={(e) => e.currentTarget.select()}
                                                             onKeyDown={(e) => {
-                                                                if (e.key === 'Enter') e.currentTarget.blur();
-                                                                else if (e.key === 'Escape') setEditingId(null);
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    e.currentTarget.blur();
+                                                                } else if (e.key === 'Escape') {
+                                                                    e.preventDefault();
+                                                                    isCancellingRef.current = true;
+                                                                    setEditingId(null);
+                                                                }
                                                             }}
                                                             onBlur={() => guardarEdicion(item)}
                                                             disabled={editSaving}
-                                                            className="w-24 text-right text-xs font-mono font-bold bg-[var(--surface)] border border-[var(--accent)] rounded px-2 py-1 outline-none"
+                                                            className="w-24 text-right text-xs font-mono font-bold bg-[var(--surface-2)] text-[var(--text)] border-2 border-[var(--accent)] rounded px-1.5 py-0.5 outline-none shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                         />
                                                     ) : (
                                                         <button
-                                                            onClick={() => { setEditingId(item.id); setEditValue(String(item.draft_price)); }}
-                                                            className="text-xs font-mono font-bold text-[var(--text)] hover:text-[var(--accent)] cursor-text"
-                                                            title="Clic para editar"
+                                                            type="button"
+                                                            onClick={() => {
+                                                                isCancellingRef.current = false;
+                                                                setEditingId(item.id);
+                                                                setEditValue(String(item.draft_price));
+                                                            }}
+                                                            className="text-xs font-mono font-bold text-[var(--text)] hover:text-[var(--accent)] hover:underline cursor-text transition-colors"
+                                                            title="Clic para editar precio sugerido"
                                                         >
                                                             {formatCurrency(item.draft_price)}
                                                         </button>

@@ -42,16 +42,31 @@ BEGIN
         RAISE EXCEPTION 'El precio debe ser mayor a 0';
     END IF;
 
-    -- 1. Actualizar el borrador principal (upsert por si aún no existe).
-    INSERT INTO public.publication_pricing_drafts
-        (publicacion_id, draft_price, pricing_status, pricing_review_status, updated_at)
-    VALUES
-        (p_publicacion_id, p_nuevo_precio, 'valid', 'pending', now())
-    ON CONFLICT (publicacion_id) DO UPDATE
-        SET draft_price = EXCLUDED.draft_price,
-            pricing_status = 'valid',
-            pricing_review_status = 'pending',
-            updated_at = now();
+    -- 1. Actualizar el borrador principal (respetando draft_cost NOT NULL)
+    IF EXISTS (SELECT 1 FROM public.publication_pricing_drafts WHERE publicacion_id = p_publicacion_id) THEN
+        UPDATE public.publication_pricing_drafts
+           SET draft_price = p_nuevo_precio,
+               pricing_status = 'valid',
+               pricing_review_status = 'pending',
+               details = coalesce(details, '{}'::jsonb) || jsonb_build_object('precio_final', p_nuevo_precio, 'manual_override', true),
+               updated_at = now()
+         WHERE publicacion_id = p_publicacion_id;
+    ELSE
+        -- Si no existía borrador previo, intentar recalcularlo canónicamente primero
+        PERFORM public.fn_recalcular_precio_publicacion(p_publicacion_id);
+
+        -- Upsert seguro con draft_cost asegurado
+        INSERT INTO public.publication_pricing_drafts
+            (publicacion_id, draft_cost, draft_price, pricing_status, pricing_review_status, details, updated_at)
+        VALUES
+            (p_publicacion_id, 0, p_nuevo_precio, 'valid', 'pending', jsonb_build_object('precio_final', p_nuevo_precio, 'manual_override', true), now())
+        ON CONFLICT (publicacion_id) DO UPDATE
+            SET draft_price = EXCLUDED.draft_price,
+                pricing_status = 'valid',
+                pricing_review_status = 'pending',
+                details = coalesce(publication_pricing_drafts.details, '{}'::jsonb) || jsonb_build_object('precio_final', EXCLUDED.draft_price, 'manual_override', true),
+                updated_at = now();
+    END IF;
 
     -- 2. Espejo: si la publicación editada es tradicional, actualizar el borrador de su catálogo.
     UPDATE public.publication_pricing_drafts cd
