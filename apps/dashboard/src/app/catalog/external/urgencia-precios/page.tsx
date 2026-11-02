@@ -61,7 +61,7 @@ interface UrgenciaKpis {
 }
 
 type TabCategory = 'all' | 'perdida' | 'sobreprecio' | 'sin_precio' | 'alineado';
-type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'pct_asc' | 'audit_urgente' | 'ventas_desc' | 'ventas_asc' | 'precio_desc' | 'precio_asc' | 'sugerido_desc' | 'sugerido_asc' | 'equilibrio_desc' | 'equilibrio_asc' | 'costo_desc' | 'costo_asc';
+type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'perdida_pct' | 'sobreprecio_pct' | 'pct_desc' | 'pct_asc' | 'audit_urgente' | 'ventas_desc' | 'ventas_asc' | 'precio_desc' | 'precio_asc' | 'sugerido_desc' | 'sugerido_asc' | 'equilibrio_desc' | 'equilibrio_asc' | 'costo_desc' | 'costo_asc';
 
 const PAGE_SIZE = 50;
 
@@ -207,13 +207,15 @@ function UrgenciaPreciosInner() {
 
             // Ordenamiento en servidor (con desempate estable por id).
             if (sortBy === 'perdida_desc') {
-                query = query.order('gap_dinero', { ascending: true }).order('id', { ascending: true }); // Más negativo = mayor pérdida
+                query = query.order('gap_dinero', { ascending: true }).order('id', { ascending: true }); // Más negativo en $ = mayor pérdida $
             } else if (sortBy === 'sobreprecio_desc') {
-                query = query.order('gap_dinero', { ascending: false }).order('id', { ascending: true }); // Más positivo = mayor sobreprecio
-            } else if (sortBy === 'pct_desc') {
-                query = query.order('abs_gap_pct', { ascending: false }).order('id', { ascending: true }); // Mayor desviación absoluta
+                query = query.order('gap_dinero', { ascending: false }).order('id', { ascending: true }); // Más positivo en $ = mayor sobreprecio $
+            } else if (sortBy === 'perdida_pct' || sortBy === 'pct_desc') {
+                query = query.order('gap_pct', { ascending: true }).order('id', { ascending: true }); // Mayor pérdida porcentual (-29%, -25%...)
+            } else if (sortBy === 'sobreprecio_pct') {
+                query = query.order('gap_pct', { ascending: false }).order('id', { ascending: true }); // Mayor sobreprecio porcentual (+686%, +490%...)
             } else if (sortBy === 'pct_asc') {
-                query = query.order('abs_gap_pct', { ascending: true }).order('id', { ascending: true }); // Menor desviación absoluta
+                query = query.order('abs_gap_pct', { ascending: true }).order('id', { ascending: true }); // Menor desviación absoluta (0% / alineadas)
             } else if (sortBy === 'audit_urgente') {
                 query = query.order('ultima_auditoria_precio_el', { ascending: true, nullsFirst: true }).order('sold_quantity', { ascending: false }).order('id', { ascending: true });
             } else if (sortBy === 'ventas_desc') {
@@ -745,8 +747,8 @@ function UrgenciaPreciosInner() {
                                     setActiveTab(tab.id as TabCategory);
                                     setPage(1);
                                     // Pestañas inteligentes: alinean el orden con la pestaña.
-                                    if (tab.id === 'perdida') setSortBy('perdida_desc');
-                                    else if (tab.id === 'sobreprecio') setSortBy('sobreprecio_desc');
+                                    if (tab.id === 'perdida') setSortBy('perdida_pct');
+                                    else if (tab.id === 'sobreprecio') setSortBy('sobreprecio_pct');
                                 }}
                                 className={cn(
                                     "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all",
@@ -769,8 +771,8 @@ function UrgenciaPreciosInner() {
                             className="text-xs bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-[var(--text)] focus:ring-[var(--accent)]"
                         >
                             <optgroup label="Desviación y Brecha">
-                                <option value="pct_desc">Mayor desviación (%)</option>
-                                <option value="pct_asc">Menor desviación (%)</option>
+                                <option value="perdida_pct">Mayor pérdida (%)</option>
+                                <option value="sobreprecio_pct">Mayor sobreprecio (%)</option>
                                 <option value="perdida_desc">Mayor pérdida ($)</option>
                                 <option value="sobreprecio_desc">Mayor sobreprecio ($)</option>
                             </optgroup>
@@ -779,7 +781,7 @@ function UrgenciaPreciosInner() {
                                 <option value="ventas_asc">Menos vendidos</option>
                                 <option value="audit_urgente">Más urgente de auditar</option>
                             </optgroup>
-                            {!['pct_desc', 'pct_asc', 'perdida_desc', 'sobreprecio_desc', 'ventas_desc', 'ventas_asc', 'audit_urgente'].includes(sortBy) && (
+                            {!['perdida_pct', 'sobreprecio_pct', 'pct_desc', 'pct_asc', 'perdida_desc', 'sobreprecio_desc', 'ventas_desc', 'ventas_asc', 'audit_urgente'].includes(sortBy) && (
                                 <option value={sortBy} hidden>
                                     {sortBy === 'precio_desc' ? 'Precio MeLi (Mayor a menor)'
                                         : sortBy === 'precio_asc' ? 'Precio MeLi (Menor a mayor)'
@@ -873,7 +875,7 @@ function UrgenciaPreciosInner() {
                                         <button onClick={() => setSortBy(sortBy === 'sugerido_desc' ? 'sugerido_asc' : 'sugerido_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Sugerido Final{sortBy === 'sugerido_desc' ? ' ▼' : sortBy === 'sugerido_asc' ? ' ▲' : ''}</button>
                                     </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right" title="Brecha calculada sobre el Equilibrio Matemático Exacto">
-                                        <button onClick={() => setSortBy(sortBy === 'pct_desc' ? 'pct_asc' : 'pct_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Brecha (vs Eq.){sortBy === 'pct_desc' ? ' ▼' : sortBy === 'pct_asc' ? ' ▲' : ''}</button>
+                                        <button onClick={() => setSortBy(sortBy === 'perdida_pct' || sortBy === 'pct_desc' ? 'sobreprecio_pct' : 'perdida_pct')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Brecha (vs Eq.){(sortBy === 'perdida_pct' || sortBy === 'pct_desc') ? ' ▼' : sortBy === 'sobreprecio_pct' ? ' ▲' : ''}</button>
                                     </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-center">Auditoría</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Acción</th>
