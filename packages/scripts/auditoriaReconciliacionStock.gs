@@ -1,18 +1,25 @@
 /**
  * auditoriaReconciliacionStock.gs
  *
- * SCRIPT DE FASE 0: AUDITORÍA BIDIRECCIONAL DE SOLO LECTURA
+ * SCRIPT DE FASE 0 AMPLIADA: AUDITORÍA BIDIRECCIONAL SIMÉTRICA (100% SOLO LECTURA)
  * (Google Sheets <-> Supabase)
  *
- * Mejoras de robustez aplicadas tras auditoría forense:
- * 1. 100% AUTOCONTENIDO: Incluye fallback para SUPABASE_URL y SUPABASE_SERVICE_KEY
- *    si no están declaradas globalmente en el proyecto.
- * 2. DETECCIÓN DINÁMICA DE COLUMNAS: Lee la fila 1 (headers) para localizar
- *    los índices reales de 'egreso_id', 'articulo_id', 'cantidad', 'fecha', etc.,
- *    eliminando el riesgo de columnas desplazadas en la hoja.
- * 3. 100% SOLO LECTURA EN SUPABASE: Cero peticiones de escritura hacia la BD.
- * 4. AISLAMIENTO EN SHEETS: No toca las hojas 'Egresos' ni 'Ingresos'; solo
- *    vuelca su reporte en la pestaña aislada 'Auditoria_Reconciliacion'.
+ * Propósito:
+ * Diagnosticar con certeza matemática y rigor forense TODO el catálogo
+ * sin realizar ninguna mutación en la base de datos de producción.
+ *
+ * Blindajes y Mejoras de Seguridad:
+ * 1. 100% SOLO LECTURA EN SUPABASE: Cero peticiones POST/PUT/PATCH/DELETE.
+ * 2. PAGINACIÓN CANÓNICA POSTGREST (limit=1000): Descarga por lotes de 1,000 filas
+ *    para superar el truncamiento predeterminado de PostgREST y auditar las ~31k filas reales.
+ * 3. CRUCE BIDIRECCIONAL SIMÉTRICO:
+ *    - Faltantes en Supabase (Solo en Sheets): Filas que no han subido a BD (desinflan stock).
+ *    - Zombis en Supabase (Solo en Supabase): Filas borradas/corregidas en Sheets que siguen vivas en BD (inflan stock).
+ *    - Discrepancias de Cantidad: Filas en ambos sistemas con diferente número de piezas.
+ * 4. PROTECCIÓN DE MOVIMIENTOS WEB (origin != 'web'):
+ *    Excluye estrictamente los 27 egresos con origin = 'web' para no marcarlos falsamente como zombis.
+ * 5. CONTROL DE TIEMPO (4.5 min): Guarda para evitar cortes de Google Apps Script.
+ * 6. MAPEO DINÁMICO POR ENCABEZADOS: Localiza columnas por nombre en fila 1.
  */
 
 // Configuración de conexión (con fallback a variables globales del proyecto si existen)
@@ -26,7 +33,7 @@ var KEY_SUPABASE_AUDIT = (typeof SUPABASE_SERVICE_KEY !== 'undefined')
 
 const HOJA_AUDITORIA = 'Auditoria_Reconciliacion';
 const FECHA_CORTE_AUDITORIA = '2025-11-01T00:00:00Z';
-const CHUNK_AUDITORIA = 40;
+const LIMITE_POSTGREST = 1000;
 const TIEMPO_LIMITE_MS = 270000; // 4.5 minutos
 
 /**
@@ -35,7 +42,7 @@ const TIEMPO_LIMITE_MS = 270000; // 4.5 minutos
  */
 function correrAuditoriaReconciliacion() {
   const tInicio = Date.now();
-  Logger.log('=== INICIANDO FASE 0: AUDITORÍA BIDIRECCIONAL DE STOCK ===');
+  Logger.log('=== INICIANDO FASE 0 AMPLIADA: AUDITORÍA BIDIRECCIONAL SIMÉTRICA ===');
   Logger.log('Endpoint Supabase: ' + URL_SUPABASE_AUDIT);
   Logger.log('Fecha de corte: ' + FECHA_CORTE_AUDITORIA);
 
@@ -54,28 +61,306 @@ function correrAuditoriaReconciliacion() {
   Logger.log('-> Egresos en Sheets (>= 2025-11-01): ' + egresosSheets.length);
   Logger.log('-> Ingresos en Sheets (>= 2025-11-01): ' + ingresosSheets.length);
 
-  // 2. Auditar Egresos contra Supabase
-  Logger.log('Paso 2: Comparando Egresos contra Supabase...');
-  const resEgresos = auditarTablaContraSupabase_('egresos', 'egreso_id', egresosSheets, tInicio);
+  // 2. Descargar con paginación limpia (limit=1000) todos los movimientos de Supabase
+  Logger.log('Paso 2: Descargando Egresos de Supabase con paginación limit=1000...');
+  const egresosSupa = descargarMovimientosSupabasePaginados_('egresos', 'egreso_id', FECHA_CORTE_AUDITORIA, tInicio);
 
-  // 3. Auditar Ingresos contra Supabase
-  Logger.log('Paso 3: Comparando Ingresos contra Supabase...');
-  const resIngresos = auditarTablaContraSupabase_('ingresos', 'ingreso_id', ingresosSheets, tInicio);
+  Logger.log('Paso 3: Descargando Ingresos de Supabase con paginación limit=1000...');
+  const ingresosSupa = descargarMovimientosSupabasePaginados_('ingresos', 'ingreso_id', FECHA_CORTE_AUDITORIA, tInicio);
+
+  Logger.log('-> Egresos descargados de Supabase: ' + egresosSupa.items.length + (egresosSupa.incompleto ? ' [ALERTA: INCOMPLETO]' : ' [COMPLETO]'));
+  Logger.log('-> Ingresos descargados de Supabase: ' + ingresosSupa.items.length + (ingresosSupa.incompleto ? ' [ALERTA: INCOMPLETO]' : ' [COMPLETO]'));
+
+  // 3. Cruce Bidireccional Simétrico en Memoria
+  Logger.log('Paso 4: Ejecutando cruce bidireccional en memoria...');
+  const cruceEgresos = cruzarBidireccional_(egresosSheets, egresosSupa.items, 'egreso_id');
+  const cruceIngresos = cruzarBidireccional_(ingresosSheets, ingresosSupa.items, 'ingreso_id');
 
   // 4. Auditoría puntual del artículo testigo '871b9a3e' (KJXP85269) en Supabase
-  Logger.log('Paso 4: Consultando histórico completo en Supabase para artículo 871b9a3e...');
-  const testigoSupabase = consultarMovimientosTestigoSupabase_('871b9a3e');
+  Logger.log('Paso 5: Consultando metadatos del artículo testigo 871b9a3e...');
+  const testigoSupabase = consultarMetadatosTestigoSupabase_('871b9a3e');
 
-  // 5. Consolidar balances por artículo
-  Logger.log('Paso 5: Consolidando balances y discrepancias...');
-  const consolidado = consolidarBalances_(egresosSheets, ingresosSheets, resEgresos, resIngresos, testigoSupabase);
+  // 5. Consolidar balances netos por artículo
+  Logger.log('Paso 6: Consolidando balances y ranking de impacto...');
+  const articulosConsolidados = consolidarCatalogoBidireccional_(cruceEgresos, cruceIngresos);
 
-  // 6. Escribir informe en pestaña 'Auditoria_Reconciliacion'
-  Logger.log('Paso 6: Escribiendo resultados en pestaña ' + HOJA_AUDITORIA + '...');
-  volcarInformeASheet_(ss, consolidado, resEgresos, resIngresos, testigoSupabase);
+  // 6. Escribir informe detallado en pestaña 'Auditoria_Reconciliacion'
+  Logger.log('Paso 7: Escribiendo informe en pestaña ' + HOJA_AUDITORIA + '...');
+  volcarInformeASheetBidireccional_(ss, cruceEgresos, cruceIngresos, articulosConsolidados, testigoSupabase, egresosSupa, ingresosSupa);
 
   const duracionSeg = Math.round((Date.now() - tInicio) / 1000);
   Logger.log('=== AUDITORÍA COMPLETADA EN ' + duracionSeg + ' SEGUNDOS ===');
+}
+
+/**
+ * Descarga paginada en bloques de 1,000 filas desde PostgREST
+ */
+function descargarMovimientosSupabasePaginados_(tabla, campoPk, fechaCorteIso, tInicio) {
+  const items = [];
+  let offset = 0;
+  let hayMas = true;
+  let incompleto = false;
+  const headers = {
+    'apikey': KEY_SUPABASE_AUDIT,
+    'Authorization': 'Bearer ' + KEY_SUPABASE_AUDIT
+  };
+
+  while (hayMas) {
+    if (Date.now() - tInicio > TIEMPO_LIMITE_MS) {
+      Logger.log('[ALERTA TIEMPO] Límite de 4.5 min alcanzado en descarga de ' + tabla + ' en offset ' + offset);
+      incompleto = true;
+      break;
+    }
+
+    const url = URL_SUPABASE_AUDIT + '/rest/v1/' + tabla +
+      '?select=' + campoPk + ',articulo_id,cantidad,fecha,origin,guia' +
+      '&fecha=gte.' + fechaCorteIso +
+      '&order=' + campoPk + '.asc' +
+      '&limit=' + LIMITE_POSTGREST +
+      '&offset=' + offset;
+
+    try {
+      const resp = UrlFetchApp.fetch(url, {
+        method: 'GET',
+        headers: headers,
+        muteHttpExceptions: true
+      });
+
+      if (resp.getResponseCode() === 200) {
+        const batch = JSON.parse(resp.getContentText());
+        for (let i = 0; i < batch.length; i++) {
+          items.push(batch[i]);
+        }
+        if (batch.length < LIMITE_POSTGREST) {
+          hayMas = false; // Fin de datos
+        } else {
+          offset += LIMITE_POSTGREST;
+        }
+      } else {
+        Logger.log('[ERROR HTTP] En descarga de ' + tabla + ' offset ' + offset + ': ' + resp.getContentText());
+        incompleto = true;
+        hayMas = false;
+      }
+    } catch (e) {
+      Logger.log('[EXCEPCIÓN] En descarga de ' + tabla + ': ' + e.message);
+      incompleto = true;
+      hayMas = false;
+    }
+  }
+
+  return { items: items, incompleto: incompleto };
+}
+
+/**
+ * Cruce Bidireccional Simétrico en Memoria
+ */
+function cruzarBidireccional_(itemsSheets, itemsSupa, campoPk) {
+  const mapSheets = {};
+  itemsSheets.forEach(it => { mapSheets[it.id] = it; });
+
+  const mapSupa = {};
+  itemsSupa.forEach(it => { mapSupa[it[campoPk]] = it; });
+
+  const faltantesEnSupabase = []; // En Sheets pero NO en Supabase
+  const cantidadDiscrepante = []; // En ambos pero diferente cantidad
+  const zombisEnSupabase = [];    // En Supabase pero NO en Sheets (y origin != 'web')
+  const ignoradosWeb = [];        // En Supabase pero NO en Sheets (pero origin == 'web', legítimos)
+
+  // 1. Evaluar lo que está en Sheets contra Supabase
+  itemsSheets.forEach(sItem => {
+    const supaItem = mapSupa[sItem.id];
+    if (!supaItem) {
+      faltantesEnSupabase.push(sItem);
+    } else if (supaItem.cantidad !== sItem.cantidad) {
+      cantidadDiscrepante.push({
+        id: sItem.id,
+        articulo_id: sItem.articulo_id,
+        cant_sheets: sItem.cantidad,
+        cant_supabase: supaItem.cantidad,
+        diferencia: sItem.cantidad - supaItem.cantidad,
+        fecha: sItem.fecha,
+        fila_sheet: sItem.fila_sheet
+      });
+    }
+  });
+
+  // 2. Evaluar lo que está en Supabase contra Sheets (Dirección Inversa: Zombis)
+  itemsSupa.forEach(supaItem => {
+    const pk = supaItem[campoPk];
+    if (!mapSheets[pk]) {
+      // Si no está en Sheets, evaluar origen
+      if (supaItem.origin === 'web') {
+        ignoradosWeb.push(supaItem); // Legítimo movimiento web, no es zombi
+      } else {
+        zombisEnSupabase.push(supaItem); // Zombi real (NULL o 'sheets' borrado en Sheets)
+      }
+    }
+  });
+
+  return {
+    totalSheets: itemsSheets.length,
+    totalSupabase: itemsSupa.length,
+    faltantesEnSupabase: faltantesEnSupabase,
+    zombisEnSupabase: zombisEnSupabase,
+    ignoradosWeb: ignoradosWeb,
+    cantidadDiscrepante: cantidadDiscrepante
+  };
+}
+
+/**
+ * Consolida balances netos por artículo del catálogo
+ */
+function consolidarCatalogoBidireccional_(cruceEgr, cruceIng) {
+  const map = {};
+
+  function init(artId) {
+    if (!map[artId]) {
+      map[artId] = {
+        articulo_id: artId,
+        egr_faltantes_reg: 0,
+        egr_faltantes_pzas: 0,
+        ing_faltantes_reg: 0,
+        ing_faltantes_pzas: 0,
+        egr_zombis_reg: 0,
+        egr_zombis_pzas: 0,
+        ing_zombis_reg: 0,
+        ing_zombis_pzas: 0
+      };
+    }
+  }
+
+  cruceEgr.faltantesEnSupabase.forEach(f => {
+    init(f.articulo_id);
+    map[f.articulo_id].egr_faltantes_reg++;
+    map[f.articulo_id].egr_faltantes_pzas += f.cantidad;
+  });
+
+  cruceIng.faltantesEnSupabase.forEach(f => {
+    init(f.articulo_id);
+    map[f.articulo_id].ing_faltantes_reg++;
+    map[f.articulo_id].ing_faltantes_pzas += f.cantidad;
+  });
+
+  cruceEgr.zombisEnSupabase.forEach(z => {
+    init(z.articulo_id);
+    map[z.articulo_id].egr_zombis_reg++;
+    map[z.articulo_id].egr_zombis_pzas += (z.cantidad || 0);
+  });
+
+  cruceIng.zombisEnSupabase.forEach(z => {
+    init(z.articulo_id);
+    map[z.articulo_id].ing_zombis_reg++;
+    map[z.articulo_id].ing_zombis_pzas += (z.cantidad || 0);
+  });
+
+  // Calcular impacto neto en stock en Supabase:
+  // Stock en Supabase = Base + Ingresos - Egresos
+  // Un ingreso zombi SOBRA en Supabase (+stock fantasma)
+  // Un egreso zombi SOBRA en Supabase (-stock fantasma)
+  // Un ingreso faltante FALTA en Supabase (-stock en BD)
+  // Un egreso faltante FALTA en Supabase (+stock en BD)
+  Object.values(map).forEach(a => {
+    a.impacto_stock_fantasma = (a.ing_zombis_pzas - a.egr_zombis_pzas) + (a.egr_faltantes_pzas - a.ing_faltantes_pzas);
+  });
+
+  return map;
+}
+
+/**
+ * Vuelca el informe visual en la pestaña 'Auditoria_Reconciliacion'
+ */
+function volcarInformeASheetBidireccional_(ss, cruceEgr, cruceIng, articulosMap, testigoSupa, metaEgr, metaIng) {
+  let hoja = ss.getSheetByName(HOJA_AUDITORIA);
+  if (!hoja) {
+    hoja = ss.insertSheet(HOJA_AUDITORIA);
+  } else {
+    hoja.clear();
+  }
+
+  const filas = [];
+  filas.push(['=== INFORME DE AUDITORÍA FASE 0 AMPLIADA: CRUCE SIMÉTRICO SHEETS vs SUPABASE ===']);
+  filas.push(['Generado el:', new Date().toISOString()]);
+  filas.push(['Fecha de Corte:', FECHA_CORTE_AUDITORIA]);
+  filas.push(['Modo de Ejecución:', '100% SOLO LECTURA (Cero mutaciones en BD)']);
+  if (metaEgr.incompleto || metaIng.incompleto) {
+    filas.push(['[ALERTA]:', 'La descarga de Supabase se pausó por tiempo límite. El reporte cubre hasta el límite descargado.']);
+  }
+  filas.push(['']);
+
+  // Resumen Global Simétrico
+  filas.push(['RESUMEN GLOBAL SIMÉTRICO']);
+  filas.push(['Concepto', 'Egresos', 'Ingresos']);
+  filas.push(['Total registros en Sheets (>= 2025-11-01)', cruceEgr.totalSheets, cruceIng.totalSheets]);
+  filas.push(['Total registros en Supabase (>= 2025-11-01)', cruceEgr.totalSupabase, cruceIng.totalSupabase]);
+  filas.push(['Registros FALTANTES en Supabase (Solo en Sheets)', cruceEgr.faltantesEnSupabase.length, cruceIng.faltantesEnSupabase.length]);
+  filas.push(['Registros ZOMBI en Supabase (Solo en BD, origin != web)', cruceEgr.zombisEnSupabase.length, cruceIng.zombisEnSupabase.length]);
+  filas.push(['Movimientos WEB legítimos protegidos (origin = web)', cruceEgr.ignoradosWeb.length, cruceIng.ignoradosWeb.length]);
+  filas.push(['Registros con CANTIDAD DISCREPANTE', cruceEgr.cantidadDiscrepante.length, cruceIng.cantidadDiscrepante.length]);
+  filas.push(['']);
+
+  // Sección Caso Testigo
+  const artTestigo = testigoSupa.datosArticulo;
+  const snapTestigo = testigoSupa.snapshot;
+  const balanceTestigo = articulosMap[testigoSupa.articulo_id] || {};
+
+  filas.push(['CASO TESTIGO: ' + testigoSupa.articulo_id + ' (KJXP85269 / ' + (artTestigo.modelo || '') + ')']);
+  filas.push(['Nombre:', artTestigo.nombre || 'Refacción Maneral Surtek']);
+  filas.push(['Disponibles Base (Fija):', artTestigo.disponibles || 8]);
+  filas.push(['Stock Físico actual en Supabase (inventory_snapshot):', snapTestigo.physical_stock]);
+  filas.push(['Ingresos ZOMBI en Supabase para este artículo:', balanceTestigo.ing_zombis_reg || 0, 'registros (Total ' + (balanceTestigo.ing_zombis_pzas || 0) + ' piezas fantasma)']);
+  filas.push(['Ingresos FALTANTES en Supabase para este artículo:', balanceTestigo.ing_faltantes_reg || 0, 'registros (Total ' + (balanceTestigo.ing_faltantes_pzas || 0) + ' piezas)']);
+  filas.push(['Egresos ZOMBI en Supabase para este artículo:', balanceTestigo.egr_zombis_reg || 0, 'registros (Total ' + (balanceTestigo.egr_zombis_pzas || 0) + ' piezas)']);
+  filas.push(['Egresos FALTANTES en Supabase para este artículo:', balanceTestigo.egr_faltantes_reg || 0, 'registros (Total ' + (balanceTestigo.egr_faltantes_pzas || 0) + ' piezas)']);
+  filas.push(['']);
+
+  // Detalle de Zombis Sospechosos para el Artículo Testigo
+  filas.push(['DETALLE DE INGRESOS ZOMBI EN SUPABASE (ARTÍCULO TESTIGO 871b9a3e)']);
+  filas.push(['ingreso_id', 'Fecha', 'Cantidad (Pzas)', 'Guía', 'Origin', 'Diagnóstico']);
+
+  const zombisTestigo = cruceIng.zombisEnSupabase.filter(x => x.articulo_id === testigoSupa.articulo_id);
+  if (zombisTestigo.length === 0) {
+    filas.push(['(Ningún ingreso zombi detectado para este artículo)', '', '', '', '', '']);
+  } else {
+    zombisTestigo.forEach(z => {
+      filas.push([z.ingreso_id, z.fecha, z.cantidad, z.guia, String(z.origin), 'Zombi: Existe en Supabase pero no en Sheets']);
+    });
+  }
+  filas.push(['']);
+
+  // Ranking de Artículos con Mayor Stock Fantasma (Zombis que inflan stock)
+  filas.push(['TOP ARTÍCULOS CON INGRESOS ZOMBI EN SUPABASE (INFLAN STOCK FANTASMA)']);
+  filas.push(['articulo_id', 'Ingresos Zombi (Reg)', 'Piezas Zombi (Sobran)', 'Ingresos Faltantes (Reg)', 'Piezas Faltantes', 'Desfase Neto Stock']);
+
+  const conZombis = Object.values(articulosMap).filter(a => a.ing_zombis_reg > 0 || a.egr_zombis_reg > 0);
+  if (conZombis.length === 0) {
+    filas.push(['(No se detectaron artículos con movimientos zombi en el rango auditado)', '', '', '', '', '']);
+  } else {
+    conZombis.sort((a, b) => b.ing_zombis_pzas - a.ing_zombis_pzas).slice(0, 50).forEach(a => {
+      filas.push([a.articulo_id, a.ing_zombis_reg, a.ing_zombis_pzas, a.ing_faltantes_reg, a.ing_faltantes_pzas, a.impacto_stock_fantasma]);
+    });
+  }
+  filas.push(['']);
+
+  // Ranking de Artículos con Faltantes en Supabase (Compras en Sheets que faltan subir)
+  filas.push(['TOP ARTÍCULOS CON MOVIMIENTOS FALTANTES EN SUPABASE (DESINFLAN STOCK)']);
+  filas.push(['articulo_id', 'Ingresos Faltantes (Reg)', 'Ingresos Faltantes (Pzas)', 'Egresos Faltantes (Reg)', 'Egresos Faltantes (Pzas)']);
+
+  const conFaltantes = Object.values(articulosMap).filter(a => a.ing_faltantes_reg > 0 || a.egr_faltantes_reg > 0);
+  if (conFaltantes.length === 0) {
+    filas.push(['(No se detectaron artículos con movimientos faltantes)', '', '', '', '']);
+  } else {
+    conFaltantes.sort((a, b) => b.ing_faltantes_pzas - a.ing_faltantes_pzas).slice(0, 50).forEach(a => {
+      filas.push([a.articulo_id, a.ing_faltantes_reg, a.ing_faltantes_pzas, a.egr_faltantes_reg, a.egr_faltantes_pzas]);
+    });
+  }
+
+  // Volcar a la cuadrícula
+  hoja.getRange(1, 1, filas.length, 6).setValues(filas.map(r => {
+    while (r.length < 6) r.push('');
+    return r;
+  }));
+
+  hoja.autoResizeColumns(1, 6);
 }
 
 /**
@@ -88,7 +373,6 @@ function leerEgresosSheetsDinamico_(ss, corteEpoch) {
   const ultimaCol = hoja.getLastColumn();
   if (ultimaFila < 2) return [];
 
-  // Leer encabezados de la fila 1
   const headers = hoja.getRange(1, 1, 1, ultimaCol).getValues()[0].map(h => String(h).trim().toLowerCase());
 
   const idxId = encontrarColumna_(headers, ['egreso_id', 'id', 'clave_egreso'], 0);
@@ -97,8 +381,6 @@ function leerEgresosSheetsDinamico_(ss, corteEpoch) {
   const idxFecha = encontrarColumna_(headers, ['fecha', 'fecha_egreso', 'creado_el'], 8);
   const idxGuia = encontrarColumna_(headers, ['guia', 'numero_guia'], 4);
   const idxTipo = encontrarColumna_(headers, ['tipo_egreso', 'tipo'], 6);
-
-  Logger.log('[Mapeo Egresos] ID col: ' + idxId + ' | Articulo col: ' + idxArt + ' | Cantidad col: ' + idxCant + ' | Fecha col: ' + idxFecha);
 
   const datos = hoja.getRange(2, 1, ultimaFila - 1, ultimaCol).getValues();
   const resultados = [];
@@ -137,7 +419,6 @@ function leerIngresosSheetsDinamico_(ss, corteEpoch) {
   const ultimaCol = hoja.getLastColumn();
   if (ultimaFila < 2) return [];
 
-  // Leer encabezados de la fila 1
   const headers = hoja.getRange(1, 1, 1, ultimaCol).getValues()[0].map(h => String(h).trim().toLowerCase());
 
   const idxId = encontrarColumna_(headers, ['ingreso_id', 'id', 'clave_ingreso'], 0);
@@ -145,8 +426,6 @@ function leerIngresosSheetsDinamico_(ss, corteEpoch) {
   const idxCant = encontrarColumna_(headers, ['cantidad', 'piezas', 'cant'], 3);
   const idxFecha = encontrarColumna_(headers, ['fecha', 'fecha_ingreso', 'creado_el'], 8);
   const idxGuia = encontrarColumna_(headers, ['guia', 'numero_guia'], 4);
-
-  Logger.log('[Mapeo Ingresos] ID col: ' + idxId + ' | Articulo col: ' + idxArt + ' | Cantidad col: ' + idxCant + ' | Fecha col: ' + idxFecha);
 
   const datos = hoja.getRange(2, 1, ultimaFila - 1, ultimaCol).getValues();
   const resultados = [];
@@ -175,8 +454,7 @@ function leerIngresosSheetsDinamico_(ss, corteEpoch) {
 }
 
 /**
- * Busca el índice de una columna comparando varios alias posibles,
- * con fallback a un índice por defecto si no encuentra coincidencia.
+ * Busca el índice de una columna comparando varios alias posibles
  */
 function encontrarColumna_(headers, aliasList, defaultIdx) {
   for (let i = 0; i < aliasList.length; i++) {
@@ -187,225 +465,22 @@ function encontrarColumna_(headers, aliasList, defaultIdx) {
 }
 
 /**
- * Compara los IDs de Sheets contra Supabase en lotes seguros de 40
+ * Consulta en Supabase metadatos del artículo testigo
  */
-function auditarTablaContraSupabase_(tabla, campoPk, itemsSheets, tInicio) {
-  const mapaSupabase = {};
-  const erroresHttp = [];
-  const total = itemsSheets.length;
-
-  for (let c = 0; c < total; c += CHUNK_AUDITORIA) {
-    if (Date.now() - tInicio > TIEMPO_LIMITE_MS) {
-      Logger.log('[AVISO] Límite de tiempo alcanzado (4.5 min). Pausando en lote ' + c);
-      break;
-    }
-
-    const chunk = itemsSheets.slice(c, c + CHUNK_AUDITORIA);
-    const ids = chunk.map(x => '"' + x.id + '"').join(',');
-    const url = URL_SUPABASE_AUDIT + '/rest/v1/' + tabla +
-      '?select=' + campoPk + ',articulo_id,cantidad,fecha' +
-      '&' + campoPk + '=in.(' + encodeURIComponent(ids) + ')';
-
-    try {
-      const resp = UrlFetchApp.fetch(url, {
-        method: 'GET',
-        headers: {
-          'apikey': KEY_SUPABASE_AUDIT,
-          'Authorization': 'Bearer ' + KEY_SUPABASE_AUDIT
-        },
-        muteHttpExceptions: true
-      });
-
-      if (resp.getResponseCode() === 200) {
-        const filas = JSON.parse(resp.getContentText());
-        for (let k = 0; k < filas.length; k++) {
-          mapaSupabase[filas[k][campoPk]] = filas[k];
-        }
-      } else {
-        erroresHttp.push({ lote: c, codigo: resp.getResponseCode(), error: resp.getContentText() });
-      }
-    } catch (e) {
-      erroresHttp.push({ lote: c, error: e.message });
-    }
-  }
-
-  const faltantesEnSupabase = [];
-  const cantidadDiscrepante = [];
-  const coincidentes = [];
-
-  for (let i = 0; i < itemsSheets.length; i++) {
-    const item = itemsSheets[i];
-    const enSupa = mapaSupabase[item.id];
-
-    if (!enSupa) {
-      faltantesEnSupabase.push(item);
-    } else if (enSupa.cantidad !== item.cantidad) {
-      cantidadDiscrepante.push({
-        id: item.id,
-        articulo_id: item.articulo_id,
-        cant_sheets: item.cantidad,
-        cant_supabase: enSupa.cantidad,
-        diferencia: item.cantidad - enSupa.cantidad,
-        fecha: item.fecha,
-        fila_sheet: item.fila_sheet
-      });
-    } else {
-      coincidentes.push(item.id);
-    }
-  }
-
-  return {
-    totalSheets: total,
-    encontradosSupa: Object.keys(mapaSupabase).length,
-    faltantesEnSupabase: faltantesEnSupabase,
-    cantidadDiscrepante: cantidadDiscrepante,
-    erroresHttp: erroresHttp
-  };
-}
-
-/**
- * Consulta en Supabase todos los movimientos del artículo testigo
- */
-function consultarMovimientosTestigoSupabase_(articuloId) {
+function consultarMetadatosTestigoSupabase_(articuloId) {
   const headers = { 'apikey': KEY_SUPABASE_AUDIT, 'Authorization': 'Bearer ' + KEY_SUPABASE_AUDIT };
 
-  const urlEgr = URL_SUPABASE_AUDIT + '/rest/v1/egresos?select=egreso_id,cantidad,fecha,tipo_egreso,guia&articulo_id=eq.' + articuloId;
-  const urlIng = URL_SUPABASE_AUDIT + '/rest/v1/ingresos?select=ingreso_id,cantidad,fecha&articulo_id=eq.' + articuloId;
   const urlArt = URL_SUPABASE_AUDIT + '/rest/v1/articulos?select=articulo_id,disponibles,nombre,modelo&articulo_id=eq.' + articuloId;
   const urlSnap = URL_SUPABASE_AUDIT + '/rest/v1/inventory_snapshot?select=sku,physical_stock&sku=eq.' + articuloId;
 
-  const resEgr = JSON.parse(UrlFetchApp.fetch(urlEgr, { headers: headers, muteHttpExceptions: true }).getContentText() || '[]');
-  const resIng = JSON.parse(UrlFetchApp.fetch(urlIng, { headers: headers, muteHttpExceptions: true }).getContentText() || '[]');
   const resArt = JSON.parse(UrlFetchApp.fetch(urlArt, { headers: headers, muteHttpExceptions: true }).getContentText() || '[]');
   const resSnap = JSON.parse(UrlFetchApp.fetch(urlSnap, { headers: headers, muteHttpExceptions: true }).getContentText() || '[]');
 
   return {
     articulo_id: articuloId,
     datosArticulo: resArt[0] || {},
-    snapshot: resSnap[0] || {},
-    egresos: resEgr,
-    ingresos: resIng
+    snapshot: resSnap[0] || {}
   };
-}
-
-/**
- * Consolida balances por artículo
- */
-function consolidarBalances_(egresosSheets, ingresosSheets, resEgr, resIng, testigoSupa) {
-  const articulosMap = {};
-
-  function initArt(artId) {
-    if (!articulosMap[artId]) {
-      articulosMap[artId] = {
-        articulo_id: artId,
-        egr_sheets_cant: 0,
-        ing_sheets_cant: 0,
-        egr_faltantes_pzas: 0,
-        ing_faltantes_pzas: 0,
-        egr_faltantes_reg: 0,
-        ing_faltantes_reg: 0,
-        cant_discrepante_diff: 0
-      };
-    }
-  }
-
-  egresosSheets.forEach(e => { initArt(e.articulo_id); articulosMap[e.articulo_id].egr_sheets_cant += e.cantidad; });
-  ingresosSheets.forEach(i => { initArt(i.articulo_id); articulosMap[i.articulo_id].ing_sheets_cant += i.cantidad; });
-
-  resEgr.faltantesEnSupabase.forEach(f => {
-    initArt(f.articulo_id);
-    articulosMap[f.articulo_id].egr_faltantes_pzas += f.cantidad;
-    articulosMap[f.articulo_id].egr_faltantes_reg++;
-  });
-
-  resIng.faltantesEnSupabase.forEach(f => {
-    initArt(f.articulo_id);
-    articulosMap[f.articulo_id].ing_faltantes_pzas += f.cantidad;
-    articulosMap[f.articulo_id].ing_faltantes_reg++;
-  });
-
-  resEgr.cantidadDiscrepante.forEach(d => {
-    initArt(d.articulo_id);
-    articulosMap[d.articulo_id].cant_discrepante_diff += d.diferencia;
-  });
-
-  return articulosMap;
-}
-
-/**
- * Vuelca el informe visual en la pestaña 'Auditoria_Reconciliacion'
- */
-function volcarInformeASheet_(ss, consolidado, resEgr, resIng, testigoSupa) {
-  let hoja = ss.getSheetByName(HOJA_AUDITORIA);
-  if (!hoja) {
-    hoja = ss.insertSheet(HOJA_AUDITORIA);
-  } else {
-    hoja.clear();
-  }
-
-  const filas = [];
-  filas.push(['=== INFORME DE AUDITORÍA FASE 0: RECONCILIACIÓN SHEETS vs SUPABASE ===']);
-  filas.push(['Generado el:', new Date().toISOString()]);
-  filas.push(['Fecha de Corte:', FECHA_CORTE_AUDITORIA]);
-  filas.push(['']);
-
-  // Resumen Global
-  filas.push(['RESUMEN GLOBAL']);
-  filas.push(['Concepto', 'Egresos', 'Ingresos']);
-  filas.push(['Total registros en Sheets (>= 2025-11-01)', resEgr.totalSheets, resIng.totalSheets]);
-  filas.push(['Registros existentes en Supabase', resEgr.encontradosSupa, resIng.encontradosSupa]);
-  filas.push(['Registros FALTANTES en Supabase (Solo en Sheets)', resEgr.faltantesEnSupabase.length, resIng.faltantesEnSupabase.length]);
-  filas.push(['Registros con CANTIDAD DISCREPANTE', resEgr.cantidadDiscrepante.length, resIng.cantidadDiscrepante.length]);
-  filas.push(['Errores HTTP durante la auditoría', resEgr.erroresHttp.length, resIng.erroresHttp.length]);
-  filas.push(['']);
-
-  // Sección Caso Testigo
-  const artTestigo = testigoSupa.datosArticulo;
-  const snapTestigo = testigoSupa.snapshot;
-  const balanceTestigo = consolidado[testigoSupa.articulo_id] || {};
-
-  filas.push(['CASO TESTIGO: ' + testigoSupa.articulo_id + ' (KJXP85269 / ' + (artTestigo.modelo || '') + ')']);
-  filas.push(['Nombre:', artTestigo.nombre || 'Refacción Maneral Surtek']);
-  filas.push(['Disponibles Base (Fija):', artTestigo.disponibles || 8]);
-  filas.push(['Stock Físico actual en Supabase (inventory_snapshot):', snapTestigo.physical_stock]);
-  filas.push(['Egresos Faltantes en Supabase para este artículo:', balanceTestigo.egr_faltantes_reg || 0, 'registros (Total ' + (balanceTestigo.egr_faltantes_pzas || 0) + ' piezas)']);
-  filas.push(['Ingresos Faltantes en Supabase para este artículo:', balanceTestigo.ing_faltantes_reg || 0, 'registros (Total ' + (balanceTestigo.ing_faltantes_pzas || 0) + ' piezas)']);
-  filas.push(['']);
-
-  // Detalle de Egresos Faltantes en Testigo
-  filas.push(['DETALLE DE EGRESOS FALTANTES EN SUPABASE (ARTÍCULO TESTIGO 871b9a3e)']);
-  filas.push(['egreso_id', 'Fila en Sheet', 'Fecha', 'Cantidad (Pzas)', 'Guía', 'Tipo Egreso']);
-
-  const faltantesTestigo = resEgr.faltantesEnSupabase.filter(x => x.articulo_id === testigoSupa.articulo_id);
-  if (faltantesTestigo.length === 0) {
-    filas.push(['(Ningún egreso faltante detectado para este artículo)', '', '', '', '', '']);
-  } else {
-    faltantesTestigo.forEach(f => {
-      filas.push([f.id, f.fila_sheet, f.fecha, f.cantidad, f.guia, f.tipo]);
-    });
-  }
-  filas.push(['']);
-
-  // Tabla General de Artículos con Discrepancias
-  filas.push(['TOP ARTÍCULOS CON MOVIMIENTOS FALTANTES EN SUPABASE']);
-  filas.push(['articulo_id', 'Egresos Faltantes (Reg)', 'Egresos Faltantes (Pzas)', 'Ingresos Faltantes (Reg)', 'Ingresos Faltantes (Pzas)', 'Diferencia Cantidad (Pzas)']);
-
-  const artConDiff = Object.values(consolidado).filter(a => a.egr_faltantes_reg > 0 || a.ing_faltantes_reg > 0 || a.cant_discrepante_diff !== 0);
-  if (artConDiff.length === 0) {
-    filas.push(['(No se detectaron discrepancias en los artículos auditados)', '', '', '', '', '']);
-  } else {
-    artConDiff.sort((a, b) => b.egr_faltantes_pzas - a.egr_faltantes_pzas).slice(0, 50).forEach(a => {
-      filas.push([a.articulo_id, a.egr_faltantes_reg, a.egr_faltantes_pzas, a.ing_faltantes_reg, a.ing_faltantes_pzas, a.cant_discrepante_diff]);
-    });
-  }
-
-  // Volcar a la hoja
-  hoja.getRange(1, 1, filas.length, 6).setValues(filas.map(r => {
-    while (r.length < 6) r.push('');
-    return r;
-  }));
-
-  hoja.autoResizeColumns(1, 6);
 }
 
 /**
