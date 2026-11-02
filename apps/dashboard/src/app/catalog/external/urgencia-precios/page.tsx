@@ -61,7 +61,7 @@ interface UrgenciaKpis {
 }
 
 type TabCategory = 'all' | 'perdida' | 'sobreprecio' | 'sin_precio' | 'alineado';
-type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'audit_urgente' | 'ventas_desc';
+type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'audit_urgente' | 'ventas_desc' | 'precio_desc' | 'sugerido_desc' | 'equilibrio_desc';
 
 const PAGE_SIZE = 50;
 
@@ -198,17 +198,23 @@ function UrgenciaPreciosInner() {
                 query = query.or(`titulo.ilike.%${t}%,external_item_id.ilike.%${t}%,seller_custom_field.ilike.%${t}%,seller_sku.ilike.%${t}%,brand.ilike.%${t}%`);
             }
 
-            // Ordenamiento en servidor
+            // Ordenamiento en servidor (con desempate estable por id).
             if (sortBy === 'perdida_desc') {
-                query = query.order('gap_dinero', { ascending: true }); // Más negativo = mayor pérdida
+                query = query.order('gap_dinero', { ascending: true }).order('id', { ascending: true }); // Más negativo = mayor pérdida
             } else if (sortBy === 'sobreprecio_desc') {
-                query = query.order('gap_dinero', { ascending: false }); // Más positivo = mayor sobreprecio
+                query = query.order('gap_dinero', { ascending: false }).order('id', { ascending: true }); // Más positivo = mayor sobreprecio
             } else if (sortBy === 'pct_desc') {
-                query = query.order('gap_pct', { ascending: true });
+                query = query.order('abs_gap_pct', { ascending: false }).order('id', { ascending: true }); // Mayor desviación absoluta
             } else if (sortBy === 'audit_urgente') {
-                query = query.order('ultima_auditoria_precio_el', { ascending: true, nullsFirst: true });
+                query = query.order('ultima_auditoria_precio_el', { ascending: true, nullsFirst: true }).order('sold_quantity', { ascending: false }).order('id', { ascending: true });
             } else if (sortBy === 'ventas_desc') {
-                query = query.order('sold_quantity', { ascending: false });
+                query = query.order('sold_quantity', { ascending: false }).order('id', { ascending: true });
+            } else if (sortBy === 'precio_desc') {
+                query = query.order('precio_venta', { ascending: false, nullsFirst: false }).order('id', { ascending: true });
+            } else if (sortBy === 'sugerido_desc') {
+                query = query.order('draft_price', { ascending: false }).order('id', { ascending: true });
+            } else if (sortBy === 'equilibrio_desc') {
+                query = query.order('precio_equilibrio', { ascending: false }).order('id', { ascending: true });
             }
 
             // Paginación server-side (50 filas)
@@ -791,10 +797,18 @@ function UrgenciaPreciosInner() {
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Producto</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Estado</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Costo Base</th>
-                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Precio MeLi</th>
-                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Equilibrio Exacto</th>
-                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Sugerido Final</th>
-                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right" title="Brecha calculada sobre el Equilibrio Matemático Exacto">Brecha (vs Eq.)</th>
+                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">
+                                        <button onClick={() => setSortBy('precio_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Precio MeLi{sortBy === 'precio_desc' ? ' ▼' : ''}</button>
+                                    </th>
+                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">
+                                        <button onClick={() => setSortBy('equilibrio_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Equilibrio Exacto{sortBy === 'equilibrio_desc' ? ' ▼' : ''}</button>
+                                    </th>
+                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">
+                                        <button onClick={() => setSortBy('sugerido_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Sugerido Final{sortBy === 'sugerido_desc' ? ' ▼' : ''}</button>
+                                    </th>
+                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right" title="Brecha calculada sobre el Equilibrio Matemático Exacto">
+                                        <button onClick={() => setSortBy(sortBy === 'perdida_desc' ? 'sobreprecio_desc' : 'perdida_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Brecha (vs Eq.){(sortBy === 'perdida_desc' || sortBy === 'sobreprecio_desc') ? ' ▼' : ''}</button>
+                                    </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-center">Auditoría</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Acción</th>
                                 </tr>
