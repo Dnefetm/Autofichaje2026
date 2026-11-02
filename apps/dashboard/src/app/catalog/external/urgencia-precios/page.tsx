@@ -136,6 +136,8 @@ function UrgenciaPreciosInner() {
     const isCancellingRef = useRef<boolean>(false);
 
     const headerCheckboxRef = useRef<HTMLInputElement>(null);
+    // Monótono para descartar respuestas viejas si el usuario cambia de orden rápido.
+    const loadReqRef = useRef(0);
 
     // URL completa para el parámetro `?from=`
     const currentUrl = useMemo(() => {
@@ -176,6 +178,7 @@ function UrgenciaPreciosInner() {
 
     // 5. Cargar página de datos (servidor: filtra, ordena y pagina 50 filas)
     const loadPageData = useCallback(async () => {
+        const reqId = ++loadReqRef.current;
         setLoading(true);
         try {
             // Solo pedir conteo exacto con búsqueda o filtro sin-auditar (filtros que
@@ -242,26 +245,31 @@ function UrgenciaPreciosInner() {
 
             const { data, count, error } = await query;
             if (error) throw error;
+            if (reqId !== loadReqRef.current) return; // respuesta vieja, ignorar
 
             setItems((data as UrgenciaItem[]) || []);
             if (necesitaConteo) {
                 setTotalCount(count || 0);
             }
         } catch (e: any) {
+            if (reqId !== loadReqRef.current) return; // petición superada por otra más reciente
             console.error(e);
             toast.error(e.message || 'Error al cargar urgencia de precios');
         } finally {
-            setLoading(false);
+            if (reqId === loadReqRef.current) setLoading(false);
         }
     }, [activeTab, soloSinAuditar, debouncedSearch, sortBy, page]);
 
-    useEffect(() => {
-        loadKpis();
-    }, [loadKpis]);
-
+    // Cargar primero los datos y diferir KPIs 350ms para no competir por el pool
+    // (el rol anon tiene statement_timeout = 3s y la vista en frío roza ese límite).
     useEffect(() => {
         loadPageData();
     }, [loadPageData]);
+
+    useEffect(() => {
+        const t = setTimeout(() => { loadKpis(); }, 350);
+        return () => clearTimeout(t);
+    }, [loadKpis]);
 
     // Total por pestaña desde KPIs (evita count(*) OVER() en cada navegación).
     useEffect(() => {
