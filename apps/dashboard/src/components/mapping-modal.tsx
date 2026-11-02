@@ -399,49 +399,53 @@ function handleQuantityChange(sku: string, qty: number) { if (qty < 1) return; s
 async function loadSiblings() {
 setSiblingsLoading(true);
 try {
-const SEL = 'id, titulo, external_item_id, tipo_publicacion, listing_type_id, status_externo, channels';
+const SEL = 'id, titulo, external_item_id, tipo_publicacion, listing_type_id, status_externo, channels, id_producto_catalogo, user_product_id, par_item_id';
 const isExcluded = (s: any) =>
   s?.status_externo === 'closed' ||
   (Array.isArray(s?.channels) && s.channels.includes('private') && !s.channels.includes('marketplace'));
-let sibData: any[] = [];
-if (listing?.id_producto_catalogo) {
-const { data } = await supabase
-.from('publicaciones_externas')
-.select(SEL)
-.eq('id_producto_catalogo', listing.id_producto_catalogo)
-.neq('id', listing.id)
-.eq('external_variation_id', '0');
-sibData = (data || []).filter(s => !isExcluded(s));
+const self = listing;
+const candidates = new Map<string, any>();
+const addCandidates = (rows: any[] | null) => {
+  for (const row of (rows || [])) {
+    if (!row?.id || row.id === self?.id || isExcluded(row)) continue;
+    candidates.set(row.id, row);
+  }
+};
+// Mismo producto (id_producto_catalogo).
+if (self?.id_producto_catalogo) {
+  const { data } = await supabase.from('publicaciones_externas').select(SEL)
+    .eq('id_producto_catalogo', self.id_producto_catalogo)
+    .neq('id', self.id).eq('external_variation_id', '0');
+  addCandidates(data);
 }
-const { data: rawCatData } = await supabase
-.from('publicaciones_externas')
-.select(SEL)
-.eq('par_item_id', listing.external_item_id)
-.in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
-.eq('external_variation_id', '0');
-const catData = (rawCatData || []).filter(s => !isExcluded(s));
-// 1. Espejo: misma vitrina (id_producto_catalogo o par_item_id) → automático incondicional.
-const espejoIds = new Set<string>();
+// Mismo user_product_id en la misma cuenta (Clásica ↔ Premium).
+if (self?.user_product_id && self?.marketplace_id) {
+  const { data } = await supabase.from('publicaciones_externas').select(SEL)
+    .eq('user_product_id', self.user_product_id).eq('marketplace_id', self.marketplace_id)
+    .neq('id', self.id).eq('external_variation_id', '0');
+  addCandidates(data);
+}
+// Catálogos derivados por par_item_id.
+if (self?.external_item_id) {
+  const { data } = await supabase.from('publicaciones_externas').select(SEL)
+    .eq('par_item_id', self.external_item_id)
+    .in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
+    .eq('external_variation_id', '0');
+  addCandidates(data);
+}
+// Clasificar: espejo = misma condición (listing_type) y tipo opuesto (tradicional ↔ catálogo).
+// Comerciales = misma mercancía pero distinta condición de venta (Premium vs Clásica) u otra tradicional.
 const espejo: any[] = [];
-for (const row of [...sibData, ...catData]) {
-if (!row?.id || espejoIds.has(row.id) || isExcluded(row)) continue;
-espejoIds.add(row.id);
-espejo.push(row);
+const comerciales: any[] = [];
+for (const c of candidates.values()) {
+  const esEspejo = self?.id_producto_catalogo != null
+    && c.id_producto_catalogo === self.id_producto_catalogo
+    && c.listing_type_id === self.listing_type_id
+    && c.tipo_publicacion !== self.tipo_publicacion;
+  if (esEspejo) espejo.push(c); else comerciales.push(c);
 }
 setEspejoSiblings(espejo);
-// 2. Comerciales: mismo user_product_id en la misma cuenta (Clásica ↔ Premium) → checkbox.
-let upData: any[] = [];
-if (listing?.user_product_id && listing?.marketplace_id) {
-const { data } = await supabase
-.from('publicaciones_externas')
-.select(SEL)
-.eq('user_product_id', listing.user_product_id)
-.eq('marketplace_id', listing.marketplace_id)
-.neq('id', listing.id)
-.eq('external_variation_id', '0');
-upData = (data || []).filter(s => !isExcluded(s) && !espejoIds.has(s.id));
-}
-setSiblings(upData);
+setSiblings(comerciales);
 } finally {
 setSiblingsLoading(false);
 }
