@@ -61,7 +61,7 @@ interface UrgenciaKpis {
 }
 
 type TabCategory = 'all' | 'perdida' | 'sobreprecio' | 'sin_precio' | 'alineado';
-type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'audit_urgente' | 'ventas_desc' | 'precio_desc' | 'sugerido_desc' | 'equilibrio_desc';
+type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'audit_urgente' | 'ventas_desc' | 'precio_desc' | 'sugerido_desc' | 'equilibrio_desc' | 'costo_desc';
 
 const PAGE_SIZE = 50;
 
@@ -215,6 +215,8 @@ function UrgenciaPreciosInner() {
                 query = query.order('draft_price', { ascending: false }).order('id', { ascending: true });
             } else if (sortBy === 'equilibrio_desc') {
                 query = query.order('precio_equilibrio', { ascending: false }).order('id', { ascending: true });
+            } else if (sortBy === 'costo_desc') {
+                query = query.order('draft_cost', { ascending: false, nullsFirst: false }).order('id', { ascending: true });
             }
 
             // Paginación server-side (50 filas)
@@ -796,7 +798,9 @@ function UrgenciaPreciosInner() {
                                     </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Producto</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Estado</th>
-                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Costo Base</th>
+                                    <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">
+                                        <button onClick={() => setSortBy('costo_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Costo Base{sortBy === 'costo_desc' ? ' ▼' : ''}</button>
+                                    </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">
                                         <button onClick={() => setSortBy('precio_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Precio MeLi{sortBy === 'precio_desc' ? ' ▼' : ''}</button>
                                     </th>
