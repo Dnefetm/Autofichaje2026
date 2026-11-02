@@ -108,7 +108,8 @@ function filaAObjetoSincIngreso(fila) {
     fecha:        fecha,
     operador_id:  op,
     imagenes:     imgs.length > 0 ? imgs : null,
-    sync_hash:    hash
+    sync_hash:    hash,
+    origin:       'sheets'
   };
 }
 
