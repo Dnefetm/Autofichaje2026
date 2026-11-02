@@ -61,7 +61,7 @@ interface UrgenciaKpis {
 }
 
 type TabCategory = 'all' | 'perdida' | 'sobreprecio' | 'sin_precio' | 'alineado';
-type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'audit_urgente' | 'ventas_desc' | 'ventas_asc' | 'precio_desc' | 'precio_asc' | 'sugerido_desc' | 'sugerido_asc' | 'equilibrio_desc' | 'equilibrio_asc' | 'costo_desc' | 'costo_asc';
+type SortOption = 'perdida_desc' | 'sobreprecio_desc' | 'pct_desc' | 'pct_asc' | 'audit_urgente' | 'ventas_desc' | 'ventas_asc' | 'precio_desc' | 'precio_asc' | 'sugerido_desc' | 'sugerido_asc' | 'equilibrio_desc' | 'equilibrio_asc' | 'costo_desc' | 'costo_asc';
 
 const PAGE_SIZE = 50;
 
@@ -209,6 +209,8 @@ function UrgenciaPreciosInner() {
                 query = query.order('gap_dinero', { ascending: false }).order('id', { ascending: true }); // Más positivo = mayor sobreprecio
             } else if (sortBy === 'pct_desc') {
                 query = query.order('abs_gap_pct', { ascending: false }).order('id', { ascending: true }); // Mayor desviación absoluta
+            } else if (sortBy === 'pct_asc') {
+                query = query.order('abs_gap_pct', { ascending: true }).order('id', { ascending: true }); // Menor desviación absoluta
             } else if (sortBy === 'audit_urgente') {
                 query = query.order('ultima_auditoria_precio_el', { ascending: true, nullsFirst: true }).order('sold_quantity', { ascending: false }).order('id', { ascending: true });
             } else if (sortBy === 'ventas_desc') {
@@ -758,26 +760,30 @@ function UrgenciaPreciosInner() {
                             onChange={e => { setSortBy(e.target.value as SortOption); setPage(1); }}
                             className="text-xs bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-[var(--text)] focus:ring-[var(--accent)]"
                         >
-                            <optgroup label="Brecha">
+                            <optgroup label="Desviación y Brecha">
+                                <option value="pct_desc">Mayor desviación (%)</option>
+                                <option value="pct_asc">Menor desviación (%)</option>
                                 <option value="perdida_desc">Mayor pérdida ($)</option>
                                 <option value="sobreprecio_desc">Mayor sobreprecio ($)</option>
-                                <option value="pct_desc">Mayor desviación (%)</option>
-                            </optgroup>
-                            <optgroup label="Precios">
-                                <option value="precio_desc">Mayor precio MeLi</option>
-                                <option value="precio_asc">Menor precio MeLi</option>
-                                <option value="sugerido_desc">Mayor sugerido</option>
-                                <option value="sugerido_asc">Menor sugerido</option>
-                                <option value="equilibrio_desc">Mayor equilibrio</option>
-                                <option value="equilibrio_asc">Menor equilibrio</option>
-                                <option value="costo_desc">Mayor costo base</option>
-                                <option value="costo_asc">Menor costo base</option>
                             </optgroup>
                             <optgroup label="Actividad">
                                 <option value="ventas_desc">Más vendidos</option>
                                 <option value="ventas_asc">Menos vendidos</option>
                                 <option value="audit_urgente">Más urgente de auditar</option>
                             </optgroup>
+                            {!['pct_desc', 'pct_asc', 'perdida_desc', 'sobreprecio_desc', 'ventas_desc', 'ventas_asc', 'audit_urgente'].includes(sortBy) && (
+                                <option value={sortBy} hidden>
+                                    {sortBy === 'precio_desc' ? 'Precio MeLi (Mayor a menor)'
+                                        : sortBy === 'precio_asc' ? 'Precio MeLi (Menor a mayor)'
+                                        : sortBy === 'costo_desc' ? 'Costo Base (Mayor a menor)'
+                                        : sortBy === 'costo_asc' ? 'Costo Base (Menor a mayor)'
+                                        : sortBy === 'equilibrio_desc' ? 'Equilibrio (Mayor a menor)'
+                                        : sortBy === 'equilibrio_asc' ? 'Equilibrio (Menor a mayor)'
+                                        : sortBy === 'sugerido_desc' ? 'Sugerido (Mayor a menor)'
+                                        : sortBy === 'sugerido_asc' ? 'Sugerido (Menor a mayor)'
+                                        : sortBy}
+                                </option>
+                            )}
                         </select>
                     </div>
                 </div>
@@ -859,7 +865,7 @@ function UrgenciaPreciosInner() {
                                         <button onClick={() => setSortBy(sortBy === 'sugerido_desc' ? 'sugerido_asc' : 'sugerido_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Sugerido Final{sortBy === 'sugerido_desc' ? ' ▼' : sortBy === 'sugerido_asc' ? ' ▲' : ''}</button>
                                     </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right" title="Brecha calculada sobre el Equilibrio Matemático Exacto">
-                                        <button onClick={() => setSortBy(sortBy === 'perdida_desc' ? 'sobreprecio_desc' : 'perdida_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Brecha (vs Eq.){(sortBy === 'perdida_desc' || sortBy === 'sobreprecio_desc') ? ' ▼' : ''}</button>
+                                        <button onClick={() => setSortBy(sortBy === 'pct_desc' ? 'pct_asc' : 'pct_desc')} className="uppercase tracking-wider hover:text-[var(--accent)] cursor-pointer">Brecha (vs Eq.){sortBy === 'pct_desc' ? ' ▼' : sortBy === 'pct_asc' ? ' ▲' : ''}</button>
                                     </th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-center">Auditoría</th>
                                     <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider text-right">Acción</th>
