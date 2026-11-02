@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dispatchWorker } from '@/lib/dispatch-worker';
-import { X, Search, Package, Save, RefreshCw, Plus, Trash2, Tag, Barcode, Info } from 'lucide-react';
+import { X, Search, Package, Save, RefreshCw, Plus, Trash2, Tag, Barcode, Info, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { QuantityStepper } from '@/components/ui/quantity-stepper';
 import { Switch } from '@/components/ui/switch';
@@ -86,7 +86,8 @@ const [loading, setLoading] = useState(false);
 const [saving, setSaving] = useState(false);
 const [smartSuggestions, setSmartSuggestions] = useState<any[]>([]);
 const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-const [siblings, setSiblings] = useState<any[]>([]);
+const [siblings, setSiblings] = useState<any[]>([]); // comerciales (Clásica ↔ Premium), con checkbox
+const [espejoSiblings, setEspejoSiblings] = useState<any[]>([]); // espejo (catálogo/tradicional), automático
 const [siblingsLoading, setSiblingsLoading] = useState(false);
 const [selectedSiblings, setSelectedSiblings] = useState<Set<string>>(new Set());
 const [costMap, setCostMap] = useState<Map<string, boolean>>(new Map());
@@ -419,7 +420,16 @@ const { data: rawCatData } = await supabase
 .in('tipo_publicacion', ['catalogo', 'catalogo_derivada'])
 .eq('external_variation_id', '0');
 const catData = (rawCatData || []).filter(s => !isExcluded(s));
-// Condiciones de venta: mismo user_product_id en la misma cuenta (Clásica ↔ Premium)
+// 1. Espejo: misma vitrina (id_producto_catalogo o par_item_id) → automático incondicional.
+const espejoIds = new Set<string>();
+const espejo: any[] = [];
+for (const row of [...sibData, ...catData]) {
+if (!row?.id || espejoIds.has(row.id) || isExcluded(row)) continue;
+espejoIds.add(row.id);
+espejo.push(row);
+}
+setEspejoSiblings(espejo);
+// 2. Comerciales: mismo user_product_id en la misma cuenta (Clásica ↔ Premium) → checkbox.
 let upData: any[] = [];
 if (listing?.user_product_id && listing?.marketplace_id) {
 const { data } = await supabase
@@ -429,16 +439,9 @@ const { data } = await supabase
 .eq('marketplace_id', listing.marketplace_id)
 .neq('id', listing.id)
 .eq('external_variation_id', '0');
-upData = (data || []).filter(s => !isExcluded(s));
+upData = (data || []).filter(s => !isExcluded(s) && !espejoIds.has(s.id));
 }
-const ids = new Set<string>();
-const combined: any[] = [];
-for (const row of [...sibData, ...catData, ...upData]) {
-if (!row?.id || ids.has(row.id) || isExcluded(row)) continue;
-ids.add(row.id);
-combined.push(row);
-}
-setSiblings(combined);
+setSiblings(upData);
 } finally {
 setSiblingsLoading(false);
 }
@@ -458,8 +461,8 @@ const { data: mapeosSnap } = await supabase
 mapeosPrevios = mapeosSnap || null;
 
 if (selectedSkus.length === 0) {
-// Desvincular todo: borrar mapeos del listing y de las hermanas EXPLÍCITAMENTE marcadas.
-const relacionados = [listing.id, ...siblings.filter(s => s.id !== listing.id && selectedSiblings.has(s.id)).map(s => s.id)];
+// Desvincular todo: listing + espejo (automático) + comerciales marcadas.
+const relacionados = [listing.id, ...espejoSiblings.map(s => s.id), ...siblings.filter(s => selectedSiblings.has(s.id)).map(s => s.id)];
 await supabase.from('mapeo_publicacion_articulo').delete().in('publicacion_id', relacionados);
 await supabase.from('publicaciones_externas').update({ esta_mapeado: false }).in('id', relacionados);
 fetch(`/api/catalog/external/${listing.id}/audit-mark`, {
@@ -495,8 +498,8 @@ scheduled_at: new Date().toISOString(),
 if (sincronizarStock) {
 await supabase.from('jobs').insert({ type: 'sync_stock_mapped', payload: { publicacion_id: listing.id }, status: 'pending', scheduled_at: new Date().toISOString() });
 }
-// Solo propaga a las hermanas que el operador marcó explícitamente (nunca automático).
-const propagables = siblings.filter(s => selectedSiblings.has(s.id));
+// Propaga: espejo (automático) + comerciales marcadas explícitamente.
+const propagables = [...espejoSiblings, ...siblings.filter(s => selectedSiblings.has(s.id))];
 for (const sib of propagables) {
 
 const sibInserts = selectedSkus.map(s => ({ publicacion_id: sib.id, articulo_id: s.sku, cantidad_requerida: s.quantity, sincronizar_stock: sincronizarStock }));
@@ -608,7 +611,7 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
                     </div>
                     
                     {/* Alertas debajo del banner si existen */}
-                    {(bloqueado || siblings.length > 0) && (
+                    {(bloqueado || espejoSiblings.length > 0 || siblings.length > 0) && (
                         <div className="px-6 py-2 bg-[var(--surface-2)] flex flex-col gap-2 border-t border-[var(--border)]">
                             {bloqueado && hermana && (
                                 <div className="flex items-center gap-3 rounded-lg bg-[var(--warn)]/15 border border-[var(--warn)]/40 px-3 py-2">
@@ -621,31 +624,41 @@ const comparisonArticle = topSugerencia ?? (selectedSkus.length > 0 ? {
                                     </Link>
                                 </div>
                             )}
-                            {!bloqueado && siblings.length > 0 && (
+                            {!bloqueado && (espejoSiblings.length > 0 || siblings.length > 0) && (
                                 <div className="space-y-1.5">
-                                    <div className="text-[var(--accent)] text-xs flex items-center gap-1.5">
-                                        <Info size={14} className="shrink-0" />
-                                        <span>Se detectaron <strong>{siblings.length}</strong> publicación(es) hermana(s). Marca las que también quieras vincular:</span>
-                                    </div>
-                                    {siblings.map((sib: any) => (
-                                        <label key={sib.id} className="flex items-center gap-2 text-xs text-[var(--text-muted)] cursor-pointer pl-1">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedSiblings.has(sib.id)}
-                                                onChange={(e) => {
-                                                    const next = new Set(selectedSiblings);
-                                                    if (e.target.checked) next.add(sib.id); else next.delete(sib.id);
-                                                    setSelectedSiblings(next);
-                                                }}
-                                                className="accent-[var(--accent)]"
-                                            />
-                                            <Link href={`/catalog/external/${sib.id}`} onClick={(e) => e.stopPropagation()} className="font-mono text-[var(--text)] hover:text-[var(--accent)] hover:underline">
-                                                {sib.external_item_id}
-                                            </Link>
-                                            <span className="text-[10px]">{sib.listing_type_id === 'gold_pro' ? 'Premium' : sib.listing_type_id === 'gold_special' ? 'Clásica' : (sib.tipo_publicacion || '—')}</span>
-                                            <span className="text-[10px] text-[var(--text-faint)]">{sib.status_externo}</span>
-                                        </label>
-                                    ))}
+                                    {espejoSiblings.length > 0 && (
+                                        <div className="text-[var(--ok)] text-xs flex items-start gap-1.5">
+                                            <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
+                                            <span>Se sincroniza automáticamente con <strong>{espejoSiblings.length}</strong> vitrina(s) espejo: {espejoSiblings.map((s: any) => s.external_item_id).join(', ')}</span>
+                                        </div>
+                                    )}
+                                    {siblings.length > 0 && (
+                                        <>
+                                            <div className="text-[var(--accent)] text-xs flex items-center gap-1.5">
+                                                <Info size={14} className="shrink-0" />
+                                                <span>Se detectaron <strong>{siblings.length}</strong> publicación(es) comercial(es) (Clásica/Premium). Marca las que también quieras vincular:</span>
+                                            </div>
+                                            {siblings.map((sib: any) => (
+                                                <label key={sib.id} className="flex items-center gap-2 text-xs text-[var(--text-muted)] cursor-pointer pl-1">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedSiblings.has(sib.id)}
+                                                        onChange={(e) => {
+                                                            const next = new Set(selectedSiblings);
+                                                            if (e.target.checked) next.add(sib.id); else next.delete(sib.id);
+                                                            setSelectedSiblings(next);
+                                                        }}
+                                                        className="accent-[var(--accent)]"
+                                                    />
+                                                    <Link href={`/catalog/external/${sib.id}`} onClick={(e) => e.stopPropagation()} className="font-mono text-[var(--text)] hover:text-[var(--accent)] hover:underline">
+                                                        {sib.external_item_id}
+                                                    </Link>
+                                                    <span className="text-[10px]">{sib.listing_type_id === 'gold_pro' ? 'Premium' : sib.listing_type_id === 'gold_special' ? 'Clásica' : (sib.tipo_publicacion || '—')}</span>
+                                                    <span className="text-[10px] text-[var(--text-faint)]">{sib.status_externo}</span>
+                                                </label>
+                                            ))}
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </div>
