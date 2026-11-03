@@ -51,5 +51,9 @@ Para cualquier cambio que toque costos, alias de proveedor (`proveedor_articulos
    - Prohibido afirmar "funciona" sin demostrarlo con salida de `tsc --noEmit` (`0` errores en archivos tocados) y consulta en vivo post-aplicación. No adular; buscar activamente fallos.
    - **Regla Anti-Engaño en Benchmarks SQL:** Prohibido medir un `WHERE` aislado (`SELECT id`) y reportarlo como el tiempo de una función RPC completa. Toda optimización SQL debe medirse con **3 rondas consecutivas** de `EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM public.<rpc>(...)` reportando explícitamente **Ronda 1 (fría)** y **Rondas 2–3 (calientes)**, tanto para un caso masivo (ej. marca común) como para un caso selectivo (ej. SKU), además de mostrar el árbol `EXPLAIN` interno.
 4. **Autorización Explícita:** Cambios de riesgo (DDL, migraciones, producción, datos reales) requieren autorización previa.
-5. **Firma de Auditoría Obligatoria:** Toda respuesta técnica que ejecute diagnósticos o cambios debe cerrar con la línea:
+5. **Gate DDL Obligatorio (Seguridad en Migraciones):** Toda migración que cree tablas o funciones DEBE incluir por norma inquebrantable:
+   - `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;` en toda tabla nueva (y `REVOKE ALL ON TABLE ... FROM anon, authenticated;`).
+   - En funciones `SECURITY DEFINER`: `SET search_path = ''` y `REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated;`.
+   - El `tsc --noEmit` (`Gate 2`) valida compilación, pero es CIEGO ante seguridad de BD (RLS, grants, search_path). El Gate DDL es la única barrera que evita huecos de seguridad como el de `movimientos_purgados_log` (creado sin RLS, explotable con la anon key pública).
+6. **Firma de Auditoría Obligatoria:** Toda respuesta técnica que ejecute diagnósticos o cambios debe cerrar con la línea:
    `[Auditoría: Subagente <id/modelo> | Subagentes activos al cierre: 0 | Regresión vitrinas activas: 0]`
