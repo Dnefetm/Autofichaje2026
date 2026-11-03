@@ -138,6 +138,8 @@ function UrgenciaPreciosInner() {
     const headerCheckboxRef = useRef<HTMLInputElement>(null);
     // Monótono para descartar respuestas viejas si el usuario cambia de orden rápido.
     const loadReqRef = useRef(0);
+    // Para encadenar tabla → KPIs solo en el montaje inicial.
+    const initialMountRef = useRef(true);
 
     // URL completa para el parámetro `?from=`
     const currentUrl = useMemo(() => {
@@ -262,16 +264,20 @@ function UrgenciaPreciosInner() {
         }
     }, [activeTab, soloSinAuditar, debouncedSearch, sortBy, page]);
 
-    // Cargar primero los datos y diferir KPIs 350ms para no competir por el pool
-    // (el rol anon tiene statement_timeout = 3s y la vista en frío roza ese límite).
+    // Montaje inicial encadenado (tabla → KPIs) para evitar colisión en el pool
+    // (rol anon statement_timeout = 3s). Navegación/orden posterior solo recarga tabla;
+    // los KPIs ya están en memoria y no cambian al paginar ni ordenar.
     useEffect(() => {
-        loadPageData();
-    }, [loadPageData]);
-
-    useEffect(() => {
-        const t = setTimeout(() => { loadKpis(); }, 350);
-        return () => clearTimeout(t);
-    }, [loadKpis]);
+        if (initialMountRef.current) {
+            initialMountRef.current = false;
+            (async () => {
+                await loadPageData();
+                await loadKpis();
+            })();
+        } else {
+            loadPageData();
+        }
+    }, [loadPageData, loadKpis]);
 
     // Total por pestaña desde KPIs (evita count(*) OVER() en cada navegación).
     useEffect(() => {
