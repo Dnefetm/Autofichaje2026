@@ -199,8 +199,8 @@ function cruzarBidireccional3Niveles_(itemsSheets, itemsSupa, campoPk) {
     const pk = supaItem[campoPk];
     if (!mapSheets[pk]) {
       const orig = supaItem.origin;
-      if (orig === 'web') {
-        protegidosWeb.push(supaItem); // [3] NUNCA se tocan (legítimos de web)
+      if (orig === 'web' || orig === 'reconciliacion') {
+        protegidosWeb.push(supaItem); // [3] NUNCA se tocan (web legítimos + compensaciones de reconciliación)
       } else if (orig === 'sheets') {
         zombisSeguros.push(supaItem); // [1] SEGUROS (nacieron en Sheets y ya no están en la hoja)
       } else {

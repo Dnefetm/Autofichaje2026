@@ -201,7 +201,7 @@ function _reconciliarTabla(nombreHoja, nombreTabla, columnaId, fks) {
   var aSeguros = [], aRevisar = [], aProteger = [];
   for (var k = 0; k < fantasmas.length; k++) {
     var orig = fantasmas[k].origin;
-    if (orig === 'web') aProteger.push(fantasmas[k]);
+    if (orig === 'web' || orig === 'reconciliacion') aProteger.push(fantasmas[k]);
     else if (orig === 'sheets') aSeguros.push(fantasmas[k]);
     else aRevisar.push(fantasmas[k]);
   }
