@@ -999,12 +999,15 @@ export async function POST(req: NextRequest) {
         // request nunca traen id, así que se re-suben.
         // Reutilizar IDs MeLi de la vidriera origen cuando la URL coincide: evita
         // re-subir y re-validar el tamaño (causa del "invalid_size" al copiar).
+        // Normalizar el sufijo de tamaño de MeLi (-I, -V, -M, -C, -O, -F) para que
+        // las URLs heredadas coincidan aunque el frontend las muestre en alta (-F).
+        const normalizeMeliUrl = (u: string) => (typeof u === 'string' ? u.replace(/-[IVMCOF]\.(jpg|jpeg|png|webp)$/i, '') : u);
         const sourceIdByUrl = new Map<string, string>();
         (sourceData?.pictures || []).forEach((u: string, i: number) => {
             const id = sourceData?.picture_ids?.[i];
-            if (id && u) sourceIdByUrl.set(u, String(id));
+            if (id && u) sourceIdByUrl.set(normalizeMeliUrl(u), String(id));
         });
-        const inheritedIds: (string | null)[] = effectivePictures.map((u) => sourceIdByUrl.get(u) || null);
+        const inheritedIds: (string | null)[] = effectivePictures.map((u) => sourceIdByUrl.get(normalizeMeliUrl(u)) || null);
 
         // -- Pre-subir SOLO las imágenes sin id MeLi (publish real) --------------
         // Flujo 1: las fotos que ya viven en MeLi se referencian por su {id} sin
@@ -1268,18 +1271,31 @@ export async function POST(req: NextRequest) {
         // Usa POST /items/catalog_listings con el item_id de la tradicional recién
         // creada + catalog_product_id. MeLi las relaciona nativamente (item_relations).
         let createdCatalog: any = null;
+        let catalogOptinPendiente = false;
         if (effectiveCatalogListing && effectiveCatalogProductId) {
-            createdCatalog = await (meli as any).optinCatalogListing(marketplace_id, {
-                item_id: created.item_id,
-                catalog_product_id: effectiveCatalogProductId,
-            });
-            trace.paso_12b_catalogo = {
-                item_id:        createdCatalog.item_id,
-                permalink:      createdCatalog.permalink,
-                title:          createdCatalog.title,
-                status:         createdCatalog.status,
-                item_relations: createdCatalog.item_relations,
-            };
+            try {
+                createdCatalog = await (meli as any).optinCatalogListing(marketplace_id, {
+                    item_id: created.item_id,
+                    catalog_product_id: effectiveCatalogProductId,
+                });
+                trace.paso_12b_catalogo = {
+                    item_id:        createdCatalog.item_id,
+                    permalink:      createdCatalog.permalink,
+                    title:          createdCatalog.title,
+                    status:         createdCatalog.status,
+                    item_relations: createdCatalog.item_relations,
+                };
+            } catch (optinErr: any) {
+                // Fail-safe: la tradicional ya existe en MeLi. Si el optin falla
+                // (típicamente "Item must be active to optin" por picture_download_pending),
+                // NO crasheamos: persistimos la tradicional y encolamos un reintento.
+                catalogOptinPendiente = true;
+                trace.paso_12b_catalogo = {
+                    error: optinErr?.message || String(optinErr),
+                    diferido: true,
+                    motivo: 'optin_catalog_fallido',
+                };
+            }
         } else {
             trace.paso_12b_catalogo = { omitido: 'Sin catálogo' };
         }
@@ -1398,6 +1414,26 @@ export async function POST(req: NextRequest) {
             } else if (pubErr) {
                 persistErrors.push(`upsert ${p.item.item_id}: ${pubErr.message}`);
             }
+        }
+
+        // -- 14c. Optin de catálogo diferido (fail-safe) ------------------------
+        // Si el optin falló (tradicional en paused por picture_download_pending),
+        // la tradicional YA está persistida y mapeada. Encolamos un reintento con
+        // backoff progresivo (lo procesa el worker) para cuando MeLi active las fotos.
+        if (catalogOptinPendiente && effectiveCatalogListing && effectiveCatalogProductId && persistedIds[0]) {
+            await supabaseAdmin.from('jobs').insert({
+                type: 'catalog_optin',
+                payload: {
+                    publicacion_id:     persistedIds[0],
+                    item_id:            created.item_id,
+                    marketplace_id,
+                    catalog_product_id: effectiveCatalogProductId,
+                    intento:            0,
+                },
+                status: 'pending',
+                scheduled_at: new Date(Date.now() + 60_000).toISOString(),
+            });
+            trace.paso_14c_optin_diferido = { encolado: true, item_id: created.item_id };
         }
 
         trace.paso_14_publicaciones = {

@@ -325,7 +325,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         if (sourcePublicacion.cantidad_requerida != null && Number(sourcePublicacion.cantidad_requerida) >= 1) {
             setPackQuantity(String(sourcePublicacion.cantidad_requerida));
         }
-        if (sourcePublicacion.tipo_publicacion === 'catalogo' && sourcePublicacion.id_producto_catalogo) {
+        // Detectar el catálogo vinculado tanto si la fuente es catálogo como si es
+        // una tradicional con id_producto_catalogo (copia multi-cuenta conserva el vínculo).
+        if (sourcePublicacion.id_producto_catalogo) {
             setCatalogProductId(sourcePublicacion.id_producto_catalogo);
             setCatalogListing(true);
         }
