@@ -113,7 +113,7 @@ function descargarMovimientosSupabasePaginados_(tabla, campoPk, fechaCorteIso, t
     }
 
     const url = URL_SUPABASE_AUDIT + '/rest/v1/' + tabla +
-      '?select=' + campoPk + ',articulo_id,cantidad,fecha,origin,guia' +
+      '?select=' + campoPk + ',articulo_id,cantidad,fecha,origin,guia,transportista,notas,operador_id' +
       '&fecha=gte.' + fechaCorteIso +
       '&order=' + campoPk + '.asc' +
       '&limit=' + LIMITE_POSTGREST +
@@ -406,13 +406,85 @@ function volcarInformeASheetBidireccional_(ss, cruceEgr, cruceIng, articulosMap,
     dupIng.forEach(d => filas.push(['Ingresos', d.id, d.fila, d.cantidad]));
   }
 
-  // Volcar a la cuadrícula
+  // Volcar el resumen a la cuadrícula (6 columnas)
   hoja.getRange(1, 1, filas.length, 6).setValues(filas.map(r => {
     while (r.length < 6) r.push('');
-    return r;
+    return r.slice(0, 6);
   }));
 
-  hoja.autoResizeColumns(1, 6);
+  // === DETALLE FILA POR FILA (IDs EXACTOS) ===
+  // Se escribe debajo del resumen, con su propia cabecera de 13 columnas.
+  const filaInicioDetalle = filas.length + 2;
+  volcarDetalleFilaPorFila_(hoja, filaInicioDetalle, cruceEgr, cruceIng);
+
+  hoja.autoResizeColumns(1, 13);
+}
+
+/**
+ * Vuelca la tabla de detalle fila por fila con los IDs individuales exactos
+ * de los 4 casos (ZOMBI_SEGURO, ZOMBI_REVISAR, FALTANTE_EN_SUPABASE,
+ * CANTIDAD_DISCREPANTE) y WEB_PROTEGIDO (informativo).
+ * 100% solo lectura: solo escribe en la hoja de reporte, no toca Supabase.
+ */
+function volcarDetalleFilaPorFila_(hoja, filaInicio, cruceEgr, cruceIng) {
+  const CABECERA = [
+    'Tabla', 'Caso', 'ID_Movimiento', 'Articulo_ID', 'Fecha_Real',
+    'Cant_Sheets', 'Cant_Supabase', 'Guia', 'Transportista', 'Tipo',
+    'Notas', 'Operador_ID', 'Origin_Supabase'
+  ];
+
+  const detalle = [];
+  detalle.push(['=== DETALLE FILA POR FILA PARA RECONCILIACIÓN (IDs EXACTOS) ===']);
+  detalle.push(CABECERA);
+
+  // Helper para agregar una fila de detalle
+  function add(tabla, caso, id, art, fecha, cantSheets, cantSupa, guia, trans, tipo, notas, oper, origin) {
+    detalle.push([tabla, caso, id, art, fecha, cantSheets, cantSupa, guia, trans, tipo, notas, oper, origin]);
+  }
+
+  // --- Egresos ---
+  cruceEgr.faltantesEnSupabase.forEach(f => {
+    add('egresos', 'FALTANTE_EN_SUPABASE', f.id, f.articulo_id, f.fecha, f.cantidad, '', f.guia, f.transportista, f.tipo, f.notas, f.operador_id, '(sheets)');
+  });
+  cruceEgr.zombisSeguros.forEach(z => {
+    add('egresos', 'ZOMBI_SEGURO', z.egreso_id, z.articulo_id, z.fecha, '', z.cantidad, z.guia, z.transportista || '', z.tipo || '', z.notas || '', z.operador_id || '', z.origin);
+  });
+  cruceEgr.zombisARevisar.forEach(z => {
+    add('egresos', 'ZOMBI_REVISAR', z.egreso_id, z.articulo_id, z.fecha, '', z.cantidad, z.guia, z.transportista || '', z.tipo || '', z.notas || '', z.operador_id || '', z.origin || 'null');
+  });
+  cruceEgr.protegidosWeb.forEach(z => {
+    add('egresos', 'WEB_PROTEGIDO', z.egreso_id, z.articulo_id, z.fecha, '', z.cantidad, z.guia, z.transportista || '', z.tipo || '', z.notas || '', z.operador_id || '', z.origin);
+  });
+  cruceEgr.cantidadDiscrepante.forEach(d => {
+    add('egresos', 'CANTIDAD_DISCREPANTE', d.id, d.articulo_id, d.fecha, d.cant_sheets, d.cant_supabase, '', '', '', '', '', '(ambos)');
+  });
+
+  // --- Ingresos ---
+  cruceIng.faltantesEnSupabase.forEach(f => {
+    add('ingresos', 'FALTANTE_EN_SUPABASE', f.id, f.articulo_id, f.fecha, f.cantidad, '', f.guia, f.transportista, f.tipo, f.notas, f.operador_id, '(sheets)');
+  });
+  cruceIng.zombisSeguros.forEach(z => {
+    add('ingresos', 'ZOMBI_SEGURO', z.ingreso_id, z.articulo_id, z.fecha, '', z.cantidad, z.guia, z.transportista || '', z.tipo || '', z.notas || '', z.operador_id || '', z.origin);
+  });
+  cruceIng.zombisARevisar.forEach(z => {
+    add('ingresos', 'ZOMBI_REVISAR', z.ingreso_id, z.articulo_id, z.fecha, '', z.cantidad, z.guia, z.transportista || '', z.tipo || '', z.notas || '', z.operador_id || '', z.origin || 'null');
+  });
+  cruceIng.protegidosWeb.forEach(z => {
+    add('ingresos', 'WEB_PROTEGIDO', z.ingreso_id, z.articulo_id, z.fecha, '', z.cantidad, z.guia, z.transportista || '', z.tipo || '', z.notas || '', z.operador_id || '', z.origin);
+  });
+  cruceIng.cantidadDiscrepante.forEach(d => {
+    add('ingresos', 'CANTIDAD_DISCREPANTE', d.id, d.articulo_id, d.fecha, d.cant_sheets, d.cant_supabase, '', '', '', '', '', '(ambos)');
+  });
+
+  if (detalle.length === 2) {
+    detalle.push(['(No se detectaron movimientos individuales en el rango auditado)', '', '', '', '', '', '', '', '', '', '', '', '']);
+  }
+
+  // Escribir detalle debajo del resumen
+  hoja.getRange(filaInicio, 1, detalle.length, 13).setValues(detalle.map(r => {
+    while (r.length < 13) r.push('');
+    return r.slice(0, 13);
+  }));
 }
 
 /**
@@ -433,6 +505,13 @@ function leerSheetsDinamicoRobusto_(ss, nombreHoja, corteEpoch, aliasId, default
   const idxFecha = encontrarColumna_(headers, ['fecha', 'fecha_egreso', 'fecha_ingreso', 'creado_el'], 8);
   const idxGuia = encontrarColumna_(headers, ['guia', 'numero_guia'], 4);
   const idxTipo = encontrarColumna_(headers, ['tipo_egreso', 'tipo_ingreso', 'tipo'], 6);
+  // Columnas adicionales para reconciliación (mapeo verificado contra sincIngresos.gs/sincEgresos.gs):
+  //   transportista = col F [5], notas = col H [7], operador_id = col J [9],
+  //   importacion_full_id = col B [1] (solo Egresos; en Ingresos es "# ingreso", no se usa).
+  const idxTrans = encontrarColumna_(headers, ['transportista'], 5);
+  const idxNotas = encontrarColumna_(headers, ['notas', 'nota'], 7);
+  const idxOper = encontrarColumna_(headers, ['operador_id', 'operador'], 9);
+  const idxImportFull = encontrarColumna_(headers, ['importacion_full_id'], 1);
 
   // Leer valores nativos y display values simultáneamente
   const rango = hoja.getRange(2, 1, ultimaFila - 1, ultimaCol);
@@ -461,6 +540,10 @@ function leerSheetsDinamicoRobusto_(ss, nombreHoja, corteEpoch, aliasId, default
       fecha: f.toISOString(),
       guia: idxGuia !== -1 && datosDisplay[i][idxGuia] ? String(datosDisplay[i][idxGuia]).trim() : '',
       tipo: idxTipo !== -1 && datosDisplay[i][idxTipo] ? String(datosDisplay[i][idxTipo]).trim() : '',
+      transportista: idxTrans !== -1 && datosDisplay[i][idxTrans] ? String(datosDisplay[i][idxTrans]).trim() : '',
+      notas: idxNotas !== -1 && datosDisplay[i][idxNotas] ? String(datosDisplay[i][idxNotas]).trim() : '',
+      operador_id: idxOper !== -1 && datosDisplay[i][idxOper] ? String(datosDisplay[i][idxOper]).trim() : '',
+      importacion_full_id: idxImportFull !== -1 && datosDisplay[i][idxImportFull] ? String(datosDisplay[i][idxImportFull]).trim() : '',
       fila_sheet: i + 2
     };
 
