@@ -189,6 +189,12 @@ function cruzarBidireccional3Niveles_(itemsSheets, itemsSupa, campoPk) {
         cant_supabase: cantSupa,
         diferencia: cantSheets - cantSupa,
         fecha: sItem.fecha,
+        guia: sItem.guia || supaItem.guia || '',
+        transportista: sItem.transportista || supaItem.transportista || '',
+        tipo: sItem.tipo || '',
+        notas: sItem.notas || supaItem.notas || '',
+        operador_id: sItem.operador_id || supaItem.operador_id || '',
+        origin: supaItem.origin || 'null',
         fila_sheet: sItem.fila_sheet
       });
     }
@@ -456,7 +462,7 @@ function volcarDetalleFilaPorFila_(hoja, filaInicio, cruceEgr, cruceIng) {
     add('egresos', 'WEB_PROTEGIDO', z.egreso_id, z.articulo_id, z.fecha, '', z.cantidad, z.guia, z.transportista || '', z.tipo || '', z.notas || '', z.operador_id || '', z.origin);
   });
   cruceEgr.cantidadDiscrepante.forEach(d => {
-    add('egresos', 'CANTIDAD_DISCREPANTE', d.id, d.articulo_id, d.fecha, d.cant_sheets, d.cant_supabase, '', '', '', '', '', '(ambos)');
+    add('egresos', 'CANTIDAD_DISCREPANTE', d.id, d.articulo_id, d.fecha, d.cant_sheets, d.cant_supabase, d.guia, d.transportista, d.tipo, d.notas, d.operador_id, d.origin);
   });
 
   // --- Ingresos ---
@@ -473,7 +479,7 @@ function volcarDetalleFilaPorFila_(hoja, filaInicio, cruceEgr, cruceIng) {
     add('ingresos', 'WEB_PROTEGIDO', z.ingreso_id, z.articulo_id, z.fecha, '', z.cantidad, z.guia, z.transportista || '', z.tipo || '', z.notas || '', z.operador_id || '', z.origin);
   });
   cruceIng.cantidadDiscrepante.forEach(d => {
-    add('ingresos', 'CANTIDAD_DISCREPANTE', d.id, d.articulo_id, d.fecha, d.cant_sheets, d.cant_supabase, '', '', '', '', '', '(ambos)');
+    add('ingresos', 'CANTIDAD_DISCREPANTE', d.id, d.articulo_id, d.fecha, d.cant_sheets, d.cant_supabase, d.guia, d.transportista, d.tipo, d.notas, d.operador_id, d.origin);
   });
 
   if (detalle.length === 2) {
