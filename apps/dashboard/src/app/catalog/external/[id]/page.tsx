@@ -1769,7 +1769,9 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 listing_type_id: pub.listing_type_id,
                                 category_id: pub.category_id,
                                 free_shipping: !!pub.free_shipping,
-                                id_producto_catalogo: pub.id_producto_catalogo,
+                                id_producto_catalogo: pub.id_producto_catalogo
+                                    || asociadas?.find((a: any) => a.tipo_publicacion === 'catalogo')?.id_producto_catalogo
+                                    || null,
                                 tipo_publicacion: pub.tipo_publicacion,
                                 marca: pub.brand,
                                 modelo: pub.model,

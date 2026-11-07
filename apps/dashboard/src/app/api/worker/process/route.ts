@@ -279,7 +279,106 @@ throw new Error(`PUBLISH_FAILED status=${res.status}: ${json?.error || json?.mes
 }
 }
 
-async function processOneJob(job: any, meli: MeliAdapter): Promise<{ done: boolean; checkpoint?: any }> {
+// Fase 1 (catálogo): reintenta el optin cuando la tradicional estaba en paused
+// (picture_download_pending) al publicar. Escala de backoff 3min → 8min → 20min.
+async function handleCatalogOptin(job: any, meli: MeliAdapter): Promise<{ done: boolean; rescheduled?: boolean }> {
+    const { publicacion_id, item_id, marketplace_id, catalog_product_id } = job.payload || {};
+    if (!item_id || !catalog_product_id) {
+        throw new Error('catalog_optin: item_id o catalog_product_id faltante');
+    }
+
+    // 1. Estado actual de la tradicional.
+    const item = await (meli as any).getItem(marketplace_id, item_id);
+
+    if (!item || item.status !== 'active') {
+        // Aún en paused: reprogramar con backoff progresivo (no usar la lógica
+        // genérica de reintentos, que pisaría el scheduled_at).
+        const intento = Number(job.payload.intento || 0);
+        const backoffNext = [180_000, 480_000, 1_200_000]; // 3min, 8min, 20min
+        if (intento >= backoffNext.length) {
+            await supabaseAdmin.from('jobs').update({
+                status: 'failed',
+                error_log: `Optin de catálogo: la tradicional ${item_id} sigue sin activarse tras ${intento + 1} reintentos.`,
+            }).eq('id', job.id);
+            return { done: true };
+        }
+        await supabaseAdmin.from('jobs').update({
+            status: 'pending',
+            payload: { ...(job.payload || {}), intento: intento + 1 },
+            scheduled_at: new Date(Date.now() + backoffNext[intento]).toISOString(),
+        }).eq('id', job.id);
+        return { done: true, rescheduled: true };
+    }
+
+    // 2. Tradicional activa → ejecutar optin.
+    const createdCatalog = await (meli as any).optinCatalogListing(marketplace_id, {
+        item_id,
+        catalog_product_id,
+    });
+
+    // 3. Persistir el catálogo (pasos que se saltaron al diferir el optin).
+    const { data: tradPub } = await supabaseAdmin
+        .from('publicaciones_externas')
+        .select('marketplace_id, titulo, precio_venta, stock_publicado, listing_type_id, category_id, free_shipping, shipping_mode, seller_sku, external_item_id')
+        .eq('id', publicacion_id)
+        .single();
+
+    const catItemId = createdCatalog?.item_id || createdCatalog?.id;
+    if (catItemId) {
+        const { data: catPub } = await supabaseAdmin
+            .from('publicaciones_externas')
+            .upsert({
+                marketplace_id,
+                external_item_id: catItemId,
+                user_product_id: createdCatalog.user_product_id ?? null,
+                external_variation_id: '0',
+                titulo: createdCatalog.title ?? tradPub?.titulo ?? null,
+                precio_venta: tradPub?.precio_venta ?? null,
+                stock_publicado: tradPub?.stock_publicado ?? 0,
+                status_externo: createdCatalog.status ?? 'active',
+                permalink: createdCatalog.permalink ?? null,
+                listing_type_id: tradPub?.listing_type_id ?? null,
+                category_id: tradPub?.category_id ?? null,
+                tipo_publicacion: 'catalogo',
+                id_publicacion_padre: tradPub?.external_item_id ?? item_id,
+                id_producto_catalogo: catalog_product_id,
+                par_item_id: item_id,
+                es_fuente_stock: false,
+                free_shipping: !!(tradPub?.free_shipping),
+                shipping_mode: tradPub?.shipping_mode ?? null,
+                seller_sku: tradPub?.seller_sku ?? null,
+                condition: 'new',
+                actualizado_el: new Date().toISOString(),
+            }, { onConflict: 'marketplace_id,external_item_id,external_variation_id' })
+            .select('id')
+            .single();
+
+        // Copiar el mapeo del padre al catálogo.
+        const { data: mapeoPadre } = await supabaseAdmin
+            .from('mapeo_publicacion_articulo')
+            .select('articulo_id, cantidad_requerida, sincronizar_stock')
+            .eq('publicacion_id', publicacion_id);
+        if (catPub?.id && mapeoPadre?.length) {
+            for (const m of mapeoPadre) {
+                await supabaseAdmin.from('mapeo_publicacion_articulo').upsert({
+                    publicacion_id: catPub.id,
+                    articulo_id: m.articulo_id,
+                    cantidad_requerida: m.cantidad_requerida,
+                    sincronizar_stock: m.sincronizar_stock,
+                }, { onConflict: 'publicacion_id,articulo_id' });
+            }
+        }
+
+        // Vincular par_item_id en la tradicional padre.
+        await supabaseAdmin.from('publicaciones_externas')
+            .update({ par_item_id: catItemId })
+            .eq('id', publicacion_id);
+    }
+
+    return { done: true };
+}
+
+async function processOneJob(job: any, meli: MeliAdapter): Promise<{ done: boolean; checkpoint?: any; rescheduled?: boolean }> {
 const maxAttempts = job.max_attempts || 3;
 if ((job.attempts || 0) >= maxAttempts) {
 // Preservar el error real del intento anterior (no pisarlo con "Zombie killed").
@@ -291,7 +390,7 @@ return { done: true };
 }
 
 try {
-let resume: { done: boolean; checkpoint?: any } = { done: true };
+let resume: { done: boolean; checkpoint?: any; rescheduled?: boolean } = { done: true };
 switch (job.type) {
 case 'sync_stock':
 await handleSyncStock(job, meli);
@@ -335,11 +434,14 @@ break;
 case 'publish_item':
 await handlePublishItem(job);
 break;
+case 'catalog_optin':
+resume = await handleCatalogOptin(job, meli);
+break;
 default:
 throw new Error(`Tipo de job no soportado: ${job.type}`);
 }
 
-if (resume.done) {
+if (resume.done && !resume.rescheduled) {
 await supabaseAdmin.from('jobs').update({ status: 'completed', processed_at: new Date().toISOString() }).eq('id', job.id);
 }
 return resume;

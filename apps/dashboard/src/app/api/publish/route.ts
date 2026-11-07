@@ -1001,7 +1001,9 @@ export async function POST(req: NextRequest) {
         // re-subir y re-validar el tamaño (causa del "invalid_size" al copiar).
         // Normalizar el sufijo de tamaño de MeLi (-I, -V, -M, -C, -O, -F) para que
         // las URLs heredadas coincidan aunque el frontend las muestre en alta (-F).
-        const normalizeMeliUrl = (u: string) => (typeof u === 'string' ? u.replace(/-[IVMCOF]\.(jpg|jpeg|png|webp)$/i, '') : u);
+        const normalizeMeliUrl = (u: string) => (typeof u === 'string'
+            ? u.replace(/^http:/i, 'https:').replace(/\/D_NQ_NP_(?=\d)/i, '/D_').replace(/-[IVMCOF]\.(jpg|jpeg|png|webp)$/i, '')
+            : u);
         const sourceIdByUrl = new Map<string, string>();
         (sourceData?.pictures || []).forEach((u: string, i: number) => {
             const id = sourceData?.picture_ids?.[i];
@@ -1050,10 +1052,13 @@ export async function POST(req: NextRequest) {
             picturesField = effectivePictures.map((url: string) => ({ source: url }));
         }
 
-        // Enlace a catálogo efectivo: si no se indicó, se hereda de una vidriera de catálogo.
+        // Enlace a catálogo efectivo: si no se indicó, se hereda de la vidriera origen.
+        // Una tradicional vinculada a catálogo tiene catalog_listing=false pero SÍ
+        // catalog_product_id, así que no exigimos catalog_listing.
         const effectiveCatalogProductId: string | null = catalog_product_id
-            || (sourceData?.catalog_listing ? sourceData.catalog_product_id : null);
-        const effectiveCatalogListing: boolean = catalog_listing || !!(sourceData?.catalog_listing && sourceData?.catalog_product_id);
+            || sourceData?.catalog_product_id
+            || null;
+        const effectiveCatalogListing: boolean = !!(catalog_listing || effectiveCatalogProductId);
 
         // Ficha del catálogo (una sola lectura): sirve para el filtro dinámico de
         // atributos y para exponer el título del catálogo como candidato.
@@ -1431,6 +1436,7 @@ export async function POST(req: NextRequest) {
                     intento:            0,
                 },
                 status: 'pending',
+                max_attempts: 5,
                 scheduled_at: new Date(Date.now() + 60_000).toISOString(),
             });
             trace.paso_14c_optin_diferido = { encolado: true, item_id: created.item_id };
