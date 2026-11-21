@@ -250,13 +250,23 @@ results.errors.push(`Fatal: ${err.message}`);
       if ((remaining || 0) > 0) {
         const prodHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
         const baseUrl = prodHost ? `https://${prodHost}` : 'http://localhost:3000';
-        // `after()` garantiza que el fetch sobreviva al return de la respuesta (Vercel
-        // congela la función al responder; sin esto el re-dispatch puede morir a medias).
-        after(() => {
-          fetch(`${baseUrl}/api/worker/process`, {
-            method: 'GET',
-            headers: { 'Authorization': `Bearer ${process.env.CRON_SECRET}` }
-          }).catch(() => {});
+        // `after(async () => await fetch(...))` DEBE devolver una Promise para que Next.js/Vercel
+        // no cierre el lambda antes de que salga la peticion. Timeout corto de 3s para garantizar
+        // que el siguiente lambda arranque sin pagar doble Active CPU esperando su respuesta.
+        after(async () => {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 3000);
+          try {
+            await fetch(`${baseUrl}/api/worker/process`, {
+              method: 'GET',
+              headers: { 'Authorization': `Bearer ${process.env.CRON_SECRET}` },
+              signal: controller.signal,
+            });
+          } catch {
+            // AbortError esperado a los 3s o fallo transitorio de red
+          } finally {
+            clearTimeout(timeout);
+          }
         });
       }
     } catch (_) {}
