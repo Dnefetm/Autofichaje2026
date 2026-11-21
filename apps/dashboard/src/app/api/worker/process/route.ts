@@ -248,7 +248,8 @@ results.errors.push(`Fatal: ${err.message}`);
         .lte('scheduled_at', new Date().toISOString());
 
       if ((remaining || 0) > 0) {
-        const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+        const prodHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+        const baseUrl = prodHost ? `https://${prodHost}` : 'http://localhost:3000';
         // `after()` garantiza que el fetch sobreviva al return de la respuesta (Vercel
         // congela la función al responder; sin esto el re-dispatch puede morir a medias).
         after(() => {

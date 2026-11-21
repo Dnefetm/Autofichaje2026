@@ -51,26 +51,26 @@ export async function dispatchWorker(): Promise<void> {
         // Ignorar
     }
 
-    // Construir URL base: VERCEL_URL en produccion, localhost en dev
-    const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
+    // Construir URL base: preferir dominio estable de produccion para evitar Deployment Protection en VERCEL_URL
+    const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+    const baseUrl = host
+        ? `https://${host}`
         : 'http://localhost:3000';
 
-    // Fire-and-forget: no esperamos respuesta, timeout agresivo de 2s
-    // Si el worker tarda mas, seguira ejecutandose en background (Vercel lo mantiene hasta maxDuration)
+    // Esperar el disparo (timeout corto de 2s) para garantizar que la peticion salga del lambda
+    // antes de que Vercel congele el proceso al responder el webhook. Si /api/worker/process tarda mas de 2s,
+    // el lambda destino sigue ejecutandose en background hasta maxDuration.
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
 
     try {
-        fetch(`${baseUrl}/api/worker/process`, {
+        await fetch(`${baseUrl}/api/worker/process`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${secret}` },
             signal: controller.signal,
-        }).catch(() => {
-            // Silenciar errores — el cron safety-net se encarga
         });
     } catch {
-        // Silenciar — fire-and-forget
+        // Silenciar AbortError (esperado a los 2s) o red — el cron safety-net se encarga
     } finally {
         clearTimeout(timeout);
     }
