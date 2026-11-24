@@ -14,11 +14,13 @@ import { use } from 'react';
 import { cn } from '@/lib/utils';
 import MappingModal from '@/components/mapping-modal';
 import PricingAuditCard from './pricing-audit-card';
+import { FiscalVitrinaCard } from './fiscal-vitrina-card';
 import { PublishPanel } from '@/components/publish-panel';
 import { Switch } from '@/components/ui/switch';
 import { InlineField } from '@/components/ui/inline-field';
 import { PicturesEditor } from '@/components/ui/pictures-editor';
 import { buildSecondaryAttributeFields } from '@/lib/vitrina-fields';
+import { extractFiscalFromMeliAttributes, MeliFiscalAttributes } from '@/lib/meli-fiscal';
 import { toHighResMeliUrl } from '@/lib/image-utils';
 
 // --- Helpers -----------------------------------------------------------------
@@ -483,9 +485,12 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
     const [enrichLoading, setEnrichLoading] = useState(false);
     // Indica que el mapeo de esta publicación se está guardando en background.
     const [mappingInProgress, setMappingInProgress] = useState(false);
-    // Ítem real de MeLi (sale_terms, pictures, attributes) para garantía, fotos y características.
+    // Ítem real de MeLi (sale_terms, pictures, attributes) para garantía, fotos, características y fiscal.
     const [ctxItem, setCtxItem] = useState<any>(null);
     const [ctxCategoryAttrs, setCtxCategoryAttrs] = useState<any[]>([]);
+    const [ctxFiscal, setCtxFiscal] = useState<MeliFiscalAttributes | null>(null);
+    const [ctxLoading, setCtxLoading] = useState(false);
+    const [ctxError, setCtxError] = useState<string | null>(null);
     const [markingPub, setMarkingPub] = useState(false);
     const [reenablingSync, setReenablingSync] = useState(false);
 
@@ -505,21 +510,51 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
 
     useEffect(() => { loadAll(false); }, [id]);
 
-    // Carga el contexto MeLi en una sola llamada (valores actuales de garantía, fotos y características).
+    // Carga el contexto MeLi en una sola llamada (garantía, fotos, características y datos fiscales SAT/CFDI).
     useEffect(() => {
         if (!id) return;
+        let cancelled = false;
+        setCtxLoading(true);
+        setCtxError(null);
         fetch(`/api/vitrinas/${id}`, { method: 'GET' })
             .then(r => r.json())
-            .then((d: any) => { if (d?.ok) { setCtxItem(d.item); setCtxCategoryAttrs(d.categoryAttributes || []); } })
-            .catch(() => { /* silencioso */ });
+            .then((d: any) => {
+                if (cancelled) return;
+                if (d?.ok) {
+                    setCtxItem(d.item);
+                    setCtxCategoryAttrs(d.categoryAttributes || []);
+                    setCtxFiscal(d.fiscal ?? extractFiscalFromMeliAttributes(d.item?.attributes));
+                } else {
+                    setCtxError(d?.error || 'No se pudo consultar MeLi');
+                }
+            })
+            .catch((e: any) => {
+                if (!cancelled) setCtxError(e?.message || 'Error de red al consultar MeLi');
+            })
+            .finally(() => {
+                if (!cancelled) setCtxLoading(false);
+            });
+        return () => { cancelled = true; };
     }, [id]);
 
-    // Re-carga el contexto MeLi (tras guardar garantía, fotos o características).
+    // Re-carga el contexto MeLi (tras guardar garantía, fotos, características o datos fiscales).
     async function reloadContext() {
+        setCtxLoading(true);
+        setCtxError(null);
         try {
             const d = await fetch(`/api/vitrinas/${id}`, { method: 'GET' }).then(r => r.json()).catch(() => null);
-            if (d?.ok) { setCtxItem(d.item); setCtxCategoryAttrs(d.categoryAttributes || []); }
-        } catch { /* silencioso */ }
+            if (d?.ok) {
+                setCtxItem(d.item);
+                setCtxCategoryAttrs(d.categoryAttributes || []);
+                setCtxFiscal(d.fiscal ?? extractFiscalFromMeliAttributes(d.item?.attributes));
+            } else {
+                setCtxError(d?.error || 'No se pudo recargar contexto MeLi');
+            }
+        } catch (e: any) {
+            setCtxError(e?.message || 'Error de red');
+        } finally {
+            setCtxLoading(false);
+        }
     }
 
     // Marca la publicación como revisada (auditoría de publicación) vía endpoint fail-safe.
@@ -578,7 +613,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
             if (pubData) {
                 const { data: mapeosData } = await supabase
                     .from('mapeo_publicacion_articulo')
-                    .select(`*, articulo:articulos(articulo_id, nombre, marca, modelo)`)
+                    .select(`*, articulo:articulos(articulo_id, nombre, marca, modelo, codigo_sat)`)
                     .eq('publicacion_id', id);
                 setMapeos(mapeosData || []);
 
@@ -633,7 +668,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
         try {
             const { data: mapeosData } = await supabase
                 .from('mapeo_publicacion_articulo')
-                .select(`*, articulo:articulos(articulo_id, nombre, marca, modelo)`)
+                .select(`*, articulo:articulos(articulo_id, nombre, marca, modelo, codigo_sat)`)
                 .eq('publicacion_id', id);
             setMapeos(mapeosData || []);
             setPub((prev: any) => prev ? { ...prev, esta_mapeado: (mapeosData || []).length > 0 } : prev);
@@ -1316,6 +1351,19 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                             </div>
                         </Section>
 
+                        {/* Datos Fiscales (SAT / CFDI) — bajo demanda, editable y cruzado con Catálogo */}
+                        <FiscalVitrinaCard
+                            pubId={id}
+                            fiscal={ctxFiscal}
+                            loading={ctxLoading}
+                            loadError={ctxError}
+                            articulo={mapeos?.[0]?.articulo ?? null}
+                            onSaved={async () => {
+                                await reloadContext();
+                                await refreshMapeos();
+                            }}
+                        />
+
                         {/* Características secundarias (editables) */}
                         {!isCatalogPub && secondaryFields.length > 0 && (
                             <Section title={`Características (${secondaryFields.length})`} icon={<Tag className="w-4 h-4" />}>
@@ -1778,6 +1826,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 sku: pub.seller_custom_field || pub.seller_sku,
                                 gtin: pub.gtin || pub.ean,
                                 cantidad_requerida: mapeos?.[0]?.cantidad_requerida ?? 1,
+                                initialFiscal: ctxFiscal,
                             }}
                         />
                     </div>

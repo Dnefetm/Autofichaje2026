@@ -28,6 +28,7 @@ import { MeliAdapter } from '@gestor/adapters/meli';
 import { resolvePublicationAI } from '@gestor/sync/meli-ai-helper';
 import { registrarAuditoria } from '@/lib/auditoria';
 import { checkPublishDuplicates, normalizeGtins, extractGtinCaps } from '@/lib/publish-duplicates';
+import { extractFiscalFromMeliAttributes, FISCAL_ATTR_IDS, IVA_VALUE_IDS, IEPS_VALUE_IDS } from '@/lib/meli-fiscal';
 import sharp from 'sharp';
 
 export const dynamic = 'force-dynamic';
@@ -69,27 +70,6 @@ function truncarTitulo(titulo: string, maxLen: number = 60): string {
     const lastSpace = sub.lastIndexOf(' ');
     return (lastSpace > maxLen * 0.6 ? sub.slice(0, lastSpace) : sub).trim();
 }
-
-const FISCAL_ATTR_IDS = new Set([
-    'SAT_KEY',
-    'MEASURE_UNIT_KEY',
-    'MEASURE_UNIT_DESCRIPTION',
-    'INVOICE_PRODUCT_NAME',
-    'IVA_FOR_RESALE',
-    'IEPS',
-    'IMPORT_DECLARATION_NUMBER',
-]);
-const IVA_VALUE_IDS: Record<string, string> = {
-    '16%': '81861616',
-    '0%': '81861613',
-    'exento': '81861612',
-};
-const IEPS_VALUE_IDS: Record<string, string> = {
-    '0%': '82021095', '3%': '82021096', '6%': '82021097', '7%': '82021098',
-    '8%': '82021099', '9%': '82021100', '25%': '82021101', '26.5%': '82021102',
-    '30%': '82021103', '30.4%': '82021104', '50%': '82021105', '53%': '82021106',
-    '160%': '82021107',
-};
 
 // -- Helper: resolver datos con prioridad ficha → manual → vidriera origen → artículo ---
 function resolvePublicationData(articulo: any, ficha: any | null, source: any | null, manual: any | null = null) {
@@ -1127,6 +1107,7 @@ export async function POST(req: NextRequest) {
             enviados: fiscalEnviados,
             omitidos: fiscalOmitidos,
             articulo_codigo_sat: resolved.codigo_sat ?? null,
+            source_fiscal: sourceItem ? extractFiscalFromMeliAttributes(sourceItem.attributes) : null,
         };
 
         trace.paso_7_attributes_mapeados = attributes;

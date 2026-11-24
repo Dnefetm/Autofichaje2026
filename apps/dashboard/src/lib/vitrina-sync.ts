@@ -10,6 +10,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import { getField, FieldChange, FieldContext } from './vitrina-fields';
+import { isValidSatKey } from './meli-fiscal';
 
 export interface FieldResult {
     field: string;
@@ -96,7 +97,15 @@ export async function applyVitrinaChanges(
             results.push({ field: ch.field, ok: false, error: can.reason });
             continue;
         }
-        accepted.push({ field: f.id, value: ch.value });
+        if (f.id === 'sat_key' && !isValidSatKey(ch.value)) {
+            results.push({ field: ch.field, ok: false, error: 'La clave SAT debe tener exactamente 8 dígitos numéricos' });
+            continue;
+        }
+        if (f.id === 'import_declaration_number' && String(ch.value ?? '').replace(/\D/g, '').length === 0) {
+            results.push({ field: ch.field, ok: false, error: 'El pedimento debe contener al menos 1 dígito numérico' });
+            continue;
+        }
+        accepted.push({ field: f.id, value: ch.value, valueId: ch.valueId ?? null });
     }
 
     const okSet = new Set<string>();
@@ -123,7 +132,7 @@ export async function applyVitrinaChanges(
             continue;
         }
         const f = getField(a.field)!;
-        const patch = f.toMeliPatch(a.value, ctx);
+        const patch = f.toMeliPatch(a.value, ctx, a.valueId);
         switch (f.writeKind) {
             case 'title':
             case 'shipping':

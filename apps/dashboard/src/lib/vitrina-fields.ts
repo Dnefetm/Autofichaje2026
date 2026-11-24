@@ -24,6 +24,8 @@ export type WriteKind =
     | 'listingType'
     | 'description';
 
+import { FISCAL_ATTR_IDS, IVA_VALUE_IDS, IVA_OPTIONS, IEPS_VALUE_IDS, IEPS_RATES } from './meli-fiscal';
+
 export type FieldType = 'text' | 'number' | 'select' | 'boolean' | 'textarea' | 'images';
 
 export interface FieldContext {
@@ -259,12 +261,122 @@ export const VITRINA_FIELDS: EditableField[] = [
             };
         },
     },
+    {
+        id: 'sat_key',
+        label: 'Clave SAT ProdServ',
+        type: 'text',
+        writeKind: 'attribute',
+        attributeId: 'SAT_KEY',
+        dbColumns: [],
+        maxLength: 8,
+        canEdit: () => yes,
+        getValue: (ctx) => attrName(ctx, 'SAT_KEY'),
+        toMeliPatch: (value) => ({ id: 'SAT_KEY', value_name: String(value ?? '').trim() }),
+    },
+    {
+        id: 'measure_unit_key',
+        label: 'Clave unidad SAT',
+        type: 'text',
+        writeKind: 'attribute',
+        attributeId: 'MEASURE_UNIT_KEY',
+        dbColumns: [],
+        maxLength: 10,
+        canEdit: () => yes,
+        getValue: (ctx) => attrName(ctx, 'MEASURE_UNIT_KEY'),
+        toMeliPatch: (value) => ({ id: 'MEASURE_UNIT_KEY', value_name: String(value ?? '').trim().toUpperCase() }),
+    },
+    {
+        id: 'measure_unit_description',
+        label: 'Unidad de medida',
+        type: 'text',
+        writeKind: 'attribute',
+        attributeId: 'MEASURE_UNIT_DESCRIPTION',
+        dbColumns: [],
+        maxLength: 60,
+        canEdit: () => yes,
+        getValue: (ctx) => attrName(ctx, 'MEASURE_UNIT_DESCRIPTION'),
+        toMeliPatch: (value) => ({ id: 'MEASURE_UNIT_DESCRIPTION', value_name: String(value ?? '').trim() }),
+    },
+    {
+        id: 'invoice_product_name',
+        label: 'Nombre en factura (CFDI)',
+        type: 'text',
+        writeKind: 'attribute',
+        attributeId: 'INVOICE_PRODUCT_NAME',
+        dbColumns: [],
+        maxLength: 255,
+        canEdit: () => yes,
+        getValue: (ctx) => attrName(ctx, 'INVOICE_PRODUCT_NAME'),
+        toMeliPatch: (value) => ({ id: 'INVOICE_PRODUCT_NAME', value_name: String(value ?? '').trim().slice(0, 255) }),
+    },
+    {
+        id: 'iva_for_resale',
+        label: 'IVA para reventa',
+        type: 'select',
+        writeKind: 'attribute',
+        attributeId: 'IVA_FOR_RESALE',
+        dbColumns: [],
+        options: IVA_OPTIONS.map((v) => ({ value: v, label: v })),
+        canEdit: () => yes,
+        getValue: (ctx) => attrName(ctx, 'IVA_FOR_RESALE'),
+        toMeliPatch: (value, ctx, valueId) => {
+            const trimmed = String(value ?? '').trim();
+            const lower = trimmed.toLowerCase();
+            const def = (ctx.categoryAttributes || []).find((a: any) => a.id === 'IVA_FOR_RESALE');
+            const matched = (def?.values || []).find(
+                (v: any) => String(v.name || '').trim().toLowerCase() === lower || String(v.id) === trimmed,
+            );
+            const resolvedId = valueId || (matched?.id != null ? String(matched.id) : IVA_VALUE_IDS[lower]);
+            return resolvedId
+                ? { id: 'IVA_FOR_RESALE', value_id: resolvedId, value_name: matched?.name || trimmed }
+                : { id: 'IVA_FOR_RESALE', value_name: trimmed };
+        },
+    },
+    {
+        id: 'ieps',
+        label: 'IEPS',
+        type: 'select',
+        writeKind: 'attribute',
+        attributeId: 'IEPS',
+        dbColumns: [],
+        options: IEPS_RATES.map((v) => ({ value: v, label: v })),
+        canEdit: () => yes,
+        getValue: (ctx) => attrName(ctx, 'IEPS'),
+        toMeliPatch: (value, ctx, valueId) => {
+            const trimmed = String(value ?? '').trim();
+            const lower = trimmed.toLowerCase();
+            const def = (ctx.categoryAttributes || []).find((a: any) => a.id === 'IEPS');
+            const matched = (def?.values || []).find(
+                (v: any) => String(v.name || '').trim().toLowerCase() === lower || String(v.id) === trimmed,
+            );
+            const resolvedId = valueId || (matched?.id != null ? String(matched.id) : IEPS_VALUE_IDS[lower]);
+            return resolvedId
+                ? { id: 'IEPS', value_id: resolvedId, value_name: matched?.name || trimmed }
+                : { id: 'IEPS', value_name: trimmed };
+        },
+    },
+    {
+        id: 'import_declaration_number',
+        label: 'Pedimento de importación',
+        type: 'text',
+        writeKind: 'attribute',
+        attributeId: 'IMPORT_DECLARATION_NUMBER',
+        dbColumns: [],
+        maxLength: 18,
+        canEdit: () => yes,
+        getValue: (ctx) => attrName(ctx, 'IMPORT_DECLARATION_NUMBER'),
+        toMeliPatch: (value) => ({
+            id: 'IMPORT_DECLARATION_NUMBER',
+            value_name: String(value ?? '').replace(/\D/g, '').slice(0, 18),
+        }),
+    },
 ];
 
-// Atributos que NO son "características del producto" y no se exponen como editables.
+// Atributos que NO son "características del producto" y no se exponen como editables genéricos.
 const FIXED_ATTR_IDS = new Set([
     'BRAND', 'MODEL', 'GTIN', 'EAN', 'UPC', 'SELLER_SKU', 'SELLER_CUSTOM_FIELD',
     'ITEM_CONDITION', 'SIZE_GRID_ID', 'EXCLUSIVE_CHANNEL',
+    ...Array.from(FISCAL_ATTR_IDS),
 ]);
 
 /**

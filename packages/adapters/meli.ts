@@ -2015,7 +2015,7 @@ export class MeliAdapter implements MarketplaceAdapter {
     async getItem(accountId: string, itemId: string): Promise<any> {
         const accessToken = await this.getAccessToken(accountId);
         const resp = await axios.get(
-            `https://api.mercadolibre.com/items/${itemId}`,
+            `https://api.mercadolibre.com/items/${itemId}?include_attributes=all`,
             { headers: { Authorization: `Bearer ${accessToken}` } },
         );
         logger.info({ accountId, itemId, status: resp.data?.status }, 'getItem completado');

@@ -20,21 +20,11 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { toHighResMeliUrl, meetsMeliSize } from '@/lib/image-utils';
 import { AccountDuplicateStatus, CategoryGtinCaps, MatchReason, normalizeGtins } from '@/lib/publish-duplicates';
+import { MeliFiscalAttributes, SAT_MEASURE_PRESETS, IEPS_RATES, isValidSatKey } from '@/lib/meli-fiscal';
 import { toast } from 'sonner';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
-const SAT_MEASURE_PRESETS = [
-    { key: 'H87', desc: 'Pieza' },
-    { key: 'KT',  desc: 'Kit' },
-    { key: 'XBX', desc: 'Caja' },
-    { key: 'SET', desc: 'Juego' },
-    { key: 'PR',  desc: 'Par' },
-    { key: 'LTR', desc: 'Litro' },
-    { key: 'KGM', desc: 'Kilogramo' },
-    { key: 'MTR', desc: 'Metro' },
-];
-const IEPS_RATES = ['0%', '3%', '6%', '7%', '8%', '9%', '25%', '26.5%', '30%', '30.4%', '50%', '53%', '160%'];
 const DEFAULT_EMPTY_GTIN_REASONS = [
     { id: '17055159', name: 'El producto es un kit o un pack' },
     { id: '17055160', name: 'El producto no tiene código registrado' },
@@ -86,6 +76,7 @@ export interface SourcePublicacion {
     sku?: string | null;
     gtin?: string | null;
     cantidad_requerida?: number | null;
+    initialFiscal?: Partial<MeliFiscalAttributes> | null;
 }
 
 interface PublishPanelProps {
@@ -320,6 +311,49 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
     const [ivaForResale, setIvaForResale] = useState('16%');
     const [ieps, setIeps] = useState('0%');
     const [importDeclaration, setImportDeclaration] = useState('');
+    const [sourceFiscalStatus, setSourceFiscalStatus] = useState<'idle' | 'loading' | 'loaded_sat' | 'loaded_empty' | 'error'>('idle');
+    const [sourceSatKey, setSourceSatKey] = useState<string | null>(null);
+    const fiscalTouchedRef = useRef({
+        sat: false,
+        unit: false,
+        invoiceName: false,
+        iva: false,
+        ieps: false,
+        pedimento: false,
+    });
+
+    function applySourceFiscal(fiscal: Partial<MeliFiscalAttributes> | null | undefined) {
+        if (!fiscal) return;
+        const srcSat = fiscal.sat_key ? String(fiscal.sat_key).trim() : '';
+        if (srcSat) {
+            setSourceSatKey(srcSat);
+            setSourceFiscalStatus('loaded_sat');
+            if (!fiscalTouchedRef.current.sat) setSatKey(srcSat);
+        } else {
+            setSourceSatKey(null);
+            setSourceFiscalStatus('loaded_empty');
+        }
+        if (fiscal.measure_unit_key && !fiscalTouchedRef.current.unit) {
+            setMeasureUnitKey(String(fiscal.measure_unit_key).trim().toUpperCase());
+            setMeasureUnitTouched(true);
+        }
+        if (fiscal.measure_unit_description && !fiscalTouchedRef.current.unit) {
+            setMeasureUnitDesc(String(fiscal.measure_unit_description).trim());
+            setMeasureUnitTouched(true);
+        }
+        if (fiscal.invoice_product_name && !fiscalTouchedRef.current.invoiceName) {
+            setInvoiceProductName(String(fiscal.invoice_product_name).trim());
+        }
+        if (fiscal.iva_for_resale && !fiscalTouchedRef.current.iva) {
+            setIvaForResale(String(fiscal.iva_for_resale).trim());
+        }
+        if (fiscal.ieps && !fiscalTouchedRef.current.ieps) {
+            setIeps(String(fiscal.ieps).trim());
+        }
+        if (fiscal.import_declaration_number && !fiscalTouchedRef.current.pedimento) {
+            setImportDeclaration(String(fiscal.import_declaration_number).trim());
+        }
+    }
 
     // Modo standalone (publicar desde 0 sin catálogo)
     const [manualNombre, setManualNombre] = useState('');
@@ -402,15 +436,32 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
         if (sourcePublicacion.modelo) setModeloOverride(sourcePublicacion.modelo);
         if (sourcePublicacion.sku) setSkuOverride(sourcePublicacion.sku);
         if (sourcePublicacion.gtin) setGtinOverride(sourcePublicacion.gtin);
-        // Cargar las fotos completas de la vidriera origen para que sean visibles y editables.
+        if (sourcePublicacion.initialFiscal) {
+            applySourceFiscal(sourcePublicacion.initialFiscal);
+        } else {
+            setSourceFiscalStatus('loading');
+        }
+        // Cargar las fotos completas y datos fiscales de la vidriera origen bajo demanda.
+        let cancelled = false;
         fetch(`/api/meli/item-pictures?accountId=${encodeURIComponent(sourcePublicacion.marketplace_id)}&itemId=${encodeURIComponent(sourcePublicacion.external_item_id)}`)
             .then(r => r.json())
             .then(data => {
+                if (cancelled) return;
                 if (data?.ok && Array.isArray(data.pictures) && data.pictures.length > 0) {
                     setImages(data.pictures.map(toHighResMeliUrl));
                 }
+                if (data?.ok && data?.fiscal) {
+                    applySourceFiscal(data.fiscal);
+                } else if (!sourcePublicacion.initialFiscal) {
+                    setSourceFiscalStatus('error');
+                }
             })
-            .catch(() => { /* silencioso: si falla, el backend igual hereda las fotos al publicar */ });
+            .catch(() => {
+                if (!cancelled && !sourcePublicacion.initialFiscal) {
+                    setSourceFiscalStatus('error');
+                }
+            });
+        return () => { cancelled = true; };
     }, [sourcePublicacion]);
 
     // Pre-cargar y AUTO-AGREGAR las fotos del artículo (url_imagen + ficha + 360).
@@ -459,12 +510,12 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
         return () => { cancelled = true; };
     }, [articulo_id]);
 
-    // Precargar sugerencias fiscales editables desde el artículo / nombre / pack
+    // Precargar sugerencias fiscales editables (prioridad: MeLi origen > articulos.codigo_sat)
     useEffect(() => {
-        if (!satKeyTouched && articleData?.codigo_sat) {
+        if (!satKeyTouched && !fiscalTouchedRef.current.sat && !sourceSatKey && articleData?.codigo_sat) {
             setSatKey(String(articleData.codigo_sat));
         }
-    }, [articleData?.codigo_sat, satKeyTouched]);
+    }, [articleData?.codigo_sat, satKeyTouched, sourceSatKey]);
 
     useEffect(() => {
         const baseName = nombreArticulo || manualNombre.trim();
@@ -904,8 +955,16 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                 }),
             });
             const data = await res.json();
-            if (data?.trace?.paso_7_fiscal?.articulo_codigo_sat && !satKeyTouched && !satKey) {
-                setSatKey(String(data.trace.paso_7_fiscal.articulo_codigo_sat));
+            if (data?.trace?.paso_7_fiscal?.source_fiscal) {
+                applySourceFiscal(data.trace.paso_7_fiscal.source_fiscal);
+            }
+            if (
+                data?.trace?.paso_7_fiscal?.articulo_codigo_sat &&
+                !satKeyTouched &&
+                !fiscalTouchedRef.current.sat &&
+                !data?.trace?.paso_7_fiscal?.source_fiscal?.sat_key
+            ) {
+                setSatKey(prev => prev || String(data.trace.paso_7_fiscal.articulo_codigo_sat));
             }
             if (data?.trace?.paso_1_5_duplicado?.by_account) {
                 setAccountDupMap(prev => ({ ...prev, ...data.trace.paso_1_5_duplicado.by_account }));
@@ -1206,11 +1265,23 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                             Valores precargados sugeridos — revísalos o edítalos antes de publicar.
                         </p>
                     </div>
-                    {articleData?.codigo_sat && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--ok)]/10 text-[var(--ok)] font-mono font-bold shrink-0">
-                            SAT BD: {articleData.codigo_sat}
-                        </span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                        {sourceFiscalStatus === 'loading' && (
+                            <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-[var(--surface)] text-[var(--text-faint)] border border-[var(--border)]">
+                                <Loader2 className="w-2.5 h-2.5 animate-spin" /> Leyendo SAT origen…
+                            </span>
+                        )}
+                        {sourceSatKey && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--info)]/10 text-[var(--info)] font-mono font-bold">
+                                SAT origen: {sourceSatKey}
+                            </span>
+                        )}
+                        {articleData?.codigo_sat && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--ok)]/10 text-[var(--ok)] font-mono font-bold">
+                                SAT BD: {articleData.codigo_sat}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 {includeFiscalData ? (
@@ -1222,16 +1293,28 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                             <input
                                 type="text"
                                 value={satKey}
-                                onChange={e => { setSatKey(e.target.value); setSatKeyTouched(true); }}
+                                onChange={e => { fiscalTouchedRef.current.sat = true; setSatKey(e.target.value); setSatKeyTouched(true); }}
                                 placeholder="ej. 25172500"
                                 maxLength={20}
                                 className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
                             />
-                            {!satKey.trim() && (
+                            {satKey.trim() && !isValidSatKey(satKey.trim()) ? (
+                                <span className="text-[9px] text-[var(--err)]">
+                                    Debe tener exactamente 8 dígitos numéricos.
+                                </span>
+                            ) : !satKey.trim() && sourcePublicacion && sourceFiscalStatus === 'loaded_empty' ? (
+                                <span className="text-[9px] text-[var(--warn)]">
+                                    La publicación origen no devolvió SAT_KEY en MeLi — puedes capturarlo aquí.
+                                </span>
+                            ) : !satKey.trim() && sourcePublicacion && sourceFiscalStatus === 'error' ? (
+                                <span className="text-[9px] text-[var(--warn)]">
+                                    No se pudo leer el SAT de MeLi origen — captúralo manualmente si aplica.
+                                </span>
+                            ) : !satKey.trim() ? (
                                 <span className="text-[9px] text-[var(--warn)]">
                                     Sin clave SAT capturada (opcional aquí, recomendada para facturación).
                                 </span>
-                            )}
+                            ) : null}
                         </label>
 
                         <div className="grid grid-cols-2 gap-2">
@@ -1239,7 +1322,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                 <span className="text-[10px] font-semibold text-[var(--text-muted)]">IVA</span>
                                 <select
                                     value={ivaForResale}
-                                    onChange={e => setIvaForResale(e.target.value)}
+                                    onChange={e => { fiscalTouchedRef.current.iva = true; setIvaForResale(e.target.value); }}
                                     className="mt-0.5 w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                                 >
                                     <option value="16%">16%</option>
@@ -1252,7 +1335,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                 <span className="text-[10px] font-semibold text-[var(--text-muted)]">IEPS</span>
                                 <select
                                     value={ieps}
-                                    onChange={e => setIeps(e.target.value)}
+                                    onChange={e => { fiscalTouchedRef.current.ieps = true; setIeps(e.target.value); }}
                                     className="mt-0.5 w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                                 >
                                     <option value="">No enviar</option>
@@ -1268,6 +1351,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                             <select
                                 value={SAT_MEASURE_PRESETS.some(p => p.key === measureUnitKey && p.desc === measureUnitDesc) ? `${measureUnitKey}|${measureUnitDesc}` : 'CUSTOM'}
                                 onChange={e => {
+                                    fiscalTouchedRef.current.unit = true;
                                     setMeasureUnitTouched(true);
                                     if (e.target.value === 'CUSTOM') return;
                                     const [k, d] = e.target.value.split('|');
@@ -1289,7 +1373,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                 <input
                                     type="text"
                                     value={measureUnitKey}
-                                    onChange={e => { setMeasureUnitKey(e.target.value); setMeasureUnitTouched(true); }}
+                                    onChange={e => { fiscalTouchedRef.current.unit = true; setMeasureUnitKey(e.target.value); setMeasureUnitTouched(true); }}
                                     placeholder="H87"
                                     className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono uppercase"
                                 />
@@ -1299,7 +1383,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                 <input
                                     type="text"
                                     value={measureUnitDesc}
-                                    onChange={e => { setMeasureUnitDesc(e.target.value); setMeasureUnitTouched(true); }}
+                                    onChange={e => { fiscalTouchedRef.current.unit = true; setMeasureUnitDesc(e.target.value); setMeasureUnitTouched(true); }}
                                     placeholder="Pieza"
                                     className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                                 />
@@ -1311,7 +1395,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                             <input
                                 type="text"
                                 value={invoiceProductName}
-                                onChange={e => { setInvoiceProductName(e.target.value); setInvoiceNameTouched(true); }}
+                                onChange={e => { fiscalTouchedRef.current.invoiceName = true; setInvoiceProductName(e.target.value); setInvoiceNameTouched(true); }}
                                 placeholder={nombreArticulo || 'Descripción fiscal para factura'}
                                 maxLength={255}
                                 className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
@@ -1323,7 +1407,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                             <input
                                 type="text"
                                 value={importDeclaration}
-                                onChange={e => setImportDeclaration(e.target.value)}
+                                onChange={e => { fiscalTouchedRef.current.pedimento = true; setImportDeclaration(e.target.value); }}
                                 placeholder="Solo si eres importador de primera mano"
                                 maxLength={20}
                                 className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
@@ -2661,22 +2745,57 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                             );
                                         })()}
 
-                                        {/* Confirmación de atributos fiscales procesados */}
-                                        {t?.paso_7_fiscal && (
-                                            <div className="p-2.5 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] text-[11px] space-y-1">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="font-bold text-[var(--text-muted)] uppercase text-[10px]">Resumen fiscal resuelto</span>
-                                                    <span className="text-[10px] font-mono text-[var(--text-faint)]">
-                                                        {t.paso_7_fiscal.enabled ? `${(t.paso_7_fiscal.enviados || []).length} atributo(s) a enviar` : 'Desactivado'}
-                                                    </span>
+                                        {/* Confirmación explícita de atributos fiscales resueltos */}
+                                        {t?.paso_7_fiscal && (() => {
+                                            const enviados: Array<{ id: string; value_name?: string; value_id?: string }> = t.paso_7_fiscal.enviados || [];
+                                            const omitidos: string[] = t.paso_7_fiscal.omitidos || [];
+                                            const hasSatEnviado = enviados.some(a => a.id === 'SAT_KEY');
+                                            const chipLabel = (a: { id: string; value_name?: string; value_id?: string }) => {
+                                                const val = a.value_name || a.value_id || '';
+                                                switch (a.id) {
+                                                    case 'SAT_KEY': return `SAT: ${val}`;
+                                                    case 'IVA_FOR_RESALE': return `IVA: ${val}`;
+                                                    case 'IEPS': return `IEPS: ${val}`;
+                                                    case 'MEASURE_UNIT_KEY': return `Unidad: ${val}`;
+                                                    case 'MEASURE_UNIT_DESCRIPTION': return `Desc. unidad: ${val}`;
+                                                    case 'INVOICE_PRODUCT_NAME': return `Factura: ${val.length > 28 ? val.slice(0, 28) + '…' : val}`;
+                                                    case 'IMPORT_DECLARATION_NUMBER': return `Pedimento: ${val}`;
+                                                    default: return `${a.id}: ${val}`;
+                                                }
+                                            };
+                                            return (
+                                                <div className="p-2.5 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] text-[11px] space-y-1.5">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="font-bold text-[var(--text-muted)] uppercase text-[10px]">Resumen fiscal resuelto</span>
+                                                        <span className="text-[10px] font-mono text-[var(--text-faint)]">
+                                                            {t.paso_7_fiscal.enabled ? `${enviados.length} atributo(s) a enviar` : 'Desactivado'}
+                                                        </span>
+                                                    </div>
+                                                    {t.paso_7_fiscal.enabled && enviados.length > 0 && (
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {enviados.map((a) => (
+                                                                <span
+                                                                    key={a.id}
+                                                                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text)]"
+                                                                >
+                                                                    {chipLabel(a)}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {t.paso_7_fiscal.enabled && !hasSatEnviado && (
+                                                        <p className="text-[10px] text-[var(--warn)]">
+                                                            ⚠ Sin SAT_KEY en este envío (si deseas enviarlo, vuelve y captura la clave de 8 dígitos).
+                                                        </p>
+                                                    )}
+                                                    {omitidos.length > 0 && (
+                                                        <p className="text-[10px] text-[var(--warn)]">
+                                                            Omitidos en esta categoría: {omitidos.join(', ')}
+                                                        </p>
+                                                    )}
                                                 </div>
-                                                {(t.paso_7_fiscal.omitidos || []).length > 0 && (
-                                                    <p className="text-[10px] text-[var(--warn)]">
-                                                        Omitidos en esta categoría: {t.paso_7_fiscal.omitidos.join(', ')}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
 
                                         {/* Stepper transparente + trace técnico colapsado */}
                                         <PublishStepper trace={t || {}} />
