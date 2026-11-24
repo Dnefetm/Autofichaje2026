@@ -308,6 +308,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
     const [manualVariante, setManualVariante] = useState('');
     const [manualDescripcion, setManualDescripcion] = useState('');
     const [registerInCatalog, setRegisterInCatalog] = useState(false);
+    const [createPaused, setCreatePaused] = useState(false);
     const isStandalone = Boolean(standaloneMode || (!articulo_id && !sourcePublicacion));
     const effectiveGtin = gtinOverride.trim() || codigoUniversal || sourcePublicacion?.gtin || '';
 
@@ -803,6 +804,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                     ...(effectiveForce ? { force_duplicate: true } : {}),
                     ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),
                     ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
+                    ...(createPaused ? { create_paused: true } : {}),
                     ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
                     ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
                     ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
@@ -855,6 +857,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                     cantidad_requerida: packQtyNum,
                     ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),
                     ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
+                    ...(createPaused ? { create_paused: true } : {}),
                     ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
                     ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
                     ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
@@ -923,6 +926,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                             ...(familyNameOverride ? { family_name_override: familyNameOverride } : {}),
                             ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),
                             ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
+                            ...(createPaused ? { create_paused: true } : {}),
                             ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
                             free_shipping: freeShipping,
                             shipping_mode: shippingMode,
@@ -1578,7 +1582,17 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                         placeholder="1"
                                         className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface)] font-mono"
                                     />
-                                    <p className="text-[10px] text-[var(--text-faint)] mt-1">Stock que se verá publicado en MeLi.</p>
+                                    <p className="text-[10px] text-[var(--text-faint)] mt-1">Stock que se verá publicado en MeLi. Si pones 0, se creará pausada con stock 0.</p>
+                                    <label className="mt-2 inline-flex items-center gap-2 text-xs text-[var(--text)] cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={createPaused || stockOverride === '0'}
+                                            disabled={stockOverride === '0'}
+                                            onChange={e => setCreatePaused(e.target.checked)}
+                                            className="w-3.5 h-3.5 rounded text-[var(--accent)] focus:ring-[var(--accent)]"
+                                        />
+                                        <span>Crear pausada (sin activar ventas todavía)</span>
+                                    </label>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5" htmlFor="publish-pack-qty">
@@ -1746,6 +1760,16 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                                 <p className="text-xs text-[var(--ok)]">Cuenta: <strong>{accountName}</strong>{t?.paso_3_precio?.sale_price ? <span> · Precio: <strong>{new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(t.paso_3_precio.sale_price)}</strong></span> : null}</p>
                                             </div>
                                         </div>
+
+                                        {t?.paso_5_3_pausada && (
+                                            <div className="flex items-start gap-2.5 p-3 bg-[var(--info)]/10 border border-[var(--info)]/30 rounded-xl text-xs text-[var(--info)]">
+                                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                                <p>
+                                                    Esta publicación nacerá <strong>pausada</strong> en Mercado Libre
+                                                    {t.paso_5_3_pausada.stock_cero ? ' con stock 0.' : '.'}
+                                                </p>
+                                            </div>
+                                        )}
 
                                         {t?.paso_12_5_advertencia && (
                                             <div className="flex items-start gap-2.5 p-3 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl text-xs text-[var(--warn)]">

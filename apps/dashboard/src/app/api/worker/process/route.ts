@@ -393,6 +393,35 @@ async function handleCatalogOptin(job: any, meli: MeliAdapter): Promise<{ done: 
         } catch { /* no bloqueante */ }
     }
 
+    // Si la publicación se solicitó pausada / con stock 0, aplicarlo ahora que terminó el optin.
+    const pauseAfter = Boolean(job.payload?.pause_after_optin);
+    const zeroStockAfter = Boolean(job.payload?.zero_stock_after_optin);
+    if (pauseAfter) {
+        try {
+            let finalStock: number | null = null;
+            if (zeroStockAfter) {
+                try {
+                    const stRes = await meli.updateStock(marketplace_id, [{ itemId: item_id, quantity: 0 }]);
+                    if (stRes?.[0]?.status === 'success') finalStock = 0;
+                } catch { /* best-effort antes de pauseListing */ }
+            }
+            try { await meli.pauseListing(marketplace_id, item_id); } catch { /* puede estar ya pausada por stock 0 */ }
+            if (catItemId) {
+                try { await meli.pauseListing(marketplace_id, catItemId); } catch { /* best-effort */ }
+            }
+            const targetIds = [item_id, ...(catItemId ? [catItemId] : [])];
+            await supabaseAdmin
+                .from('publicaciones_externas')
+                .update({
+                    status_externo: 'paused',
+                    ...(finalStock === 0 ? { stock_publicado: 0 } : {}),
+                    actualizado_el: new Date().toISOString(),
+                })
+                .eq('marketplace_id', marketplace_id)
+                .in('external_item_id', targetIds);
+        } catch { /* no bloqueante: el optin ya quedó hecho */ }
+    }
+
     return { done: true };
 }
 

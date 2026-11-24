@@ -241,7 +241,11 @@ export async function POST(req: NextRequest) {
             fiscal_data = undefined as any,
             manual_product = null as any,
             register_in_catalog = false as boolean,
+            create_paused = false as boolean,
         } = body;
+
+        const wantsZeroStock = stock_override != null && Number(stock_override) === 0;
+        const wantsPaused = Boolean(create_paused) || wantsZeroStock;
 
         trace.input = {
             articulo_id: articulo_id ?? null,
@@ -254,6 +258,8 @@ export async function POST(req: NextRequest) {
             source_item_id: source_item_id ?? null,
             manual_mode: _tieneManual,
             register_in_catalog: !!register_in_catalog,
+            create_paused: !!create_paused,
+            wants_paused: wantsPaused,
         };
 
         // -- 0.5 Fuente vidriera (copia adaptada entre cuentas) ----------------
@@ -869,6 +875,13 @@ export async function POST(req: NextRequest) {
         } else if (stock_override == null && sourceData?.stock != null && Number(sourceData.stock) >= 0) {
             stock = Number(sourceData.stock);
             trace.paso_5_3_stock_source = { stock, nota: 'Stock copiado de la vidriera origen' };
+        }
+        if (wantsPaused) {
+            trace.paso_5_3_pausada = {
+                solicitada: true,
+                stock_cero: wantsZeroStock,
+                nota: 'MeLi exige >=1 al crear; se pausará inmediatamente tras publicar',
+            };
         }
 
         // Enlace a catálogo efectivo (se resuelve aquí para incluir catalog_required en el paso 6)
@@ -1597,6 +1610,52 @@ export async function POST(req: NextRequest) {
             trace.paso_13_descripcion = { omitido: 'Sin descripción disponible (ni en ficha ni en artículo)' };
         }
 
+        // -- 13.2 Pausar / ajustar stock a 0 tras crear (POST /items exige >=1) --
+        let persistedStock = Math.max(stock, 1);
+        if (wantsPaused && !catalogOptinPendiente) {
+            let pauseError: string | null = null;
+            if (wantsZeroStock) {
+                try {
+                    const stRes = await (meli as any).updateStock(marketplace_id, [{ itemId: created.item_id, quantity: 0 }]);
+                    if (stRes?.[0]?.status === 'success') {
+                        persistedStock = 0;
+                        if (stRes[0]?.data?.status === 'paused') created.status = 'paused';
+                    } else if (stRes?.[0]?.error) {
+                        pauseError = typeof stRes[0].error === 'string' ? stRes[0].error : JSON.stringify(stRes[0].error);
+                    }
+                } catch (e: any) {
+                    pauseError = e?.message || String(e);
+                }
+            }
+            if (created.status !== 'paused') {
+                try {
+                    await (meli as any).pauseListing(marketplace_id, created.item_id);
+                    created.status = 'paused';
+                } catch (e: any) {
+                    pauseError = pauseError ? `${pauseError}; ${e?.message || String(e)}` : (e?.message || String(e));
+                }
+            }
+            if (createdCatalog?.item_id) {
+                try {
+                    await (meli as any).pauseListing(marketplace_id, createdCatalog.item_id);
+                    createdCatalog.status = 'paused';
+                } catch (e: any) {
+                    pauseError = pauseError ? `${pauseError}; cat: ${e?.message || String(e)}` : `cat: ${e?.message || String(e)}`;
+                }
+            }
+            trace.paso_13_2_pausa = {
+                aplicada: created.status === 'paused',
+                stock_final: persistedStock,
+                catalogo_pausado: createdCatalog ? createdCatalog.status === 'paused' : null,
+                error: pauseError,
+            };
+        } else if (wantsPaused && catalogOptinPendiente) {
+            trace.paso_13_2_pausa = {
+                diferida_post_optin: true,
+                stock_cero: wantsZeroStock,
+            };
+        }
+
         // -- 13.5 Alta explícita en Catálogo Maestro (Opción B vía web_upsert_articulo) --
         let createdNewCatalogArticle = false;
         if (register_in_catalog && !resolvedArticuloId) {
@@ -1708,7 +1767,7 @@ export async function POST(req: NextRequest) {
                     external_variation_id: '0',
                     titulo:                p.item.title,
                     precio_venta:          price,
-                    stock_publicado:       Math.max(stock, 1),
+                    stock_publicado:       persistedStock,
                     status_externo:        p.item.status,
                     permalink:             p.item.permalink,
                     listing_type_id,
@@ -1764,6 +1823,7 @@ export async function POST(req: NextRequest) {
                     marketplace_id,
                     catalog_product_id: effectiveCatalogProductId,
                     intento:            0,
+                    ...(wantsPaused ? { pause_after_optin: true, zero_stock_after_optin: wantsZeroStock } : {}),
                 },
                 status: 'pending',
                 max_attempts: 5,
