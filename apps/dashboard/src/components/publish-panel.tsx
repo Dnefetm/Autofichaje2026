@@ -23,6 +23,18 @@ import { toast } from 'sonner';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
+const SAT_MEASURE_PRESETS = [
+    { key: 'H87', desc: 'Pieza' },
+    { key: 'KT',  desc: 'Kit' },
+    { key: 'XBX', desc: 'Caja' },
+    { key: 'SET', desc: 'Juego' },
+    { key: 'PR',  desc: 'Par' },
+    { key: 'LTR', desc: 'Litro' },
+    { key: 'KGM', desc: 'Kilogramo' },
+    { key: 'MTR', desc: 'Metro' },
+];
+const IEPS_RATES = ['0%', '3%', '6%', '7%', '8%', '9%', '25%', '26.5%', '30%', '30.4%', '50%', '53%', '160%'];
+
 // Convierte una ruta relativa de Storage ("Bucket/file.jpg") a URL pública.
 // Las imágenes de articulos.imagenes llegan como rutas relativas, no http.
 function getPublicImageUrl(rawPath: string | null | undefined): string | null {
@@ -59,8 +71,8 @@ export interface SourcePublicacion {
 }
 
 interface PublishPanelProps {
-    articulo_id: string;
-    nombreArticulo: string;
+    articulo_id?: string;
+    nombreArticulo?: string;
     /** UUID de fichas_tecnicas — si viene, el backend usa la ficha como fuente principal */
     ficha_id?: string;
     /** URLs de imágenes base para pre-cargar como sugerencias */
@@ -71,6 +83,8 @@ interface PublishPanelProps {
     codigoUniversal?: string;
     /** Vidriera origen a copiar/adaptar hacia otra cuenta */
     sourcePublicacion?: SourcePublicacion;
+    /** Modo standalone: publicar desde 0 sin artículo del catálogo maestro */
+    standaloneMode?: boolean;
 }
 
 // -- Helpers ------------------------------------------------------------------
@@ -198,7 +212,7 @@ function PublishStepper({ trace }: { trace: Record<string, any> }) {
 }
 
 // -- Componente principal ------------------------------------------------------
-export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBase = [], modalMode = false, codigoUniversal = '', sourcePublicacion }: PublishPanelProps) {
+export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, imagenesBase = [], modalMode = false, codigoUniversal = '', sourcePublicacion, standaloneMode = false }: PublishPanelProps) {
     // Cuentas
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
@@ -275,6 +289,27 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
     // Datos propios del artículo (para la comparativa catálogo vs propio)
     const [articleData, setArticleData] = useState<any>(null);
+
+    // Datos fiscales (SAT / CFDI) — valores sugeridos precargados y 100% editables
+    const [includeFiscalData, setIncludeFiscalData] = useState(true);
+    const [satKey, setSatKey] = useState('');
+    const [satKeyTouched, setSatKeyTouched] = useState(false);
+    const [measureUnitKey, setMeasureUnitKey] = useState('H87');
+    const [measureUnitDesc, setMeasureUnitDesc] = useState('Pieza');
+    const [measureUnitTouched, setMeasureUnitTouched] = useState(false);
+    const [invoiceProductName, setInvoiceProductName] = useState(nombreArticulo || '');
+    const [invoiceNameTouched, setInvoiceNameTouched] = useState(false);
+    const [ivaForResale, setIvaForResale] = useState('16%');
+    const [ieps, setIeps] = useState('0%');
+    const [importDeclaration, setImportDeclaration] = useState('');
+
+    // Modo standalone (publicar desde 0 sin catálogo)
+    const [manualNombre, setManualNombre] = useState('');
+    const [manualVariante, setManualVariante] = useState('');
+    const [manualDescripcion, setManualDescripcion] = useState('');
+    const [registerInCatalog, setRegisterInCatalog] = useState(false);
+    const isStandalone = Boolean(standaloneMode || (!articulo_id && !sourcePublicacion));
+    const effectiveGtin = gtinOverride.trim() || codigoUniversal || sourcePublicacion?.gtin || '';
 
     // -- Cargar cuentas ------------------------------------------------------
     useEffect(() => {
@@ -386,12 +421,37 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         let cancelled = false;
         supabase
             .from('articulos')
-            .select('nombre, marca, modelo, variante, categoria, codigo_universal, peso_kg, largo_cm, ancho_cm, alto_cm, descripcion, atributos_especificos')
+            .select('nombre, marca, modelo, variante, categoria, codigo_universal, codigo_sat, peso_kg, largo_cm, ancho_cm, alto_cm, descripcion, atributos_especificos')
             .eq('articulo_id', articulo_id)
             .single()
             .then(({ data }) => { if (!cancelled && data) setArticleData(data); });
         return () => { cancelled = true; };
     }, [articulo_id]);
+
+    // Precargar sugerencias fiscales editables desde el artículo / nombre / pack
+    useEffect(() => {
+        if (!satKeyTouched && articleData?.codigo_sat) {
+            setSatKey(String(articleData.codigo_sat));
+        }
+    }, [articleData?.codigo_sat, satKeyTouched]);
+
+    useEffect(() => {
+        const baseName = nombreArticulo || manualNombre.trim();
+        if (!invoiceNameTouched && baseName && !invoiceProductName) {
+            setInvoiceProductName(baseName);
+        }
+    }, [nombreArticulo, manualNombre, invoiceNameTouched, invoiceProductName]);
+
+    useEffect(() => {
+        if (measureUnitTouched) return;
+        if (packQtyNum > 1) {
+            setMeasureUnitKey('KT');
+            setMeasureUnitDesc('Kit');
+        } else {
+            setMeasureUnitKey('H87');
+            setMeasureUnitDesc('Pieza');
+        }
+    }, [packQtyNum, measureUnitTouched]);
 
     // Re-fetch atributos requeridos cuando el usuario cambia la categoría en el preview
     useEffect(() => {
@@ -618,14 +678,14 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     // Buscar producto en el catálogo de MeLi por GTIN/EAN
     async function searchCatalogByGtin() {
         if (!primaryAccount) { setErrorMsg('Selecciona una cuenta MeLi primero'); return; }
-        if (!codigoUniversal) { setErrorMsg('Este artículo no tiene código universal (GTIN/EAN) para buscar en catálogo'); return; }
+        if (!effectiveGtin) { setErrorMsg('Captura primero un código universal (GTIN/EAN) para buscar en catálogo'); return; }
         setSearchingCatalog(true);
         setErrorMsg(null);
         try {
             const res = await fetch('/api/publish/catalog-search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ gtin: codigoUniversal, marketplace_id: primaryAccount }),
+                body: JSON.stringify({ gtin: effectiveGtin, marketplace_id: primaryAccount }),
             });
             const data = await res.json();
             if (data.ok && data.encontrado) {
@@ -667,20 +727,69 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         ];
     }
 
+    function buildFiscalDataPayload() {
+        if (!includeFiscalData) return { enabled: false };
+        return {
+            enabled: true,
+            sat_key: satKey.trim() || null,
+            measure_unit_key: measureUnitKey.trim().toUpperCase() || null,
+            measure_unit_description: measureUnitDesc.trim() || null,
+            invoice_product_name: invoiceProductName.trim() || null,
+            iva_for_resale: ivaForResale || null,
+            ieps: ieps || null,
+            import_declaration_number: importDeclaration.replace(/\D/g, '') || null,
+            save_sat_to_articulo: true,
+        };
+    }
+
+    function buildManualProductPayload() {
+        if (articulo_id) return undefined;
+        const w = parseDimNum(dimOverrides.SELLER_PACKAGE_WEIGHT);
+        const l = parseDimNum(dimOverrides.SELLER_PACKAGE_LENGTH);
+        const a = parseDimNum(dimOverrides.SELLER_PACKAGE_WIDTH);
+        const h = parseDimNum(dimOverrides.SELLER_PACKAGE_HEIGHT);
+        const nombre = (manualNombre.trim() || nombreArticulo.trim() || sourcePublicacion?.modelo || '').trim();
+        if (!nombre && !sourcePublicacion) return undefined;
+        return {
+            ...(nombre ? { nombre } : {}),
+            ...(marcaOverride.trim() ? { marca: marcaOverride.trim() } : {}),
+            ...(modeloOverride.trim() ? { modelo: modeloOverride.trim() } : {}),
+            ...(manualVariante.trim() ? { variante: manualVariante.trim() } : {}),
+            ...(skuOverride.trim() ? { sku: skuOverride.trim() } : {}),
+            ...(gtinOverride.trim() ? { codigo_universal: gtinOverride.trim() } : {}),
+            ...(manualDescripcion.trim() ? { descripcion: manualDescripcion.trim() } : {}),
+            ...(w != null && w > 0 ? { peso_kg: w / 1000 } : {}),
+            ...(l != null && l > 0 ? { largo_cm: l } : {}),
+            ...(a != null && a > 0 ? { ancho_cm: a } : {}),
+            ...(h != null && h > 0 ? { alto_cm: h } : {}),
+        };
+    }
+
     // -- Preview (dry_run) ----------------------------------------------------
     async function handlePreview(overrideForceDuplicate?: boolean | unknown) {
         if (!primaryAccount) { setErrorMsg('Selecciona una cuenta MeLi'); return; }
+        if (!articulo_id && !sourcePublicacion && !manualNombre.trim()) {
+            setErrorMsg('Ingresa el nombre del producto antes de generar el preview');
+            return;
+        }
+        if (!articulo_id && registerInCatalog && (manualNombre.trim().length < 5 || !marcaOverride.trim() || !modeloOverride.trim())) {
+            setErrorMsg('Para dar de alta en Catálogo Maestro se requieren Nombre (mín. 5 caracteres), Marca y Modelo.');
+            return;
+        }
         setErrorMsg(null);
         setLoading(true);
         setPreviewResult(null);
         const identOverrides = buildIdentOverrides();
+        const manualPayload = buildManualProductPayload();
         const effectiveForce = typeof overrideForceDuplicate === 'boolean' ? overrideForceDuplicate : forceDuplicate;
         try {
             const res = await fetch('/api/publish', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    articulo_id,
+                    ...(articulo_id ? { articulo_id } : {}),
+                    ...(manualPayload ? { manual_product: manualPayload } : {}),
+                    ...(registerInCatalog && !articulo_id ? { register_in_catalog: true } : {}),
                     marketplace_id: primaryAccount,
                     pictures: images,
                     ...(ficha_id ? { ficha_id } : {}),
@@ -692,14 +801,20 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     shipping_mode: shippingMode,
                     cantidad_requerida: packQtyNum,
                     ...(effectiveForce ? { force_duplicate: true } : {}),
+                    ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),
                     ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
+                    ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
                     ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
                     ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
                     ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
+                    fiscal_data: buildFiscalDataPayload(),
                 }),
             });
             const data = await res.json();
+            if (data?.trace?.paso_7_fiscal?.articulo_codigo_sat && !satKeyTouched && !satKey) {
+                setSatKey(String(data.trace.paso_7_fiscal.articulo_codigo_sat));
+            }
             if (data?.trace?.paso_1_5_duplicado?.item_existente || data?.advertencia_duplicado?.item_existente) {
                 setForceDuplicate(true);
             }
@@ -718,12 +833,16 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         if (!primaryAccount || !forcedCategoryId) return;
         setLoading(true);
         setErrorMsg(null);
+        const identOverrides = buildIdentOverrides();
+        const manualPayload = buildManualProductPayload();
         try {
             const res = await fetch('/api/publish', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    articulo_id,
+                    ...(articulo_id ? { articulo_id } : {}),
+                    ...(manualPayload ? { manual_product: manualPayload } : {}),
+                    ...(registerInCatalog && !articulo_id ? { register_in_catalog: true } : {}),
                     marketplace_id: primaryAccount,
                     pictures: images,
                     ...(ficha_id ? { ficha_id } : {}),
@@ -731,8 +850,17 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     listing_type_id: listingType,
                     ...(forceRuleId ? { force_rule_id: forceRuleId } : {}),
                     dry_run: true,
+                    free_shipping: freeShipping,
+                    shipping_mode: shippingMode,
+                    cantidad_requerida: packQtyNum,
+                    ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),
                     ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
+                    ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
+                    ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
+                    ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
+                    ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
+                    fiscal_data: buildFiscalDataPayload(),
                 }),
             });
             const data = await res.json();
@@ -770,6 +898,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                 });
             const identOvList = buildIdentOverrides();
             const allOverrides = [...attrOvList, ...dimOvList, ...identOvList];
+            const manualPayload = buildManualProductPayload();
 
             const results: any[] = [];
             for (const accountId of selectedAccounts) {
@@ -779,7 +908,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            articulo_id,
+                            ...(articulo_id ? { articulo_id } : {}),
+                            ...(manualPayload ? { manual_product: manualPayload } : {}),
+                            ...(registerInCatalog && !articulo_id ? { register_in_catalog: true } : {}),
                             marketplace_id: accountId,
                             pictures: images,
                             ...(ficha_id ? { ficha_id } : {}),
@@ -791,7 +922,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             ...(allOverrides.length > 0 ? { attribute_overrides: allOverrides } : {}),
                             ...(familyNameOverride ? { family_name_override: familyNameOverride } : {}),
                             ...(priceOverride && Number(priceOverride) > 0 ? { price_override: Number(priceOverride) } : {}),
-                    ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
+                            ...(stockOverride !== '' && Number(stockOverride) >= 0 ? { stock_override: Number(stockOverride) } : {}),
                             ...(descriptionOverride.trim() ? { description_override: descriptionOverride.trim() } : {}),
                             free_shipping: freeShipping,
                             shipping_mode: shippingMode,
@@ -799,10 +930,11 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                             manufacturing_time_days: manufacturingDays !== '' ? Number(manufacturingDays) : null,
                             ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
                             ...(forceDuplicate || Boolean(previewResult?.data?.trace?.paso_1_5_duplicado?.item_existente) || Boolean(sourcePublicacion) ? { force_duplicate: true } : {}),
+                            fiscal_data: buildFiscalDataPayload(),
                         }),
                     });
                     const data = await res.json();
-                    results.push({ account_name: nombreCuenta, status: res.status, ok: !!data.ok, item_id: data.item_id, permalink: data.permalink, error: data.error, errores: data.errores, meli_error: data.meli_error, meli_message: data.meli_message });
+                    results.push({ account_name: nombreCuenta, status: res.status, ok: !!data.ok, item_id: data.item_id, permalink: data.permalink, articulo_id_creado: data.articulo_id_creado ?? null, articulo_id_vinculado: data.articulo_id_vinculado ?? null, error: data.error, errores: data.errores, meli_error: data.meli_error, meli_message: data.meli_message });
                 } catch (e: any) {
                     results.push({ account_name: nombreCuenta, status: 0, ok: false, error: e.message });
                 }
@@ -831,14 +963,16 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         try {
             // Re-leer peso y dimensiones frescos (el artículo pudo editarse después de montar el panel).
             let fresh = articleData;
-            try {
-                const { data: art } = await supabase
-                    .from('articulos')
-                    .select('peso_kg, largo_cm, ancho_cm, alto_cm')
-                    .eq('articulo_id', articulo_id)
-                    .single();
-                if (art) fresh = art;
-            } catch { /* conserva articleData */ }
+            if (articulo_id) {
+                try {
+                    const { data: art } = await supabase
+                        .from('articulos')
+                        .select('peso_kg, largo_cm, ancho_cm, alto_cm')
+                        .eq('articulo_id', articulo_id)
+                        .single();
+                    if (art) fresh = art;
+                } catch { /* conserva articleData */ }
+            }
 
             const trace = previewResult?.data?.trace || {};
             const dims = trace.paso_7_package_dimensions || {};
@@ -848,7 +982,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
             const pesoG = parseDimNum(dimOverrides.SELLER_PACKAGE_WEIGHT ?? dims.SELLER_PACKAGE_WEIGHT)
                 ?? (fresh?.peso_kg != null ? Math.round(Number(fresh.peso_kg) * 1000) : 0);
             if (pesoG <= 0) {
-                setCotizacionError('El artículo no tiene peso configurado. Ponle peso (kg) y dimensiones en "Datos del artículo" y vuelve a cotizar el envío.');
+                setCotizacionError(articulo_id
+                    ? 'El artículo no tiene peso configurado. Ponle peso (kg) y dimensiones en "Datos del artículo" y vuelve a cotizar el envío.'
+                    : 'Captura el peso (g) y dimensiones del paquete para poder cotizar el envío.');
                 return;
             }
             const precio = Number(priceOverride || (trace.paso_9_titulo?.price_final ?? trace.paso_3_precio?.sale_price ?? 0));
@@ -907,7 +1043,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
         setAttrOverrides({});
         setCategoryOverride('');
         setFamilyNameOverride('');
-        setPriceOverride('');
+        if (!isStandalone) setPriceOverride('');
         setStockOverride('1');
         setDescriptionOverride('');
         setExtractUrl('');
@@ -931,6 +1067,159 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
     function toggleAccount(id: string) {
         setSelectedAccounts(prev =>
             prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    }
+
+    function renderFiscalSection() {
+        return (
+            <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                    <div>
+                        <label className="inline-flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={includeFiscalData}
+                                onChange={e => setIncludeFiscalData(e.target.checked)}
+                                className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)]"
+                            />
+                            <span className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider">
+                                Datos Fiscales (SAT / CFDI)
+                            </span>
+                        </label>
+                        <p className="text-[10px] text-[var(--text-faint)] mt-0.5 ml-6">
+                            Valores precargados sugeridos — revísalos o edítalos antes de publicar.
+                        </p>
+                    </div>
+                    {articleData?.codigo_sat && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--ok)]/10 text-[var(--ok)] font-mono font-bold shrink-0">
+                            SAT BD: {articleData.codigo_sat}
+                        </span>
+                    )}
+                </div>
+
+                {includeFiscalData ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        <label className="block">
+                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">
+                                Clave SAT ProdServ (8 dígitos)
+                            </span>
+                            <input
+                                type="text"
+                                value={satKey}
+                                onChange={e => { setSatKey(e.target.value); setSatKeyTouched(true); }}
+                                placeholder="ej. 25172500"
+                                maxLength={20}
+                                className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
+                            />
+                            {!satKey.trim() && (
+                                <span className="text-[9px] text-[var(--warn)]">
+                                    Sin clave SAT capturada (opcional aquí, recomendada para facturación).
+                                </span>
+                            )}
+                        </label>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <label className="block">
+                                <span className="text-[10px] font-semibold text-[var(--text-muted)]">IVA</span>
+                                <select
+                                    value={ivaForResale}
+                                    onChange={e => setIvaForResale(e.target.value)}
+                                    className="mt-0.5 w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                                >
+                                    <option value="16%">16%</option>
+                                    <option value="0%">0%</option>
+                                    <option value="Exento">Exento</option>
+                                    <option value="">No enviar</option>
+                                </select>
+                            </label>
+                            <label className="block">
+                                <span className="text-[10px] font-semibold text-[var(--text-muted)]">IEPS</span>
+                                <select
+                                    value={ieps}
+                                    onChange={e => setIeps(e.target.value)}
+                                    className="mt-0.5 w-full px-2 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                                >
+                                    <option value="">No enviar</option>
+                                    {IEPS_RATES.map(rate => (
+                                        <option key={rate} value={rate}>{rate}</option>
+                                    ))}
+                                </select>
+                            </label>
+                        </div>
+
+                        <label className="block">
+                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">Unidad de medida SAT</span>
+                            <select
+                                value={SAT_MEASURE_PRESETS.some(p => p.key === measureUnitKey && p.desc === measureUnitDesc) ? `${measureUnitKey}|${measureUnitDesc}` : 'CUSTOM'}
+                                onChange={e => {
+                                    setMeasureUnitTouched(true);
+                                    if (e.target.value === 'CUSTOM') return;
+                                    const [k, d] = e.target.value.split('|');
+                                    setMeasureUnitKey(k);
+                                    setMeasureUnitDesc(d);
+                                }}
+                                className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                            >
+                                {SAT_MEASURE_PRESETS.map(p => (
+                                    <option key={p.key} value={`${p.key}|${p.desc}`}>{p.key} — {p.desc}</option>
+                                ))}
+                                <option value="CUSTOM">Personalizada…</option>
+                            </select>
+                        </label>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <label className="block">
+                                <span className="text-[10px] font-semibold text-[var(--text-muted)]">Clave unidad</span>
+                                <input
+                                    type="text"
+                                    value={measureUnitKey}
+                                    onChange={e => { setMeasureUnitKey(e.target.value); setMeasureUnitTouched(true); }}
+                                    placeholder="H87"
+                                    className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono uppercase"
+                                />
+                            </label>
+                            <label className="block">
+                                <span className="text-[10px] font-semibold text-[var(--text-muted)]">Descripción unidad</span>
+                                <input
+                                    type="text"
+                                    value={measureUnitDesc}
+                                    onChange={e => { setMeasureUnitDesc(e.target.value); setMeasureUnitTouched(true); }}
+                                    placeholder="Pieza"
+                                    className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                                />
+                            </label>
+                        </div>
+
+                        <label className="block sm:col-span-2">
+                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">Nombre fiscal en factura (CFDI)</span>
+                            <input
+                                type="text"
+                                value={invoiceProductName}
+                                onChange={e => { setInvoiceProductName(e.target.value); setInvoiceNameTouched(true); }}
+                                placeholder={nombreArticulo || 'Descripción fiscal para factura'}
+                                maxLength={255}
+                                className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                            />
+                        </label>
+
+                        <label className="block sm:col-span-2">
+                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">Número de pedimento de importación (opcional, 15 dígitos)</span>
+                            <input
+                                type="text"
+                                value={importDeclaration}
+                                onChange={e => setImportDeclaration(e.target.value)}
+                                placeholder="Solo si eres importador de primera mano"
+                                maxLength={20}
+                                className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
+                            />
+                        </label>
+                    </div>
+                ) : (
+                    <p className="text-[10px] text-[var(--text-faint)]">
+                        Bloque fiscal desactivado — no se enviarán atributos SAT/CFDI en esta publicación.
+                    </p>
+                )}
+            </div>
         );
     }
 
@@ -968,6 +1257,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
 
             {isOpen && (
                 <div className={`${!modalMode ? 'border-t border-[var(--border)]' : ''} px-6 py-5 space-y-5`}>
+                    <input type="file" accept="image/*" multiple ref={fileInputRef} className="hidden" onChange={(e) => { handleUploadFiles(e.target.files); e.target.value = ''; }} />
                     {/* Badge de ficha en modal mode */}
                     {modalMode && ficha_id && (
                         <div className="flex items-center gap-2 p-2.5 bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-xl">
@@ -979,6 +1269,149 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                     {/* -- CONFIGURACIÓN (siempre visible: cuentas, tipo, identificación) -- */}
                     {(stage === 'config' || stage === 'preview') && (
                         <>
+                            {/* Datos iniciales desde 0 (cuando no viene artículo vinculado) */}
+                            {isStandalone && (
+                                <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <p className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider">
+                                            Producto desde 0 (sin catálogo)
+                                        </p>
+                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] font-bold">
+                                            Creación libre
+                                        </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <label className="block sm:col-span-2">
+                                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">
+                                                Nombre del producto <span className="text-[var(--err)]">*</span>
+                                            </span>
+                                            <input
+                                                type="text"
+                                                value={manualNombre}
+                                                onChange={e => setManualNombre(e.target.value)}
+                                                placeholder="ej. Bomba de Agua Chevrolet Aveo 1.6L 2009-2017"
+                                                maxLength={200}
+                                                className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                                            />
+                                        </label>
+                                        <label className="block">
+                                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">Variante / Color</span>
+                                            <input
+                                                type="text"
+                                                value={manualVariante}
+                                                onChange={e => setManualVariante(e.target.value)}
+                                                placeholder="ej. Negro / Delantero"
+                                                className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                                            />
+                                        </label>
+                                        <label className="block">
+                                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">Precio de venta (MXN)</span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={priceOverride}
+                                                onChange={e => setPriceOverride(e.target.value)}
+                                                placeholder="ej. 599.00"
+                                                className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] font-mono"
+                                            />
+                                        </label>
+                                        <label className="block sm:col-span-2">
+                                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">Descripción inicial</span>
+                                            <textarea
+                                                value={manualDescripcion}
+                                                onChange={e => setManualDescripcion(e.target.value)}
+                                                rows={3}
+                                                placeholder="Detalles, compatibilidades, contenido del paquete..."
+                                                className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                                            />
+                                        </label>
+                                    </div>
+
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-[var(--text-muted)] block mb-1">
+                                            Dimensiones y peso del paquete (opcional para envíos ME2)
+                                        </span>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                            {[
+                                                { id: 'SELLER_PACKAGE_LENGTH', label: 'Largo', unit: 'cm' },
+                                                { id: 'SELLER_PACKAGE_WIDTH',  label: 'Ancho', unit: 'cm' },
+                                                { id: 'SELLER_PACKAGE_HEIGHT', label: 'Alto',  unit: 'cm' },
+                                                { id: 'SELLER_PACKAGE_WEIGHT', label: 'Peso',  unit: 'g' },
+                                            ].map(({ id, label, unit }) => (
+                                                <div key={id}>
+                                                    <label className="text-[9px] uppercase text-[var(--text-faint)] font-bold">{label} ({unit})</label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={dimOverrides[id] ?? ''}
+                                                        onChange={e => setDimOverrides(prev => ({ ...prev, [id]: e.target.value }))}
+                                                        placeholder={unit === 'g' ? '500' : '15'}
+                                                        className="mt-0.5 w-full px-2 py-1 text-xs font-mono border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Toggle explícito Opción A vs Opción B */}
+                                    <div className="p-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] space-y-1">
+                                        <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text)] cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={registerInCatalog}
+                                                onChange={e => setRegisterInCatalog(e.target.checked)}
+                                                className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)]"
+                                            />
+                                            También dar de alta este producto en Catálogo Maestro (<code className="font-mono text-[11px]">articulos</code>)
+                                        </label>
+                                        <p className="text-[10px] text-[var(--text-faint)] ml-6">
+                                            {registerInCatalog
+                                                ? 'Opción B: Se dará de alta en Catálogo Maestro (origin = "web", baja a Google Sheets vía outbox). Requiere Nombre (≥5 chars), Marca y Modelo.'
+                                                : 'Opción A (recomendada): Solo se publica en Mercado Libre y se registra en Vitrinas MeLi. No crea registros en Catálogo Maestro ni toca Google Sheets.'}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Fotos iniciales en Etapa 1 para publicar desde 0 */}
+                            {isStandalone && stage === 'config' && (
+                                <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2">
+                                    <p className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider">Fotos iniciales</p>
+                                    {images.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            {images.map((url, i) => (
+                                                <div key={i} className="flex items-center gap-2 p-2 bg-[var(--bg)] rounded-lg border border-[var(--border)] group">
+                                                    <div className="w-10 h-10 rounded-md overflow-hidden shrink-0 border border-[var(--border)] bg-[var(--surface)]">
+                                                        <img src={url} alt="" className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} />
+                                                    </div>
+                                                    <span className="text-xs font-black text-[var(--text-faint)] w-5 shrink-0">#{i + 1}</span>
+                                                    <span className="flex-1 text-xs text-[var(--text-muted)] truncate font-mono">{url}</span>
+                                                    <PhotoBadge url={url} onUpscale={handleUpscaleImage} />
+                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button type="button" onClick={() => moveImage(i, -1)} disabled={i === 0} className="p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30" title="Subir"><ArrowUp className="w-3 h-3" /></button>
+                                                        <button type="button" onClick={() => moveImage(i, 1)} disabled={i === images.length - 1} className="p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30" title="Bajar"><ArrowDown className="w-3 h-3" /></button>
+                                                        <button type="button" onClick={() => removeImage(i)} className="p-1 rounded hover:bg-[var(--err)]/10 text-[var(--err)]" title="Eliminar"><Trash2 className="w-3 h-3" /></button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={() => fileInputRef.current?.click()} className="px-3 py-2 bg-[var(--surface)] text-[var(--accent-ink)] rounded-lg text-sm font-bold flex items-center gap-1 border border-[var(--border)]"><ImageIcon className="w-4 h-4" /> Subir archivo</button>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input type="url" value={newImageUrl} onChange={e => { setNewImageUrl(e.target.value); setImgInputError(null); }} onKeyDown={e => e.key === 'Enter' && addImage()} placeholder="https://... URL de imagen" className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                                        <button type="button" onClick={addImage} className="px-3 py-2 bg-[var(--surface)] text-[var(--accent-ink)] rounded-lg text-sm font-bold flex items-center gap-1 border border-[var(--border)]"><Plus className="w-4 h-4" /> Agregar</button>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input type="url" value={extractUrl} onChange={e => { setExtractUrl(e.target.value); setImgInputError(null); }} onKeyDown={e => e.key === 'Enter' && extractImagesFromUrl()} placeholder="https://... página (extrae sus fotos)" className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                                        <button type="button" onClick={extractImagesFromUrl} disabled={extracting} className="px-3 py-2 bg-[var(--surface)] text-[var(--accent-ink)] rounded-lg text-sm font-bold flex items-center gap-1 border border-[var(--border)] disabled:opacity-50">{extracting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />} Extraer</button>
+                                    </div>
+                                    {imgInputError && <p className="text-xs text-[var(--err)]">{imgInputError}</p>}
+                                </div>
+                            )}
                             {/* Identificación del producto — editable (en catálogo se bloquean marca/modelo/GTIN) */}
                             <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2">
                                 <div className="flex items-center justify-between gap-2">
@@ -1016,7 +1449,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         )}
                                     </label>
                                     <label className="block">
-                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">Marca</span>
+                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">
+                                            Marca {isStandalone && registerInCatalog && <span className="text-[var(--err)]">*</span>}
+                                        </span>
                                         <input
                                             type="text"
                                             value={marcaOverride}
@@ -1027,7 +1462,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         />
                                     </label>
                                     <label className="block">
-                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">Modelo</span>
+                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">
+                                            Modelo {isStandalone && registerInCatalog && <span className="text-[var(--err)]">*</span>}
+                                        </span>
                                         <input
                                             type="text"
                                             value={modeloOverride}
@@ -1050,6 +1487,9 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                     </label>
                                 </div>
                             </div>
+
+                            {/* Datos Fiscales (SAT / CFDI) */}
+                            {renderFiscalSection()}
 
                             {/* Voz de marca activa (transparencia) */}
                             <div className="flex items-center justify-between gap-2 text-[11px] px-1">
@@ -1307,6 +1747,21 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             </div>
                                         </div>
 
+                                        {t?.paso_12_5_advertencia && (
+                                            <div className="flex items-start gap-2.5 p-3 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl text-xs text-[var(--warn)]">
+                                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                                <p>{t.paso_12_5_advertencia}</p>
+                                            </div>
+                                        )}
+
+                                        {t?.paso_0_5_catalogo && (
+                                            <div className="p-2.5 rounded-lg border border-[var(--info)]/30 bg-[var(--info)]/10 text-xs text-[var(--info)]">
+                                                {t.paso_0_5_catalogo.accion === 'vinculara_existente'
+                                                    ? <>Se detectó un artículo coincidente en Catálogo Maestro (<strong>{t.paso_0_5_catalogo.articulo_id}</strong> · {t.paso_0_5_catalogo.nombre}) — se vinculará sin duplicarlo.</>
+                                                    : <>Al publicar se dará de alta en <strong>Catálogo Maestro</strong> (<code className="font-mono">origin = &apos;web&apos;</code>) y se sincronizará con Google Sheets.</>}
+                                            </div>
+                                        )}
+
                                         {/* SKU — confirmación final editable (paquete) */}
                                         <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2">
                                             <label className="block">
@@ -1390,7 +1845,6 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 </div>
                                             )}
                                             <div className="flex gap-2">
-                                                <input type="file" accept="image/*" multiple ref={fileInputRef} className="hidden" onChange={(e) => { handleUploadFiles(e.target.files); e.target.value = ''; }} />
                                                 <button onClick={() => fileInputRef.current?.click()} className="px-3 py-2 bg-[var(--surface)] text-[var(--accent-ink)] rounded-lg text-sm font-bold flex items-center gap-1"><ImageIcon className="w-4 h-4" /> Subir archivo</button>
                                             </div>
                                             <div className="flex gap-2">
@@ -1411,7 +1865,7 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                     <p className="font-semibold text-[var(--text)]">Publicar en catálogo MeLi (opcional)</p>
                                                     <p className="text-[10px] text-[var(--text-faint)]">Compara tus datos con el catálogo antes de usarlo.</p>
                                                 </div>
-                                                <button type="button" onClick={searchCatalogByGtin} disabled={searchingCatalog || !codigoUniversal} className="shrink-0 px-3 py-1.5 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 disabled:opacity-50">
+                                                <button type="button" onClick={searchCatalogByGtin} disabled={searchingCatalog || !effectiveGtin} className="shrink-0 px-3 py-1.5 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 disabled:opacity-50">
                                                     {searchingCatalog ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : 'Buscar por GTIN'}
                                                 </button>
                                             </div>
@@ -1602,24 +2056,28 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 </button>
                                             )}
                                         </div>
-                                        {/* Completar con IA */}
-                                        <button
-                                            type="button"
-                                            onClick={completeWithAI}
-                                            disabled={loading}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-50"
-                                        >
-                                            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />} Completar título y descripción con IA
-                                        </button>
-                                        {/* Enriquecer desde la web del proveedor */}
-                                        <button
-                                            type="button"
-                                            onClick={enrichFromWeb}
-                                            disabled={loading}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--ok)]/20 transition-colors disabled:opacity-50"
-                                        >
-                                            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🌐'} Enriquecer desde la web
-                                        </button>
+                                        {articulo_id && (
+                                            <>
+                                                {/* Completar con IA */}
+                                                <button
+                                                    type="button"
+                                                    onClick={completeWithAI}
+                                                    disabled={loading}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-50"
+                                                >
+                                                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />} Completar título y descripción con IA
+                                                </button>
+                                                {/* Enriquecer desde la web del proveedor */}
+                                                <button
+                                                    type="button"
+                                                    onClick={enrichFromWeb}
+                                                    disabled={loading}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--ok)]/20 transition-colors disabled:opacity-50"
+                                                >
+                                                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🌐'} Enriquecer desde la web
+                                                </button>
+                                            </>
+                                        )}
                                         {/* Título (legacy: title completo; UP: family_name) */}
                                         {(() => {
                                             const titleVal = familyNameOverride !== '' ? familyNameOverride : (t?.paso_8_ai?.family_name || t?.paso_9_titulo?.title_legacy || '');
@@ -1807,6 +2265,23 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                             );
                                         })()}
 
+                                        {/* Confirmación de atributos fiscales procesados */}
+                                        {t?.paso_7_fiscal && (
+                                            <div className="p-2.5 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] text-[11px] space-y-1">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="font-bold text-[var(--text-muted)] uppercase text-[10px]">Resumen fiscal resuelto</span>
+                                                    <span className="text-[10px] font-mono text-[var(--text-faint)]">
+                                                        {t.paso_7_fiscal.enabled ? `${(t.paso_7_fiscal.enviados || []).length} atributo(s) a enviar` : 'Desactivado'}
+                                                    </span>
+                                                </div>
+                                                {(t.paso_7_fiscal.omitidos || []).length > 0 && (
+                                                    <p className="text-[10px] text-[var(--warn)]">
+                                                        Omitidos en esta categoría: {t.paso_7_fiscal.omitidos.join(', ')}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
                                         {/* Stepper transparente + trace técnico colapsado */}
                                         <PublishStepper trace={t || {}} />
                                         <TraceBlock trace={t || {}} />
@@ -1869,7 +2344,13 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                         {/* Garantía de enlace al catálogo */}
                                         <div className="flex items-center gap-2 p-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-xs text-[var(--text-muted)]">
                                             <CheckCircle2 className="w-4 h-4 text-[var(--ok)] shrink-0" />
-                                            <span>Esta publicación se creará <strong>enlazada a tu producto en el catálogo</strong>: cada venta descontará <strong>{packQtyNum} {packQtyNum === 1 ? 'pieza' : 'piezas'}</strong> del inventario.</span>
+                                            {articulo_id ? (
+                                                <span>Esta publicación se creará <strong>enlazada a tu producto en el catálogo</strong>: cada venta descontará <strong>{packQtyNum} {packQtyNum === 1 ? 'pieza' : 'piezas'}</strong> del inventario.</span>
+                                            ) : registerInCatalog ? (
+                                                <span>Opción B: se publicará en MeLi y se dará de alta en <strong>Catálogo Maestro</strong> (enlazada con <strong>{packQtyNum} {packQtyNum === 1 ? 'pieza' : 'piezas'}</strong>, stock inicial sin sincronización automática).</span>
+                                            ) : (
+                                                <span>Opción A (<strong>Solo Mercado Libre</strong>): se publicará y guardará en Vitrinas MeLi sin crear registro en Catálogo Maestro ni modificar Google Sheets.</span>
+                                            )}
                                         </div>
 
                                         {/* CTAs */}
@@ -1923,7 +2404,21 @@ export function PublishPanel({ articulo_id, nombreArticulo, ficha_id, imagenesBa
                                                 {r.ok ? <CheckCircle2 className="w-4 h-4 text-[var(--ok)]" /> : <XCircle className="w-4 h-4 text-[var(--err)]" />}
                                             </div>
                                             {r.ok ? (
-                                                <p className="text-xs font-mono text-[var(--ok)] mt-1">{r.item_id}</p>
+                                                <div className="mt-1 space-y-1">
+                                                    <p className="text-xs font-mono text-[var(--ok)]">{r.item_id}</p>
+                                                    {r.permalink && (
+                                                        <a href={r.permalink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[var(--accent)] hover:underline">
+                                                            <ExternalLink className="w-3 h-3" /> Ver en MeLi
+                                                        </a>
+                                                    )}
+                                                    {r.articulo_id_creado && (
+                                                        <div>
+                                                            <a href={`/catalog/${r.articulo_id_creado}`} className="inline-flex items-center gap-1 text-xs font-bold text-[var(--info)] hover:underline">
+                                                                Ver artículo creado en Catálogo Maestro ({r.articulo_id_creado})
+                                                            </a>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <div className="mt-1 space-y-1">
                                                     <p className="text-xs text-[var(--err)]">{r.error}</p>

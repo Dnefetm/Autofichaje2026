@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { Package, Filter, TrendingUp, AlertCircle, RefreshCw, CheckSquare, X } from 'lucide-react';
+import { Package, Filter, TrendingUp, AlertCircle, RefreshCw, CheckSquare, X, Send } from 'lucide-react';
 import useSWR from 'swr';
 import { supabase } from '@/lib/supabase';
 import { CatalogFilters } from './filters';
@@ -216,6 +216,13 @@ function CatalogPageInner() {
                     <p className="text-[var(--text-muted)] text-sm">Gestiona tu inventario y sincroniza con marketplaces.</p>
                 </div>
                 <div className="flex gap-3 items-center">
+                    <Link
+                        href="/catalog/publicar"
+                        className="px-4 py-2 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+                    >
+                        <Send className="w-4 h-4" />
+                        + Nueva publicación
+                    </Link>
                     <Link
                         href="/catalog/bundles"
                         className="px-4 py-2 border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--bg)] text-[var(--text-muted)] rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm"

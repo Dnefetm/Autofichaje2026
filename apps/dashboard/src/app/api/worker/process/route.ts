@@ -311,7 +311,7 @@ async function handleCatalogOptin(job: any, meli: MeliAdapter): Promise<{ done: 
                 status: 'failed',
                 error_log: `Optin de catálogo: la tradicional ${item_id} sigue sin activarse tras ${intento + 1} reintentos.`,
             }).eq('id', job.id);
-            return { done: true };
+            return { done: true, rescheduled: true };
         }
         await supabaseAdmin.from('jobs').update({
             status: 'pending',
@@ -384,6 +384,13 @@ async function handleCatalogOptin(job: any, meli: MeliAdapter): Promise<{ done: 
         await supabaseAdmin.from('publicaciones_externas')
             .update({ par_item_id: catItemId })
             .eq('id', publicacion_id);
+
+        // Recalcular contadores de catálogo/asociadas (no bloqueante)
+        try {
+            const pairIds = [item_id, catItemId];
+            await supabaseAdmin.rpc('recalcular_catalog_count', { p_account_id: marketplace_id, p_item_ids: pairIds });
+            await supabaseAdmin.rpc('recalcular_associated_count', { p_account_id: marketplace_id, p_item_ids: pairIds });
+        } catch { /* no bloqueante */ }
     }
 
     return { done: true };

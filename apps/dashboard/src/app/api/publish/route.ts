@@ -69,28 +69,51 @@ function truncarTitulo(titulo: string, maxLen: number = 60): string {
     return (lastSpace > maxLen * 0.6 ? sub.slice(0, lastSpace) : sub).trim();
 }
 
-// -- Helper: resolver datos con prioridad ficha → vidriera origen → artículo ---
-function resolvePublicationData(articulo: any, ficha: any | null, source: any | null) {
+const FISCAL_ATTR_IDS = new Set([
+    'SAT_KEY',
+    'MEASURE_UNIT_KEY',
+    'MEASURE_UNIT_DESCRIPTION',
+    'INVOICE_PRODUCT_NAME',
+    'IVA_FOR_RESALE',
+    'IEPS',
+    'IMPORT_DECLARATION_NUMBER',
+]);
+const IVA_VALUE_IDS: Record<string, string> = {
+    '16%': '81861616',
+    '0%': '81861613',
+    'exento': '81861612',
+};
+const IEPS_VALUE_IDS: Record<string, string> = {
+    '0%': '82021095', '3%': '82021096', '6%': '82021097', '7%': '82021098',
+    '8%': '82021099', '9%': '82021100', '25%': '82021101', '26.5%': '82021102',
+    '30%': '82021103', '30.4%': '82021104', '50%': '82021105', '53%': '82021106',
+    '160%': '82021107',
+};
+
+// -- Helper: resolver datos con prioridad ficha → manual → vidriera origen → artículo ---
+function resolvePublicationData(articulo: any, ficha: any | null, source: any | null, manual: any | null = null) {
+    const toNum = (v: any) => (v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : undefined);
     return {
-        nombre:              limpiarTitulo(ficha?.nombre_producto || source?.nombre || articulo?.nombre),
-        descripcion:         ficha?.descripcion_larga || ficha?.descripcion || source?.descripcion || articulo?.descripcion || '',
-        marca:               ficha?.marca             || source?.marca             || articulo?.marca,
-        modelo:              ficha?.modelo            || source?.modelo            || articulo?.modelo,
-        variante:            ficha?.variante          || source?.variante          || articulo?.variante,
-        pais_origen:         ficha?.pais_origen       || articulo?.pais_origen,
-        categoria:           ficha?.categoria         || source?.categoria         || articulo?.categoria,
-        codigo_universal:    ficha?.codigo_universal  || source?.codigo_universal  || articulo?.codigo_universal,
-        atributos_especificos: articulo?.atributos_especificos, // solo en articulos
+        nombre:              limpiarTitulo(ficha?.nombre_producto || manual?.nombre || source?.nombre || articulo?.nombre),
+        descripcion:         ficha?.descripcion_larga || ficha?.descripcion || manual?.descripcion || source?.descripcion || articulo?.descripcion || '',
+        marca:               ficha?.marca             || manual?.marca             || source?.marca             || articulo?.marca,
+        modelo:              ficha?.modelo            || manual?.modelo            || source?.modelo            || articulo?.modelo,
+        variante:            ficha?.variante          || manual?.variante          || source?.variante          || articulo?.variante,
+        pais_origen:         ficha?.pais_origen       || manual?.pais_origen       || articulo?.pais_origen,
+        categoria:           ficha?.categoria         || manual?.categoria         || source?.categoria         || articulo?.categoria,
+        codigo_universal:    ficha?.codigo_universal  || manual?.codigo_universal  || source?.codigo_universal  || articulo?.codigo_universal,
+        codigo_sat:          source?.codigo_sat       || articulo?.codigo_sat        || null,
+        atributos_especificos: articulo?.atributos_especificos ?? null, // solo en articulos
         // Solo en ficha:
         bullet_points:       (ficha?.bullet_points as string[] | null | undefined) || [],
         palabras_clave:      ficha?.palabras_clave   || [],
         materiales:          ficha?.materiales        || null,
         atributos_categoria: ficha?.atributos_categoria || null, // pares {MLBATTR: 'valor'} de ficha
-        // Dimensiones: ficha > vidriera origen > artículo
-        peso_kg:  ficha?.peso_kg  ?? source?.peso_kg  ?? articulo?.peso_kg,
-        largo_cm: ficha?.largo_cm ?? source?.largo_cm ?? articulo?.largo_cm,
-        ancho_cm: ficha?.ancho_cm ?? source?.ancho_cm ?? articulo?.ancho_cm,
-        alto_cm:  ficha?.alto_cm  ?? source?.alto_cm  ?? articulo?.alto_cm,
+        // Dimensiones: ficha > manual > vidriera origen > artículo
+        peso_kg:  ficha?.peso_kg  ?? toNum(manual?.peso_kg)  ?? source?.peso_kg  ?? articulo?.peso_kg,
+        largo_cm: ficha?.largo_cm ?? toNum(manual?.largo_cm) ?? source?.largo_cm ?? articulo?.largo_cm,
+        ancho_cm: ficha?.ancho_cm ?? toNum(manual?.ancho_cm) ?? source?.ancho_cm ?? articulo?.ancho_cm,
+        alto_cm:  ficha?.alto_cm  ?? toNum(manual?.alto_cm)  ?? source?.alto_cm  ?? articulo?.alto_cm,
     };
 }
 
@@ -183,10 +206,11 @@ export async function POST(req: NextRequest) {
         const body = await req.json().catch(() => null);
         const _tieneArticulo = !!(body && body.articulo_id);
         const _tieneFuente = !!(body && body.source_marketplace_id && body.source_item_id);
-        if (!body || !body.marketplace_id || (!_tieneArticulo && !_tieneFuente)) {
+        const _tieneManual = Boolean(body?.manual_product && typeof body.manual_product.nombre === 'string' && body.manual_product.nombre.trim().length > 0);
+        if (!body || !body.marketplace_id || (!_tieneArticulo && !_tieneFuente && !_tieneManual)) {
             return NextResponse.json({
                 ok: false,
-                error: 'Se requieren marketplace_id y (articulo_id o source_marketplace_id+source_item_id) en el body',
+                error: 'Se requieren marketplace_id y (articulo_id, source_marketplace_id+source_item_id, o manual_product.nombre) en el body',
             }, { status: 400 });
         }
 
@@ -214,15 +238,29 @@ export async function POST(req: NextRequest) {
             compatibilities = null as any,
             source_marketplace_id = null as string | null,
             source_item_id = null as string | null,
+            fiscal_data = undefined as any,
+            manual_product = null as any,
+            register_in_catalog = false as boolean,
         } = body;
 
-        trace.input = { articulo_id, marketplace_id, ficha_id, pictures_count: pictures.length, listing_type_id, dry_run, source_marketplace_id: source_marketplace_id ?? null, source_item_id: source_item_id ?? null };
+        trace.input = {
+            articulo_id: articulo_id ?? null,
+            marketplace_id,
+            ficha_id,
+            pictures_count: pictures.length,
+            listing_type_id,
+            dry_run,
+            source_marketplace_id: source_marketplace_id ?? null,
+            source_item_id: source_item_id ?? null,
+            manual_mode: _tieneManual,
+            register_in_catalog: !!register_in_catalog,
+        };
 
         // -- 0.5 Fuente vidriera (copia adaptada entre cuentas) ----------------
         // Si se provee una vidriera origen, se lee su ítem completo desde MeLi y se
-        // usa como fuente de datos, con prioridad: ficha técnica > vidriera origen > artículo.
+        // usa como fuente de datos, con prioridad: ficha técnica > manual > vidriera origen > artículo.
         const meli = new MeliAdapter();
-        let resolvedArticuloId: string = articulo_id || '';
+        let resolvedArticuloId: string | null = articulo_id || null;
         let sourceItem: any = null;
         let sourceData: any = null;
         let sourcePackQty: number | null = null;
@@ -267,6 +305,7 @@ export async function POST(req: NextRequest) {
                     modelo:             attrVal('MODEL'),
                     variante:           attrVal('COLOR'),
                     codigo_universal:   attrVal('GTIN') || attrVal('EAN') || attrVal('UPC'),
+                    codigo_sat:         attrVal('SAT_KEY'),
                     categoria:          sourceItem.category_id ?? null,
                     peso_kg:            dims?.weight != null ? Number(dims.weight) / 1000 : (pkgWeightG != null ? pkgWeightG / 1000 : null),
                     largo_cm:           dims?.length ?? pkgLengthCm,
@@ -329,74 +368,81 @@ export async function POST(req: NextRequest) {
                 }
             }
 
-            // Si sigue sin artículo, auto-crear uno de referencia (no gestiona stock:
-            // el mapeo de la copia se creará con sincronizar_stock=false)
-            if (!resolvedArticuloId) {
-                if (!sourceData) {
-                    return NextResponse.json({
-                        ok: false,
-                        error: 'No se pudo leer la vidriera origen y no se proveyó articulo_id',
-                        trace,
-                    }, { status: 422 });
-                }
-                const { data: newArt, error: newArtErr } = await supabaseAdmin
-                    .from('articulos')
-                    .insert({
-                        articulo_id: crypto.randomUUID(),
-                        nombre: (sourceData?.nombre || 'Producto MeLi').slice(0, 200),
-                        marca: sourceData?.marca ?? null,
-                        modelo: sourceData?.modelo ?? null,
-                        codigo_universal: sourceData?.codigo_universal ?? null,
-                        categoria: sourceData?.categoria ?? null,
-                        activo: true,
-                    })
-                    .select('articulo_id')
-                    .single();
-
-                if (newArtErr || !newArt?.articulo_id) {
-                    return NextResponse.json({
-                        ok: false,
-                        error: `No se pudo crear el artículo de referencia desde la vidriera: ${newArtErr?.message}`,
-                        trace,
-                    }, { status: 422 });
-                }
-                resolvedArticuloId = newArt.articulo_id;
-                trace.paso_0_5_articulo_creado = { articulo_id: resolvedArticuloId, motivo: 'vidriera origen sin mapeo' };
+            if (!resolvedArticuloId && !sourceData && !_tieneManual) {
+                return NextResponse.json({
+                    ok: false,
+                    error: 'No se pudo leer la vidriera origen y no se proveyó articulo_id ni manual_product',
+                    trace,
+                }, { status: 422 });
             }
         }
 
-        // -- 1. Leer artículo de BD --------------------------------------------
-        const { data: articulo, error: artErr } = await supabaseAdmin
-            .from('articulos')
-            .select(`
-                articulo_id, nombre, marca, modelo, variante,
-                categoria, descripcion, codigo_universal,
-                atributos_especificos, pais_origen,
-                peso_kg, largo_cm, ancho_cm, alto_cm,
-                activo, es_obsoleto, publicacion_ml
-            `)
-            .eq('articulo_id', resolvedArticuloId)
-            .single();
+        // -- 1. Leer artículo de BD (opcional si publica desde 0 o copia sin mapeo)
+        let articulo: any = null;
+        if (resolvedArticuloId) {
+            const { data: artRow, error: artErr } = await supabaseAdmin
+                .from('articulos')
+                .select(`
+                    articulo_id, nombre, marca, modelo, variante,
+                    categoria, descripcion, codigo_universal, codigo_sat,
+                    atributos_especificos, pais_origen,
+                    peso_kg, largo_cm, ancho_cm, alto_cm,
+                    activo, es_obsoleto, publicacion_ml
+                `)
+                .eq('articulo_id', resolvedArticuloId)
+                .single();
 
-        if (artErr || !articulo) {
-            return NextResponse.json({
-                ok: false,
-                error: `Artículo no encontrado: ${artErr?.message}`,
-                trace,
-            }, { status: 404 });
+            if (artErr || !artRow) {
+                return NextResponse.json({
+                    ok: false,
+                    error: `Artículo no encontrado: ${artErr?.message}`,
+                    trace,
+                }, { status: 404 });
+            }
+            articulo = artRow;
+
+            trace.paso_1_articulo = {
+                nombre: articulo.nombre,
+                marca: articulo.marca,
+                modelo: articulo.modelo,
+                variante: articulo.variante,
+                categoria: articulo.categoria,
+                codigo_universal: articulo.codigo_universal,
+                activo: articulo.activo,
+                es_obsoleto: articulo.es_obsoleto,
+                publicacion_ml_existente: articulo.publicacion_ml,
+            };
+        } else {
+            const parseOptNum = (v: any) => (v != null && v !== '' && !isNaN(Number(v)) ? Number(v) : null);
+            articulo = {
+                articulo_id: null,
+                nombre: manual_product?.nombre?.trim() || sourceData?.nombre || '',
+                marca: manual_product?.marca?.trim() || sourceData?.marca || null,
+                modelo: manual_product?.modelo?.trim() || sourceData?.modelo || null,
+                variante: manual_product?.variante?.trim() || sourceData?.variante || null,
+                categoria: manual_product?.categoria?.trim() || sourceData?.categoria || null,
+                descripcion: manual_product?.descripcion?.trim() || sourceData?.descripcion || null,
+                codigo_universal: manual_product?.codigo_universal?.trim() || sourceData?.codigo_universal || null,
+                codigo_sat: null,
+                atributos_especificos: null,
+                pais_origen: manual_product?.pais_origen?.trim() || null,
+                peso_kg: parseOptNum(manual_product?.peso_kg),
+                largo_cm: parseOptNum(manual_product?.largo_cm),
+                ancho_cm: parseOptNum(manual_product?.ancho_cm),
+                alto_cm: parseOptNum(manual_product?.alto_cm),
+                activo: true,
+                es_obsoleto: false,
+                publicacion_ml: null,
+            };
+            trace.paso_1_articulo = {
+                modo: sourceData ? 'copia_sin_catalogo' : 'desde_cero',
+                sin_catalogo: true,
+                nombre: articulo.nombre,
+                marca: articulo.marca,
+                modelo: articulo.modelo,
+                codigo_universal: articulo.codigo_universal,
+            };
         }
-
-        trace.paso_1_articulo = {
-            nombre: articulo.nombre,
-            marca: articulo.marca,
-            modelo: articulo.modelo,
-            variante: articulo.variante,
-            categoria: articulo.categoria,
-            codigo_universal: articulo.codigo_universal,
-            activo: articulo.activo,
-            es_obsoleto: articulo.es_obsoleto,
-            publicacion_ml_existente: articulo.publicacion_ml,
-        };
 
         // -- 1b. Leer ficha técnica si se proveyó ficha_id ---------------------
         let fichaData: any = null;
@@ -416,7 +462,7 @@ export async function POST(req: NextRequest) {
 
             if (fichaErr || !ficha) {
                 trace.paso_1b_ficha = { advertencia: `ficha_id ${ficha_id} no encontrada — usando solo datos del artículo` };
-            } else if (ficha.articulo_id && ficha.articulo_id !== resolvedArticuloId) {
+            } else if (ficha.articulo_id && resolvedArticuloId && ficha.articulo_id !== resolvedArticuloId) {
                 return NextResponse.json({
                     ok: false,
                     error: `La ficha ${ficha_id} pertenece al artículo ${ficha.articulo_id}, no a ${articulo_id}`,
@@ -438,19 +484,19 @@ export async function POST(req: NextRequest) {
             trace.paso_1b_ficha = { omitido: 'No se proveyó ficha_id — usando datos del artículo' };
         }
 
-        // Resolver datos con prioridad ficha → vidriera origen → artículo
-        const resolved = resolvePublicationData(articulo, fichaData, sourceData);
+        // Resolver datos con prioridad ficha → manual → vidriera origen → artículo
+        const resolved = resolvePublicationData(articulo, fichaData, sourceData, manual_product);
         trace.paso_1b_resolved = {
             nombre_limpio:   resolved.nombre,
-            descripcion_src: fichaData?.descripcion_larga ? 'ficha.descripcion_larga' : fichaData?.descripcion ? 'ficha.descripcion' : 'articulo.descripcion',
-            peso_src:        fichaData?.peso_kg != null ? 'ficha' : 'articulo',
+            descripcion_src: fichaData?.descripcion_larga ? 'ficha.descripcion_larga' : fichaData?.descripcion ? 'ficha.descripcion' : manual_product?.descripcion ? 'manual_product.descripcion' : 'articulo.descripcion',
+            peso_src:        fichaData?.peso_kg != null ? 'ficha' : manual_product?.peso_kg != null ? 'manual_product' : 'articulo',
         };
 
         // Verificar publicabilidad básica
-        if (!articulo.activo) {
+        if (resolvedArticuloId && !articulo.activo) {
             return NextResponse.json({ ok: false, error: 'El artículo no está activo', trace }, { status: 422 });
         }
-        if (articulo.es_obsoleto) {
+        if (resolvedArticuloId && articulo.es_obsoleto) {
             return NextResponse.json({ ok: false, error: 'El artículo está marcado como obsoleto', trace }, { status: 422 });
         }
         if (articulo.publicacion_ml) {
@@ -460,12 +506,13 @@ export async function POST(req: NextRequest) {
         // -- 1.4 Reconciliar estado real de publicaciones enlazadas -------------
         // MeLi es la fuente de verdad: si el usuario eliminó un item, lo marcamos
         // "closed" localmente para que no bloquee una nueva publicación.
-        try {
-            const { data: linkedPubs } = await supabaseAdmin
-                .from('mapeo_publicacion_articulo')
-                .select('publicacion_id, publicaciones_externas!inner(external_item_id, status_externo)')
-                .eq('articulo_id', resolvedArticuloId)
-                .eq('publicaciones_externas.marketplace_id', marketplace_id);
+        if (resolvedArticuloId) {
+            try {
+                const { data: linkedPubs } = await supabaseAdmin
+                    .from('mapeo_publicacion_articulo')
+                    .select('publicacion_id, publicaciones_externas!inner(external_item_id, status_externo)')
+                    .eq('articulo_id', resolvedArticuloId)
+                    .eq('publicaciones_externas.marketplace_id', marketplace_id);
 
             const staleIds = (linkedPubs || [])
                 .filter((m: any) => ['active', 'paused', 'under_review'].includes(m.publicaciones_externas?.status_externo))
@@ -543,30 +590,74 @@ export async function POST(req: NextRequest) {
             } else {
                 trace.paso_1_4_reconciliacion = { revisados: 0 };
             }
-        } catch (e: any) {
-            trace.paso_1_4_reconciliacion = { error: e.message };
+            } catch (e: any) {
+                trace.paso_1_4_reconciliacion = { error: e.message };
+            }
+        } else {
+            trace.paso_1_4_reconciliacion = { omitido: 'Publicación sin articulo_id' };
         }
 
+        // Helpers de identificación temprana (overrides + datos resueltos)
+        const _findOverride = (ids: string[]) =>
+            (attribute_overrides || []).find((o: any) => ids.includes(o.id))?.value_name?.trim() || '';
+        const _ovGtin   = _findOverride(['GTIN', 'EAN', 'UPC']);
+        const _ovSku    = _findOverride(['SELLER_SKU']);
+        const _ovMarca  = _findOverride(['BRAND']);
+        const _ovModelo = _findOverride(['MODEL']);
+        const _SKU_BASURA = /^[0-9a-f]{8}$/i;
+
         // -- 1.5 Verificar duplicados activos en la misma cuenta ----------------
-        // Fuente de verdad: publicaciones_externas + mapeo_publicacion_articulo
-        // (ya reconciliado en 1.4: los items eliminados en MeLi quedan como "closed")
-        const { data: pubActiva } = await supabaseAdmin
-            .from('publicaciones_externas')
-            .select(`
-                id, external_item_id, status_externo,
-                mapeo_publicacion_articulo!inner (articulo_id)
-            `)
-            .eq('marketplace_id', marketplace_id)
-            .eq('mapeo_publicacion_articulo.articulo_id', resolvedArticuloId)
-            .in('status_externo', ['active', 'paused', 'under_review'])
-            .limit(1)
-            .maybeSingle();
+        // Con articulo_id: publicaciones_externas + mapeo_publicacion_articulo.
+        // Sin articulo_id (desde 0): buscar en publicaciones_externas por GTIN/EAN o seller_sku.
+        let pubActiva: any = null;
+        if (resolvedArticuloId) {
+            const { data } = await supabaseAdmin
+                .from('publicaciones_externas')
+                .select(`
+                    id, external_item_id, status_externo,
+                    mapeo_publicacion_articulo!inner (articulo_id)
+                `)
+                .eq('marketplace_id', marketplace_id)
+                .eq('mapeo_publicacion_articulo.articulo_id', resolvedArticuloId)
+                .in('status_externo', ['active', 'paused', 'under_review'])
+                .limit(1)
+                .maybeSingle();
+            pubActiva = data;
+        } else {
+            const safeGtin = (_ovGtin || resolved.codigo_universal || '').trim().replace(/[^A-Za-z0-9_-]/g, '');
+            if (safeGtin) {
+                const { data } = await supabaseAdmin
+                    .from('publicaciones_externas')
+                    .select('id, external_item_id, status_externo')
+                    .eq('marketplace_id', marketplace_id)
+                    .in('status_externo', ['active', 'paused', 'under_review'])
+                    .or(`gtin.eq.${safeGtin},ean.eq.${safeGtin}`)
+                    .limit(1)
+                    .maybeSingle();
+                pubActiva = data;
+            }
+            if (!pubActiva) {
+                const rawSkuCheck = (_ovSku || manual_product?.sku || sourceData?.seller_custom_field || resolved.modelo || '').trim();
+                const safeSku = (rawSkuCheck && !_SKU_BASURA.test(rawSkuCheck)) ? rawSkuCheck : '';
+                if (safeSku) {
+                    const { data } = await supabaseAdmin
+                        .from('publicaciones_externas')
+                        .select('id, external_item_id, status_externo')
+                        .eq('marketplace_id', marketplace_id)
+                        .in('status_externo', ['active', 'paused', 'under_review'])
+                        .eq('seller_sku', safeSku)
+                        .limit(1)
+                        .maybeSingle();
+                    pubActiva = data;
+                }
+            }
+        }
 
         const esCopia = Boolean(source_item_id);
         if (pubActiva && !force_duplicate && !dry_run && !esCopia) {
             return NextResponse.json({
                 ok: false,
-                error: `Ya existe una publicación activa para este artículo en esta cuenta: ${pubActiva.external_item_id} (status: ${pubActiva.status_externo}). Ciérrala primero o usa force_duplicate: true.`,
+                error: `Ya existe una publicación activa para este producto en esta cuenta: ${pubActiva.external_item_id} (status: ${pubActiva.status_externo}). Ciérrala primero o usa force_duplicate: true.`,
                 publicacion_existente: pubActiva.external_item_id,
                 trace,
             }, { status: 409 });
@@ -585,26 +676,28 @@ export async function POST(req: NextRequest) {
         // -- 3. Obtener precio de marketplace_prices ---------------------------
         // marketplace_prices.articulo_id (renombrado desde sku en v47)
         let precio_data: any = null;
-        const { data: precio } = await supabaseAdmin
-            .from('marketplace_prices')
-            .select('sale_price, base_price, currency, sku_tienda')
-            .eq('articulo_id', resolvedArticuloId)
-            .eq('marketplace_id', marketplace_id)
-            .maybeSingle();
-        precio_data = precio;
-
-        // Si no hay precio específico por cuenta, buscar el más reciente sin filtro de cuenta
-        if (!precio_data) {
-            const { data: precioGeneral } = await supabaseAdmin
+        if (resolvedArticuloId) {
+            const { data: precio } = await supabaseAdmin
                 .from('marketplace_prices')
-                .select('sale_price, base_price, currency, sku_tienda, updated_at')
+                .select('sale_price, base_price, currency, sku_tienda')
                 .eq('articulo_id', resolvedArticuloId)
-                .order('updated_at', { ascending: false })
-                .limit(1)
+                .eq('marketplace_id', marketplace_id)
                 .maybeSingle();
-            precio_data = precioGeneral;
-            if (precioGeneral) {
-                trace.paso_3_precio_advertencia = 'Precio tomado de registro general (no específico de esta cuenta). Verificar.';
+            precio_data = precio;
+
+            // Si no hay precio específico por cuenta, buscar el más reciente sin filtro de cuenta
+            if (!precio_data) {
+                const { data: precioGeneral } = await supabaseAdmin
+                    .from('marketplace_prices')
+                    .select('sale_price, base_price, currency, sku_tienda, updated_at')
+                    .eq('articulo_id', resolvedArticuloId)
+                    .order('updated_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                precio_data = precioGeneral;
+                if (precioGeneral) {
+                    trace.paso_3_precio_advertencia = 'Precio tomado de registro general (no específico de esta cuenta). Verificar.';
+                }
             }
         }
 
@@ -621,14 +714,17 @@ export async function POST(req: NextRequest) {
             priceSource = 'source_vidriera';
         }
 
-        // -- 3.1 Resolver SKU efectivo: marketplace_prices.sku_tienda > articulos.modelo --
-        // articulos.sku fue eliminada permanentemente de la BD (DROP COLUMN CASCADE).
+        // -- 3.1 Resolver SKU efectivo: marketplace_prices.sku_tienda > manual/override > articulos.modelo --
         // Guard anti-basura: descartar si es exactamente 8 chars hex (prefijo UUID legacy).
-        const _SKU_BASURA = /^[0-9a-f]{8}$/i;
-        const _raw_sku = precio_data?.sku_tienda || sourceData?.seller_custom_field || articulo.modelo || null;
+        const _raw_sku = precio_data?.sku_tienda || _ovSku || manual_product?.sku || sourceData?.seller_custom_field || resolved.modelo || null;
         const sku_efectivo = (_raw_sku && _SKU_BASURA.test(_raw_sku)) ? null : _raw_sku;
         trace.paso_3_1_sku_efectivo = {
-            origen: precio_data?.sku_tienda ? 'marketplace_prices.sku_tienda' : sourceData?.seller_custom_field ? 'vidriera_origen.seller_custom_field' : articulo.modelo ? 'articulos.modelo' : 'null',
+            origen: precio_data?.sku_tienda ? 'marketplace_prices.sku_tienda'
+                : _ovSku ? 'override_manual'
+                : manual_product?.sku ? 'manual_product.sku'
+                : sourceData?.seller_custom_field ? 'vidriera_origen.seller_custom_field'
+                : resolved.modelo ? 'articulos.modelo'
+                : 'null',
             valor: sku_efectivo,
         };
 
@@ -638,21 +734,26 @@ export async function POST(req: NextRequest) {
         let stock = 0;
         let stockFailed = false;
         let stockOrigen = 'fisico';
-        try {
-            const { data: stockPol } = await supabaseAdmin.rpc('fn_stock_publicable', { p_articulo_id: resolvedArticuloId });
-            if (stockPol && stockPol.modo && stockPol.stock != null) {
-                stock = Number(stockPol.stock) || 0;
-                stockOrigen = String(stockPol.modo);
-            } else {
-                const { SKU_Service } = await import('@gestor/shared/sku-service');
-                stock = await SKU_Service.calculateAvailableStock(resolvedArticuloId);
+        if (resolvedArticuloId) {
+            try {
+                const { data: stockPol } = await supabaseAdmin.rpc('fn_stock_publicable', { p_articulo_id: resolvedArticuloId });
+                if (stockPol && stockPol.modo && stockPol.stock != null) {
+                    stock = Number(stockPol.stock) || 0;
+                    stockOrigen = String(stockPol.modo);
+                } else {
+                    const { SKU_Service } = await import('@gestor/shared/sku-service');
+                    stock = await SKU_Service.calculateAvailableStock(resolvedArticuloId);
+                }
+            } catch (stockErr: any) {
+                stockFailed = true;
+                // En dry_run permitimos continuar con stock=1 para inspection del trace
+                // En publicación real esto se bloquea más abajo en validaciones
+                stock = 1;
+                trace.paso_4_stock = { error: `Fallo en stock: ${stockErr.message}` };
             }
-        } catch (stockErr: any) {
-            stockFailed = true;
-            // En dry_run permitimos continuar con stock=1 para inspection del trace
-            // En publicación real esto se bloquea más abajo en validaciones
-            stock = 1;
-            trace.paso_4_stock = { error: `Fallo en stock: ${stockErr.message}` };
+        } else {
+            stock = sourceData?.stock != null ? Number(sourceData.stock) : 1;
+            stockOrigen = sourceData?.stock != null ? 'source_vidriera' : 'default_desde_cero';
         }
         trace.paso_4_stock = { ...trace.paso_4_stock, available_quantity: stock, stock_failed: stockFailed, origen: stockOrigen };
 
@@ -691,14 +792,22 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Enriquecer con ruta completa (Herramientas / Herramientas Manuales / Dados)
+        // Enriquecer con ruta completa + domain_id + detección automotriz
         let category_path = category_info?.category_name || '';
+        let catDomainId: string | null = category_info?.domain_id || null;
+        let isAutomotiveCategory = false;
         try {
             const catR = await fetch(`https://api.mercadolibre.com/categories/${encodeURIComponent(category_id)}`);
             if (catR.ok) {
                 const catData = await catR.json();
-                const fromRoot: string = (catData.path_from_root || []).map((p: any) => p.name).join(' / ');
+                const pathArr: any[] = catData.path_from_root || [];
+                const fromRoot: string = pathArr.map((p: any) => p.name).join(' / ');
                 if (fromRoot) category_path = fromRoot;
+                if (catData.settings?.catalog_domain || catData.domain_id) {
+                    catDomainId = catData.settings?.catalog_domain || catData.domain_id;
+                }
+                isAutomotiveCategory = pathArr.some((p: any) => p.id === 'MLM1747')
+                    || /^(MLM-)?(VEHICLE|CAR|AUTO|MOTORCYCLE)/i.test(String(catDomainId || ''));
             }
         } catch { /* non-blocking */ }
 
@@ -706,7 +815,8 @@ export async function POST(req: NextRequest) {
             category_id,
             category_name: category_info?.category_name || '(provisto manualmente)',
             category_path: category_path || category_info?.category_name || '',
-            domain_id: category_info?.domain_id || null,
+            domain_id: catDomainId,
+            es_automotriz: isAutomotiveCategory,
             candidates: category_info?.candidates || [],
             alternativas: category_info?.candidates || [],
         };
@@ -718,26 +828,30 @@ export async function POST(req: NextRequest) {
         // -- 5.1 Precio pre-publicación (Motor V2 orientado a proveedor) ---------
         // Usa la MISMA fórmula que post-publicación, resuelta antes de crear el item.
         // Si la RPC no está aplicada o no devuelve precio, cae a marketplace_prices.
-        try {
-            const { data: rpcPrice, error: rpcErr } = await supabaseAdmin.rpc('fn_calcular_precio_prepublicacion', {
-                p_articulo_id:     resolvedArticuloId,
-                p_marketplace_id:  marketplace_id,
-                p_category_id:     category_id,
-                p_listing_type_id: listing_type_id,
-                p_cantidad_requerida: effectivePackQty,
-                ...(force_rule_id ? { p_force_rule_id: force_rule_id } : {}),
-            });
-            if (!rpcErr && rpcPrice?.sale_price != null && Number(rpcPrice.sale_price) > 0) {
-                price = Number(rpcPrice.sale_price);
-                priceSource = 'fn_calcular_precio_prepublicacion';
-                trace.paso_5_1_precio_prepublicacion = rpcPrice;
-            } else {
-                trace.paso_5_1_precio_prepublicacion = rpcErr
-                    ? { error: rpcErr.message, advertencia: 'Usando marketplace_prices como fallback' }
-                    : { advertencia: 'RPC sin precio válido — usando marketplace_prices', rpc: rpcPrice };
+        if (resolvedArticuloId) {
+            try {
+                const { data: rpcPrice, error: rpcErr } = await supabaseAdmin.rpc('fn_calcular_precio_prepublicacion', {
+                    p_articulo_id:     resolvedArticuloId,
+                    p_marketplace_id:  marketplace_id,
+                    p_category_id:     category_id,
+                    p_listing_type_id: listing_type_id,
+                    p_cantidad_requerida: effectivePackQty,
+                    ...(force_rule_id ? { p_force_rule_id: force_rule_id } : {}),
+                });
+                if (!rpcErr && rpcPrice?.sale_price != null && Number(rpcPrice.sale_price) > 0) {
+                    price = Number(rpcPrice.sale_price);
+                    priceSource = 'fn_calcular_precio_prepublicacion';
+                    trace.paso_5_1_precio_prepublicacion = rpcPrice;
+                } else {
+                    trace.paso_5_1_precio_prepublicacion = rpcErr
+                        ? { error: rpcErr.message, advertencia: 'Usando marketplace_prices como fallback' }
+                        : { advertencia: 'RPC sin precio válido — usando marketplace_prices', rpc: rpcPrice };
+                }
+            } catch (e: any) {
+                trace.paso_5_1_precio_prepublicacion = { error: e.message, advertencia: 'Usando marketplace_prices como fallback' };
             }
-        } catch (e: any) {
-            trace.paso_5_1_precio_prepublicacion = { error: e.message, advertencia: 'Usando marketplace_prices como fallback' };
+        } else {
+            trace.paso_5_1_precio_prepublicacion = { omitido: 'Publicación sin articulo_id (usar precio manual)' };
         }
 
         // -- 5.2 Precio manual: el operador puede fijar el precio (override) ---
@@ -757,8 +871,20 @@ export async function POST(req: NextRequest) {
             trace.paso_5_3_stock_source = { stock, nota: 'Stock copiado de la vidriera origen' };
         }
 
+        // Enlace a catálogo efectivo (se resuelve aquí para incluir catalog_required en el paso 6)
+        const effectiveCatalogProductId: string | null = catalog_product_id
+            || sourceData?.catalog_product_id
+            || null;
+        const effectiveCatalogListing: boolean = !!(catalog_listing || effectiveCatalogProductId);
+
         // -- 6. Obtener atributos requeridos de la categoría -------------------
         const attrInfo = await (meli as any).getCategoryAttributes(marketplace_id, category_id);
+        const baseRequiredAttrs: any[] = attrInfo.required || [];
+        const catalogRequiredAttrs: any[] = effectiveCatalogListing
+            ? (attrInfo.catalog_required || []).filter((ca: any) => !baseRequiredAttrs.some((r: any) => r.id === ca.id))
+            : [];
+        const effectiveRequiredAttrs: any[] = [...baseRequiredAttrs, ...catalogRequiredAttrs];
+
         // Atributos secundarios/opcionales rellenables (excluye ocultos y de sistema)
         const FILLABLE_TYPES = new Set(['list', 'string', 'boolean', 'number', 'number_unit']);
         // Excluir atributos fiscales/admin/sistema: NO son características del producto.
@@ -774,11 +900,12 @@ export async function POST(req: NextRequest) {
             .slice(0, 40);
         trace.paso_6_atributos = {
             total: attrInfo.raw.length,
-            required_ids: attrInfo.required.map((a: any) => a.id),
+            required_ids: effectiveRequiredAttrs.map((a: any) => a.id),
+            catalog_required_ids: catalogRequiredAttrs.map((a: any) => a.id),
             parent_pk_ids: attrInfo.parent_pk.map((a: any) => a.id),
             child_pk_ids: attrInfo.child_pk.map((a: any) => a.id),
             optional_ids: optionalAttrs.map((a: any) => a.id),
-            required_detail: attrInfo.required.map((a: any) => ({
+            required_detail: effectiveRequiredAttrs.map((a: any) => ({
                 id: a.id,
                 name: a.name,
                 type: a.value_type,
@@ -849,6 +976,7 @@ export async function POST(req: NextRequest) {
             ]);
             for (const sa of sourceData.attributes) {
                 if (!sa?.id || SKIP_SOURCE_ATTRS.has(sa.id)) continue;
+                if (fiscal_data !== undefined && FISCAL_ATTR_IDS.has(sa.id)) continue;
                 if (mappedIdsPreSource.has(sa.id)) continue;
                 const out: any = { id: sa.id };
                 if (sa.value_id != null) out.value_id = String(sa.value_id);
@@ -878,6 +1006,87 @@ export async function POST(req: NextRequest) {
         maybePushPackage('SELLER_PACKAGE_WIDTH',  `${Math.round(resolved.ancho_cm ?? 0)} cm`, !!resolved.ancho_cm);
         maybePushPackage('SELLER_PACKAGE_LENGTH', `${Math.round(resolved.largo_cm ?? 0)} cm`, !!resolved.largo_cm);
         maybePushPackage('SELLER_PACKAGE_WEIGHT', `${Math.round((resolved.peso_kg ?? 0) * 1000)} g`, !!resolved.peso_kg);
+
+        // Formato de venta (Unidad / Pack) y unidades por pack si la categoría los soporta
+        const upsertPreAttr = (attrObj: { id: string; value_id?: string; value_name?: string }) => {
+            const idx = attributes.findIndex((a) => a.id === attrObj.id);
+            if (idx !== -1) attributes[idx] = attrObj;
+            else attributes.push(attrObj);
+        };
+        if (categoryAttrIds.has('SALE_FORMAT')) {
+            const targetFormat = effectivePackQty > 1 ? 'Pack' : 'Unidad';
+            const saleFormatDef = (attrInfo.raw || []).find((a: any) => a.id === 'SALE_FORMAT');
+            const matched = (saleFormatDef?.values || []).find(
+                (v: any) => String(v.name || '').trim().toLowerCase() === targetFormat.toLowerCase(),
+            );
+            upsertPreAttr({
+                id: 'SALE_FORMAT',
+                ...(matched?.id != null ? { value_id: String(matched.id) } : {}),
+                value_name: matched?.name || targetFormat,
+            });
+        }
+        if (categoryAttrIds.has('UNITS_PER_PACK') && effectivePackQty >= 1) {
+            upsertPreAttr({
+                id: 'UNITS_PER_PACK',
+                value_name: String(effectivePackQty),
+            });
+        }
+
+        // Datos fiscales SAT / CFDI — solo si fiscal_data viene explícito del operador (nunca defaults ocultos)
+        const fiscalEnviados: Array<{ id: string; value_name?: string; value_id?: string }> = [];
+        const fiscalOmitidos: string[] = [];
+        if (fiscal_data && typeof fiscal_data === 'object' && fiscal_data.enabled !== false) {
+            const pushFiscal = (id: string, payload: { value_name?: string; value_id?: string }) => {
+                if (!categoryAttrIds.has(id)) {
+                    fiscalOmitidos.push(`${id} (no soportado por ${category_id})`);
+                    return;
+                }
+                const obj = { id, ...payload };
+                upsertPreAttr(obj);
+                fiscalEnviados.push(obj);
+            };
+            const resolveListFiscal = (id: string, rawVal: string, fallbackMap: Record<string, string>) => {
+                const trimmed = rawVal.trim();
+                const def = (attrInfo.raw || []).find((a: any) => a.id === id);
+                const lower = trimmed.toLowerCase();
+                const matched = (def?.values || []).find(
+                    (v: any) => String(v.name || '').trim().toLowerCase() === lower || String(v.id) === trimmed,
+                );
+                const fallbackId = fallbackMap[lower];
+                const resolvedId = matched?.id != null ? String(matched.id) : fallbackId;
+                return resolvedId
+                    ? { value_id: resolvedId, value_name: matched?.name || trimmed }
+                    : { value_name: trimmed };
+            };
+
+            const satKeyVal = fiscal_data.sat_key != null ? String(fiscal_data.sat_key).trim() : '';
+            if (satKeyVal) pushFiscal('SAT_KEY', { value_name: satKeyVal });
+
+            const unitKeyVal = fiscal_data.measure_unit_key != null ? String(fiscal_data.measure_unit_key).trim().toUpperCase() : '';
+            if (unitKeyVal) pushFiscal('MEASURE_UNIT_KEY', { value_name: unitKeyVal });
+
+            const unitDescVal = fiscal_data.measure_unit_description != null ? String(fiscal_data.measure_unit_description).trim() : '';
+            if (unitDescVal) pushFiscal('MEASURE_UNIT_DESCRIPTION', { value_name: unitDescVal });
+
+            const invoiceNameVal = fiscal_data.invoice_product_name != null ? String(fiscal_data.invoice_product_name).trim().slice(0, 255) : '';
+            if (invoiceNameVal) pushFiscal('INVOICE_PRODUCT_NAME', { value_name: invoiceNameVal });
+
+            const ivaVal = fiscal_data.iva_for_resale != null ? String(fiscal_data.iva_for_resale).trim() : '';
+            if (ivaVal) pushFiscal('IVA_FOR_RESALE', resolveListFiscal('IVA_FOR_RESALE', ivaVal, IVA_VALUE_IDS));
+
+            const iepsVal = fiscal_data.ieps != null ? String(fiscal_data.ieps).trim() : '';
+            if (iepsVal) pushFiscal('IEPS', resolveListFiscal('IEPS', iepsVal, IEPS_VALUE_IDS));
+
+            const pedimentoRaw = fiscal_data.import_declaration_number != null ? String(fiscal_data.import_declaration_number).replace(/\D/g, '') : '';
+            if (pedimentoRaw.length > 0) pushFiscal('IMPORT_DECLARATION_NUMBER', { value_name: pedimentoRaw.slice(0, 18) });
+        }
+        trace.paso_7_fiscal = {
+            enabled: !!(fiscal_data && typeof fiscal_data === 'object' && fiscal_data.enabled !== false),
+            enviados: fiscalEnviados,
+            omitidos: fiscalOmitidos,
+            articulo_codigo_sat: resolved.codigo_sat ?? null,
+        };
+
         trace.paso_7_attributes_mapeados = attributes;
         trace.paso_7_package_dimensions = {
             SELLER_PACKAGE_HEIGHT: resolved.alto_cm  != null ? `${Math.round(resolved.alto_cm)} cm`             : null,
@@ -891,7 +1100,7 @@ export async function POST(req: NextRequest) {
 
         // Atributos requeridos que NO pudimos mapear automáticamente
         const mappedIds = new Set(attributes.map(a => a.id));
-        const unresolvedAttrs = attrInfo.required
+        const unresolvedAttrs = effectiveRequiredAttrs
             .filter((a: any) => !mappedIds.has(a.id))
             .map((a: any) => ({
                 id:         a.id,
@@ -920,7 +1129,7 @@ export async function POST(req: NextRequest) {
 
         // Construir mapa de valores permitidos por atributo para validación posterior
         const allowedValuesByAttr: Map<string, Set<string>> = new Map();
-        for (const attr of attrInfo.required) {
+        for (const attr of effectiveRequiredAttrs) {
             if (attr.values?.length > 0) {
                 allowedValuesByAttr.set(attr.id, new Set(attr.values.map((v: any) => String(v.id))));
             }
@@ -983,7 +1192,7 @@ export async function POST(req: NextRequest) {
 
         // Atributos requeridos todavía faltantes después del AI
         const stillMissingIds = new Set(allAttributes.map((a: any) => a.id));
-        const stillMissing = attrInfo.required
+        const stillMissing = effectiveRequiredAttrs
             .filter((a: any) => !stillMissingIds.has(a.id))
             .map((a: any) => ({ id: a.id, name: a.name }));
         trace.paso_8_atributos_aun_faltantes = stillMissing;
@@ -1051,14 +1260,6 @@ export async function POST(req: NextRequest) {
         } else {
             picturesField = effectivePictures.map((url: string) => ({ source: url }));
         }
-
-        // Enlace a catálogo efectivo: si no se indicó, se hereda de la vidriera origen.
-        // Una tradicional vinculada a catálogo tiene catalog_listing=false pero SÍ
-        // catalog_product_id, así que no exigimos catalog_listing.
-        const effectiveCatalogProductId: string | null = catalog_product_id
-            || sourceData?.catalog_product_id
-            || null;
-        const effectiveCatalogListing: boolean = !!(catalog_listing || effectiveCatalogProductId);
 
         // Ficha del catálogo (una sola lectura): sirve para el filtro dinámico de
         // atributos y para exponer el título del catálogo como candidato.
@@ -1184,6 +1385,56 @@ export async function POST(req: NextRequest) {
         }
         if (pkgFormatErrors.length > 0) {
             erroresDuros.push(`Formato inválido en dimensiones de paquete: ${pkgFormatErrors.join('; ')}`);
+        }
+
+        // Identificación efectiva (overrides > datos resueltos)
+        const effectiveMarca  = (_ovMarca  || resolved.marca  || '').trim();
+        const effectiveModelo = (_ovModelo || resolved.modelo || '').trim();
+        const effectiveGtin   = (_ovGtin   || resolved.codigo_universal || '').trim();
+
+        // Validación estricta Opción B + pre-check de duplicados en Catálogo Maestro
+        let existingCatalogMatch: { articulo_id: string; nombre: string; publicacion_ml?: string | null; codigo_sat?: string | null } | null = null;
+        if (register_in_catalog && !resolvedArticuloId) {
+            if (resolved.nombre.trim().length < 5) {
+                erroresDuros.push('Para dar de alta en Catálogo Maestro el nombre debe tener al menos 5 caracteres');
+            }
+            if (!effectiveMarca) {
+                erroresDuros.push('Para dar de alta en Catálogo Maestro la Marca es obligatoria');
+            }
+            if (!effectiveModelo) {
+                erroresDuros.push('Para dar de alta en Catálogo Maestro el Modelo es obligatorio');
+            }
+            if (effectiveMarca && effectiveModelo) {
+                if (effectiveGtin) {
+                    const { data: gtinMatch } = await supabaseAdmin
+                        .from('articulos')
+                        .select('articulo_id, nombre, publicacion_ml, codigo_sat')
+                        .eq('codigo_universal', effectiveGtin)
+                        .limit(1)
+                        .maybeSingle();
+                    if (gtinMatch) existingCatalogMatch = gtinMatch;
+                }
+                if (!existingCatalogMatch) {
+                    const { data: mmMatch } = await supabaseAdmin
+                        .from('articulos')
+                        .select('articulo_id, nombre, publicacion_ml, codigo_sat')
+                        .ilike('marca', effectiveMarca)
+                        .ilike('modelo', effectiveModelo)
+                        .limit(1)
+                        .maybeSingle();
+                    if (mmMatch) existingCatalogMatch = mmMatch;
+                }
+                trace.paso_0_5_catalogo = existingCatalogMatch
+                    ? { accion: 'vinculara_existente', articulo_id: existingCatalogMatch.articulo_id, nombre: existingCatalogMatch.nombre }
+                    : { accion: 'creara_nuevo_web', nombre: resolved.nombre };
+            }
+        }
+
+        // Advertencia preventiva automotriz (dry_run y real)
+        const hasCompatInInput = !!(compatibilities && ((compatibilities.products || []).length > 0 || (compatibilities.products_families || []).length > 0));
+        const hasCompatInArt = Array.isArray(resolved.atributos_especificos?.compatibilidades) && resolved.atributos_especificos.compatibilidades.length > 0;
+        if (isAutomotiveCategory && !hasCompatInInput && !hasCompatInArt) {
+            trace.paso_12_5_advertencia = 'Categoría automotriz sin compatibilidades vehiculares: Mercado Libre podría dejar la publicación en revisión (under_review / waiting_for_patch) hasta agregar vehículos compatibles.';
         }
 
         if (erroresDuros.length > 0) {
@@ -1336,10 +1587,82 @@ export async function POST(req: NextRequest) {
         // -- 13. Descripción: va a la TRADICIONAL (la de catálogo la aporta MeLi) --
         let descResult: any = null;
         if (descripcionCompleta) {
-            descResult = await (meli as any).addDescription(marketplace_id, created.item_id, descripcionCompleta);
-            trace.paso_13_descripcion = { ok: descResult.ok, chars: descripcionCompleta.length };
+            try {
+                descResult = await (meli as any).addDescription(marketplace_id, created.item_id, descripcionCompleta);
+                trace.paso_13_descripcion = { ok: descResult?.ok ?? true, chars: descripcionCompleta.length };
+            } catch (descErr: any) {
+                trace.paso_13_descripcion = { ok: false, error: descErr?.message || String(descErr), chars: descripcionCompleta.length };
+            }
         } else {
             trace.paso_13_descripcion = { omitido: 'Sin descripción disponible (ni en ficha ni en artículo)' };
+        }
+
+        // -- 13.5 Alta explícita en Catálogo Maestro (Opción B vía web_upsert_articulo) --
+        let createdNewCatalogArticle = false;
+        if (register_in_catalog && !resolvedArticuloId) {
+            if (existingCatalogMatch?.articulo_id) {
+                resolvedArticuloId = existingCatalogMatch.articulo_id;
+                articulo = { ...articulo, ...existingCatalogMatch };
+                trace.paso_0_5_catalogo = { accion: 'vinculado_existente', articulo_id: resolvedArticuloId };
+            } else {
+                const numFromAttr = (id: string) => {
+                    const v = cleanAttributes.find((a: any) => a.id === id)?.value_name;
+                    const m = v != null ? String(v).match(/\d+(\.\d+)?/) : null;
+                    return m ? Number(m[0]) : null;
+                };
+                const effPesoG = numFromAttr('SELLER_PACKAGE_WEIGHT');
+                const effPesoKg = resolved.peso_kg != null ? Number(resolved.peso_kg) : (effPesoG != null ? effPesoG / 1000 : null);
+                const effLargoCm = numFromAttr('SELLER_PACKAGE_LENGTH') ?? (resolved.largo_cm != null ? Number(resolved.largo_cm) : null);
+                const effAnchoCm = numFromAttr('SELLER_PACKAGE_WIDTH') ?? (resolved.ancho_cm != null ? Number(resolved.ancho_cm) : null);
+                const effAltoCm = numFromAttr('SELLER_PACKAGE_HEIGHT') ?? (resolved.alto_cm != null ? Number(resolved.alto_cm) : null);
+
+                let newArtId: string | null = null;
+                for (let attempt = 0; attempt < 5; attempt++) {
+                    const candidate = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+                    const { data: dup } = await supabaseAdmin
+                        .from('articulos')
+                        .select('articulo_id')
+                        .eq('articulo_id', candidate)
+                        .maybeSingle();
+                    if (!dup) { newArtId = candidate; break; }
+                }
+
+                if (newArtId) {
+                    const satForNewArt = (fiscal_data?.enabled !== false && fiscal_data?.sat_key)
+                        ? String(fiscal_data.sat_key).trim() || null
+                        : null;
+                    const { error: upsertArtErr } = await supabaseAdmin.rpc('web_upsert_articulo', {
+                        p_articulo_id: newArtId,
+                        p_nombre: resolved.nombre.slice(0, 200),
+                        p_marca: effectiveMarca,
+                        p_modelo: effectiveModelo,
+                        p_variante: resolved.variante || null,
+                        p_categoria: category_id || resolved.categoria || null,
+                        p_caja_madre: null,
+                        p_codigo_universal: effectiveGtin || null,
+                        p_codigo_sat: satForNewArt,
+                        p_url_producto: null,
+                        p_notas: null,
+                        p_peso_kg: effPesoKg,
+                        p_es_full: false,
+                        p_es_dropshipping: false,
+                        p_descripcion: descripcionCompleta || null,
+                        p_largo_cm: effLargoCm,
+                        p_ancho_cm: effAnchoCm,
+                        p_alto_cm: effAltoCm,
+                        p_imagenes: effectivePictures.length > 0 ? effectivePictures : null,
+                    });
+                    if (!upsertArtErr) {
+                        resolvedArticuloId = newArtId;
+                        createdNewCatalogArticle = true;
+                        trace.paso_0_5_catalogo = { accion: 'creado_web', articulo_id: newArtId };
+                    } else {
+                        trace.paso_0_5_catalogo = { error: upsertArtErr.message };
+                    }
+                } else {
+                    trace.paso_0_5_catalogo = { error: 'No se pudo generar un articulo_id único de 8 chars' };
+                }
+            }
         }
 
         // -- 14-15. Persistir AMBAS publicaciones (tradicional + catálogo) ------
@@ -1353,7 +1676,7 @@ export async function POST(req: NextRequest) {
         }> = [
             {
                 item: created,
-                tipo: created.user_product_id ? 'up' : 'tradicional',
+                tipo: 'tradicional',
                 es_fuente_stock: true,
                 id_padre: null,
                 // La tradicional ya NO referencia catalog_product_id (el vínculo lo
@@ -1398,6 +1721,11 @@ export async function POST(req: NextRequest) {
                     free_shipping:         !!free_shipping,
                     shipping_mode:         shipping_mode,
                     seller_sku:            sku_efectivo || null,
+                    esta_mapeado:          Boolean(resolvedArticuloId),
+                    gtin:                  effectiveGtin || null,
+                    brand:                 effectiveMarca || null,
+                    model:                 effectiveModelo || null,
+                    domain_id:             catDomainId || null,
                     condition:             'new',
                     actualizado_el:        new Date().toISOString(),
                 }, { onConflict: 'marketplace_id,external_item_id,external_variation_id' })
@@ -1406,16 +1734,18 @@ export async function POST(req: NextRequest) {
 
             if (pubInserted?.id) {
                 persistedIds.push(pubInserted.id);
-                const isFulfillment = (sourceData?.shipping?.logistic_type === 'fulfillment') || (sourceItem?.shipping?.logistic_type === 'fulfillment');
-                const { error: mapErr } = await supabaseAdmin
-                    .from('mapeo_publicacion_articulo')
-                    .upsert({
-                        publicacion_id:     pubInserted.id,
-                        articulo_id:        resolvedArticuloId,
-                        cantidad_requerida: effectivePackQty,
-                        sincronizar_stock:  !isFulfillment,
-                    }, { onConflict: 'publicacion_id,articulo_id' });
-                if (mapErr) persistErrors.push(`mapeo ${p.item.item_id}: ${mapErr.message}`);
+                if (resolvedArticuloId) {
+                    const isFulfillment = (sourceData?.shipping?.logistic_type === 'fulfillment') || (sourceItem?.shipping?.logistic_type === 'fulfillment');
+                    const { error: mapErr } = await supabaseAdmin
+                        .from('mapeo_publicacion_articulo')
+                        .upsert({
+                            publicacion_id:     pubInserted.id,
+                            articulo_id:        resolvedArticuloId,
+                            cantidad_requerida: effectivePackQty,
+                            sincronizar_stock:  !isFulfillment && !createdNewCatalogArticle,
+                        }, { onConflict: 'publicacion_id,articulo_id' });
+                    if (mapErr) persistErrors.push(`mapeo ${p.item.item_id}: ${mapErr.message}`);
+                }
             } else if (pubErr) {
                 persistErrors.push(`upsert ${p.item.item_id}: ${pubErr.message}`);
             }
@@ -1451,8 +1781,11 @@ export async function POST(req: NextRequest) {
 
         // -- 14a. Registro de auditoría: la publicación recién creada nace "auditada".
         // (Es recién publicada: no requiere revisión inmediata. Fail-safe, no bloquea la respuesta.)
+        const auditAction = sourceData
+            ? 'creada_desde_copia'
+            : (!articulo_id && !createdNewCatalogArticle ? 'creada_desde_cero' : 'creada_nueva');
         for (const pid of persistedIds) {
-            await registrarAuditoria(pid, 'publicacion', sourceData ? 'creada_desde_copia' : 'creada_nueva', { item_id: created.item_id });
+            await registrarAuditoria(pid, 'publicacion', auditAction, { item_id: created.item_id });
         }
 
         // -- 14b. Vincular tradicional ↔ catálogo de inmediato -----------------
@@ -1481,14 +1814,43 @@ export async function POST(req: NextRequest) {
             trace.paso_14_link = { error: e.message };
         }
 
-        // -- 16. Actualizar articulos.publicacion_ml con la TRADICIONAL ---------
-        const { error: artUpdateErr } = await supabaseAdmin
-            .from('articulos')
-            .update({ publicacion_ml: created.item_id })
-            .eq('articulo_id', resolvedArticuloId);
-        trace.paso_16_articulo_update = artUpdateErr
-            ? { error: artUpdateErr.message }
-            : { publicacion_ml: created.item_id };
+        // -- 16. Actualizar articulos.publicacion_ml solo si estaba vacío ---------
+        if (resolvedArticuloId && !articulo?.publicacion_ml) {
+            const { error: artUpdateErr } = await supabaseAdmin
+                .from('articulos')
+                .update({ publicacion_ml: created.item_id })
+                .eq('articulo_id', resolvedArticuloId);
+            trace.paso_16_articulo_update = artUpdateErr
+                ? { error: artUpdateErr.message }
+                : { publicacion_ml: created.item_id };
+        } else {
+            trace.paso_16_articulo_update = articulo?.publicacion_ml
+                ? { omitido: 'Ya tiene publicacion_ml asignada', existente: articulo.publicacion_ml }
+                : { omitido: 'Sin articulo_id vinculado' };
+        }
+
+        // -- 16b. Persistir codigo_sat si el operador lo capturó/editó -----------
+        const satTrimmed = fiscal_data?.sat_key != null ? String(fiscal_data.sat_key).trim() : '';
+        if (
+            resolvedArticuloId &&
+            !createdNewCatalogArticle &&
+            fiscal_data?.enabled !== false &&
+            fiscal_data?.save_sat_to_articulo !== false &&
+            /^\d{8}$/.test(satTrimmed) &&
+            satTrimmed !== (articulo?.codigo_sat || '')
+        ) {
+            try {
+                const { error: satUpdErr } = await supabaseAdmin
+                    .from('articulos')
+                    .update({ codigo_sat: satTrimmed, origin: 'web' })
+                    .eq('articulo_id', resolvedArticuloId);
+                trace.paso_16_codigo_sat_update = satUpdErr
+                    ? { error: satUpdErr.message }
+                    : { codigo_sat: satTrimmed, origin: 'web' };
+            } catch (satErr: any) {
+                trace.paso_16_codigo_sat_update = { error: satErr?.message || String(satErr) };
+            }
+        }
 
         // -- 17. Vincular ficha técnica a la publicación tradicional ------------
         if (ficha_id && persistedIds.length > 0) {
@@ -1517,6 +1879,8 @@ export async function POST(req: NextRequest) {
             permalink:       created.permalink,
             title:           created.title,
             seller_model:    sellerInfo.model,
+            articulo_id_creado: createdNewCatalogArticle ? resolvedArticuloId : null,
+            articulo_id_vinculado: resolvedArticuloId,
             duracion_ms:     Date.now() - startTime,
             trace,
         });

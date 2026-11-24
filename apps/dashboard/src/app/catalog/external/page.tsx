@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import {
     Search, RefreshCw, AlertCircle, CheckCircle2, Link2,
     SlidersHorizontal, ExternalLink, MoreVertical, Truck,
-    ChevronDown, ChevronRight, Package, Layers, Clock
+    ChevronDown, ChevronRight, Package, Layers, Clock, Send
 } from 'lucide-react';
 import Link from 'next/link';
 import MappingModal from '@/components/mapping-modal';
@@ -1371,6 +1371,12 @@ export default function VirtualCatalogPage() {
                     description={`${totalCount.toLocaleString()} publicaciones · ${grouped.length} ítems en esta página`}
                     actions={
                         <>
+                            <Link
+                                href="/catalog/publicar"
+                                className="touch-target inline-flex items-center justify-center gap-2 rounded-lg font-bold transition-all px-3 py-2 text-sm bg-[var(--accent)] text-[var(--accent-ink)] hover:brightness-110 shadow-sm"
+                            >
+                                <Send className="w-4 h-4" /> + Nueva publicación
+                            </Link>
                             <Link
                                 href="/catalog/external/urgencia-precios"
                                 className="touch-target inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors px-3 py-2 text-sm bg-[var(--surface)] text-[var(--err)] border border-[var(--err)]/30 hover:bg-[var(--err)]/10"

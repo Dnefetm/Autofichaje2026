@@ -286,6 +286,7 @@ export async function POST(req: NextRequest) {
             .upsert({
                 marketplace_id,
                 external_item_id: created.item_id,
+                user_product_id: created.user_product_id ?? null,
                 external_variation_id: '0',
                 titulo: created.title,
                 precio_venta: price,
@@ -294,9 +295,7 @@ export async function POST(req: NextRequest) {
                 permalink: created.permalink,
                 listing_type_id,
                 category_id: existing.category_id ?? null,
-                tipo_publicacion: created.user_product_id
-                    ? 'up'
-                    : isCatalog ? 'catalogo' : 'tradicional',
+                tipo_publicacion: isCatalog ? 'catalogo' : 'tradicional',
                 id_publicacion_padre: null,
                 id_producto_catalogo: existing.catalog_product_id ?? null,
                 es_fuente_stock: true,

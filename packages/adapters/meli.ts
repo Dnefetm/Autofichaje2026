@@ -1508,21 +1508,66 @@ export class MeliAdapter implements MarketplaceAdapter {
         tags: string[];
         nickname: string;
     }> {
+        let existingSettings: Record<string, any> = {};
+        try {
+            const { data: cfg } = await supabase
+                .from('marketplace_configs')
+                .select('settings')
+                .eq('id', accountId)
+                .single();
+            if (cfg?.settings && typeof cfg.settings === 'object') {
+                existingSettings = cfg.settings as Record<string, any>;
+                if (
+                    (existingSettings.seller_model === 'up' || existingSettings.seller_model === 'legacy') &&
+                    existingSettings.seller_id
+                ) {
+                    return {
+                        model: existingSettings.seller_model,
+                        seller_id: Number(existingSettings.seller_id),
+                        tags: Array.isArray(existingSettings.seller_tags) ? existingSettings.seller_tags : [],
+                        nickname: existingSettings.seller_nickname || '',
+                    };
+                }
+            }
+        } catch {
+            // Si falla la lectura de cache, caemos a GET /users/me
+        }
+
         const accessToken = await this.getAccessToken(accountId);
         const resp = await axios.get('https://api.mercadolibre.com/users/me', {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
         const tags: string[] = resp.data.tags || [];
         const isUP = tags.includes('user_product_seller');
+        const model: 'up' | 'legacy' = isUP ? 'up' : 'legacy';
+        const nickname: string = resp.data.nickname || '';
+
+        try {
+            await supabase
+                .from('marketplace_configs')
+                .update({
+                    settings: {
+                        ...existingSettings,
+                        seller_model: model,
+                        seller_tags: tags,
+                        seller_nickname: nickname,
+                        seller_id: String(resp.data.id),
+                    },
+                })
+                .eq('id', accountId);
+        } catch {
+            // Persistencia de cache no bloqueante
+        }
+
         logger.info(
-            { accountId, seller_id: resp.data.id, model: isUP ? 'up' : 'legacy', tags },
+            { accountId, seller_id: resp.data.id, model, tags },
             'detectSellerModel completado'
         );
         return {
-            model: isUP ? 'up' : 'legacy',
+            model,
             seller_id: resp.data.id,
             tags,
-            nickname: resp.data.nickname || '',
+            nickname,
         };
     }
 
@@ -1575,6 +1620,7 @@ export class MeliAdapter implements MarketplaceAdapter {
      */
     async getCategoryAttributes(accountId: string, categoryId: string): Promise<{
         required: any[];
+        catalog_required: any[];
         parent_pk: any[];
         child_pk: any[];
         optional: any[];
@@ -1587,21 +1633,22 @@ export class MeliAdapter implements MarketplaceAdapter {
         );
         const raw: any[] = resp.data || [];
 
-        const required   = raw.filter((a: any) => (a.tags || {}).required === true);
-        const parent_pk  = raw.filter((a: any) => (a.tags || {}).defines_picture === true
+        const required         = raw.filter((a: any) => (a.tags || {}).required === true);
+        const catalog_required = raw.filter((a: any) => (a.tags || {}).catalog_required === true);
+        const parent_pk        = raw.filter((a: any) => (a.tags || {}).defines_picture === true
             || (a.tags || {}).is_identifier === true
             || a.id === 'BRAND' || a.id === 'MODEL');
-        const child_pk   = raw.filter((a: any) =>
+        const child_pk         = raw.filter((a: any) =>
             (a.tags || {}).allow_variations === true &&
             !(a.tags || {}).defines_picture
         );
-        const optional   = raw.filter((a: any) => !(a.tags || {}).required);
+        const optional         = raw.filter((a: any) => !(a.tags || {}).required);
 
         logger.info(
-            { accountId, categoryId, total: raw.length, required: required.length, parent_pk: parent_pk.length, child_pk: child_pk.length },
+            { accountId, categoryId, total: raw.length, required: required.length, catalog_required: catalog_required.length, parent_pk: parent_pk.length, child_pk: child_pk.length },
             'getCategoryAttributes completado'
         );
-        return { required, parent_pk, child_pk, optional, raw };
+        return { required, catalog_required, parent_pk, child_pk, optional, raw };
     }
 
     /**
