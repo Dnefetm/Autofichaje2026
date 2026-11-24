@@ -27,6 +27,24 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
+  // APIs de administración: requieren sesión válida y rol 'admin' (siempre JSON, nunca redirect).
+  if (pathname === '/api/admin' || pathname.startsWith('/api/admin/')) {
+    if (request.method === 'OPTIONS') {
+      return supabaseResponse
+    }
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+    const { data: rol, error: rolError } = await supabase.rpc('current_rol')
+    if (rolError) {
+      return NextResponse.json({ error: 'No se pudo verificar el rol' }, { status: 503 })
+    }
+    if (rol !== 'admin') {
+      return NextResponse.json({ error: 'Prohibido: se requiere rol admin' }, { status: 403 })
+    }
+    return supabaseResponse
+  }
+
   // Rutas de administración: solo rol 'admin'.
   if (pathname.startsWith('/admin')) {
     if (!user) {
