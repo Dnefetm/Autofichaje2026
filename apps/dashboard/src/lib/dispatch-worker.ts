@@ -1,4 +1,5 @@
 import { supabaseAdmin } from './supabase';
+import { getInternalAppUrl } from './app-url';
 
 /**
  * Fire-and-forget dispatch al worker endpoint.
@@ -51,10 +52,8 @@ export async function dispatchWorker(): Promise<void> {
         // Ignorar
     }
 
-    // Construir URL base: VERCEL_URL en produccion, localhost en dev
-    const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : 'http://localhost:3000';
+    // Construir URL base: INTERNAL_APP_URL en VPS/Docker, VERCEL_URL en Vercel, localhost en dev
+    const baseUrl = getInternalAppUrl();
 
     // Fire-and-forget: no esperamos respuesta, timeout agresivo de 2s
     // Si el worker tarda mas, seguira ejecutandose en background (Vercel lo mantiene hasta maxDuration)
@@ -66,12 +65,13 @@ export async function dispatchWorker(): Promise<void> {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${secret}` },
             signal: controller.signal,
-        }).catch(() => {
-            // Silenciar errores — el cron safety-net se encarga
-        });
+        })
+            .catch(() => {
+                // Silenciar errores — el cron safety-net se encarga
+            })
+            .finally(() => clearTimeout(timeout));
     } catch {
         // Silenciar — fire-and-forget
-    } finally {
         clearTimeout(timeout);
     }
 }

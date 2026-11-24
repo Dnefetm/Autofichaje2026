@@ -11,6 +11,7 @@ import { SKU_Service } from '@gestor/shared/sku-service';
 import { AutomationManager } from '@gestor/sync/automations';
 import { runReconciliation } from '@gestor/sync/reconciliation';
 import logger from '@/lib/logger';
+import { getInternalAppUrl } from '@/lib/app-url';
 import axios from 'axios';
 
 export const dynamic = 'force-dynamic';
@@ -248,7 +249,7 @@ results.errors.push(`Fatal: ${err.message}`);
         .lte('scheduled_at', new Date().toISOString());
 
       if ((remaining || 0) > 0) {
-        const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+        const baseUrl = getInternalAppUrl();
         // `after()` garantiza que el fetch sobreviva al return de la respuesta (Vercel
         // congela la función al responder; sin esto el re-dispatch puede morir a medias).
         after(() => {
