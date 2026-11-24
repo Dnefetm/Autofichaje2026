@@ -27,7 +27,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import { resolvePublicationAI } from '@gestor/sync/meli-ai-helper';
 import { registrarAuditoria } from '@/lib/auditoria';
-import { checkPublishDuplicates, normalizeGtins, extractGtinCaps } from '@/lib/publish-duplicates';
+import { checkPublishDuplicates, normalizeGtins, extractGtinCaps, checkConditionalGtinRequirement, mergeConditionalGtinCaps } from '@/lib/publish-duplicates';
 import { extractFiscalFromMeliAttributes, FISCAL_ATTR_IDS, IVA_VALUE_IDS, IEPS_VALUE_IDS } from '@/lib/meli-fiscal';
 import sharp from 'sharp';
 
@@ -865,8 +865,9 @@ export async function POST(req: NextRequest) {
         }
 
         // Enlace a catálogo efectivo (se resuelve aquí para incluir catalog_required en el paso 6)
+        const allowSourceCatalog = !empty_gtin_reason && body.catalog_listing !== false;
         const effectiveCatalogProductId: string | null = catalog_product_id
-            || sourceData?.catalog_product_id
+            || (allowSourceCatalog ? sourceData?.catalog_product_id : null)
             || null;
         const effectiveCatalogListing: boolean = !!(catalog_listing || effectiveCatalogProductId);
 
@@ -888,7 +889,20 @@ export async function POST(req: NextRequest) {
             'IMPORT_DECLARATION_NUMBER', 'INVOICE_PRODUCT_NAME',
             'IVA_FOR_RESALE', 'IEPS', 'SALE_FORMAT', 'UNITS_PER_PACK',
         ]);
-        const gtinCaps = extractGtinCaps(attrInfo.raw || []);
+        const baseGtinCaps = extractGtinCaps(attrInfo.raw || []);
+        const brandForCond = (_ovMarca || resolved.marca || '').trim() || null;
+        const gtinCaps = baseGtinCaps.has_empty_reason
+            ? mergeConditionalGtinCaps(
+                baseGtinCaps,
+                brandForCond,
+                await checkConditionalGtinRequirement({
+                    category_id,
+                    brand: brandForCond,
+                    listing_type_id,
+                    empty_gtin_reason,
+                }),
+            )
+            : baseGtinCaps;
         const optionalAttrs = (attrInfo.optional || [])
             .filter((a: any) => FILLABLE_TYPES.has(a.value_type) && !SKIP_OPT_IDS.has(a.id) && !(a.tags || {}).hidden)
             .slice(0, 40);
@@ -962,16 +976,20 @@ export async function POST(req: NextRequest) {
         // value_id/value_name. Se filtran atributos de sistema/obsoletos y los ya mapeados.
         if (sourceData?.attributes && Array.isArray(sourceData.attributes)) {
             const mappedIdsPreSource = new Set(attributes.map(a => a.id));
-            // SELLER_PACKAGE_* se omiten aquí: se re-construyen desde las dimensiones
-            // resueltas (maybePushPackage) para evitar duplicados y unidades incorrectas.
+            const hiddenCatAttrIds = new Set(
+                (attrInfo.raw || []).filter((a: any) => a?.tags?.hidden).map((a: any) => a.id),
+            );
+            // SELLER_PACKAGE_* y los atributos hidden/sistema internos de MeLi se omiten aquí:
+            // los válidos del vendedor se reconstruyen explícitamente para no filtrar IDs internos (AGID/APGID).
             const SKIP_SOURCE_ATTRS = new Set([
                 'EXCLUSIVE_CHANNEL', 'SELLER_CUSTOM_FIELD', 'SIZE_GRID_ID',
                 'SELLER_PACKAGE_HEIGHT', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WEIGHT',
                 'PACKAGE_DATA_SOURCE', 'PACKAGE_HEIGHT', 'PACKAGE_LENGTH', 'PACKAGE_WEIGHT', 'PACKAGE_WIDTH',
-                'PRODUCT_FEATURES', 'SHIPMENT_PACKING'
+                'PRODUCT_FEATURES', 'SHIPMENT_PACKING',
+                'AGID', 'APGID', 'PRODUCT_DATA_SOURCE', 'MPN', 'EMPTY_GTIN_REASON', 'IS_KIT', 'CATALOG_TITLE',
             ]);
             for (const sa of sourceData.attributes) {
-                if (!sa?.id || SKIP_SOURCE_ATTRS.has(sa.id)) continue;
+                if (!sa?.id || SKIP_SOURCE_ATTRS.has(sa.id) || hiddenCatAttrIds.has(sa.id)) continue;
                 if (empty_gtin_reason && (sa.id === 'GTIN' || sa.id === 'EAN' || sa.id === 'UPC')) continue;
                 if (fiscal_data !== undefined && FISCAL_ATTR_IDS.has(sa.id)) continue;
                 if (mappedIdsPreSource.has(sa.id)) continue;
@@ -1029,8 +1047,8 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // Sin GTIN (EMPTY_GTIN_REASON) / Kit (IS_KIT) validados contra capacidades de la categoría
-        if (empty_gtin_reason && gtinCaps.has_empty_reason) {
+        // Sin GTIN (EMPTY_GTIN_REASON) / Kit (IS_KIT) validados contra capacidades condicionales de la categoría + marca
+        if (empty_gtin_reason && gtinCaps.allows_empty_gtin) {
             const trimmedReason = String(empty_gtin_reason).trim();
             const matchedReason = gtinCaps.empty_reasons.find(
                 r => r.id === trimmedReason || r.name.toLowerCase() === trimmedReason.toLowerCase(),
@@ -1125,7 +1143,7 @@ export async function POST(req: NextRequest) {
         const mappedIds = new Set(attributes.map(a => a.id));
         const hasEmptyReasonAttr = mappedIds.has('EMPTY_GTIN_REASON');
         const unresolvedAttrs = effectiveRequiredAttrs
-            .filter((a: any) => !mappedIds.has(a.id) && !(hasEmptyReasonAttr && a.id === 'GTIN'))
+            .filter((a: any) => !mappedIds.has(a.id) && !(hasEmptyReasonAttr && gtinCaps.allows_empty_gtin && a.id === 'GTIN'))
             .map((a: any) => ({
                 id:         a.id,
                 name:       a.name,
@@ -1223,7 +1241,7 @@ export async function POST(req: NextRequest) {
         // Atributos requeridos todavía faltantes después del AI
         const stillMissingIds = new Set(allAttributes.map((a: any) => a.id));
         const stillMissing = effectiveRequiredAttrs
-            .filter((a: any) => !stillMissingIds.has(a.id) && !(hasEmptyReasonAttr && a.id === 'GTIN'))
+            .filter((a: any) => !stillMissingIds.has(a.id) && !(hasEmptyReasonAttr && gtinCaps.allows_empty_gtin && a.id === 'GTIN'))
             .map((a: any) => ({ id: a.id, name: a.name }));
         trace.paso_8_atributos_aun_faltantes = stillMissing;
 
@@ -1422,10 +1440,12 @@ export async function POST(req: NextRequest) {
         const effectiveModelo = (_ovModelo || resolved.modelo || '').trim();
         const effectiveGtin   = empty_gtin_reason ? '' : (gtinParsed.joined || '');
 
-        // Validación en vivo de GTIN / EMPTY_GTIN_REASON contra capacidades de la categoría
+        // Validación en vivo de GTIN / EMPTY_GTIN_REASON contra capacidades condicionales de la categoría + marca
         const gtinWarnings: string[] = [];
-        if (empty_gtin_reason && !gtinCaps.has_empty_reason) {
-            const msg = `La categoría ${category_id} no acepta publicación sin GTIN (EMPTY_GTIN_REASON) en MeLi. Captura 1 o varios GTIN separados por coma.`;
+        if (empty_gtin_reason && !gtinCaps.allows_empty_gtin) {
+            const msg = gtinCaps.gtin_required_for_brand
+                ? `MeLi exige GTIN obligatorio para la marca "${brandForCond || effectiveMarca || 'seleccionada'}" en ${category_id} aun marcando kit / Sin GTIN. Usa modo "Con GTIN"${gtinCaps.multivalued ? ' (acepta varios GTIN separados por coma)' : ''}.`
+                : `La categoría ${category_id} no acepta publicación sin GTIN (EMPTY_GTIN_REASON) en MeLi. Captura 1 o varios GTIN separados por coma.`;
             gtinWarnings.push(msg);
             if (!dry_run) erroresDuros.push(msg);
         }

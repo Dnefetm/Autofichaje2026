@@ -45,6 +45,9 @@ export interface CategoryGtinCaps {
     has_empty_reason: boolean;
     empty_reasons: Array<{ id: string; name: string }>;
     supports_is_kit: boolean;
+    gtin_required_for_brand?: boolean;
+    conditional_brand?: string | null;
+    allows_empty_gtin?: boolean;
 }
 
 const SKU_BASURA_RE = /^[0-9a-f]{8}$/i;
@@ -102,6 +105,73 @@ export function extractGtinCaps(rawAttrs: any[]): CategoryGtinCaps {
             ? empty.values.map((v: any) => ({ id: String(v.id), name: String(v.name) }))
             : [],
         supports_is_kit: Boolean(isKit),
+        allows_empty_gtin: Boolean(empty),
+    };
+}
+
+/** Consulta en vivo el motor condicional de MeLi para validar si una marca exige GTIN aun con EMPTY_GTIN_REASON / IS_KIT. */
+export async function checkConditionalGtinRequirement(params: {
+    category_id: string;
+    brand?: string | null;
+    listing_type_id?: string | null;
+    empty_gtin_reason?: string | null;
+}): Promise<{ checked: boolean; gtin_required_for_brand: boolean; required_ids: string[] }> {
+    const categoryId = String(params.category_id || '').trim();
+    if (!categoryId) {
+        return { checked: false, gtin_required_for_brand: false, required_ids: [] };
+    }
+    const brandTrimmed = String(params.brand ?? '').trim();
+    const body = {
+        site_id: 'MLM',
+        category_id: categoryId,
+        buying_mode: 'buy_it_now',
+        condition: 'new',
+        listing_type_id: params.listing_type_id || 'gold_special',
+        attributes: [
+            ...(brandTrimmed ? [{ id: 'BRAND', value_name: brandTrimmed }] : []),
+            { id: 'EMPTY_GTIN_REASON', value_id: params.empty_gtin_reason || '17055159' },
+            { id: 'IS_KIT', value_id: '242085' },
+        ],
+    };
+
+    try {
+        const res = await fetch(
+            `https://api.mercadolibre.com/categories/${encodeURIComponent(categoryId)}/attributes/conditional`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(4000),
+            },
+        );
+        if (!res.ok) {
+            return { checked: false, gtin_required_for_brand: false, required_ids: [] };
+        }
+        const data = await res.json();
+        const requiredIds: string[] = Array.isArray(data?.required_attributes)
+            ? data.required_attributes.map((a: any) => String(a?.id || '')).filter(Boolean)
+            : [];
+        return {
+            checked: true,
+            gtin_required_for_brand: requiredIds.includes('GTIN'),
+            required_ids: requiredIds,
+        };
+    } catch {
+        return { checked: false, gtin_required_for_brand: false, required_ids: [] };
+    }
+}
+
+export function mergeConditionalGtinCaps(
+    base: CategoryGtinCaps,
+    brand: string | null | undefined,
+    cond: { checked: boolean; gtin_required_for_brand: boolean },
+): CategoryGtinCaps {
+    const gtinRequiredForBrand = cond.checked ? cond.gtin_required_for_brand : false;
+    return {
+        ...base,
+        gtin_required_for_brand: gtinRequiredForBrand,
+        allows_empty_gtin: base.has_empty_reason && !gtinRequiredForBrand,
+        conditional_brand: brand?.trim() || null,
     };
 }
 

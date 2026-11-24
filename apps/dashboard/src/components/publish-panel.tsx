@@ -374,7 +374,9 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
     const isStandalone = Boolean(standaloneMode || (!articulo_id && !sourcePublicacion));
     const effectiveGtin = gtinMode === 'empty' ? '' : (gtinOverride.trim() || codigoUniversal || sourcePublicacion?.gtin || '');
     const parsedEffectiveGtins = normalizeGtins(effectiveGtin);
+    const effectiveBrand = (marcaOverride.trim() || sourcePublicacion?.marca || articleData?.marca || '').trim();
     const activeGtinCaps: CategoryGtinCaps | null = dynamicGtinCaps ?? previewResult?.data?.trace?.paso_6_atributos?.gtin_caps ?? null;
+    const allowsEmptyGtin = activeGtinCaps ? (activeGtinCaps.allows_empty_gtin ?? activeGtinCaps.has_empty_reason) : true;
 
     // -- Cargar cuentas ------------------------------------------------------
     useEffect(() => {
@@ -581,12 +583,43 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
         };
     }, [accounts, articulo_id, skuOverride, sourcePublicacion?.sku, articleData?.modelo, effectiveGtin, gtinMode, listingType, packQtyNum]);
 
+    // Validación en vivo de capacidades GTIN + regla condicional por (categoría + marca) en Etapa 1
+    useEffect(() => {
+        if (stage !== 'config') return;
+        if (!categoryId.trim() || !primaryAccount) {
+            setDynamicGtinCaps(null);
+            return;
+        }
+        let cancelled = false;
+        const timer = setTimeout(() => {
+            const qs = new URLSearchParams({
+                category_id: categoryId.trim(),
+                marketplace_id: primaryAccount,
+                ...(effectiveBrand ? { brand: effectiveBrand } : {}),
+                ...(listingType ? { listing_type_id: listingType } : {}),
+                ...(emptyGtinReason ? { empty_gtin_reason: emptyGtinReason } : {}),
+            });
+            fetch(`/api/publish/attributes?${qs.toString()}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!cancelled && data?.ok) {
+                        setDynamicGtinCaps(data.gtin_caps || null);
+                    }
+                })
+                .catch(() => { /* no bloquear UI si falla consulta auxiliar */ });
+        }, 350);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [stage, categoryId, primaryAccount, effectiveBrand, listingType, emptyGtinReason]);
+
     // Re-fetch atributos requeridos cuando el usuario cambia la categoría en el preview
     useEffect(() => {
         if (!categoryOverride || !primaryAccount || stage !== 'preview') {
             setDynamicReqAttrs(null);
             setDynamicOptAttrs(null);
-            setDynamicGtinCaps(null);
+            if (stage === 'preview') setDynamicGtinCaps(null);
             setCurrentAttrValues(new Map());
             return;
         }
@@ -606,7 +639,14 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
         setCurrentAttrValues(new Map());
         setLoadingAttrs(true);
         const originalAttrs: any[] = previewResult?.data?.trace?.paso_8_attributes_final || [];
-        fetch(`/api/publish/attributes?category_id=${encodeURIComponent(categoryOverride)}&marketplace_id=${encodeURIComponent(primaryAccount)}`)
+        const qs = new URLSearchParams({
+            category_id: categoryOverride,
+            marketplace_id: primaryAccount,
+            ...(effectiveBrand ? { brand: effectiveBrand } : {}),
+            ...(listingType ? { listing_type_id: listingType } : {}),
+            ...(emptyGtinReason ? { empty_gtin_reason: emptyGtinReason } : {}),
+        });
+        fetch(`/api/publish/attributes?${qs.toString()}`)
             .then(r => r.json())
             .then(data => {
                 if (data.ok) {
@@ -636,7 +676,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
             })
             .catch(() => {})
             .finally(() => setLoadingAttrs(false));
-    }, [categoryOverride, primaryAccount, stage]);
+    }, [categoryOverride, primaryAccount, stage, effectiveBrand, listingType, emptyGtinReason]);
 
     // -- Gestión de imágenes --------------------------------------------------
     function addImage() {
@@ -948,7 +988,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                     ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
                     ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
-                    ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
+                    ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : (sourcePublicacion ? { catalog_listing: false } : {})),
                     ...(gtinMode === 'empty' ? { empty_gtin_reason: emptyGtinReason } : {}),
                     ...(isKit || (gtinMode === 'empty' && emptyGtinReason === '17055159') ? { is_kit: true } : {}),
                     fiscal_data: buildFiscalDataPayload(),
@@ -1012,7 +1052,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                     ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
                     ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
-                    ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
+                    ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : (sourcePublicacion ? { catalog_listing: false } : {})),
                     ...(gtinMode === 'empty' ? { empty_gtin_reason: emptyGtinReason } : {}),
                     ...(isKit || (gtinMode === 'empty' && emptyGtinReason === '17055159') ? { is_kit: true } : {}),
                     fiscal_data: buildFiscalDataPayload(),
@@ -1099,7 +1139,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                             shipping_mode: shippingMode,
                             cantidad_requerida: packQtyNum,
                             manufacturing_time_days: manufacturingDays !== '' ? Number(manufacturingDays) : null,
-                            ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
+                            ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : (sourcePublicacion ? { catalog_listing: false } : {})),
                             ...(gtinMode === 'empty' ? { empty_gtin_reason: emptyGtinReason } : {}),
                             ...(isKit || (gtinMode === 'empty' && emptyGtinReason === '17055159') ? { is_kit: true } : {}),
                             ...(confirmedDupAccounts[accountId] || Boolean(sourcePublicacion) ? { force_duplicate: true } : {}),
@@ -1107,7 +1147,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                         }),
                     });
                     const data = await res.json();
-                    results.push({ account_name: nombreCuenta, status: res.status, ok: !!data.ok, item_id: data.item_id, permalink: data.permalink, articulo_id_creado: data.articulo_id_creado ?? null, articulo_id_vinculado: data.articulo_id_vinculado ?? null, error: data.error, errores: data.errores, meli_error: data.meli_error, meli_message: data.meli_message });
+                    results.push({ account_name: nombreCuenta, status: res.status, ok: !!data.ok, item_id: data.item_id, permalink: data.permalink, articulo_id_creado: data.articulo_id_creado ?? null, articulo_id_vinculado: data.articulo_id_vinculado ?? null, error: data.error, errores: data.errores, meli_error: data.meli_error, meli_message: data.meli_message, trace: data.trace ?? null });
                 } catch (e: any) {
                     results.push({ account_name: nombreCuenta, status: 0, ok: false, error: e.message });
                 }
@@ -1724,13 +1764,15 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                                 </span>
                                                 <span className={cn(
                                                     'px-1.5 py-0.5 rounded font-semibold border',
-                                                    activeGtinCaps.has_empty_reason
+                                                    allowsEmptyGtin
                                                         ? 'bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30'
                                                         : 'bg-[var(--err)]/10 text-[var(--err)] border-[var(--err)]/30',
                                                 )}>
-                                                    {activeGtinCaps.has_empty_reason
+                                                    {allowsEmptyGtin
                                                         ? '✓ Permite Sin GTIN (kit/pack)'
-                                                        : '✕ Exige GTIN (no permite Sin GTIN)'}
+                                                        : activeGtinCaps.gtin_required_for_brand
+                                                            ? `✕ Exige GTIN para marca "${activeGtinCaps.conditional_brand || effectiveBrand}" (aun siendo kit)`
+                                                            : '✕ Exige GTIN (no permite Sin GTIN)'}
                                                 </span>
                                             </div>
                                         )}
@@ -1767,16 +1809,18 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                                 <select
                                                     value={emptyGtinReason}
                                                     onChange={e => setEmptyGtinReason(e.target.value)}
-                                                    disabled={!!catalogProductId || Boolean(activeGtinCaps && !activeGtinCaps.has_empty_reason)}
+                                                    disabled={!!catalogProductId || Boolean(activeGtinCaps && !allowsEmptyGtin)}
                                                     className="w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50"
                                                 >
                                                     {(activeGtinCaps?.empty_reasons?.length ? activeGtinCaps.empty_reasons : DEFAULT_EMPTY_GTIN_REASONS).map(r => (
                                                         <option key={r.id} value={r.id}>{r.name}</option>
                                                     ))}
                                                 </select>
-                                                {activeGtinCaps && !activeGtinCaps.has_empty_reason && (
+                                                {activeGtinCaps && !allowsEmptyGtin && (
                                                     <p className="text-[10px] text-[var(--err)] bg-[var(--err)]/10 border border-[var(--err)]/30 rounded px-2 py-1">
-                                                        Esta categoría no acepta publicación sin GTIN en MeLi; cambia a &quot;Con GTIN&quot; y captura 1 o varios GTINs separados por coma.
+                                                        {activeGtinCaps.gtin_required_for_brand
+                                                            ? `MeLi exige GTIN obligatorio para la marca "${activeGtinCaps.conditional_brand || effectiveBrand}" en esta categoría aun marcando kit. Cambia arriba a "Con GTIN"${activeGtinCaps.multivalued ? ' y captura 1 o varios GTINs separados por coma' : ''}.`
+                                                            : 'Esta categoría no acepta publicación sin GTIN en MeLi; cambia a "Con GTIN" y captura 1 o varios GTINs separados por coma.'}
                                                     </p>
                                                 )}
                                             </div>
@@ -2136,8 +2180,10 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                     id => !confirmedDupAccounts[id],
                                 );
                                 const gtinBlockingError =
-                                    gtinMode === 'empty' && activeGtinCaps && !activeGtinCaps.has_empty_reason
-                                        ? 'La categoría actual no acepta publicación sin GTIN (EMPTY_GTIN_REASON). Cambia arriba a "Con GTIN" y captura 1 o varios GTINs.'
+                                    gtinMode === 'empty' && activeGtinCaps && !allowsEmptyGtin
+                                        ? (activeGtinCaps.gtin_required_for_brand
+                                            ? `MeLi exige GTIN obligatorio para la marca "${activeGtinCaps.conditional_brand || effectiveBrand}" en ${curCatId} aun marcando kit. Vuelve y usa "Con GTIN"${activeGtinCaps.multivalued ? ' (acepta varios separados por coma)' : ''}.`
+                                            : 'La categoría actual no acepta publicación sin GTIN (EMPTY_GTIN_REASON). Cambia arriba a "Con GTIN" y captura 1 o varios GTINs.')
                                         : gtinMode === 'gtin' && parsedEffectiveGtins.invalid.length > 0
                                             ? `GTIN inválido (${parsedEffectiveGtins.invalid.join(', ')}): cada código debe tener entre 8 y 14 dígitos.`
                                             : gtinMode === 'gtin' && parsedEffectiveGtins.list.length > 1 && activeGtinCaps && !activeGtinCaps.multivalued
@@ -2971,6 +3017,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                                             <pre className="whitespace-pre-wrap break-all bg-[var(--surface)] p-2 rounded mt-1">{JSON.stringify(r.meli_error, null, 2)}</pre>
                                                         </details>
                                                     )}
+                                                    {r.trace && <TraceBlock trace={r.trace} />}
                                                 </div>
                                             )}
                                         </div>

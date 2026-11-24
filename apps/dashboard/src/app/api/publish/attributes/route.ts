@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MeliAdapter } from '@gestor/adapters/meli';
-import { extractGtinCaps } from '@/lib/publish-duplicates';
+import { extractGtinCaps, checkConditionalGtinRequirement, mergeConditionalGtinCaps } from '@/lib/publish-duplicates';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +14,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
     const categoryId   = req.nextUrl.searchParams.get('category_id');
     const marketplaceId = req.nextUrl.searchParams.get('marketplace_id');
+    const brand = req.nextUrl.searchParams.get('brand');
+    const listingTypeId = req.nextUrl.searchParams.get('listing_type_id');
+    const emptyGtinReason = req.nextUrl.searchParams.get('empty_gtin_reason');
 
     if (!categoryId || !marketplaceId) {
         return NextResponse.json(
@@ -67,13 +70,27 @@ export async function GET(req: NextRequest) {
                 values: (a.values || []).slice(0, 50).map((v: any) => ({ id: String(v.id), name: v.name })),
             }));
 
+        const baseCaps = extractGtinCaps(attrInfo.raw || []);
+        const gtinCaps = baseCaps.has_empty_reason
+            ? mergeConditionalGtinCaps(
+                baseCaps,
+                brand,
+                await checkConditionalGtinRequirement({
+                    category_id: categoryId,
+                    brand,
+                    listing_type_id: listingTypeId,
+                    empty_gtin_reason: emptyGtinReason,
+                }),
+            )
+            : baseCaps;
+
         return NextResponse.json({
             ok:            true,
             category_id:   categoryId,
             category_name,
             required,
             optional,
-            gtin_caps:     extractGtinCaps(attrInfo.raw || []),
+            gtin_caps:     gtinCaps,
             total:         attrInfo.raw?.length ?? 0,
         });
     } catch (err: any) {
