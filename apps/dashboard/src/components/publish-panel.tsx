@@ -19,6 +19,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { toHighResMeliUrl, meetsMeliSize } from '@/lib/image-utils';
+import { AccountDuplicateStatus, CategoryGtinCaps, MatchReason, normalizeGtins } from '@/lib/publish-duplicates';
 import { toast } from 'sonner';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -34,6 +35,23 @@ const SAT_MEASURE_PRESETS = [
     { key: 'MTR', desc: 'Metro' },
 ];
 const IEPS_RATES = ['0%', '3%', '6%', '7%', '8%', '9%', '25%', '26.5%', '30%', '30.4%', '50%', '53%', '160%'];
+const DEFAULT_EMPTY_GTIN_REASONS = [
+    { id: '17055159', name: 'El producto es un kit o un pack' },
+    { id: '17055160', name: 'El producto no tiene código registrado' },
+    { id: '17055158', name: 'El producto es una pieza artesanal' },
+    { id: '17055161', name: 'Otra razón' },
+];
+
+function formatMatchReasonLabel(reason: MatchReason): string {
+    switch (reason) {
+        case 'exact_articulo': return 'Mismo artículo y piezas en esta cuenta';
+        case 'exact_sku': return 'Mismo SKU y tipo de listado en esta cuenta';
+        case 'exact_gtin_no_sku': return 'Mismo GTIN en esta cuenta';
+        case 'different_listing_type': return 'Ya existe en otro tipo de listado (Clásica / Premium)';
+        case 'different_pack': return 'Ya existe en otra presentación / piezas';
+        case 'shared_gtin': return 'GTIN compartido con otro SKU — posible error de datos en kit';
+    }
+}
 
 // Convierte una ruta relativa de Storage ("Bucket/file.jpg") a URL pública.
 // Las imágenes de articulos.imagenes llegan como rutas relativas, no http.
@@ -309,8 +327,20 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
     const [manualDescripcion, setManualDescripcion] = useState('');
     const [registerInCatalog, setRegisterInCatalog] = useState(false);
     const [createPaused, setCreatePaused] = useState(false);
+
+    // Semáforo 3 niveles por cuenta + soporte GTIN múltiple / Sin GTIN (Kit)
+    const [accountDupMap, setAccountDupMap] = useState<Record<string, AccountDuplicateStatus>>({});
+    const [checkingDups, setCheckingDups] = useState(false);
+    const [confirmedDupAccounts, setConfirmedDupAccounts] = useState<Record<string, boolean>>({});
+    const [gtinMode, setGtinMode] = useState<'gtin' | 'empty'>('gtin');
+    const [emptyGtinReason, setEmptyGtinReason] = useState('17055159');
+    const [isKit, setIsKit] = useState(false);
+    const [dynamicGtinCaps, setDynamicGtinCaps] = useState<CategoryGtinCaps | null>(null);
+
     const isStandalone = Boolean(standaloneMode || (!articulo_id && !sourcePublicacion));
-    const effectiveGtin = gtinOverride.trim() || codigoUniversal || sourcePublicacion?.gtin || '';
+    const effectiveGtin = gtinMode === 'empty' ? '' : (gtinOverride.trim() || codigoUniversal || sourcePublicacion?.gtin || '');
+    const parsedEffectiveGtins = normalizeGtins(effectiveGtin);
+    const activeGtinCaps: CategoryGtinCaps | null = dynamicGtinCaps ?? previewResult?.data?.trace?.paso_6_atributos?.gtin_caps ?? null;
 
     // -- Cargar cuentas ------------------------------------------------------
     useEffect(() => {
@@ -454,11 +484,58 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
         }
     }, [packQtyNum, measureUnitTouched]);
 
+    // Resetear confirmaciones explícitas si cambian identificadores o tipo/piezas
+    useEffect(() => {
+        setConfirmedDupAccounts({});
+    }, [listingType, packQtyNum, skuOverride, gtinOverride, gtinMode, articulo_id]);
+
+    // Chequeo live del semáforo de duplicados (3 niveles) en todas las cuentas
+    useEffect(() => {
+        if (accounts.length === 0) return;
+        const skuCheck = (skuOverride || sourcePublicacion?.sku || articleData?.modelo || '').trim();
+        const gtinCheck = gtinMode === 'empty' ? '' : effectiveGtin;
+        if (!articulo_id && !skuCheck && !gtinCheck) {
+            setAccountDupMap({});
+            return;
+        }
+        let cancelled = false;
+        const timer = setTimeout(async () => {
+            setCheckingDups(true);
+            try {
+                const res = await fetch('/api/publish/check-duplicates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        marketplace_ids: accounts.map(a => a.id),
+                        articulo_id: articulo_id || null,
+                        seller_sku: skuCheck || null,
+                        gtin: gtinCheck || null,
+                        listing_type_id: listingType,
+                        cantidad_requerida: packQtyNum,
+                    }),
+                });
+                const data = await res.json();
+                if (!cancelled && data?.ok && data.by_account) {
+                    setAccountDupMap(data.by_account);
+                }
+            } catch {
+                // silencioso: el backend igual valida en dry_run y publish
+            } finally {
+                if (!cancelled) setCheckingDups(false);
+            }
+        }, 350);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [accounts, articulo_id, skuOverride, sourcePublicacion?.sku, articleData?.modelo, effectiveGtin, gtinMode, listingType, packQtyNum]);
+
     // Re-fetch atributos requeridos cuando el usuario cambia la categoría en el preview
     useEffect(() => {
         if (!categoryOverride || !primaryAccount || stage !== 'preview') {
             setDynamicReqAttrs(null);
             setDynamicOptAttrs(null);
+            setDynamicGtinCaps(null);
             setCurrentAttrValues(new Map());
             return;
         }
@@ -466,12 +543,14 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
         if (categoryOverride === originalCat) {
             setDynamicReqAttrs(null);
             setDynamicOptAttrs(null);
+            setDynamicGtinCaps(null);
             setCurrentAttrValues(new Map());
             return;
         }
         // Categoría diferente: limpiar estado anterior y recargar
         setDynamicReqAttrs(null);
         setDynamicOptAttrs(null);
+        setDynamicGtinCaps(null);
         setAttrOverrides({});
         setCurrentAttrValues(new Map());
         setLoadingAttrs(true);
@@ -482,6 +561,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                 if (data.ok) {
                     setDynamicReqAttrs(data.required);
                     setDynamicOptAttrs(data.optional || []);
+                    setDynamicGtinCaps(data.gtin_caps || null);
                     // Reconciliar valores: portar solo los compatibles con la nueva categoría
                     const reconciled = new Map<string, { value_id?: string; value_name?: string }>();
                     for (const attr of data.required) {
@@ -679,14 +759,18 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
     // Buscar producto en el catálogo de MeLi por GTIN/EAN
     async function searchCatalogByGtin() {
         if (!primaryAccount) { setErrorMsg('Selecciona una cuenta MeLi primero'); return; }
-        if (!effectiveGtin) { setErrorMsg('Captura primero un código universal (GTIN/EAN) para buscar en catálogo'); return; }
+        if (gtinMode === 'empty') { setErrorMsg('La búsqueda por catálogo requiere un GTIN (no aplica en modo Sin GTIN).'); return; }
+        if (parsedEffectiveGtins.list.length !== 1) {
+            setErrorMsg('Captura exactamente 1 GTIN válido (8–14 dígitos) para buscar coincidencia en catálogo MeLi.');
+            return;
+        }
         setSearchingCatalog(true);
         setErrorMsg(null);
         try {
             const res = await fetch('/api/publish/catalog-search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ gtin: effectiveGtin, marketplace_id: primaryAccount }),
+                body: JSON.stringify({ gtin: parsedEffectiveGtins.list[0], marketplace_id: primaryAccount }),
             });
             const data = await res.json();
             if (data.ok && data.encontrado) {
@@ -720,11 +804,14 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
     function buildIdentOverrides(): Array<{ id: string; value_name: string }> {
         // En catálogo, marca/modelo/GTIN los aporta el catálogo (no se sobrescriben).
         const locked = !!catalogProductId;
+        const normGtin = gtinMode === 'gtin' && gtinOverride.trim()
+            ? (normalizeGtins(gtinOverride).joined || gtinOverride.trim())
+            : '';
         return [
             ...(!locked && marcaOverride.trim() ? [{ id: 'BRAND', value_name: marcaOverride.trim() }] : []),
             ...(!locked && modeloOverride.trim() ? [{ id: 'MODEL', value_name: modeloOverride.trim() }] : []),
             ...(skuOverride.trim() ? [{ id: 'SELLER_SKU', value_name: skuOverride.trim() }] : []),
-            ...(!locked && gtinOverride.trim() ? [{ id: 'GTIN', value_name: gtinOverride.trim() }] : []),
+            ...(!locked && normGtin ? [{ id: 'GTIN', value_name: normGtin }] : []),
         ];
     }
 
@@ -757,7 +844,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
             ...(modeloOverride.trim() ? { modelo: modeloOverride.trim() } : {}),
             ...(manualVariante.trim() ? { variante: manualVariante.trim() } : {}),
             ...(skuOverride.trim() ? { sku: skuOverride.trim() } : {}),
-            ...(gtinOverride.trim() ? { codigo_universal: gtinOverride.trim() } : {}),
+            ...(gtinMode === 'gtin' && gtinOverride.trim() ? { codigo_universal: normalizeGtins(gtinOverride).joined || gtinOverride.trim() } : {}),
             ...(manualDescripcion.trim() ? { descripcion: manualDescripcion.trim() } : {}),
             ...(w != null && w > 0 ? { peso_kg: w / 1000 } : {}),
             ...(l != null && l > 0 ? { largo_cm: l } : {}),
@@ -811,6 +898,8 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                     ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
                     ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
+                    ...(gtinMode === 'empty' ? { empty_gtin_reason: emptyGtinReason } : {}),
+                    ...(isKit || (gtinMode === 'empty' && emptyGtinReason === '17055159') ? { is_kit: true } : {}),
                     fiscal_data: buildFiscalDataPayload(),
                 }),
             });
@@ -818,8 +907,8 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
             if (data?.trace?.paso_7_fiscal?.articulo_codigo_sat && !satKeyTouched && !satKey) {
                 setSatKey(String(data.trace.paso_7_fiscal.articulo_codigo_sat));
             }
-            if (data?.trace?.paso_1_5_duplicado?.item_existente || data?.advertencia_duplicado?.item_existente) {
-                setForceDuplicate(true);
+            if (data?.trace?.paso_1_5_duplicado?.by_account) {
+                setAccountDupMap(prev => ({ ...prev, ...data.trace.paso_1_5_duplicado.by_account }));
             }
             setPreviewResult({ status: res.status, data });
             setStage('preview');
@@ -865,10 +954,15 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                     ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
                     ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
+                    ...(gtinMode === 'empty' ? { empty_gtin_reason: emptyGtinReason } : {}),
+                    ...(isKit || (gtinMode === 'empty' && emptyGtinReason === '17055159') ? { is_kit: true } : {}),
                     fiscal_data: buildFiscalDataPayload(),
                 }),
             });
             const data = await res.json();
+            if (data?.trace?.paso_1_5_duplicado?.by_account) {
+                setAccountDupMap(prev => ({ ...prev, ...data.trace.paso_1_5_duplicado.by_account }));
+            }
             setPreviewResult({ status: res.status, data });
             setCategoryOverride(forcedCategoryId);
             setAttrOverrides({});
@@ -883,6 +977,18 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
     // -- Publicar real (a todas las cuentas seleccionadas) ------------------
     async function handlePublish() {
         if (selectedAccounts.length === 0) { setErrorMsg('Selecciona al menos una cuenta'); return; }
+        const dupMap = {
+            ...accountDupMap,
+            ...(previewResult?.data?.trace?.paso_1_5_duplicado?.by_account || {}),
+        } as Record<string, AccountDuplicateStatus>;
+        const unconfirmedExact = selectedAccounts.filter(
+            id => dupMap[id]?.level === 'exact' && !confirmedDupAccounts[id] && !sourcePublicacion,
+        );
+        if (unconfirmedExact.length > 0) {
+            const names = unconfirmedExact.map(id => accounts.find(a => a.id === id)?.account_name || id).join(', ');
+            setErrorMsg(`Confirma el duplicado exacto o quita la(s) cuenta(s): ${names}`);
+            return;
+        }
         setLoading(true);
         setErrorMsg(null);
         try {
@@ -935,7 +1041,9 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                             cantidad_requerida: packQtyNum,
                             manufacturing_time_days: manufacturingDays !== '' ? Number(manufacturingDays) : null,
                             ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
-                            force_duplicate: true,
+                            ...(gtinMode === 'empty' ? { empty_gtin_reason: emptyGtinReason } : {}),
+                            ...(isKit || (gtinMode === 'empty' && emptyGtinReason === '17055159') ? { is_kit: true } : {}),
+                            ...(confirmedDupAccounts[accountId] || Boolean(sourcePublicacion) ? { force_duplicate: true } : {}),
                             fiscal_data: buildFiscalDataPayload(),
                         }),
                     });
@@ -1057,6 +1165,8 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
         setCatalogProductId(null);
         setCatalogListing(false);
         setForceDuplicate(false);
+        setConfirmedDupAccounts({});
+        setDynamicGtinCaps(null);
         setCurrentAttrValues(new Map());
         setDimOverrides({});
         setCatSearch('');
@@ -1480,17 +1590,125 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                             className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed font-mono"
                                         />
                                     </label>
-                                    <label className="block sm:col-span-2">
-                                        <span className="text-[10px] font-semibold text-[var(--text-muted)]">GTIN</span>
-                                        <input
-                                            type="text"
-                                            value={gtinOverride}
-                                            onChange={e => setGtinOverride(e.target.value)}
-                                            disabled={!!catalogProductId}
-                                            placeholder={codigoUniversal || sourcePublicacion?.gtin || ''}
-                                            className="mt-0.5 w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed font-mono"
-                                        />
-                                    </label>
+                                    <div className="sm:col-span-2 space-y-2 pt-1">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">
+                                                Código universal (GTIN / EAN / UPC)
+                                            </span>
+                                            <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-0.5 text-[10px] font-bold">
+                                                <button
+                                                    type="button"
+                                                    disabled={!!catalogProductId}
+                                                    onClick={() => setGtinMode('gtin')}
+                                                    className={cn(
+                                                        'px-2 py-0.5 rounded-md transition-colors disabled:opacity-50',
+                                                        gtinMode === 'gtin'
+                                                            ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
+                                                            : 'text-[var(--text-muted)] hover:text-[var(--text)]',
+                                                    )}
+                                                >
+                                                    Con GTIN
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={!!catalogProductId}
+                                                    onClick={() => setGtinMode('empty')}
+                                                    className={cn(
+                                                        'px-2 py-0.5 rounded-md transition-colors disabled:opacity-50',
+                                                        gtinMode === 'empty'
+                                                            ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
+                                                            : 'text-[var(--text-muted)] hover:text-[var(--text)]',
+                                                    )}
+                                                >
+                                                    Sin GTIN (Kit / sin código)
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Capacidades reales de la categoría en MeLi */}
+                                        {activeGtinCaps && (
+                                            <div className="flex flex-wrap gap-1.5 text-[10px]">
+                                                <span className={cn(
+                                                    'px-1.5 py-0.5 rounded font-semibold border',
+                                                    activeGtinCaps.multivalued
+                                                        ? 'bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30'
+                                                        : 'bg-[var(--warn)]/10 text-[var(--warn)] border-[var(--warn)]/30',
+                                                )}>
+                                                    {activeGtinCaps.multivalued
+                                                        ? '✓ Acepta varios GTIN (coma)'
+                                                        : '✕ Solo 1 GTIN'}
+                                                </span>
+                                                <span className={cn(
+                                                    'px-1.5 py-0.5 rounded font-semibold border',
+                                                    activeGtinCaps.has_empty_reason
+                                                        ? 'bg-[var(--ok)]/10 text-[var(--ok)] border-[var(--ok)]/30'
+                                                        : 'bg-[var(--err)]/10 text-[var(--err)] border-[var(--err)]/30',
+                                                )}>
+                                                    {activeGtinCaps.has_empty_reason
+                                                        ? '✓ Permite Sin GTIN (kit/pack)'
+                                                        : '✕ Exige GTIN (no permite Sin GTIN)'}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {gtinMode === 'gtin' ? (
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    value={gtinOverride}
+                                                    onChange={e => setGtinOverride(e.target.value)}
+                                                    disabled={!!catalogProductId}
+                                                    placeholder={codigoUniversal || sourcePublicacion?.gtin || '1 o varios separados por coma (ej. 660731623444,660731623451)'}
+                                                    className="w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed font-mono"
+                                                />
+                                                {parsedEffectiveGtins.list.length > 1 && (
+                                                    <p className="text-[10px] text-[var(--info)] mt-1">
+                                                        Detectados {parsedEffectiveGtins.list.length} GTINs válidos: se enviarán como{' '}
+                                                        <code className="font-mono">{parsedEffectiveGtins.joined}</code>
+                                                    </p>
+                                                )}
+                                                {parsedEffectiveGtins.invalid.length > 0 && (
+                                                    <p className="text-[10px] text-[var(--err)] mt-1">
+                                                        GTIN inválido ({parsedEffectiveGtins.invalid.join(', ')}): cada código debe tener entre 8 y 14 dígitos.
+                                                    </p>
+                                                )}
+                                                {parsedEffectiveGtins.list.length > 1 && activeGtinCaps && !activeGtinCaps.multivalued && (
+                                                    <p className="text-[10px] text-[var(--err)] mt-1">
+                                                        Esta categoría no admite múltiples GTINs. Deja solo 1 o cambia a &quot;Sin GTIN&quot;.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-1.5">
+                                                <select
+                                                    value={emptyGtinReason}
+                                                    onChange={e => setEmptyGtinReason(e.target.value)}
+                                                    disabled={!!catalogProductId || Boolean(activeGtinCaps && !activeGtinCaps.has_empty_reason)}
+                                                    className="w-full px-2.5 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50"
+                                                >
+                                                    {(activeGtinCaps?.empty_reasons?.length ? activeGtinCaps.empty_reasons : DEFAULT_EMPTY_GTIN_REASONS).map(r => (
+                                                        <option key={r.id} value={r.id}>{r.name}</option>
+                                                    ))}
+                                                </select>
+                                                {activeGtinCaps && !activeGtinCaps.has_empty_reason && (
+                                                    <p className="text-[10px] text-[var(--err)] bg-[var(--err)]/10 border border-[var(--err)]/30 rounded px-2 py-1">
+                                                        Esta categoría no acepta publicación sin GTIN en MeLi; cambia a &quot;Con GTIN&quot; y captura 1 o varios GTINs separados por coma.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <label className="inline-flex items-center gap-2 text-[11px] text-[var(--text-muted)] cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={isKit || (gtinMode === 'empty' && emptyGtinReason === '17055159') || parsedEffectiveGtins.list.length > 1}
+                                                disabled={(gtinMode === 'empty' && emptyGtinReason === '17055159') || parsedEffectiveGtins.list.length > 1}
+                                                onChange={e => setIsKit(e.target.checked)}
+                                                className="w-3.5 h-3.5 rounded text-[var(--accent)] focus:ring-[var(--accent)]"
+                                            />
+                                            <span>Marcar como kit (<code className="font-mono">IS_KIT = Sí</code> si la categoría lo soporta)</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1507,24 +1725,91 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                 <a href="/prompt-profiles" target="_blank" rel="noreferrer" className="text-[var(--accent)] hover:underline shrink-0 font-semibold">Ajustar</a>
                             </div>
 
-                            {/* Cuentas (multi-selección) */}
+                            {/* Cuentas (multi-selección con semáforo 3 niveles en vivo) */}
                             <div>
-                                <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">
-                                    <Store className="w-3 h-3 inline mr-1" />Cuentas de destino <span className="text-[var(--err)]">*</span>
-                                    <span className="ml-1 font-normal normal-case text-[var(--text-faint)]">puedes publicar en varias a la vez</span>
-                                </label>
+                                <div className="flex items-center justify-between gap-2 mb-1.5">
+                                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block">
+                                        <Store className="w-3 h-3 inline mr-1" />Cuentas de destino <span className="text-[var(--err)]">*</span>
+                                        <span className="ml-1 font-normal normal-case text-[var(--text-faint)]">puedes publicar en varias a la vez</span>
+                                    </label>
+                                    {checkingDups && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] text-[var(--text-faint)]">
+                                            <Loader2 className="w-3 h-3 animate-spin" /> Revisando duplicados…
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="space-y-1.5">
-                                    {accounts.map(a => (
-                                        <label key={a.id} className="flex items-center gap-2 p-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] cursor-pointer hover:border-[var(--accent)]/50">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedAccounts.includes(a.id)}
-                                                onChange={() => toggleAccount(a.id)}
-                                                className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)]"
-                                            />
-                                            <span className="text-sm text-[var(--text)]">{a.account_name}</span>
-                                        </label>
-                                    ))}
+                                    {accounts.map(a => {
+                                        const st = accountDupMap[a.id];
+                                        const level = st?.level || 'free';
+                                        const top = st?.matches?.[0];
+                                        return (
+                                            <div
+                                                key={a.id}
+                                                className={cn(
+                                                    'p-2.5 rounded-lg border transition-colors',
+                                                    level === 'exact'
+                                                        ? 'border-[var(--err)]/40 bg-[var(--err)]/5'
+                                                        : level === 'warning'
+                                                            ? 'border-[var(--warn)]/40 bg-[var(--warn)]/5'
+                                                            : 'border-[var(--border)] bg-[var(--surface)] hover:border-[var(--accent)]/50',
+                                                )}
+                                            >
+                                                <label className="flex items-center justify-between gap-2 cursor-pointer">
+                                                    <span className="flex items-center gap-2 min-w-0">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedAccounts.includes(a.id)}
+                                                            onChange={() => toggleAccount(a.id)}
+                                                            className="w-4 h-4 rounded text-[var(--accent)] focus:ring-[var(--accent)] shrink-0"
+                                                        />
+                                                        <span className="text-sm font-medium text-[var(--text)] truncate">{a.account_name}</span>
+                                                    </span>
+                                                    {st && (
+                                                        <span
+                                                            className={cn(
+                                                                'text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0',
+                                                                level === 'exact'
+                                                                    ? 'bg-[var(--err)]/15 text-[var(--err)]'
+                                                                    : level === 'warning'
+                                                                        ? 'bg-[var(--warn)]/15 text-[var(--warn)]'
+                                                                        : 'bg-[var(--ok)]/15 text-[var(--ok)]',
+                                                            )}
+                                                        >
+                                                            {level === 'exact' ? '🔴 Ya publicado' : level === 'warning' ? '🟡 Aviso' : '🟢 Libre'}
+                                                        </span>
+                                                    )}
+                                                </label>
+                                                {top && level !== 'free' && (
+                                                    <div className="mt-1.5 ml-6 text-[11px] space-y-0.5">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <a
+                                                                href={top.permalink || `https://articulo.mercadolibre.com.mx/${top.external_item_id.replace(/^(MLM)(\d+)$/, '$1-$2')}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-0.5 font-mono font-bold underline text-[var(--text)] hover:opacity-80"
+                                                            >
+                                                                <ExternalLink className="w-3 h-3" />
+                                                                {top.external_item_id}
+                                                            </a>
+                                                            {top.listing_type_id && (
+                                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-2)] border border-[var(--border)] font-mono">
+                                                                    {top.listing_type_id === 'gold_special' ? 'Clásica' : top.listing_type_id === 'gold_pro' ? 'Premium' : top.listing_type_id}
+                                                                </span>
+                                                            )}
+                                                            {top.seller_sku && <span className="font-mono text-[10px] text-[var(--text-muted)]">SKU: {top.seller_sku}</span>}
+                                                            {top.cantidad_requerida != null && <span className="text-[10px] text-[var(--text-muted)]">{top.cantidad_requerida} pzas</span>}
+                                                            <span className="text-[10px] text-[var(--text-faint)]">({top.status_externo})</span>
+                                                        </div>
+                                                        {top.titulo && <p className="text-[10px] text-[var(--text-muted)] truncate">{top.titulo}</p>}
+                                                        <p className={cn('text-[10px] font-medium', level === 'exact' ? 'text-[var(--err)]' : 'text-[var(--warn)]')}>
+                                                            {formatMatchReasonLabel(top.match_reason)}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -1753,6 +2038,27 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                     : (primaryOpt.path || primaryOpt.category_name || curCatId);
                                 const reqAttrs: any[] = dynamicReqAttrs ?? (t?.paso_6_atributos?.required_detail || []);
                                 const originalAttrs: any[] = t?.paso_8_attributes_final || [];
+                                const previewDupByAcct: Record<string, AccountDuplicateStatus> = {
+                                    ...accountDupMap,
+                                    ...(t?.paso_1_5_duplicado?.by_account || {}),
+                                };
+                                const selectedExactAccounts = selectedAccounts.filter(
+                                    id => previewDupByAcct[id]?.level === 'exact' && !sourcePublicacion,
+                                );
+                                const selectedWarningAccounts = selectedAccounts.filter(
+                                    id => previewDupByAcct[id]?.level === 'warning',
+                                );
+                                const unconfirmedExactAccounts = selectedExactAccounts.filter(
+                                    id => !confirmedDupAccounts[id],
+                                );
+                                const gtinBlockingError =
+                                    gtinMode === 'empty' && activeGtinCaps && !activeGtinCaps.has_empty_reason
+                                        ? 'La categoría actual no acepta publicación sin GTIN (EMPTY_GTIN_REASON). Cambia arriba a "Con GTIN" y captura 1 o varios GTINs.'
+                                        : gtinMode === 'gtin' && parsedEffectiveGtins.invalid.length > 0
+                                            ? `GTIN inválido (${parsedEffectiveGtins.invalid.join(', ')}): cada código debe tener entre 8 y 14 dígitos.`
+                                            : gtinMode === 'gtin' && parsedEffectiveGtins.list.length > 1 && activeGtinCaps && !activeGtinCaps.multivalued
+                                                ? 'Esta categoría solo acepta 1 GTIN (no múltiples separados por coma). Deja 1 código o usa "Sin GTIN".'
+                                                : null;
                                 return (
                                     <div className="space-y-4">
                                         <div className="flex items-center gap-2 p-3 bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-xl">
@@ -1777,6 +2083,13 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                             <div className="flex items-start gap-2.5 p-3 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl text-xs text-[var(--warn)]">
                                                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                                                 <p>{t.paso_12_5_advertencia}</p>
+                                            </div>
+                                        )}
+
+                                        {(gtinBlockingError || t?.paso_6_gtin_advertencia) && (
+                                            <div className="flex items-start gap-2.5 p-3 bg-[var(--err)]/10 border border-[var(--err)]/30 rounded-xl text-xs text-[var(--err)]">
+                                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                                <p>{gtinBlockingError || t?.paso_6_gtin_advertencia}</p>
                                             </div>
                                         )}
 
@@ -1814,61 +2127,96 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                             )}
                                         </div>
 
-                                        {/* Advertencia informativa de publicación existente / paquete / kit */}
-                                        {(() => {
-                                            const porCuenta: Array<{ marketplace_id: string; item_existente: string; status?: string; seller_sku?: string | null }> =
-                                                Array.isArray(t?.paso_1_5_duplicado?.por_cuenta) && t.paso_1_5_duplicado.por_cuenta.length > 0
-                                                    ? t.paso_1_5_duplicado.por_cuenta
-                                                    : (t?.paso_1_5_duplicado?.item_existente || previewResult.data?.advertencia_duplicado?.item_existente)
-                                                        ? [{
-                                                            marketplace_id: primaryAccount,
-                                                            item_existente: t?.paso_1_5_duplicado?.item_existente || previewResult.data?.advertencia_duplicado?.item_existente,
-                                                            status: t?.paso_1_5_duplicado?.status || previewResult.data?.advertencia_duplicado?.status,
-                                                            seller_sku: t?.paso_1_5_duplicado?.seller_sku ?? null,
-                                                        }]
-                                                        : [];
-                                            if (porCuenta.length === 0) return null;
-                                            return (
-                                                <div className="flex items-start gap-2.5 p-3 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl text-xs">
-                                                    <AlertCircle className="w-4 h-4 text-[var(--warn)] shrink-0 mt-0.5" />
-                                                    <div className="flex-1 space-y-1.5">
-                                                        <p className="font-bold text-[var(--warn)]">Aviso: ya existe publicación activa coincidente</p>
-                                                        <div className="space-y-1">
-                                                            {porCuenta.map((d) => {
-                                                                const ctaName = accounts.find(a => a.id === d.marketplace_id)?.account_name;
-                                                                return (
-                                                                    <div key={`${d.marketplace_id}-${d.item_existente}`} className="flex items-center gap-1.5 flex-wrap">
-                                                                        {ctaName && <span className="font-semibold text-[var(--text)]">{ctaName}:</span>}
-                                                                        <a
-                                                                            href={`https://www.mercadolibre.com.mx/p/${d.item_existente}`}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            className="inline-flex items-center gap-1 font-mono font-bold text-[var(--warn)] underline hover:opacity-80"
-                                                                        >
-                                                                            <ExternalLink className="w-3 h-3" />
-                                                                            {d.item_existente}
-                                                                        </a>
-                                                                        {d.status && (
-                                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--warn)]/20 text-[var(--warn)] font-semibold">
-                                                                                {d.status}
-                                                                            </span>
-                                                                        )}
-                                                                        {d.seller_sku && (
-                                                                            <span className="text-[10px] font-mono text-[var(--text-faint)]">
-                                                                                SKU: {d.seller_sku}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                        <p className="text-[var(--text-muted)] text-[11px] leading-relaxed">
-                                                            Se publicará igualmente como <strong>kit, paquete o publicación independiente</strong> en todas las cuentas seleccionadas.
-                                                        </p>
-                                                    </div>
+                                        {/* Semáforo de duplicados por cuenta seleccionada (🟢 libre / 🟡 aviso / 🔴 exacto) */}
+                                        {selectedWarningAccounts.length > 0 && (
+                                            <div className="flex items-start gap-2.5 p-3 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl text-xs">
+                                                <AlertCircle className="w-4 h-4 text-[var(--warn)] shrink-0 mt-0.5" />
+                                                <div className="flex-1 space-y-1.5">
+                                                    <p className="font-bold text-[var(--warn)]">🟡 Aviso de coincidencia parcial (no bloquea):</p>
+                                                    {selectedWarningAccounts.map(acctId => {
+                                                        const ctaName = accounts.find(a => a.id === acctId)?.account_name || acctId;
+                                                        const matches = previewDupByAcct[acctId]?.matches || [];
+                                                        return matches.map(m => (
+                                                            <div key={`${acctId}-${m.external_item_id}`} className="space-y-0.5 border-l-2 border-[var(--warn)]/40 pl-2">
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <span className="font-semibold text-[var(--text)]">{ctaName}:</span>
+                                                                    <a
+                                                                        href={m.permalink || `https://articulo.mercadolibre.com.mx/${m.external_item_id.replace(/^(MLM)(\d+)$/, '$1-$2')}`}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="inline-flex items-center gap-1 font-mono font-bold text-[var(--warn)] underline hover:opacity-80"
+                                                                    >
+                                                                        <ExternalLink className="w-3 h-3" />
+                                                                        {m.external_item_id}
+                                                                    </a>
+                                                                    {m.listing_type_id && <span className="text-[10px] font-mono text-[var(--text-muted)]">{m.listing_type_id === 'gold_special' ? 'Clásica' : m.listing_type_id === 'gold_pro' ? 'Premium' : m.listing_type_id}</span>}
+                                                                    {m.seller_sku && <span className="text-[10px] font-mono text-[var(--text-muted)]">SKU: {m.seller_sku}</span>}
+                                                                    {m.cantidad_requerida != null && <span className="text-[10px] text-[var(--text-muted)]">({m.cantidad_requerida} pzas)</span>}
+                                                                </div>
+                                                                {m.titulo && <p className="text-[10px] text-[var(--text-muted)] truncate">{m.titulo}</p>}
+                                                                <p className="text-[10px] text-[var(--warn)] font-medium">{formatMatchReasonLabel(m.match_reason)}</p>
+                                                            </div>
+                                                        ));
+                                                    })}
                                                 </div>
-                                            );
-                                        })()}
+                                            </div>
+                                        )}
+
+                                        {selectedExactAccounts.length > 0 && (
+                                            <div className="p-3 bg-[var(--err)]/10 border border-[var(--err)]/40 rounded-xl text-xs space-y-2.5">
+                                                <div className="flex items-center gap-2">
+                                                    <AlertCircle className="w-4 h-4 text-[var(--err)] shrink-0" />
+                                                    <p className="font-bold text-[var(--err)]">
+                                                        🔴 Ya existe publicación idéntica — confirma por cuenta o quítala antes de publicar
+                                                    </p>
+                                                </div>
+                                                {selectedExactAccounts.map(acctId => {
+                                                    const ctaName = accounts.find(a => a.id === acctId)?.account_name || acctId;
+                                                    const m = previewDupByAcct[acctId]?.matches?.[0];
+                                                    if (!m) return null;
+                                                    return (
+                                                        <div key={acctId} className="p-2.5 rounded-lg bg-[var(--surface)] border border-[var(--err)]/30 space-y-1.5">
+                                                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                                <span className="font-bold text-[var(--text)]">{ctaName}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleAccount(acctId)}
+                                                                    className="px-2 py-0.5 text-[10px] font-bold text-[var(--err)] border border-[var(--err)]/40 rounded hover:bg-[var(--err)]/10"
+                                                                >
+                                                                    Quitar cuenta
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                                                                <a
+                                                                    href={m.permalink || `https://articulo.mercadolibre.com.mx/${m.external_item_id.replace(/^(MLM)(\d+)$/, '$1-$2')}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center gap-1 font-mono font-bold text-[var(--err)] underline hover:opacity-80"
+                                                                >
+                                                                    <ExternalLink className="w-3 h-3" />
+                                                                    {m.external_item_id}
+                                                                </a>
+                                                                {m.listing_type_id && <span className="font-mono text-[10px] text-[var(--text-muted)]">{m.listing_type_id === 'gold_special' ? 'Clásica' : m.listing_type_id === 'gold_pro' ? 'Premium' : m.listing_type_id}</span>}
+                                                                {m.seller_sku && <span className="font-mono text-[10px] text-[var(--text-muted)]">SKU: {m.seller_sku}</span>}
+                                                                {m.cantidad_requerida != null && <span className="text-[10px] text-[var(--text-muted)]">{m.cantidad_requerida} pzas</span>}
+                                                                {m.precio_venta != null && <span className="font-mono text-[10px] text-[var(--text-muted)]">${m.precio_venta}</span>}
+                                                                <span className="text-[10px] text-[var(--text-faint)]">({m.status_externo})</span>
+                                                            </div>
+                                                            {m.titulo && <p className="text-[10px] text-[var(--text-muted)] truncate">{m.titulo}</p>}
+                                                            <label className="flex items-center gap-2 pt-1 text-[11px] font-semibold text-[var(--text)] cursor-pointer">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={!!confirmedDupAccounts[acctId]}
+                                                                    onChange={e => setConfirmedDupAccounts(prev => ({ ...prev, [acctId]: e.target.checked }))}
+                                                                    className="w-4 h-4 rounded text-[var(--err)] focus:ring-[var(--err)]"
+                                                                />
+                                                                <span>Confirmo publicar duplicado exacto en {ctaName}</span>
+                                                            </label>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
 
                                         {/* Fotos — editar en el preview */}
                                         <div className="p-3 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] space-y-2">
@@ -1913,7 +2261,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                                     <p className="font-semibold text-[var(--text)]">Publicar en catálogo MeLi (opcional)</p>
                                                     <p className="text-[10px] text-[var(--text-faint)]">Compara tus datos con el catálogo antes de usarlo.</p>
                                                 </div>
-                                                <button type="button" onClick={searchCatalogByGtin} disabled={searchingCatalog || !effectiveGtin} className="shrink-0 px-3 py-1.5 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 disabled:opacity-50">
+                                                <button type="button" onClick={searchCatalogByGtin} disabled={searchingCatalog || gtinMode === 'empty' || parsedEffectiveGtins.list.length !== 1} className="shrink-0 px-3 py-1.5 text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--accent)]/20 disabled:opacity-50">
                                                     {searchingCatalog ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : 'Buscar por GTIN'}
                                                 </button>
                                             </div>
@@ -2401,10 +2749,20 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                             )}
                                         </div>
 
+                                        {(selectedAccounts.length === 0 || unconfirmedExactAccounts.length > 0 || gtinBlockingError) && (
+                                            <div className="p-2.5 rounded-lg border border-[var(--err)]/30 bg-[var(--err)]/10 text-xs text-[var(--err)] font-medium">
+                                                {selectedAccounts.length === 0
+                                                    ? 'Selecciona al menos 1 cuenta de destino para publicar.'
+                                                    : gtinBlockingError
+                                                        ? gtinBlockingError
+                                                        : `Marca la confirmación de duplicado o quita la(s) cuenta(s) en rojo: ${unconfirmedExactAccounts.map(id => accounts.find(a => a.id === id)?.account_name || id).join(', ')}`}
+                                            </div>
+                                        )}
+
                                         {/* CTAs */}
                                         <div className="flex gap-3">
                                             <button id="publish-back-btn" onClick={resetPanel} className="flex-1 py-2.5 border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg)] font-bold rounded-xl text-sm transition-colors">Volver</button>
-                                            <button id="publish-confirm-btn" onClick={handlePublish} disabled={loading} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] font-bold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-50">
+                                            <button id="publish-confirm-btn" onClick={handlePublish} disabled={loading || selectedAccounts.length === 0 || unconfirmedExactAccounts.length > 0 || Boolean(gtinBlockingError)} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] font-bold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                                 {loading ? 'Publicando...' : 'Publicar con estos datos'}
                                             </button>

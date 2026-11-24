@@ -27,6 +27,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { MeliAdapter } from '@gestor/adapters/meli';
 import { resolvePublicationAI } from '@gestor/sync/meli-ai-helper';
 import { registrarAuditoria } from '@/lib/auditoria';
+import { checkPublishDuplicates, normalizeGtins, extractGtinCaps } from '@/lib/publish-duplicates';
 import sharp from 'sharp';
 
 export const dynamic = 'force-dynamic';
@@ -243,6 +244,8 @@ export async function POST(req: NextRequest) {
             register_in_catalog = false as boolean,
             create_paused = false as boolean,
             check_marketplace_ids = null as string[] | null,
+            empty_gtin_reason = null as string | null,
+            is_kit = false as boolean,
         } = body;
 
         const wantsZeroStock = stock_override != null && Number(stock_override) === 0;
@@ -261,6 +264,8 @@ export async function POST(req: NextRequest) {
             register_in_catalog: !!register_in_catalog,
             create_paused: !!create_paused,
             wants_paused: wantsPaused,
+            empty_gtin_reason: empty_gtin_reason ?? null,
+            is_kit: !!is_kit,
         };
 
         // -- 0.5 Fuente vidriera (copia adaptada entre cuentas) ----------------
@@ -613,117 +618,60 @@ export async function POST(req: NextRequest) {
         const _ovModelo = _findOverride(['MODEL']);
         const _SKU_BASURA = /^[0-9a-f]{8}$/i;
 
-        // -- 1.5 Verificar duplicados activos en la misma cuenta ----------------
-        // Con articulo_id: publicaciones_externas + mapeo_publicacion_articulo.
-        // Sin articulo_id (desde 0): buscar en publicaciones_externas por GTIN/EAN o seller_sku.
+        // -- 1.5 Verificar duplicados activos (semáforo 3 niveles por cuenta) -----
+        // Evalúa free / warning (distinto listing_type, distinto pack o GTIN compartido)
+        // / exact (mismo producto/SKU + mismo listing_type).
         const targetAccountsForDupCheck = (dry_run && Array.isArray(check_marketplace_ids) && check_marketplace_ids.length > 0)
             ? Array.from(new Set(check_marketplace_ids.filter(Boolean)))
             : [marketplace_id];
 
-        const dupMatches: Array<{
-            id: string;
-            marketplace_id: string;
-            external_item_id: string;
-            status_externo: string;
-            seller_sku: string | null;
-        }> = [];
-
-        if (resolvedArticuloId) {
-            const { data } = await supabaseAdmin
-                .from('publicaciones_externas')
-                .select(`
-                    id, marketplace_id, external_item_id, status_externo, seller_sku,
-                    mapeo_publicacion_articulo!inner (articulo_id)
-                `)
-                .in('marketplace_id', targetAccountsForDupCheck)
-                .eq('mapeo_publicacion_articulo.articulo_id', resolvedArticuloId)
-                .in('status_externo', ['active', 'paused', 'under_review'])
-                .limit(10);
-            if (Array.isArray(data)) {
-                for (const row of data) {
-                    dupMatches.push({
-                        id: row.id,
-                        marketplace_id: row.marketplace_id,
-                        external_item_id: row.external_item_id,
-                        status_externo: row.status_externo,
-                        seller_sku: (row as any).seller_sku ?? null,
-                    });
-                }
-            }
-        } else {
-            const safeGtin = (_ovGtin || resolved.codigo_universal || '').trim().replace(/[^A-Za-z0-9_-]/g, '');
-            if (safeGtin) {
-                const { data } = await supabaseAdmin
-                    .from('publicaciones_externas')
-                    .select('id, marketplace_id, external_item_id, status_externo, seller_sku')
-                    .in('marketplace_id', targetAccountsForDupCheck)
-                    .in('status_externo', ['active', 'paused', 'under_review'])
-                    .or(`gtin.eq.${safeGtin},ean.eq.${safeGtin}`)
-                    .limit(10);
-                if (Array.isArray(data)) dupMatches.push(...data);
-            }
-            const rawSkuCheck = (_ovSku || manual_product?.sku || sourceData?.seller_custom_field || resolved.modelo || '').trim();
-            const safeSku = (rawSkuCheck && !_SKU_BASURA.test(rawSkuCheck)) ? rawSkuCheck : '';
-            if (safeSku) {
-                const coveredAccounts = new Set(dupMatches.map(d => d.marketplace_id));
-                const remainingAccounts = targetAccountsForDupCheck.filter(id => !coveredAccounts.has(id));
-                if (remainingAccounts.length > 0) {
-                    const { data } = await supabaseAdmin
-                        .from('publicaciones_externas')
-                        .select('id, marketplace_id, external_item_id, status_externo, seller_sku')
-                        .in('marketplace_id', remainingAccounts)
-                        .in('status_externo', ['active', 'paused', 'under_review'])
-                        .eq('seller_sku', safeSku)
-                        .limit(10);
-                    if (Array.isArray(data)) dupMatches.push(...data);
-                }
-            }
-        }
-
-        const dupByAccount = Array.from(
-            dupMatches.reduce((acc, d) => {
-                if (!acc.has(d.marketplace_id)) {
-                    acc.set(d.marketplace_id, {
-                        marketplace_id: d.marketplace_id,
-                        item_existente: d.external_item_id,
-                        status: d.status_externo,
-                        seller_sku: d.seller_sku ?? null,
-                    });
-                }
-                return acc;
-            }, new Map<string, { marketplace_id: string; item_existente: string; status: string; seller_sku: string | null }>())
-            .values()
+        const dupGtinsParsed = normalizeGtins(
+            empty_gtin_reason ? '' : (_ovGtin || resolved.codigo_universal || ''),
         );
-
-        const pubActiva = dupMatches.find(d => d.marketplace_id === marketplace_id) || dupMatches[0] || null;
         const reqPackQty = Math.max(1, Number(cantidad_requerida ?? (body as any)?.pack_quantity ?? sourcePackQty ?? 1));
-        const reqSku = (_ovSku || manual_product?.sku || '').trim();
-        const esDistintoSku = Boolean(
-            reqSku &&
-            pubActiva?.seller_sku &&
-            reqSku.toLowerCase() !== String(pubActiva.seller_sku).trim().toLowerCase()
-        );
-        const esPackODistintoSku = reqPackQty > 1 || esDistintoSku;
+        const checkSkuRaw = (_ovSku || manual_product?.sku || sourceData?.seller_custom_field || resolved.modelo || '').trim();
 
+        const dupByAccountMap = await checkPublishDuplicates(supabaseAdmin, {
+            marketplace_ids: targetAccountsForDupCheck,
+            articulo_id: resolvedArticuloId,
+            seller_sku: checkSkuRaw,
+            gtins: dupGtinsParsed.list,
+            listing_type_id,
+            cantidad_requerida: reqPackQty,
+        });
+
+        const acctDup = dupByAccountMap[marketplace_id];
         const esCopia = Boolean(source_item_id);
-        if (pubActiva && !force_duplicate && !dry_run && !esCopia && !esPackODistintoSku) {
+        if (acctDup?.level === 'exact' && !force_duplicate && !dry_run && !esCopia) {
+            const m = acctDup.matches[0];
             return NextResponse.json({
                 ok: false,
-                error: `Ya existe una publicación activa para este producto en esta cuenta: ${pubActiva.external_item_id} (status: ${pubActiva.status_externo}). Ciérrala primero o usa force_duplicate: true.`,
-                publicacion_existente: pubActiva.external_item_id,
+                error: `Duplicado exacto en esta cuenta: ya existe ${m.external_item_id} (${m.status_externo}, ${m.listing_type_id || listing_type_id}${m.seller_sku ? `, SKU ${m.seller_sku}` : ''}). Confirma explícitamente si deseas duplicarla.`,
+                publicacion_existente: m.external_item_id,
+                duplicado: m,
                 trace,
             }, { status: 409 });
         }
 
-        trace.paso_1_5_duplicado = pubActiva
+        const nonFreeEntries = Object.values(dupByAccountMap).filter(s => s.level !== 'free');
+        const firstDupMatch = acctDup?.matches[0] || nonFreeEntries[0]?.matches[0] || null;
+        trace.paso_1_5_duplicado = firstDupMatch
             ? {
-                advertencia: `Ya existe publicación activa ${pubActiva.external_item_id} (${pubActiva.status_externo})`,
-                item_existente: pubActiva.external_item_id,
-                status: pubActiva.status_externo,
-                seller_sku: pubActiva.seller_sku ?? null,
-                por_cuenta: dupByAccount,
+                level: acctDup?.level || nonFreeEntries[0].level,
+                advertencia: acctDup?.summary || nonFreeEntries[0].summary,
+                item_existente: firstDupMatch.external_item_id,
+                status: firstDupMatch.status_externo,
+                seller_sku: firstDupMatch.seller_sku,
+                by_account: dupByAccountMap,
+                por_cuenta: nonFreeEntries.map(s => ({
+                    marketplace_id: s.marketplace_id,
+                    level: s.level,
+                    item_existente: s.matches[0].external_item_id,
+                    status: s.matches[0].status_externo,
+                    seller_sku: s.matches[0].seller_sku,
+                })),
             }
-            : { ok: true, sin_duplicados: true, por_cuenta: [] };
+            : { ok: true, level: 'free', sin_duplicados: true, by_account: dupByAccountMap, por_cuenta: [] };
 
         // -- 2. Detectar modelo del seller -------------------------------------
         // Soporta UP (family_name) y legacy (title).
@@ -955,16 +903,18 @@ export async function POST(req: NextRequest) {
         // Excluir atributos fiscales/admin/sistema: NO son características del producto.
         const SKIP_OPT_IDS = new Set([
             'SIZE_GRID_ID', 'EXCLUSIVE_CHANNEL', 'ITEM_CONDITION', 'SELLER_CUSTOM_FIELD',
-            'SELLER_SKU', 'GTIN', 'EAN', 'UPC', 'BRAND', 'MODEL',
+            'SELLER_SKU', 'GTIN', 'EAN', 'UPC', 'BRAND', 'MODEL', 'EMPTY_GTIN_REASON', 'IS_KIT',
             'SAT_KEY', 'MEASURE_UNIT_KEY', 'MEASURE_UNIT_DESCRIPTION',
             'IMPORT_DECLARATION_NUMBER', 'INVOICE_PRODUCT_NAME',
             'IVA_FOR_RESALE', 'IEPS', 'SALE_FORMAT', 'UNITS_PER_PACK',
         ]);
+        const gtinCaps = extractGtinCaps(attrInfo.raw || []);
         const optionalAttrs = (attrInfo.optional || [])
             .filter((a: any) => FILLABLE_TYPES.has(a.value_type) && !SKIP_OPT_IDS.has(a.id) && !(a.tags || {}).hidden)
             .slice(0, 40);
         trace.paso_6_atributos = {
             total: attrInfo.raw.length,
+            gtin_caps: gtinCaps,
             required_ids: effectiveRequiredAttrs.map((a: any) => a.id),
             catalog_required_ids: catalogRequiredAttrs.map((a: any) => a.id),
             parent_pk_ids: attrInfo.parent_pk.map((a: any) => a.id),
@@ -996,7 +946,8 @@ export async function POST(req: NextRequest) {
         if (partNumberEfectivo && (attrInfo?.raw || []).some((a: any) => a.id === 'PART_NUMBER')) {
             attributes.push({ id: 'PART_NUMBER', value_name: partNumberEfectivo });
         }
-        if (resolved.codigo_universal) attributes.push({ id: 'GTIN',   value_name: resolved.codigo_universal });
+        const gtinParsed = normalizeGtins(empty_gtin_reason ? '' : (_ovGtin || resolved.codigo_universal || ''));
+        if (!empty_gtin_reason && gtinParsed.joined) attributes.push({ id: 'GTIN', value_name: gtinParsed.joined });
         if (sku_efectivo)              attributes.push({ id: 'SELLER_SKU', value_name: sku_efectivo });
         if (resolved.pais_origen)      attributes.push({ id: 'ORIGIN_COUNTRY', value_name: resolved.pais_origen });
         if (resolved.variante)         attributes.push({ id: 'COLOR',  value_name: resolved.variante });
@@ -1041,6 +992,7 @@ export async function POST(req: NextRequest) {
             ]);
             for (const sa of sourceData.attributes) {
                 if (!sa?.id || SKIP_SOURCE_ATTRS.has(sa.id)) continue;
+                if (empty_gtin_reason && (sa.id === 'GTIN' || sa.id === 'EAN' || sa.id === 'UPC')) continue;
                 if (fiscal_data !== undefined && FISCAL_ATTR_IDS.has(sa.id)) continue;
                 if (mappedIdsPreSource.has(sa.id)) continue;
                 const out: any = { id: sa.id };
@@ -1095,6 +1047,31 @@ export async function POST(req: NextRequest) {
                 id: 'UNITS_PER_PACK',
                 value_name: String(effectivePackQty),
             });
+        }
+
+        // Sin GTIN (EMPTY_GTIN_REASON) / Kit (IS_KIT) validados contra capacidades de la categoría
+        if (empty_gtin_reason && gtinCaps.has_empty_reason) {
+            const trimmedReason = String(empty_gtin_reason).trim();
+            const matchedReason = gtinCaps.empty_reasons.find(
+                r => r.id === trimmedReason || r.name.toLowerCase() === trimmedReason.toLowerCase(),
+            );
+            if (matchedReason) {
+                upsertPreAttr({
+                    id: 'EMPTY_GTIN_REASON',
+                    value_id: matchedReason.id,
+                    value_name: matchedReason.name,
+                });
+            } else if (trimmedReason) {
+                upsertPreAttr({
+                    id: 'EMPTY_GTIN_REASON',
+                    ...(/^\d+$/.test(trimmedReason) ? { value_id: trimmedReason } : {}),
+                    value_name: trimmedReason,
+                });
+            }
+        }
+        const effectiveIsKit = Boolean(is_kit || empty_gtin_reason === '17055159' || gtinParsed.list.length > 1);
+        if (effectiveIsKit && gtinCaps.supports_is_kit) {
+            upsertPreAttr({ id: 'IS_KIT', value_id: '242085', value_name: 'Sí' });
         }
 
         // Datos fiscales SAT / CFDI — solo si fiscal_data viene explícito del operador (nunca defaults ocultos)
@@ -1165,8 +1142,9 @@ export async function POST(req: NextRequest) {
 
         // Atributos requeridos que NO pudimos mapear automáticamente
         const mappedIds = new Set(attributes.map(a => a.id));
+        const hasEmptyReasonAttr = mappedIds.has('EMPTY_GTIN_REASON');
         const unresolvedAttrs = effectiveRequiredAttrs
-            .filter((a: any) => !mappedIds.has(a.id))
+            .filter((a: any) => !mappedIds.has(a.id) && !(hasEmptyReasonAttr && a.id === 'GTIN'))
             .map((a: any) => ({
                 id:         a.id,
                 name:       a.name,
@@ -1231,7 +1209,13 @@ export async function POST(req: NextRequest) {
         ];
         // Aplicar attribute_overrides del usuario (sobreescriben/adicionan tras el AI)
         if (attribute_overrides.length > 0) {
-            for (const ov of attribute_overrides) {
+            for (const rawOv of attribute_overrides) {
+                if (empty_gtin_reason && (rawOv.id === 'GTIN' || rawOv.id === 'EAN' || rawOv.id === 'UPC')) continue;
+                let ov = rawOv;
+                if (ov.id === 'GTIN' && ov.value_name) {
+                    const normalized = normalizeGtins(ov.value_name).joined;
+                    if (normalized) ov = { ...ov, value_name: normalized };
+                }
                 const idx = allAttributes.findIndex((a: any) => a.id === ov.id);
                 if (idx !== -1) {
                     allAttributes[idx] = { ...allAttributes[idx], ...ov };
@@ -1258,7 +1242,7 @@ export async function POST(req: NextRequest) {
         // Atributos requeridos todavía faltantes después del AI
         const stillMissingIds = new Set(allAttributes.map((a: any) => a.id));
         const stillMissing = effectiveRequiredAttrs
-            .filter((a: any) => !stillMissingIds.has(a.id))
+            .filter((a: any) => !stillMissingIds.has(a.id) && !(hasEmptyReasonAttr && a.id === 'GTIN'))
             .map((a: any) => ({ id: a.id, name: a.name }));
         trace.paso_8_atributos_aun_faltantes = stillMissing;
 
@@ -1455,7 +1439,28 @@ export async function POST(req: NextRequest) {
         // Identificación efectiva (overrides > datos resueltos)
         const effectiveMarca  = (_ovMarca  || resolved.marca  || '').trim();
         const effectiveModelo = (_ovModelo || resolved.modelo || '').trim();
-        const effectiveGtin   = (_ovGtin   || resolved.codigo_universal || '').trim();
+        const effectiveGtin   = empty_gtin_reason ? '' : (gtinParsed.joined || '');
+
+        // Validación en vivo de GTIN / EMPTY_GTIN_REASON contra capacidades de la categoría
+        const gtinWarnings: string[] = [];
+        if (empty_gtin_reason && !gtinCaps.has_empty_reason) {
+            const msg = `La categoría ${category_id} no acepta publicación sin GTIN (EMPTY_GTIN_REASON) en MeLi. Captura 1 o varios GTIN separados por coma.`;
+            gtinWarnings.push(msg);
+            if (!dry_run) erroresDuros.push(msg);
+        }
+        if (!empty_gtin_reason && gtinParsed.invalid.length > 0) {
+            const msg = `GTIN inválido (debe tener entre 8 y 14 dígitos): ${gtinParsed.invalid.join(', ')}`;
+            gtinWarnings.push(msg);
+            if (!dry_run) erroresDuros.push(msg);
+        }
+        if (!empty_gtin_reason && gtinParsed.list.length > 1 && !gtinCaps.multivalued) {
+            const msg = `La categoría ${category_id} solo acepta 1 GTIN (no soporta múltiples GTINs separados por coma). Usa 1 solo GTIN o elige "Sin GTIN / Es un kit".`;
+            gtinWarnings.push(msg);
+            if (!dry_run) erroresDuros.push(msg);
+        }
+        if (gtinWarnings.length > 0) {
+            trace.paso_6_gtin_advertencia = gtinWarnings.join(' ');
+        }
 
         // Validación estricta Opción B + pre-check de duplicados en Catálogo Maestro
         let existingCatalogMatch: { articulo_id: string; nombre: string; publicacion_ml?: string | null; codigo_sat?: string | null } | null = null;
@@ -1518,7 +1523,7 @@ export async function POST(req: NextRequest) {
                 ok: true,
                 dry_run: true,
                 mensaje: 'Simulación completada. Para publicar envía dry_run: false.',
-                advertencia_duplicado: pubActiva ? { item_existente: pubActiva.external_item_id, status: pubActiva.status_externo } : null,
+                advertencia_duplicado: firstDupMatch ? { item_existente: firstDupMatch.external_item_id, status: firstDupMatch.status_externo } : null,
                 duracion_ms: Date.now() - startTime,
                 trace,
             });
@@ -1750,7 +1755,7 @@ export async function POST(req: NextRequest) {
                         p_variante: resolved.variante || null,
                         p_categoria: category_id || resolved.categoria || null,
                         p_caja_madre: null,
-                        p_codigo_universal: effectiveGtin || null,
+                        p_codigo_universal: empty_gtin_reason ? null : (gtinParsed.list[0] || null),
                         p_codigo_sat: satForNewArt,
                         p_url_producto: null,
                         p_notas: null,

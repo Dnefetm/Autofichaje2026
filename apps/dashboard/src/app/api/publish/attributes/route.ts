@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MeliAdapter } from '@gestor/adapters/meli';
+import { extractGtinCaps } from '@/lib/publish-duplicates';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,6 +73,7 @@ export async function GET(req: NextRequest) {
             category_name,
             required,
             optional,
+            gtin_caps:     extractGtinCaps(attrInfo.raw || []),
             total:         attrInfo.raw?.length ?? 0,
         });
     } catch (err: any) {
