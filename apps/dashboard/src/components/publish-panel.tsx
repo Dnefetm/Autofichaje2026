@@ -792,6 +792,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                     ...(manualPayload ? { manual_product: manualPayload } : {}),
                     ...(registerInCatalog && !articulo_id ? { register_in_catalog: true } : {}),
                     marketplace_id: primaryAccount,
+                    ...(selectedAccounts.length > 0 ? { check_marketplace_ids: selectedAccounts } : {}),
                     pictures: images,
                     ...(ficha_id ? { ficha_id } : {}),
                     category_id: categoryId || undefined,
@@ -846,6 +847,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                     ...(manualPayload ? { manual_product: manualPayload } : {}),
                     ...(registerInCatalog && !articulo_id ? { register_in_catalog: true } : {}),
                     marketplace_id: primaryAccount,
+                    ...(selectedAccounts.length > 0 ? { check_marketplace_ids: selectedAccounts } : {}),
                     pictures: images,
                     ...(ficha_id ? { ficha_id } : {}),
                     category_id: forcedCategoryId,
@@ -933,7 +935,7 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                             cantidad_requerida: packQtyNum,
                             manufacturing_time_days: manufacturingDays !== '' ? Number(manufacturingDays) : null,
                             ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : {}),
-                            ...(forceDuplicate || Boolean(previewResult?.data?.trace?.paso_1_5_duplicado?.item_existente) || Boolean(sourcePublicacion) ? { force_duplicate: true } : {}),
+                            force_duplicate: true,
                             fiscal_data: buildFiscalDataPayload(),
                         }),
                     });
@@ -1812,34 +1814,56 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                             )}
                                         </div>
 
-                                        {/* Advertencia informativa de publicación existente / paquete */}
-                                        {(t?.paso_1_5_duplicado?.item_existente || previewResult.data?.advertencia_duplicado?.item_existente) && (() => {
-                                            const itemExistente = t?.paso_1_5_duplicado?.item_existente || previewResult.data?.advertencia_duplicado?.item_existente;
-                                            const statusExistente = t?.paso_1_5_duplicado?.status || previewResult.data?.advertencia_duplicado?.status;
+                                        {/* Advertencia informativa de publicación existente / paquete / kit */}
+                                        {(() => {
+                                            const porCuenta: Array<{ marketplace_id: string; item_existente: string; status?: string; seller_sku?: string | null }> =
+                                                Array.isArray(t?.paso_1_5_duplicado?.por_cuenta) && t.paso_1_5_duplicado.por_cuenta.length > 0
+                                                    ? t.paso_1_5_duplicado.por_cuenta
+                                                    : (t?.paso_1_5_duplicado?.item_existente || previewResult.data?.advertencia_duplicado?.item_existente)
+                                                        ? [{
+                                                            marketplace_id: primaryAccount,
+                                                            item_existente: t?.paso_1_5_duplicado?.item_existente || previewResult.data?.advertencia_duplicado?.item_existente,
+                                                            status: t?.paso_1_5_duplicado?.status || previewResult.data?.advertencia_duplicado?.status,
+                                                            seller_sku: t?.paso_1_5_duplicado?.seller_sku ?? null,
+                                                        }]
+                                                        : [];
+                                            if (porCuenta.length === 0) return null;
                                             return (
                                                 <div className="flex items-start gap-2.5 p-3 bg-[var(--warn)]/10 border border-[var(--warn)]/30 rounded-xl text-xs">
                                                     <AlertCircle className="w-4 h-4 text-[var(--warn)] shrink-0 mt-0.5" />
-                                                    <div className="flex-1 space-y-1">
-                                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                                            <span className="font-bold text-[var(--warn)]">Aviso:</span>
-                                                            <span className="text-[var(--text)]">Ya existe publicación activa</span>
-                                                            <a
-                                                                href={`https://www.mercadolibre.com.mx/p/${itemExistente}`}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="inline-flex items-center gap-1 font-mono font-bold text-[var(--warn)] underline hover:opacity-80"
-                                                            >
-                                                                <ExternalLink className="w-3 h-3" />
-                                                                {itemExistente}
-                                                            </a>
-                                                            {statusExistente && (
-                                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--warn)]/20 text-[var(--warn)] font-semibold">
-                                                                    {statusExistente}
-                                                                </span>
-                                                            )}
+                                                    <div className="flex-1 space-y-1.5">
+                                                        <p className="font-bold text-[var(--warn)]">Aviso: ya existe publicación activa coincidente</p>
+                                                        <div className="space-y-1">
+                                                            {porCuenta.map((d) => {
+                                                                const ctaName = accounts.find(a => a.id === d.marketplace_id)?.account_name;
+                                                                return (
+                                                                    <div key={`${d.marketplace_id}-${d.item_existente}`} className="flex items-center gap-1.5 flex-wrap">
+                                                                        {ctaName && <span className="font-semibold text-[var(--text)]">{ctaName}:</span>}
+                                                                        <a
+                                                                            href={`https://www.mercadolibre.com.mx/p/${d.item_existente}`}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="inline-flex items-center gap-1 font-mono font-bold text-[var(--warn)] underline hover:opacity-80"
+                                                                        >
+                                                                            <ExternalLink className="w-3 h-3" />
+                                                                            {d.item_existente}
+                                                                        </a>
+                                                                        {d.status && (
+                                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--warn)]/20 text-[var(--warn)] font-semibold">
+                                                                                {d.status}
+                                                                            </span>
+                                                                        )}
+                                                                        {d.seller_sku && (
+                                                                            <span className="text-[10px] font-mono text-[var(--text-faint)]">
+                                                                                SKU: {d.seller_sku}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
                                                         <p className="text-[var(--text-muted)] text-[11px] leading-relaxed">
-                                                            Se publicará como <strong>paquete independiente (2, 4, 8, 12 pzas)</strong> o variante en esta cuenta sin impedimento.
+                                                            Se publicará igualmente como <strong>kit, paquete o publicación independiente</strong> en todas las cuentas seleccionadas.
                                                         </p>
                                                     </div>
                                                 </div>

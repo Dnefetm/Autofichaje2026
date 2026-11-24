@@ -242,6 +242,7 @@ export async function POST(req: NextRequest) {
             manual_product = null as any,
             register_in_catalog = false as boolean,
             create_paused = false as boolean,
+            check_marketplace_ids = null as string[] | null,
         } = body;
 
         const wantsZeroStock = stock_override != null && Number(stock_override) === 0;
@@ -615,52 +616,97 @@ export async function POST(req: NextRequest) {
         // -- 1.5 Verificar duplicados activos en la misma cuenta ----------------
         // Con articulo_id: publicaciones_externas + mapeo_publicacion_articulo.
         // Sin articulo_id (desde 0): buscar en publicaciones_externas por GTIN/EAN o seller_sku.
-        let pubActiva: any = null;
+        const targetAccountsForDupCheck = (dry_run && Array.isArray(check_marketplace_ids) && check_marketplace_ids.length > 0)
+            ? Array.from(new Set(check_marketplace_ids.filter(Boolean)))
+            : [marketplace_id];
+
+        const dupMatches: Array<{
+            id: string;
+            marketplace_id: string;
+            external_item_id: string;
+            status_externo: string;
+            seller_sku: string | null;
+        }> = [];
+
         if (resolvedArticuloId) {
             const { data } = await supabaseAdmin
                 .from('publicaciones_externas')
                 .select(`
-                    id, external_item_id, status_externo,
+                    id, marketplace_id, external_item_id, status_externo, seller_sku,
                     mapeo_publicacion_articulo!inner (articulo_id)
                 `)
-                .eq('marketplace_id', marketplace_id)
+                .in('marketplace_id', targetAccountsForDupCheck)
                 .eq('mapeo_publicacion_articulo.articulo_id', resolvedArticuloId)
                 .in('status_externo', ['active', 'paused', 'under_review'])
-                .limit(1)
-                .maybeSingle();
-            pubActiva = data;
+                .limit(10);
+            if (Array.isArray(data)) {
+                for (const row of data) {
+                    dupMatches.push({
+                        id: row.id,
+                        marketplace_id: row.marketplace_id,
+                        external_item_id: row.external_item_id,
+                        status_externo: row.status_externo,
+                        seller_sku: (row as any).seller_sku ?? null,
+                    });
+                }
+            }
         } else {
             const safeGtin = (_ovGtin || resolved.codigo_universal || '').trim().replace(/[^A-Za-z0-9_-]/g, '');
             if (safeGtin) {
                 const { data } = await supabaseAdmin
                     .from('publicaciones_externas')
-                    .select('id, external_item_id, status_externo')
-                    .eq('marketplace_id', marketplace_id)
+                    .select('id, marketplace_id, external_item_id, status_externo, seller_sku')
+                    .in('marketplace_id', targetAccountsForDupCheck)
                     .in('status_externo', ['active', 'paused', 'under_review'])
                     .or(`gtin.eq.${safeGtin},ean.eq.${safeGtin}`)
-                    .limit(1)
-                    .maybeSingle();
-                pubActiva = data;
+                    .limit(10);
+                if (Array.isArray(data)) dupMatches.push(...data);
             }
-            if (!pubActiva) {
-                const rawSkuCheck = (_ovSku || manual_product?.sku || sourceData?.seller_custom_field || resolved.modelo || '').trim();
-                const safeSku = (rawSkuCheck && !_SKU_BASURA.test(rawSkuCheck)) ? rawSkuCheck : '';
-                if (safeSku) {
+            const rawSkuCheck = (_ovSku || manual_product?.sku || sourceData?.seller_custom_field || resolved.modelo || '').trim();
+            const safeSku = (rawSkuCheck && !_SKU_BASURA.test(rawSkuCheck)) ? rawSkuCheck : '';
+            if (safeSku) {
+                const coveredAccounts = new Set(dupMatches.map(d => d.marketplace_id));
+                const remainingAccounts = targetAccountsForDupCheck.filter(id => !coveredAccounts.has(id));
+                if (remainingAccounts.length > 0) {
                     const { data } = await supabaseAdmin
                         .from('publicaciones_externas')
-                        .select('id, external_item_id, status_externo')
-                        .eq('marketplace_id', marketplace_id)
+                        .select('id, marketplace_id, external_item_id, status_externo, seller_sku')
+                        .in('marketplace_id', remainingAccounts)
                         .in('status_externo', ['active', 'paused', 'under_review'])
                         .eq('seller_sku', safeSku)
-                        .limit(1)
-                        .maybeSingle();
-                    pubActiva = data;
+                        .limit(10);
+                    if (Array.isArray(data)) dupMatches.push(...data);
                 }
             }
         }
 
+        const dupByAccount = Array.from(
+            dupMatches.reduce((acc, d) => {
+                if (!acc.has(d.marketplace_id)) {
+                    acc.set(d.marketplace_id, {
+                        marketplace_id: d.marketplace_id,
+                        item_existente: d.external_item_id,
+                        status: d.status_externo,
+                        seller_sku: d.seller_sku ?? null,
+                    });
+                }
+                return acc;
+            }, new Map<string, { marketplace_id: string; item_existente: string; status: string; seller_sku: string | null }>())
+            .values()
+        );
+
+        const pubActiva = dupMatches.find(d => d.marketplace_id === marketplace_id) || dupMatches[0] || null;
+        const reqPackQty = Math.max(1, Number(cantidad_requerida ?? (body as any)?.pack_quantity ?? sourcePackQty ?? 1));
+        const reqSku = (_ovSku || manual_product?.sku || '').trim();
+        const esDistintoSku = Boolean(
+            reqSku &&
+            pubActiva?.seller_sku &&
+            reqSku.toLowerCase() !== String(pubActiva.seller_sku).trim().toLowerCase()
+        );
+        const esPackODistintoSku = reqPackQty > 1 || esDistintoSku;
+
         const esCopia = Boolean(source_item_id);
-        if (pubActiva && !force_duplicate && !dry_run && !esCopia) {
+        if (pubActiva && !force_duplicate && !dry_run && !esCopia && !esPackODistintoSku) {
             return NextResponse.json({
                 ok: false,
                 error: `Ya existe una publicación activa para este producto en esta cuenta: ${pubActiva.external_item_id} (status: ${pubActiva.status_externo}). Ciérrala primero o usa force_duplicate: true.`,
@@ -670,8 +716,14 @@ export async function POST(req: NextRequest) {
         }
 
         trace.paso_1_5_duplicado = pubActiva
-            ? { advertencia: `Ya existe publicación activa ${pubActiva.external_item_id} (${pubActiva.status_externo})`, item_existente: pubActiva.external_item_id, status: pubActiva.status_externo }
-            : { ok: true, sin_duplicados: true };
+            ? {
+                advertencia: `Ya existe publicación activa ${pubActiva.external_item_id} (${pubActiva.status_externo})`,
+                item_existente: pubActiva.external_item_id,
+                status: pubActiva.status_externo,
+                seller_sku: pubActiva.seller_sku ?? null,
+                por_cuenta: dupByAccount,
+            }
+            : { ok: true, sin_duplicados: true, por_cuenta: [] };
 
         // -- 2. Detectar modelo del seller -------------------------------------
         // Soporta UP (family_name) y legacy (title).
