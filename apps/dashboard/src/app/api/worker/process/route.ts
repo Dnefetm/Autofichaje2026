@@ -47,7 +47,8 @@ const currentHour = now.getUTCHours();
 const { count } = await supabaseAdmin
 .from('jobs')
 .select('*', { count: 'exact', head: true })
-.eq('status', 'pending');
+.eq('status', 'pending')
+.lte('scheduled_at', now.toISOString());
 
 const isMaintenanceWindow = (currentMinute % 5 === 0);
 const isReconciliationHour = (currentHour % 6 === 0 && currentMinute < 2);
@@ -83,6 +84,59 @@ if (count === 0 && !isMaintenanceWindow && !isReconciliationHour && !isCatalogDu
 return NextResponse.json({ ...results, skipped: true, reason: 'no_jobs', ms: Date.now() - now.getTime() });
 }
 
+// Pieza 3: Lease singleton atomico (TTL 45s) para garantizar maximo 1 worker activo simultaneo
+const WORKER_LEASE_TTL_MS = 45_000;
+const runId = crypto.randomUUID();
+let leaseAcquired = false;
+let earlyResponse: NextResponse | null = null;
+
+try {
+  const leaseCutoff = new Date(Date.now() - WORKER_LEASE_TTL_MS).toISOString();
+  const { data: leaseUpdated, error: leaseErr } = await supabaseAdmin
+    .from('webhook_config')
+    .update({ label: runId, updated_at: new Date().toISOString() })
+    .eq('topic', 'worker_active_lease')
+    .lt('updated_at', leaseCutoff)
+    .select('topic');
+
+  if (!leaseErr) {
+    if (leaseUpdated && leaseUpdated.length > 0) {
+      leaseAcquired = true;
+    } else {
+      const { data: existingLease, error: existingErr } = await supabaseAdmin
+        .from('webhook_config')
+        .select('topic')
+        .eq('topic', 'worker_active_lease')
+        .maybeSingle();
+
+      if (!existingErr) {
+        if (!existingLease) {
+          const { error: insertLeaseErr } = await supabaseAdmin
+            .from('webhook_config')
+            .insert({
+              topic: 'worker_active_lease',
+              window_seconds: 45,
+              dispatch_immediate: false,
+              enabled: true,
+              label: runId,
+              updated_at: new Date().toISOString(),
+            });
+          if (!insertLeaseErr) {
+            leaseAcquired = true;
+          } else {
+            return NextResponse.json({ ...results, skipped: true, reason: 'worker_already_running', ms: Date.now() - startTimeMs });
+          }
+        } else {
+          return NextResponse.json({ ...results, skipped: true, reason: 'worker_already_running', ms: Date.now() - startTimeMs });
+        }
+      }
+    }
+  }
+} catch {
+  // Si falla la consulta al lease por error transitorio, fallar abierto para no paralizar ventas
+}
+
+try {
 if (isMaintenanceWindow) {
 try {
 await MeliTokenManager.refreshExpiringTokens();
@@ -105,8 +159,8 @@ logger.info({ zombiesReleased: zombieData }, 'Reaper: jobs zombi liberados');
 }
 
 if (count === 0 && !isReconciliationHour && !isCatalogDue && !isReplenishmentDue) {
-return NextResponse.json({ ...results, skipped: true, reason: 'no_jobs_maintenance_done' });
-}
+earlyResponse = NextResponse.json({ ...results, skipped: true, reason: 'no_jobs_maintenance_done' });
+} else {
 
 const meliAdapter = new MeliAdapter();
 let totalProcessed = 0;
@@ -232,6 +286,21 @@ await supabaseAdmin.from('webhook_config').upsert({
 } catch (repErr: any) {
 results.errors.push(`sync_full_replenishment hook failed: ${repErr.message}`);
 }
+}
+} // fin else (procesamiento de lotes)
+} finally {
+if (leaseAcquired) {
+  try {
+    await supabaseAdmin
+      .from('webhook_config')
+      .update({ label: null, updated_at: '1970-01-01T00:00:00.000Z' })
+      .eq('topic', 'worker_active_lease')
+      .eq('label', runId);
+  } catch (_) {}
+}
+}
+if (earlyResponse) {
+  return earlyResponse;
 }
 } catch (err: any) {
 results.errors.push(`Fatal: ${err.message}`);

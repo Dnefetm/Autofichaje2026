@@ -17,17 +17,17 @@ export async function dispatchWorker(): Promise<void> {
 
     try {
         const now = new Date();
-        const tenSecondsAgo = new Date(now.getTime() - 10000).toISOString();
+        const thirtySecondsAgo = new Date(now.getTime() - 30000).toISOString();
 
-        // 1. Intentar actualizar si ya pasaron 10 segundos
+        // 1. Intentar actualizar si ya pasaron 30 segundos (alineado con los 25s del worker para evitar apilar lambdas)
         const { data: updated } = await supabaseAdmin
             .from('webhook_config')
             .update({ updated_at: now.toISOString() })
             .eq('topic', 'worker_dispatch_lock')
-            .lt('updated_at', tenSecondsAgo)
+            .lt('updated_at', thirtySecondsAgo)
             .select('topic');
 
-        // Si no se actualizó nada, significa que alguien más lo hizo hace menos de 10s o la fila no existe.
+        // Si no se actualizó nada, significa que alguien más lo hizo hace menos de 30s o la fila no existe.
         if (!updated || updated.length === 0) {
             // Verificamos si no existe
             const { data: existing } = await supabaseAdmin
