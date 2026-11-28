@@ -101,9 +101,12 @@ export async function applyVitrinaChanges(
             results.push({ field: ch.field, ok: false, error: 'La clave SAT debe tener exactamente 8 dígitos numéricos' });
             continue;
         }
-        if (f.id === 'import_declaration_number' && String(ch.value ?? '').replace(/\D/g, '').length === 0) {
-            results.push({ field: ch.field, ok: false, error: 'El pedimento debe contener al menos 1 dígito numérico' });
-            continue;
+        if (f.id === 'import_declaration_number') {
+            const rawStr = String(ch.value ?? '').trim();
+            if (rawStr !== '' && rawStr.replace(/\D/g, '').length === 0) {
+                results.push({ field: ch.field, ok: false, error: 'El pedimento debe contener dígitos numéricos o dejarse vacío para limpiar' });
+                continue;
+            }
         }
         accepted.push({ field: f.id, value: ch.value, valueId: ch.valueId ?? null });
     }

@@ -1433,6 +1433,12 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 />
                             )}
                             <InfoRow label="Ventas totales" value={pub.sold_quantity != null ? `${pub.sold_quantity} unidades` : null} />
+                            {enrichData?.visits?.total_visits != null && (
+                                <InfoRow
+                                    label="Visitas (30 días)"
+                                    value={`${Number(enrichData.visits.total_visits).toLocaleString('es-MX')} visitas`}
+                                />
+                            )}
                             <InfoRow label="Cantidad inicial" value={pub.initial_quantity != null ? `${pub.initial_quantity} uds.` : null} />
                             <InfoRow
                                 label="Deals"
@@ -1462,6 +1468,20 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                     {freeShippingError && <span className="text-[10px] text-[var(--err)]">{freeShippingError}</span>}
                                 </div>
                             } />
+                            <InfoRow
+                                label="Costo de envío"
+                                value={
+                                    pub.shipping_cost_monto != null && Number(pub.shipping_cost_monto) > 0
+                                        ? fmt(pub.shipping_cost_monto)
+                                        : pub.logistic_type === 'fulfillment'
+                                            ? (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-[var(--radius-sm)] text-[11px] font-semibold bg-[var(--info)]/10 border border-[var(--info)]/30 text-[var(--info)]">
+                                                    Gestionado por Full (no aplica tarifa ME2 estándar)
+                                                </span>
+                                            )
+                                            : null
+                                }
+                            />
                             <InfoRow label="Modo envío" value={pub.shipping_mode} />
                             <InfoRow label="Retiro en persona" value={
                                 pub.local_pick_up === true  ? <span className="text-[var(--ok)] font-semibold text-xs">Sí</span>
@@ -1775,6 +1795,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                         })()}
                         pricingStatus={pub.pricing_status}
                         lastCalcAt={pub.last_calc_at}
+                        logisticType={pub.logistic_type}
                         onOverrideUpdated={() => loadAll(true)}
                     />
                 </div>
@@ -1817,6 +1838,7 @@ export default function PublicacionDetailPage({ params }: { params: Promise<{ id
                                 listing_type_id: pub.listing_type_id,
                                 category_id: pub.category_id,
                                 free_shipping: !!pub.free_shipping,
+                                logistic_type: pub.logistic_type ?? null,
                                 id_producto_catalogo: pub.id_producto_catalogo
                                     || asociadas?.find((a: any) => a.tipo_publicacion === 'catalogo')?.id_producto_catalogo
                                     || null,

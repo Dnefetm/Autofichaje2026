@@ -69,6 +69,7 @@ export interface SourcePublicacion {
     listing_type_id?: string | null;
     category_id?: string | null;
     free_shipping?: boolean;
+    logistic_type?: string | null;
     id_producto_catalogo?: string | null;
     tipo_publicacion?: string | null;
     marca?: string | null;
@@ -254,6 +255,8 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
     const [pricingRules, setPricingRules] = useState<any[]>([]);
     const [stockOverride, setStockOverride] = useState<string>('1');
     const [descriptionOverride, setDescriptionOverride] = useState<string>('');
+    const [descriptionTouched, setDescriptionTouched] = useState(false);
+    const [aiTitleCandidates, setAiTitleCandidates] = useState<string[]>([]);
     // Identificación editable (marca/modelo/SKU/GTIN). Vacío = usar el valor resuelto por el backend.
     const [marcaOverride, setMarcaOverride] = useState<string>('');
     const [modeloOverride, setModeloOverride] = useState<string>('');
@@ -269,6 +272,8 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
     const [catalogResults, setCatalogResults] = useState<any[]>([]);
     const [catalogProductId, setCatalogProductId] = useState<string | null>(null);
     const [catalogListing, setCatalogListing] = useState(false);
+    const [autoSearchCatalog, setAutoSearchCatalog] = useState(true);
+    const [catalogExplicitlyOmitted, setCatalogExplicitlyOmitted] = useState(false);
     const [searchingCatalog, setSearchingCatalog] = useState(false);
     const [forceDuplicate, setForceDuplicate] = useState(false);
     // Atributos dinámicos al cambiar de categoría
@@ -421,12 +426,17 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
         if (sourcePublicacion.precio_venta != null && Number(sourcePublicacion.precio_venta) > 0) {
             setPriceOverride(String(sourcePublicacion.precio_venta));
         }
-        if (sourcePublicacion.stock_publicado != null && Number(sourcePublicacion.stock_publicado) >= 0) {
+        // Guardia anti-sobreventa Full: nunca copiar stock de bodega Full de otra cuenta.
+        if (sourcePublicacion.logistic_type === 'fulfillment') {
+            setStockOverride('0');
+            setCreatePaused(true);
+        } else if (sourcePublicacion.stock_publicado != null && Number(sourcePublicacion.stock_publicado) >= 0) {
             setStockOverride(String(sourcePublicacion.stock_publicado));
         }
         if (sourcePublicacion.cantidad_requerida != null && Number(sourcePublicacion.cantidad_requerida) >= 1) {
             setPackQuantity(String(sourcePublicacion.cantidad_requerida));
         }
+        setCatalogExplicitlyOmitted(false);
         // Detectar el catálogo vinculado tanto si la fuente es catálogo como si es
         // una tradicional con id_producto_catalogo (copia multi-cuenta conserva el vínculo).
         if (sourcePublicacion.id_producto_catalogo) {
@@ -784,19 +794,27 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
         setErrorMsg(null);
         try {
             const catId = categoryOverride || previewResult?.data?.trace?.paso_5_categoria?.category_id || '';
+            const manualPayload = buildManualProductPayload();
             const res = await fetch('/api/publish/ai-complete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    articulo_id,
+                    ...(articulo_id ? { articulo_id } : {}),
+                    ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
+                    ...(manualPayload ? { manual_product: manualPayload } : {}),
                     ...(primaryAccount ? { marketplace_id: primaryAccount } : {}),
                     ...(catId ? { category_id: catId } : {}),
                 }),
             });
             const data = await res.json();
             if (data.ok) {
-                if (data.title) setFamilyNameOverride(data.title);
-                if (data.description) setDescriptionOverride(data.description);
+                const cands: string[] = Array.isArray(data.title_candidates) ? data.title_candidates.filter(Boolean) : [];
+                if (cands.length > 0) setAiTitleCandidates(cands);
+                if (data.title || data.family_name) setFamilyNameOverride(data.family_name || data.title);
+                if (data.description) {
+                    setDescriptionOverride(data.description);
+                    setDescriptionTouched(true);
+                }
                 if (Array.isArray(data.attributes) && data.attributes.length > 0) {
                     setAttrOverrides(prev => {
                         const next = { ...prev };
@@ -882,12 +900,14 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
     function usarCatalog(r: any) {
         setCatalogProductId(r.catalog_product_id);
         setCatalogListing(true);
+        setCatalogExplicitlyOmitted(false);
         setCatalogResults([]);
     }
 
     function omitirCatalog() {
         setCatalogProductId(null);
         setCatalogListing(false);
+        setCatalogExplicitlyOmitted(true);
         setCatalogResults([]);
     }
 
@@ -988,13 +1008,28 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                     ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
                     ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
-                    ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : (sourcePublicacion ? { catalog_listing: false } : {})),
+                    ...(catalogListing && catalogProductId
+                        ? { catalog_product_id: catalogProductId, catalog_listing: true }
+                        : (!catalogExplicitlyOmitted && autoSearchCatalog && gtinMode === 'gtin' && parsedEffectiveGtins.list.length === 1)
+                            ? { auto_search_catalog: true }
+                            : (sourcePublicacion ? { catalog_listing: false } : {})),
                     ...(gtinMode === 'empty' ? { empty_gtin_reason: emptyGtinReason } : {}),
                     ...(isKit || (gtinMode === 'empty' && emptyGtinReason === '17055159') ? { is_kit: true } : {}),
                     fiscal_data: buildFiscalDataPayload(),
                 }),
             });
             const data = await res.json();
+            const foundCatalogId = data?.trace?.paso_5_4_auto_catalog_search?.catalog_product_id;
+            if (foundCatalogId && !catalogExplicitlyOmitted) {
+                setCatalogProductId(foundCatalogId);
+                setCatalogListing(true);
+            }
+            const aiCands: string[] = Array.isArray(data?.trace?.paso_9_titulo?.candidatos?.ia_alternativas)
+                ? data.trace.paso_9_titulo.candidatos.ia_alternativas
+                : [];
+            if (aiCands.length > 0) {
+                setAiTitleCandidates(aiCands);
+            }
             if (data?.trace?.paso_7_fiscal?.source_fiscal) {
                 applySourceFiscal(data.trace.paso_7_fiscal.source_fiscal);
             }
@@ -1052,13 +1087,28 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                     ...(identOverrides.length ? { attribute_overrides: identOverrides } : {}),
                     ...(familyNameOverride.trim() ? { family_name_override: familyNameOverride.trim() } : {}),
                     ...(sourcePublicacion ? { source_marketplace_id: sourcePublicacion.marketplace_id, source_item_id: sourcePublicacion.external_item_id } : {}),
-                    ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : (sourcePublicacion ? { catalog_listing: false } : {})),
+                    ...(catalogListing && catalogProductId
+                        ? { catalog_product_id: catalogProductId, catalog_listing: true }
+                        : (!catalogExplicitlyOmitted && autoSearchCatalog && gtinMode === 'gtin' && parsedEffectiveGtins.list.length === 1)
+                            ? { auto_search_catalog: true }
+                            : (sourcePublicacion ? { catalog_listing: false } : {})),
                     ...(gtinMode === 'empty' ? { empty_gtin_reason: emptyGtinReason } : {}),
                     ...(isKit || (gtinMode === 'empty' && emptyGtinReason === '17055159') ? { is_kit: true } : {}),
                     fiscal_data: buildFiscalDataPayload(),
                 }),
             });
             const data = await res.json();
+            const foundCatalogId = data?.trace?.paso_5_4_auto_catalog_search?.catalog_product_id;
+            if (foundCatalogId && !catalogExplicitlyOmitted) {
+                setCatalogProductId(foundCatalogId);
+                setCatalogListing(true);
+            }
+            const aiCands: string[] = Array.isArray(data?.trace?.paso_9_titulo?.candidatos?.ia_alternativas)
+                ? data.trace.paso_9_titulo.candidatos.ia_alternativas
+                : [];
+            if (aiCands.length > 0) {
+                setAiTitleCandidates(aiCands);
+            }
             if (data?.trace?.paso_1_5_duplicado?.by_account) {
                 setAccountDupMap(prev => ({ ...prev, ...data.trace.paso_1_5_duplicado.by_account }));
             }
@@ -1139,7 +1189,11 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                             shipping_mode: shippingMode,
                             cantidad_requerida: packQtyNum,
                             manufacturing_time_days: manufacturingDays !== '' ? Number(manufacturingDays) : null,
-                            ...(catalogListing && catalogProductId ? { catalog_product_id: catalogProductId, catalog_listing: true } : (sourcePublicacion ? { catalog_listing: false } : {})),
+                            ...(catalogListing && catalogProductId
+                                ? { catalog_product_id: catalogProductId, catalog_listing: true }
+                                : (!catalogExplicitlyOmitted && autoSearchCatalog && gtinMode === 'gtin' && parsedEffectiveGtins.list.length === 1)
+                                    ? { auto_search_catalog: true }
+                                    : (sourcePublicacion ? { catalog_listing: false } : {})),
                             ...(gtinMode === 'empty' ? { empty_gtin_reason: emptyGtinReason } : {}),
                             ...(isKit || (gtinMode === 'empty' && emptyGtinReason === '17055159') ? { is_kit: true } : {}),
                             ...(confirmedDupAccounts[accountId] || Boolean(sourcePublicacion) ? { force_duplicate: true } : {}),
@@ -1259,10 +1313,13 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
         if (!isStandalone) setPriceOverride('');
         setStockOverride('1');
         setDescriptionOverride('');
+        setDescriptionTouched(false);
+        setAiTitleCandidates([]);
         setExtractUrl('');
         setCatalogResults([]);
         setCatalogProductId(null);
         setCatalogListing(false);
+        setCatalogExplicitlyOmitted(false);
         setForceDuplicate(false);
         setConfirmedDupAccounts({});
         setDynamicGtinCaps(null);
@@ -1982,12 +2039,38 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                 );
                             })()}
 
-                            {/* Stock inicial y Piezas por venta */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5" htmlFor="publish-stock">
-                                        Stock inicial a publicar
-                                    </label>
+                                {/* Auto-búsqueda en Catálogo al copiar publicación tradicional */}
+                                {sourcePublicacion && !sourcePublicacion.id_producto_catalogo && gtinMode === 'gtin' && (
+                                    <div className="p-2.5 rounded-lg border border-[var(--info)]/30 bg-[var(--info)]/10 text-xs space-y-1">
+                                        <label className="inline-flex items-center gap-2 font-semibold text-[var(--info)] cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={autoSearchCatalog}
+                                                onChange={e => {
+                                                    setAutoSearchCatalog(e.target.checked);
+                                                    if (e.target.checked) setCatalogExplicitlyOmitted(false);
+                                                }}
+                                                className="w-3.5 h-3.5 rounded text-[var(--accent)] focus:ring-[var(--accent)]"
+                                            />
+                                            <span>Buscar coincidencia en Catálogo MeLi automáticamente por GTIN</span>
+                                        </label>
+                                        <p className="text-[10px] text-[var(--text-muted)] ml-5">
+                                            Si el GTIN encuentra coincidencia en el Catálogo de MeLi, se mostrará en el Preview para vincularlo tras crear la tradicional.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Stock inicial y Piezas por venta */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        {sourcePublicacion?.logistic_type === 'fulfillment' && (
+                                            <div className="mb-2 p-2 rounded-lg border border-[var(--warn)]/40 bg-[var(--warn)]/10 text-[11px] text-[var(--warn)]">
+                                                ⚠ Origen en Mercado Envíos Full: el stock de bodega de MeLi no se copia a otra cuenta (inicia en 0 / pausada para evitar sobreventa; ajústalo si tienes stock físico en tu bodega).
+                                            </div>
+                                        )}
+                                        <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5" htmlFor="publish-stock">
+                                            Stock inicial a publicar
+                                        </label>
                                     <input
                                         id="publish-stock"
                                         type="number"
@@ -2582,8 +2665,8 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                                 </button>
                                             )}
                                         </div>
-                                        {articulo_id && (
-                                            <>
+                                        {(articulo_id || sourcePublicacion || manualNombre.trim()) && (
+                                            <div className="flex flex-wrap gap-2">
                                                 {/* Completar con IA */}
                                                 <button
                                                     type="button"
@@ -2593,26 +2676,49 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                                 >
                                                     {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />} Completar título y descripción con IA
                                                 </button>
-                                                {/* Enriquecer desde la web del proveedor */}
-                                                <button
-                                                    type="button"
-                                                    onClick={enrichFromWeb}
-                                                    disabled={loading}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--ok)]/20 transition-colors disabled:opacity-50"
-                                                >
-                                                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🌐'} Enriquecer desde la web
-                                                </button>
-                                            </>
+                                                {/* Enriquecer desde la web del proveedor (solo con articulo_id) */}
+                                                {articulo_id && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            setDescriptionTouched(true);
+                                                            await enrichFromWeb();
+                                                        }}
+                                                        disabled={loading}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/30 rounded-[var(--radius-sm)] hover:bg-[var(--ok)]/20 transition-colors disabled:opacity-50"
+                                                    >
+                                                        {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '🌐'} Enriquecer desde la web
+                                                    </button>
+                                                )}
+                                            </div>
                                         )}
                                         {/* Título (legacy: title completo; UP: family_name) */}
                                         {(() => {
                                             const titleVal = familyNameOverride !== '' ? familyNameOverride : (t?.paso_8_ai?.family_name || t?.paso_9_titulo?.title_legacy || '');
                                             const over = titleVal.length > 60;
+                                            const aiChipsSource: string[] = aiTitleCandidates.length > 0
+                                                ? aiTitleCandidates
+                                                : (Array.isArray(t?.paso_9_titulo?.candidatos?.ia_alternativas) && t.paso_9_titulo.candidatos.ia_alternativas.length > 0
+                                                    ? t.paso_9_titulo.candidatos.ia_alternativas
+                                                    : (t?.paso_9_titulo?.candidatos?.ia ? [t.paso_9_titulo.candidatos.ia] : []));
+                                            const chipOptions = [
+                                                ...aiChipsSource.slice(0, 3).map((val: string, idx: number) => ({
+                                                    k: `ia_${idx}`,
+                                                    label: aiChipsSource.length > 1 ? `IA #${idx + 1}` : 'IA',
+                                                    val,
+                                                })),
+                                                ...(t?.paso_9_titulo?.candidatos?.catalogo
+                                                    ? [{ k: 'catalogo', label: 'Catálogo', val: t.paso_9_titulo.candidatos.catalogo }]
+                                                    : []),
+                                                ...(t?.paso_9_titulo?.candidatos?.mi_catalogo
+                                                    ? [{ k: 'mi_catalogo', label: 'Mi catálogo', val: t.paso_9_titulo.candidatos.mi_catalogo }]
+                                                    : []),
+                                            ];
                                             return (
                                                 <div>
                                                     <div className="flex items-center justify-between mb-1.5">
                                                         <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider">Título (máx 60)</label>
-                                                        <span className={cn("text-[10px] font-bold tabular-nums", over ? "text-[var(--err)]" : "text-[var(--text-faint)]")}>{titleVal.length}/60</span>
+                                                        <span className={cn("text-[10px] font-bold tabular-nums", over ? "text-[var(--err)]" : titleVal.length >= 54 ? "text-[var(--ok)]" : "text-[var(--text-faint)]")}>{titleVal.length}/60</span>
                                                     </div>
                                                     <input
                                                         type="text"
@@ -2623,17 +2729,31 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                                             over ? "border-[var(--err)] focus:ring-[var(--err)] text-[var(--err)]" : "border-[var(--border)] focus:ring-[var(--accent)]")}
                                                     />
                                                     {over && <p className="text-[10px] text-[var(--err)] mt-1">El título supera 60 caracteres. Recórtalo.</p>}
-                                                    {t?.paso_9_titulo?.candidatos && (
+                                                    {chipOptions.length > 0 && (
                                                         <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                                            {[
-                                                                { k: 'catalogo', label: 'Catálogo', val: t.paso_9_titulo.candidatos.catalogo },
-                                                                { k: 'mi_catalogo', label: 'Mi catálogo', val: t.paso_9_titulo.candidatos.mi_catalogo },
-                                                                { k: 'ia', label: 'IA', val: t.paso_9_titulo.candidatos.ia },
-                                                            ].filter(o => o.val).map(o => (
-                                                                <button key={o.k} type="button" onClick={() => setFamilyNameOverride(String(o.val).slice(0, 60))} className="px-2 py-1 text-[10px] font-bold rounded border border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--accent)] text-left">
-                                                                    {o.label}: <span className="font-normal text-[var(--text-muted)]">{String(o.val).slice(0, 45)}{String(o.val).length > 45 ? '…' : ''}</span>
-                                                                </button>
-                                                            ))}
+                                                            {chipOptions.map(o => {
+                                                                const vStr = String(o.val);
+                                                                const optLen = vStr.length;
+                                                                const inRange = optLen >= 54 && optLen <= 60;
+                                                                return (
+                                                                    <button
+                                                                        key={o.k}
+                                                                        type="button"
+                                                                        onClick={() => setFamilyNameOverride(vStr.slice(0, 60))}
+                                                                        title={vStr}
+                                                                        className="px-2 py-1 text-[10px] font-bold rounded border border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--accent)] text-left"
+                                                                    >
+                                                                        {o.label}{' '}
+                                                                        <span className={cn('font-mono', inRange ? 'text-[var(--ok)]' : 'text-[var(--text-faint)]')}>
+                                                                            ({optLen}/60)
+                                                                        </span>
+                                                                        :{' '}
+                                                                        <span className="font-normal text-[var(--text-muted)]">
+                                                                            {vStr.slice(0, 48)}{vStr.length > 48 ? '…' : ''}
+                                                                        </span>
+                                                                    </button>
+                                                                );
+                                                            })}
                                                         </div>
                                                     )}
                                                 </div>
@@ -2643,8 +2763,11 @@ export function PublishPanel({ articulo_id, nombreArticulo = '', ficha_id, image
                                         <div>
                                             <label className="text-[10px] font-bold uppercase text-[var(--text-faint)] tracking-wider block mb-1.5">Descripción</label>
                                             <textarea
-                                                value={descriptionOverride}
-                                                onChange={e => setDescriptionOverride(e.target.value)}
+                                                value={descriptionTouched ? descriptionOverride : (descriptionOverride || t?.paso_9_descripcion?.preview_text || '')}
+                                                onChange={e => {
+                                                    setDescriptionTouched(true);
+                                                    setDescriptionOverride(e.target.value);
+                                                }}
                                                 rows={6}
                                                 placeholder="Descripción del producto (vacío = se usa la del artículo/ficha técnica)"
                                                 className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface)]"

@@ -36,17 +36,29 @@ export interface MeliAIHelperInput {
     nombre: string;
     marca: string;
     modelo: string;
+    variante?: string | null;
+    categoria?: string | null;
     descripcion?: string;
+    materiales?: string | null;
+    peso_kg?: number | null;
+    largo_cm?: number | null;
+    ancho_cm?: number | null;
+    alto_cm?: number | null;
+    pais_origen?: string | null;
+    unidades_pack?: number | null;
+    bullet_points?: string[];
+    resolved_attributes?: Array<{ id: string; name?: string; value_name?: string }>;
     atributos_especificos?: any;   // JSON libre del artículo
     unresolved_attributes: MeliUnresolvedAttribute[];
-    max_family_name_chars?: number; // default 50
-    legacy?: boolean;               // true: title completo (marca+modelo); false: family_name sin marca/modelo
+    max_family_name_chars?: number; // default 60
+    legacy?: boolean;               // true: title completo; false: family_name
     rephrase_description?: boolean; // true: descripción ligeramente reformulada (copia adaptada)
 }
 
 export interface MeliAIHelperOutput {
     family_name: string;
     title: string;
+    title_candidates?: string[];
     attributes: Array<{ id: string; value_id?: string; value_name?: string }>;
     description?: string;
     ai_used: boolean;
@@ -59,6 +71,220 @@ export interface MeliAIHelperOutput {
         title_prompt_preview?: string;
         description_prompt_preview?: string;
     };
+}
+
+export interface TitleSanitizeOptions {
+    maxChars?: number;      // default 60
+    marca?: string | null;
+    modelo?: string | null;
+    includeBrand?: boolean; // default true
+    includeModel?: boolean; // default false
+}
+
+const TRAILING_STOP_WORDS = new Set(['de', 'con', 'para', 'en', 'el', 'la', 'los', 'las', 'y', 'a', 'por', 'al', 'del', 'sin']);
+const MEASURE_ONLY_RE = /^(?:\d+\/\d+|\d+(?:[./-]\d+)?\s*(?:mm|cm|m|in|''|"|pulg(?:adas?)?|g|kg|ml|l|lt|lts|w|v|hz|amp|hp|pz|pzs|piezas?))$/i;
+
+function normToken(s: string): string {
+    return String(s || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[®™©]/g, '')
+        .toLowerCase()
+        .trim();
+}
+
+function escapeRegExp(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function cleanTitleAnnotations(raw: string): string {
+    const ANOTACIONES = [
+        /publicar\s+y\s+corregir/gi,
+        /publicar\s+y\s+revisar/gi,
+        /revisar\s+y\s+corregir/gi,
+        /pendiente\s+de\s+revisi[oó]n/gi,
+        /corregir\s+despu[eé]s/gi,
+        /publicar.*$\*/gi,
+        /\brevisar\b.*$/gi,
+        /\bcorregir\b.*$/gi,
+        /\bpendiente\b.*$/gi,
+        /\bcheck\b.*$/gi,
+    ];
+    let text = String(raw || '').trim().replace(/"/g, "''");
+    for (const pat of ANOTACIONES) {
+        text = text.replace(pat, ' ').trim();
+    }
+    text = text.replace(/\s+/g, ' ').replace(/[-,/|.;:]+\s*$/, '').trim();
+    return text;
+}
+
+function containsNormalizedBrand(text: string, brand: string): boolean {
+    const nt = normToken(text);
+    const nb = normToken(brand);
+    if (!nb) return false;
+    const re = new RegExp(`(^|[^a-z0-9])${escapeRegExp(nb)}($|[^a-z0-9])`, 'i');
+    return re.test(nt);
+}
+
+function endsWithNormalizedBrand(text: string, brand: string): boolean {
+    const nt = normToken(text);
+    const nb = normToken(brand);
+    if (!nb) return false;
+    return nt === nb || nt.endsWith(` ${nb}`);
+}
+
+function trimStopWords(words: string[]): string[] {
+    const out = [...words];
+    while (out.length > 1 && TRAILING_STOP_WORDS.has(normToken(out[out.length - 1]))) {
+        out.pop();
+    }
+    return out;
+}
+
+/**
+ * Sanitiza un título de MercadoLibre aplicando "Título ML 60" de forma determinística:
+ * pulgadas con '', sin anotaciones, sin modelo prohibido, sin marca duplicada y recorte
+ * inteligente de palabras descriptivas sin partir palabras ni cortar la marca final.
+ */
+export function sanitizeAndScoreMeliTitle(
+    raw: string,
+    opts: TitleSanitizeOptions = {},
+): { text: string; score: number; issues: string[] } {
+    const maxChars = Math.max(20, opts.maxChars ?? 60);
+    const includeBrand = opts.includeBrand !== false;
+    const includeModel = opts.includeModel === true;
+    const marcaTrim = String(opts.marca || '').replace(/"/g, "''").trim();
+    const modeloTrim = String(opts.modelo || '').trim();
+    const issues: string[] = [];
+
+    let text = cleanTitleAnnotations(raw);
+    if (!text) return { text: '', score: 0, issues: ['vacío'] };
+
+    // Filtro anti-modelo cuando el perfil lo prohíbe (por defecto include_model = false)
+    const canFilterModel = Boolean(
+        !includeModel &&
+        modeloTrim.length >= 3 &&
+        !/^\d{1,3}$/.test(modeloTrim) &&
+        normToken(modeloTrim) !== normToken(marcaTrim) &&
+        !MEASURE_ONLY_RE.test(modeloTrim),
+    );
+    let removedModel = false;
+    if (canFilterModel) {
+        const modEsc = escapeRegExp(modeloTrim);
+        const modRe = new RegExp(`(^|[\\s,;/\\-(]+)(?:mod(?:elo)?\\.?\\s*)?${modEsc}(?=$|[\\s,;/\\-).]+)`, 'gi');
+        const next = text
+            .replace(modRe, '$1')
+            .replace(/\s+/g, ' ')
+            .replace(/[-,/|.;:]+\s*$/, '')
+            .trim();
+        if (next !== text) {
+            removedModel = true;
+            issues.push('modelo_removido');
+            text = next;
+        }
+    }
+
+    // Deduplicar o agregar marca cuando includeBrand está activo
+    if (includeBrand && marcaTrim) {
+        const brandNorm = normToken(marcaTrim);
+        const rawBrandVariants = Array.from(new Set([
+            marcaTrim,
+            marcaTrim.replace(/[®™©]/g, '').trim(),
+            brandNorm,
+        ].filter(Boolean))).sort((a, b) => b.length - a.length);
+
+        const brandPattern = new RegExp(
+            `(?:^|\\s)(?:${rawBrandVariants.map(escapeRegExp).join('|')})[®™©]*(?=$|\\s)`,
+            'gi',
+        );
+        const matches = text.match(brandPattern) || [];
+        if (matches.length > 1) {
+            // Quitar ocurrencias repetidas y dejar una sola marca al final
+            const stripped = text.replace(brandPattern, ' ').replace(/\s+/g, ' ').trim();
+            text = stripped ? `${stripped} ${marcaTrim}` : marcaTrim;
+            issues.push('marca_deduplicada');
+        } else if (!containsNormalizedBrand(text, marcaTrim)) {
+            if (text.length + 1 + marcaTrim.length <= maxChars) {
+                text = `${text} ${marcaTrim}`.trim();
+            } else {
+                issues.push('sin_espacio_para_marca');
+            }
+        }
+    }
+
+    // Recorte inteligente sin partir palabras ni cortar la marca final
+    if (text.length > maxChars) {
+        issues.push('recortado');
+        if (includeBrand && marcaTrim && endsWithNormalizedBrand(text, marcaTrim)) {
+            const words = text.split(/\s+/).filter(Boolean);
+            const brandWordCount = marcaTrim.split(/\s+/).filter(Boolean).length;
+            if (words.length > brandWordCount) {
+                const brandSuffix = words.slice(-brandWordCount).join(' ');
+                let bodyWords = trimStopWords(words.slice(0, -brandWordCount));
+                while (bodyWords.length > 1 && `${bodyWords.join(' ')} ${brandSuffix}`.length > maxChars) {
+                    bodyWords.pop();
+                    bodyWords = trimStopWords(bodyWords);
+                }
+                const combined = bodyWords.length > 0 ? `${bodyWords.join(' ')} ${brandSuffix}` : brandSuffix;
+                if (combined.length <= maxChars) {
+                    text = combined;
+                } else {
+                    const avail = maxChars - brandSuffix.length - 1;
+                    text = avail >= 10
+                        ? `${combined.slice(0, avail).trim()} ${brandSuffix}`
+                        : combined.slice(0, maxChars).trim();
+                }
+            }
+        }
+        if (text.length > maxChars) {
+            const sub = text.slice(0, maxChars);
+            const lastSpace = sub.lastIndexOf(' ');
+            const cut = (lastSpace > maxChars * 0.5 ? sub.slice(0, lastSpace) : sub).trim();
+            const cutWords = trimStopWords(cut.split(/\s+/).filter(Boolean));
+            text = cutWords.join(' ').replace(/[-,/|.;:]+\s*$/, '').trim();
+        }
+    }
+
+    const len = text.length;
+    const minOptimal = Math.max(40, maxChars - 6);
+    let score = 0;
+    if (len >= minOptimal && len <= maxChars) {
+        score = 100 - (maxChars - len);
+    } else if (len >= 48 && len < minOptimal) {
+        score = 60 + (len - 48);
+    } else {
+        score = Math.max(0, len);
+    }
+
+    if (includeBrand && marcaTrim && containsNormalizedBrand(text, marcaTrim)) {
+        score += 20;
+    }
+    if (!canFilterModel || !removedModel) {
+        score += 10;
+    }
+
+    return { text, score, issues };
+}
+
+export function rankMeliTitleCandidates(
+    rawCandidates: Array<string | null | undefined>,
+    opts: TitleSanitizeOptions = {},
+): string[] {
+    const scored = new Map<string, { text: string; score: number }>();
+    for (const raw of rawCandidates) {
+        if (!raw || !String(raw).trim()) continue;
+        const res = sanitizeAndScoreMeliTitle(String(raw), opts);
+        if (!res.text) continue;
+        const key = res.text.toLowerCase();
+        const prev = scored.get(key);
+        if (!prev || res.score > prev.score) {
+            scored.set(key, { text: res.text, score: res.score });
+        }
+    }
+    return Array.from(scored.values())
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map(x => x.text);
 }
 
 // --- Prompt ------------------------------------------------------------------
@@ -81,28 +307,26 @@ function profileStyle(p: PromptProfile): string {
     return lines.join('\n');
 }
 
-function buildPrompt(input: MeliAIHelperInput, titleStyle: string, descStyle: string): { system: string; user: string } {
-    const maxChars = input.max_family_name_chars ?? 50;
-    const legacy = input.legacy === true;
+function buildPrompt(
+    input: MeliAIHelperInput,
+    titleProfile: PromptProfile,
+    titleStyle: string,
+    descStyle: string,
+): { system: string; user: string } {
+    const maxChars = Math.max(20, titleProfile.max_chars || input.max_family_name_chars || 60);
+    const minTarget = Math.max(45, maxChars - 6);
+    const includeBrand = titleProfile.include_brand !== false;
+    const includeModel = titleProfile.include_model === true;
+    const fieldName = input.legacy === true ? 'title' : 'family_name';
 
-    const tituloField = legacy
-        ? `"title": "título comercial (MÁXIMO ${maxChars} caracteres INCLUYENDO ESPACIOS; fórmula: producto + características relevantes + marca, SIN modelo)"`
-        : `"family_name": "nombre descriptivo (MÁXIMO ${maxChars} caracteres INCLUYENDO ESPACIOS, SIN marca ni modelo)"`;
-
-    const tituloRule = legacy
-        ? `1. Generar un "title" comercial que ocupe los ${maxChars} caracteres completos INCLUYENDO ESPACIOS:
-   nombre del producto + característica relevante 1 + característica relevante 2 + característica relevante 3 + ... + marca.
-   TÚ decides cuáles características incluir (tipo, medida, material, acabado, uso, etc.) y en qué orden, según lo que mejor describa/venda el producto.
-   NO uses el modelo. Aprovecha los ${maxChars} caracteres al máximo.
-   IMPORTANTE: escribe el símbolo de pulgadas con '' (dos apóstrofos) en lugar de " (ej: 28-36'' en vez de 28-36").`
-        : `1. Generar un "family_name" descriptivo que ocupe los ${maxChars} caracteres completos INCLUYENDO ESPACIOS:
-   nombre del producto + característica relevante 1 + característica relevante 2 + característica relevante 3 + ...
-   TÚ decides cuáles características incluir (tipo, medida, material, acabado, uso, etc.) y en qué orden.
-   SIN marca ni modelo — MercadoLibre (User Products) los agrega automáticamente al título visible.
-   IMPORTANTE: escribe el símbolo de pulgadas con '' (dos apóstrofos) en lugar de " (ej: 28-36'' en vez de 28-36").`;
+    const tituloRule = `1. Generar 3 opciones distintas de "${fieldName}" en "title_candidates" (entre ${minTarget} y ${maxChars} caracteres INCLUYENDO ESPACIOS, sin desperdiciar espacio y sin pasar de ${maxChars}):
+   - Estructura: nombre del producto + característica relevante 1 + característica relevante 2 + característica relevante 3${includeBrand ? ' + marca (una sola vez al final, sin repetirla si ya venía en el nombre)' : ''}.
+   - Usa palabras completas, sin cortar palabras al final.
+   - Escribe el símbolo de pulgadas con '' (dos apóstrofos) en lugar de " (ej: 28-36'' en vez de 28-36").
+   - ${includeModel ? 'Incluye modelo solo si aporta valor de búsqueda.' : 'NUNCA uses el modelo, SKU ni códigos internos.'}`;
 
     const styleBlock = titleStyle
-        ? `\n   Directrices de estilo de la marca (OBLIGATORIAS para redactar):\n${titleStyle.split('\n').map(l => '   ' + l).join('\n')}`
+        ? `\n   Directrices del perfil "${titleProfile.name}" (OBLIGATORIAS):\n${titleStyle.split('\n').map(l => '   ' + l).join('\n')}`
         : '';
 
     const descTask = input.rephrase_description
@@ -128,7 +352,8 @@ ${tituloRule}${styleBlock}
 
 Responde SOLO con JSON sin markdown:
 {
-  ${tituloField},
+  "${fieldName}": "mejor candidato (${minTarget}-${maxChars} caracteres)",
+  "title_candidates": ["opción 1 (${minTarget}-${maxChars} chars)", "opción 2", "opción 3"],
   "attributes": [
     { "id": "ATRIBUTO_ID", "value_id": "id_seleccionado", "value_name": "nombre_seleccionado" }
   ]${descJsonField}
@@ -142,15 +367,35 @@ Responde SOLO con JSON sin markdown:
         return `- ${attr.id} ("${attr.name}"): valor libre tipo ${attr.value_type}`;
     }).join('\n');
 
+    const resolvedAttrsText = (input.resolved_attributes || [])
+        .filter(a => a?.id && a?.value_name)
+        .slice(0, 25)
+        .map(a => `${a.name || a.id}: ${a.value_name}`)
+        .join('; ');
+    const dimsParts = [
+        input.largo_cm != null ? `${input.largo_cm}cm largo` : null,
+        input.ancho_cm != null ? `${input.ancho_cm}cm ancho` : null,
+        input.alto_cm != null ? `${input.alto_cm}cm alto` : null,
+        input.peso_kg != null ? `${input.peso_kg}kg` : null,
+    ].filter(Boolean);
+
     const user = `Producto:
   Nombre: ${input.nombre}
-  Marca: ${input.marca}
-  Modelo: ${input.modelo}
+  Marca: ${input.marca || 'No especificada'}
+  ${includeModel ? `Modelo: ${input.modelo || 'No disponible'}` : `Modelo (solo referencia interna — NO incluir en título): ${input.modelo || 'No disponible'}`}
+  Variante: ${input.variante || '—'}
+  Categoría: ${input.categoria || '—'}
+  Unidades por pack: ${input.unidades_pack && input.unidades_pack > 1 ? input.unidades_pack : 1}
+  Materiales: ${input.materiales || '—'}
+  Medidas/Peso: ${dimsParts.length ? dimsParts.join(' x ') : '—'}
+  País de origen: ${input.pais_origen || '—'}
+  Bullets técnicos: ${input.bullet_points?.length ? input.bullet_points.join(' | ').slice(0, 800) : '—'}
+  Atributos resueltos: ${resolvedAttrsText || '—'}
   Descripción: ${input.descripcion?.slice(0, 2000) || 'No disponible'}
-  Atributos específicos: ${input.atributos_especificos ? JSON.stringify(input.atributos_especificos).slice(0, 3000) : 'No disponibles'}
+  Atributos específicos: ${input.atributos_especificos ? JSON.stringify(input.atributos_especificos).slice(0, 2500) : 'No disponibles'}
 
 Atributos requeridos sin resolver:
-${attrsBlock || 'Ninguno — solo generar el family_name'}`;
+${attrsBlock || 'Ninguno — solo generar el título'}`;
 
     return { system, user };
 }
@@ -158,26 +403,35 @@ ${attrsBlock || 'Ninguno — solo generar el family_name'}`;
 // --- Función principal --------------------------------------------------------
 
 /**
- * resolvePublicationAI — Genera family_name/title + atributos (+ descripción).
- * El título y la descripción se orientan por los perfiles de "voz de marca".
- * Nunca lanza excepción: si el AI falla, retorna fallback sin atributos AI.
+ * resolvePublicationAI — Genera 3 candidatos + mejor family_name/title + atributos (+ descripción).
+ * El título y la descripción se orientan por los perfiles de "voz de marca" (ej. "Título ML 60").
+ * Nunca lanza excepción: si el AI falla, retorna fallback sanitizado sin atributos AI.
  */
 export async function resolvePublicationAI(input: MeliAIHelperInput, context?: PromptContext): Promise<MeliAIHelperOutput> {
-    const maxChars = input.max_family_name_chars ?? 50;
-    const legacy = input.legacy === true;
+    const requestedMax = input.max_family_name_chars ?? 60;
+    const rawFallback = [input.nombre, input.marca].filter(Boolean).join(' ');
+    const baseSanitizedFallback = sanitizeAndScoreMeliTitle(rawFallback, {
+        maxChars: requestedMax,
+        marca: input.marca,
+        modelo: input.modelo,
+        includeBrand: true,
+        includeModel: false,
+    }).text || input.nombre.slice(0, requestedMax).trim();
 
-    const familyNameFallback = input.nombre.slice(0, maxChars).trim();
-    const titleFallback = [input.marca, input.modelo, input.nombre]
-        .filter(Boolean).join(' ').slice(0, maxChars).trim();
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('placeholder')) {
+        return {
+            family_name: baseSanitizedFallback,
+            title: baseSanitizedFallback,
+            title_candidates: baseSanitizedFallback ? [baseSanitizedFallback] : [],
+            attributes: [],
+            ai_used: false,
+        };
+    }
 
     const openai = new OpenAI({
         apiKey: AI_CFG.apiKey,
         baseURL: AI_CFG.baseURL,
     });
-
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('placeholder')) {
-        return { family_name: familyNameFallback, title: titleFallback, attributes: [], ai_used: false };
-    }
 
     // Perfiles de "voz de marca" (con herencia por cuenta/categoría).
     const titleProfile = await resolvePromptProfile('title', context);
@@ -185,10 +439,25 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
 
     const titleStyle = profileStyle(titleProfile);
     const descStyle = profileStyle(descProfile);
+    const maxChars = Math.max(20, titleProfile.max_chars || input.max_family_name_chars || 60);
+    const includeBrand = titleProfile.include_brand !== false;
+    const includeModel = titleProfile.include_model === true;
+    const sanitizeOpts: TitleSanitizeOptions = {
+        maxChars,
+        marca: input.marca,
+        modelo: input.modelo,
+        includeBrand,
+        includeModel,
+    };
+    const sanitizedFallback = sanitizeAndScoreMeliTitle(
+        [input.nombre, includeBrand ? input.marca : ''].filter(Boolean).join(' '),
+        sanitizeOpts,
+    ).text || input.nombre.slice(0, maxChars).trim();
 
-    // Llamada 1: título + atributos (sin descripción, para no diluir el prompt de descripción).
+    // Llamada 1: título (3 candidatos) + atributos.
     const { system: titleSystem, user: productUser } = buildPrompt(
         { ...input, rephrase_description: false },
+        titleProfile,
         titleStyle,
         '',
     );
@@ -209,13 +478,15 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
         const raw = JSON.parse(content);
         let tokensUsed = response.usage?.total_tokens ?? 0;
 
-        let family_name = (raw.family_name || familyNameFallback).toString().trim();
-        let title = (raw.title || titleFallback).toString().trim();
-        if (legacy) {
-            if (title.length > maxChars) title = title.slice(0, maxChars).trim();
-        } else {
-            if (family_name.length > maxChars) family_name = family_name.slice(0, maxChars).trim();
-        }
+        const rawList: Array<string | null | undefined> = [
+            ...(Array.isArray(raw.title_candidates) ? raw.title_candidates : []),
+            raw.title,
+            raw.family_name,
+        ];
+        const title_candidates = rankMeliTitleCandidates(rawList, sanitizeOpts);
+        const bestTitle = title_candidates[0] || sanitizedFallback;
+        const family_name = bestTitle;
+        const title = bestTitle;
 
         const attributes: Array<{ id: string; value_id?: string; value_name?: string }> =
             Array.isArray(raw.attributes) ? raw.attributes.filter((a: any) => a?.id) : [];
@@ -256,6 +527,7 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
         return {
             family_name,
             title,
+            title_candidates: title_candidates.length > 0 ? title_candidates : (bestTitle ? [bestTitle] : []),
             attributes,
             description,
             ai_used: true,
@@ -272,8 +544,9 @@ export async function resolvePublicationAI(input: MeliAIHelperInput, context?: P
     } catch (err: any) {
         console.error('[meli-ai-helper] Fallo en GPT-4o-mini:', err.message);
         return {
-            family_name: familyNameFallback,
-            title: titleFallback,
+            family_name: sanitizedFallback,
+            title: sanitizedFallback,
+            title_candidates: sanitizedFallback ? [sanitizedFallback] : [],
             attributes: [],
             ai_used: false,
             profiles: {

@@ -28,7 +28,8 @@ import { MeliAdapter } from '@gestor/adapters/meli';
 import { resolvePublicationAI } from '@gestor/sync/meli-ai-helper';
 import { registrarAuditoria } from '@/lib/auditoria';
 import { checkPublishDuplicates, normalizeGtins, extractGtinCaps, checkConditionalGtinRequirement, mergeConditionalGtinCaps } from '@/lib/publish-duplicates';
-import { extractFiscalFromMeliAttributes, FISCAL_ATTR_IDS, IVA_VALUE_IDS, IEPS_VALUE_IDS } from '@/lib/meli-fiscal';
+import { extractFiscalFromMeliAttributes, FISCAL_ATTR_IDS, IVA_VALUE_IDS, IEPS_VALUE_IDS, isValidSatKey } from '@/lib/meli-fiscal';
+import { toOriginalMeliUrl } from '@/lib/image-utils';
 import sharp from 'sharp';
 
 export const dynamic = 'force-dynamic';
@@ -213,6 +214,7 @@ export async function POST(req: NextRequest) {
             manufacturing_time_days = null as number | null,
             catalog_product_id = null as string | null,
             catalog_listing = false as boolean,
+            auto_search_catalog = false as boolean,
             force_rule_id = null as string | null,
             stock_override = null as number | null,
             cantidad_requerida = null as number | null,
@@ -228,8 +230,8 @@ export async function POST(req: NextRequest) {
             is_kit = false as boolean,
         } = body;
 
-        const wantsZeroStock = stock_override != null && Number(stock_override) === 0;
-        const wantsPaused = Boolean(create_paused) || wantsZeroStock;
+        let wantsZeroStock = stock_override != null && Number(stock_override) === 0;
+        let wantsPaused = Boolean(create_paused) || wantsZeroStock;
 
         trace.input = {
             articulo_id: articulo_id ?? null,
@@ -284,10 +286,10 @@ export async function POST(req: NextRequest) {
                 const pkgLengthCm = parseNum(attrVal('SELLER_PACKAGE_LENGTH'));
                 const pkgWidthCm  = parseNum(attrVal('SELLER_PACKAGE_WIDTH'));
                 const pkgHeightCm = parseNum(attrVal('SELLER_PACKAGE_HEIGHT'));
-                // Fotos de la vidriera origen, conservando el id oficial de MeLi
+                // Fotos de la vidriera origen, preservando máxima calidad (-O.jpg) y el id oficial de MeLi
                 // para reutilizarlas (evita re-descargar/re-subir en copia de condición).
                 const sourcePics = (sourceItem.pictures || [])
-                    .map((p: any) => ({ id: p.id || null, url: p.secure_url || p.url }))
+                    .map((p: any) => ({ id: p.id || null, url: toOriginalMeliUrl(p.secure_url || p.url) }))
                     .filter((p: any) => p.url);
 
                 sourceData = {
@@ -714,6 +716,8 @@ export async function POST(req: NextRequest) {
             valor: sku_efectivo,
         };
 
+        const sourceIsFulfillment = (sourceData?.shipping?.logistic_type === 'fulfillment') || (sourceItem?.shipping?.logistic_type === 'fulfillment');
+
         // -- 4. Calcular stock disponible --------------------------------------
         // inventory_snapshot.sku almacena articulo_id (migración V27).
         // Si el proveedor tiene política de stock (fijo/proveedor), tiene prioridad.
@@ -738,8 +742,13 @@ export async function POST(req: NextRequest) {
                 trace.paso_4_stock = { error: `Fallo en stock: ${stockErr.message}` };
             }
         } else {
-            stock = sourceData?.stock != null ? Number(sourceData.stock) : 1;
-            stockOrigen = sourceData?.stock != null ? 'source_vidriera' : 'default_desde_cero';
+            if (sourceIsFulfillment) {
+                stock = 0;
+                stockOrigen = 'full_guard_sin_articulo';
+            } else {
+                stock = sourceData?.stock != null ? Number(sourceData.stock) : 1;
+                stockOrigen = sourceData?.stock != null ? 'source_vidriera' : 'default_desde_cero';
+            }
         }
         trace.paso_4_stock = { ...trace.paso_4_stock, available_quantity: stock, stock_failed: stockFailed, origen: stockOrigen };
 
@@ -847,12 +856,25 @@ export async function POST(req: NextRequest) {
             trace.paso_5_2_precio_manual = { price, nota: 'Precio fijado manualmente por el operador' };
         }
 
-        // -- 5.3 Stock: override manual > copiado de la vidriera origen > inventario --
+        // -- 5.3 Stock: override manual > guardia Full / stock físico real > fuente no-Full sin artículo --
         if (stock_override != null && Number(stock_override) >= 0) {
             stock = Number(stock_override);
             stockFailed = false; // el operador fijó el stock manualmente: no bloquear por fallo de cálculo
             trace.paso_5_3_stock_manual = { stock, nota: 'Stock fijado manualmente por el operador' };
-        } else if (stock_override == null && sourceData?.stock != null && Number(sourceData.stock) >= 0) {
+        } else if (sourceIsFulfillment) {
+            if (!resolvedArticuloId || stockFailed) stock = 0;
+            if (stock <= 0) {
+                stock = 0;
+                wantsZeroStock = true;
+                wantsPaused = true;
+            }
+            trace.paso_5_3_full_guard = {
+                activo: true,
+                stock_local: stock,
+                pausada_automatica: wantsPaused,
+                nota: 'Origen en Mercado Envíos Full: stock de bodega MeLi no heredable a otra cuenta',
+            };
+        } else if (!resolvedArticuloId && sourceData?.stock != null && Number(sourceData.stock) >= 0) {
             stock = Number(sourceData.stock);
             trace.paso_5_3_stock_source = { stock, nota: 'Stock copiado de la vidriera origen' };
         }
@@ -866,10 +888,48 @@ export async function POST(req: NextRequest) {
 
         // Enlace a catálogo efectivo (se resuelve aquí para incluir catalog_required en el paso 6)
         const allowSourceCatalog = !empty_gtin_reason && body.catalog_listing !== false;
-        const effectiveCatalogProductId: string | null = catalog_product_id
+        let effectiveCatalogProductId: string | null = catalog_product_id
             || (allowSourceCatalog ? sourceData?.catalog_product_id : null)
             || null;
-        const effectiveCatalogListing: boolean = !!(catalog_listing || effectiveCatalogProductId);
+        let effectiveCatalogListing: boolean = !!(catalog_listing || effectiveCatalogProductId);
+
+        // -- 5.4 Auto-búsqueda de Catálogo MeLi por GTIN (cuando la fuente es solo tradicional o viene lote) --
+        if (allowSourceCatalog && !effectiveCatalogProductId && (auto_search_catalog || (catalog_listing && !catalog_product_id))) {
+            const autoCatGtinParsed = normalizeGtins(_ovGtin || resolved.codigo_universal || '');
+            if (autoCatGtinParsed.list.length === 1) {
+                const targetGtin = autoCatGtinParsed.list[0];
+                try {
+                    const catSearch = await (meli as any).searchCatalog(marketplace_id, targetGtin);
+                    const resultsList: any[] = Array.isArray(catSearch?.results) ? catSearch.results : [];
+                    let autoMatchedCatalogId: string | null = null;
+                    if (resultsList.length === 1 && resultsList[0]?.id) {
+                        autoMatchedCatalogId = String(resultsList[0].id);
+                    } else if (resultsList.length > 1) {
+                        const exact = resultsList.find((r: any) =>
+                            Array.isArray(r?.attributes) && r.attributes.some((a: any) =>
+                                (a?.id === 'GTIN' || a?.id === 'EAN' || a?.id === 'UPC') &&
+                                String(a?.value_name ?? '').replace(/\D/g, '') === targetGtin,
+                            ),
+                        );
+                        if (exact?.id) autoMatchedCatalogId = String(exact.id);
+                    }
+                    if (autoMatchedCatalogId) {
+                        effectiveCatalogProductId = autoMatchedCatalogId;
+                        effectiveCatalogListing = true;
+                    }
+                    trace.paso_5_4_auto_catalog_search = {
+                        gtin: targetGtin,
+                        candidatos: resultsList.length,
+                        catalog_product_id: autoMatchedCatalogId,
+                    };
+                } catch (catErr: any) {
+                    trace.paso_5_4_auto_catalog_search = {
+                        gtin: targetGtin,
+                        error: catErr?.message || String(catErr),
+                    };
+                }
+            }
+        }
 
         // -- 6. Obtener atributos requeridos de la categoría -------------------
         const attrInfo = await (meli as any).getCategoryAttributes(marketplace_id, category_id);
@@ -972,6 +1032,36 @@ export async function POST(req: NextRequest) {
             attributes.push({ id: 'OEM', value_name: String(oemAttr) });
         }
 
+        // Herencia fiscal automática (batch/worker sin fiscal_data explícito en request):
+        // extrae los 7 FISCAL_ATTR_IDS reales del ítem origen con fallback a articulos.codigo_sat.
+        let effectiveFiscalData: any = fiscal_data;
+        if (effectiveFiscalData === undefined && (sourceItem || isValidSatKey(resolved.codigo_sat))) {
+            const srcFiscal = extractFiscalFromMeliAttributes(sourceItem?.attributes);
+            const fallbackSat = isValidSatKey(resolved.codigo_sat) ? String(resolved.codigo_sat).trim() : null;
+            const satResolved = srcFiscal.sat_key || fallbackSat;
+            if (
+                satResolved ||
+                srcFiscal.measure_unit_key ||
+                srcFiscal.measure_unit_description ||
+                srcFiscal.invoice_product_name ||
+                srcFiscal.iva_for_resale ||
+                srcFiscal.ieps ||
+                srcFiscal.import_declaration_number
+            ) {
+                effectiveFiscalData = {
+                    enabled: true,
+                    sat_key: satResolved,
+                    measure_unit_key: srcFiscal.measure_unit_key,
+                    measure_unit_description: srcFiscal.measure_unit_description,
+                    invoice_product_name: srcFiscal.invoice_product_name,
+                    iva_for_resale: srcFiscal.iva_for_resale,
+                    ieps: srcFiscal.ieps,
+                    import_declaration_number: srcFiscal.import_declaration_number,
+                    save_sat_to_articulo: false,
+                };
+            }
+        }
+
         // Atributos de la vidriera origen (copia): portar como hints, preservando
         // value_id/value_name. Se filtran atributos de sistema/obsoletos y los ya mapeados.
         if (sourceData?.attributes && Array.isArray(sourceData.attributes)) {
@@ -991,7 +1081,7 @@ export async function POST(req: NextRequest) {
             for (const sa of sourceData.attributes) {
                 if (!sa?.id || SKIP_SOURCE_ATTRS.has(sa.id) || hiddenCatAttrIds.has(sa.id)) continue;
                 if (empty_gtin_reason && (sa.id === 'GTIN' || sa.id === 'EAN' || sa.id === 'UPC')) continue;
-                if (fiscal_data !== undefined && FISCAL_ATTR_IDS.has(sa.id)) continue;
+                if (effectiveFiscalData !== undefined && FISCAL_ATTR_IDS.has(sa.id)) continue;
                 if (mappedIdsPreSource.has(sa.id)) continue;
                 const out: any = { id: sa.id };
                 if (sa.value_id != null) out.value_id = String(sa.value_id);
@@ -1072,10 +1162,10 @@ export async function POST(req: NextRequest) {
             upsertPreAttr({ id: 'IS_KIT', value_id: '242085', value_name: 'Sí' });
         }
 
-        // Datos fiscales SAT / CFDI — solo si fiscal_data viene explícito del operador (nunca defaults ocultos)
+        // Datos fiscales SAT / CFDI — explícito del operador o heredado de la vidriera origen (sin inventar defaults)
         const fiscalEnviados: Array<{ id: string; value_name?: string; value_id?: string }> = [];
         const fiscalOmitidos: string[] = [];
-        if (fiscal_data && typeof fiscal_data === 'object' && fiscal_data.enabled !== false) {
+        if (effectiveFiscalData && typeof effectiveFiscalData === 'object' && effectiveFiscalData.enabled !== false) {
             const pushFiscal = (id: string, payload: { value_name?: string; value_id?: string }) => {
                 if (!categoryAttrIds.has(id)) {
                     fiscalOmitidos.push(`${id} (no soportado por ${category_id})`);
@@ -1099,29 +1189,30 @@ export async function POST(req: NextRequest) {
                     : { value_name: trimmed };
             };
 
-            const satKeyVal = fiscal_data.sat_key != null ? String(fiscal_data.sat_key).trim() : '';
+            const satKeyVal = effectiveFiscalData.sat_key != null ? String(effectiveFiscalData.sat_key).trim() : '';
             if (satKeyVal) pushFiscal('SAT_KEY', { value_name: satKeyVal });
 
-            const unitKeyVal = fiscal_data.measure_unit_key != null ? String(fiscal_data.measure_unit_key).trim().toUpperCase() : '';
+            const unitKeyVal = effectiveFiscalData.measure_unit_key != null ? String(effectiveFiscalData.measure_unit_key).trim().toUpperCase() : '';
             if (unitKeyVal) pushFiscal('MEASURE_UNIT_KEY', { value_name: unitKeyVal });
 
-            const unitDescVal = fiscal_data.measure_unit_description != null ? String(fiscal_data.measure_unit_description).trim() : '';
+            const unitDescVal = effectiveFiscalData.measure_unit_description != null ? String(effectiveFiscalData.measure_unit_description).trim() : '';
             if (unitDescVal) pushFiscal('MEASURE_UNIT_DESCRIPTION', { value_name: unitDescVal });
 
-            const invoiceNameVal = fiscal_data.invoice_product_name != null ? String(fiscal_data.invoice_product_name).trim().slice(0, 255) : '';
+            const invoiceNameVal = effectiveFiscalData.invoice_product_name != null ? String(effectiveFiscalData.invoice_product_name).trim().slice(0, 255) : '';
             if (invoiceNameVal) pushFiscal('INVOICE_PRODUCT_NAME', { value_name: invoiceNameVal });
 
-            const ivaVal = fiscal_data.iva_for_resale != null ? String(fiscal_data.iva_for_resale).trim() : '';
+            const ivaVal = effectiveFiscalData.iva_for_resale != null ? String(effectiveFiscalData.iva_for_resale).trim() : '';
             if (ivaVal) pushFiscal('IVA_FOR_RESALE', resolveListFiscal('IVA_FOR_RESALE', ivaVal, IVA_VALUE_IDS));
 
-            const iepsVal = fiscal_data.ieps != null ? String(fiscal_data.ieps).trim() : '';
+            const iepsVal = effectiveFiscalData.ieps != null ? String(effectiveFiscalData.ieps).trim() : '';
             if (iepsVal) pushFiscal('IEPS', resolveListFiscal('IEPS', iepsVal, IEPS_VALUE_IDS));
 
-            const pedimentoRaw = fiscal_data.import_declaration_number != null ? String(fiscal_data.import_declaration_number).replace(/\D/g, '') : '';
+            const pedimentoRaw = effectiveFiscalData.import_declaration_number != null ? String(effectiveFiscalData.import_declaration_number).replace(/\D/g, '') : '';
             if (pedimentoRaw.length > 0) pushFiscal('IMPORT_DECLARATION_NUMBER', { value_name: pedimentoRaw.slice(0, 18) });
         }
         trace.paso_7_fiscal = {
-            enabled: !!(fiscal_data && typeof fiscal_data === 'object' && fiscal_data.enabled !== false),
+            enabled: !!(effectiveFiscalData && typeof effectiveFiscalData === 'object' && effectiveFiscalData.enabled !== false),
+            auto_heredado: fiscal_data === undefined && Boolean(effectiveFiscalData),
             enviados: fiscalEnviados,
             omitidos: fiscalOmitidos,
             articulo_codigo_sat: resolved.codigo_sat ?? null,
@@ -1152,21 +1243,32 @@ export async function POST(req: NextRequest) {
             }));
         trace.paso_7_atributos_faltantes = unresolvedAttrs.map((a: any) => ({ id: a.id, name: a.name }));
 
-        // -- 8. GPT-4o-mini: family_name limpio + resolver atributos faltantes --
+        // -- 8. GPT-4o-mini: 3 candidatos "Título ML 60" + resolver atributos + descripción --
         const aiResult = await resolvePublicationAI({
             nombre:                 resolved.nombre || '',
             marca:                  resolved.marca  || '',
             modelo:                 resolved.modelo || '',
+            variante:               resolved.variante || null,
+            categoria:              category_path || category_id || resolved.categoria || null,
+            materiales:             resolved.materiales || null,
+            peso_kg:                resolved.peso_kg ?? null,
+            largo_cm:               resolved.largo_cm ?? null,
+            ancho_cm:               resolved.ancho_cm ?? null,
+            alto_cm:                resolved.alto_cm ?? null,
+            pais_origen:            resolved.pais_origen || null,
+            unidades_pack:          effectivePackQty,
+            bullet_points:          resolved.bullet_points || [],
+            resolved_attributes:    attributes.filter(a => a.value_name).map(a => ({ id: a.id, value_name: a.value_name })),
             descripcion:            resolved.descripcion,
             atributos_especificos:  resolved.atributos_especificos,
             unresolved_attributes:  unresolvedAttrs,
-            max_family_name_chars:  isLegacy ? 60 : 50, // legacy: título completo; UP: family_name sin marca/modelo
+            max_family_name_chars:  60,
             legacy:                 isLegacy,
             rephrase_description:   true, // genera la descripción con IA también en publicaciones nuevas
         }, { marketplace_id, categoria: category_id });
-        // Limpiar family_name generado por AI también
+        // Respetar el máximo de 60 caracteres del perfil "Título ML 60"
         if (aiResult.family_name) {
-            aiResult.family_name = truncarTitulo(limpiarTitulo(aiResult.family_name), 50);
+            aiResult.family_name = truncarTitulo(limpiarTitulo(aiResult.family_name), 60);
         }
 
         // Construir mapa de valores permitidos por atributo para validación posterior
@@ -1321,14 +1423,16 @@ export async function POST(req: NextRequest) {
             };
         }
 
-        // Construir descripción enriquecida con bullets (máx 2000 chars)
-        const bulletsText = resolved.bullet_points.length > 0
+        // Construir descripción sin duplicar bullets cuando la IA ya generó sus viñetas
+        const baseDesc = aiResult.description || resolved.descripcion || '';
+        const shouldAppendBullets = !aiResult.description && resolved.bullet_points.length > 0;
+        const bulletsText = shouldAppendBullets
             ? '\n\n' + resolved.bullet_points.map((b: string) => `• ${b}`).join('\n')
             : '';
         const descripcionCompleta = (
             description_override && description_override.trim()
                 ? description_override
-                : ((aiResult.description || resolved.descripcion || '') + bulletsText)
+                : (baseDesc + bulletsText)
         ).slice(0, 50000);
 
         // Título limpio final: override manual > AI > nombre resuelto (truncado ≤60 chars)
@@ -1397,11 +1501,16 @@ export async function POST(req: NextRequest) {
                 catalogo: tituloCatalogo,
                 mi_catalogo: tituloMiCatalogo,
                 ia: tituloIA,
+                ia_alternativas: aiResult.title_candidates || [],
             },
             price_source: priceSource,
             price_final: price,
         };
-        trace.paso_9_descripcion = { chars: descripcionCompleta.length, bullets: resolved.bullet_points.length };
+        trace.paso_9_descripcion = {
+            chars: descripcionCompleta.length,
+            bullets: shouldAppendBullets ? resolved.bullet_points.length : 0,
+            preview_text: descripcionCompleta,
+        };
 
         trace.paso_9_body = tradicionalBody;
 
@@ -1501,10 +1610,34 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Advertencia preventiva automotriz (dry_run y real)
+        // Respaldo de compatibilidades automotrices desde el ítem/UP origen en MeLi cuando no existen localmente
         const hasCompatInInput = !!(compatibilities && ((compatibilities.products || []).length > 0 || (compatibilities.products_families || []).length > 0));
         const hasCompatInArt = Array.isArray(resolved.atributos_especificos?.compatibilidades) && resolved.atributos_especificos.compatibilidades.length > 0;
-        if (isAutomotiveCategory && !hasCompatInInput && !hasCompatInArt) {
+        let inheritedSourceCompat: any = null;
+        if (
+            !hasCompatInInput &&
+            !hasCompatInArt &&
+            source_marketplace_id &&
+            source_item_id &&
+            (isAutomotiveCategory || (sourceItem?.tags || []).some((t: string) => String(t).includes('compatibilities')))
+        ) {
+            try {
+                inheritedSourceCompat = await (meli as any).getCompatibilities(
+                    source_marketplace_id,
+                    source_item_id,
+                    sourceItem?.user_product_id ?? null,
+                );
+                if (inheritedSourceCompat) {
+                    trace.paso_12_5_compatibilidades_origen = {
+                        ok: true,
+                        familias: inheritedSourceCompat.products_families?.length ?? 0,
+                        productos: inheritedSourceCompat.products?.length ?? 0,
+                    };
+                }
+            } catch { /* best-effort */ }
+        }
+        const hasCompatResolved = hasCompatInInput || hasCompatInArt || Boolean(inheritedSourceCompat);
+        if (isAutomotiveCategory && !hasCompatResolved) {
             trace.paso_12_5_advertencia = 'Categoría automotriz sin compatibilidades vehiculares: Mercado Libre podría dejar la publicación en revisión (under_review / waiting_for_patch) hasta agregar vehículos compatibles.';
         }
 
@@ -1628,7 +1761,7 @@ export async function POST(req: NextRequest) {
         }
 
         // -- 12.5 Compatibilidades vehiculares (autopartes): opcional, no bloqueante --
-        let effectiveCompatibilities = compatibilities;
+        let effectiveCompatibilities = compatibilities || inheritedSourceCompat;
         if (!effectiveCompatibilities || ((effectiveCompatibilities.products || []).length === 0 && (effectiveCompatibilities.products_families || []).length === 0)) {
             const aplicaciones = resolved.atributos_especificos && typeof resolved.atributos_especificos === 'object'
                 ? (resolved.atributos_especificos as any).compatibilidades
@@ -1745,8 +1878,8 @@ export async function POST(req: NextRequest) {
                 }
 
                 if (newArtId) {
-                    const satForNewArt = (fiscal_data?.enabled !== false && fiscal_data?.sat_key)
-                        ? String(fiscal_data.sat_key).trim() || null
+                    const satForNewArt = (effectiveFiscalData?.enabled !== false && effectiveFiscalData?.sat_key && /^\d{8}$/.test(String(effectiveFiscalData.sat_key).trim()))
+                        ? String(effectiveFiscalData.sat_key).trim()
                         : null;
                     const { error: upsertArtErr } = await supabaseAdmin.rpc('web_upsert_articulo', {
                         p_articulo_id: newArtId,

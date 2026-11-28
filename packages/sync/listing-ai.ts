@@ -10,6 +10,7 @@ import { OpenAI } from 'openai';
 import { ANTI_HALLUCINATION_BLOCK } from './ai-guard';
 import { loadPromptProfile } from './prompt-profiles';
 import { getAIConfig } from './ai-config';
+import { sanitizeAndScoreMeliTitle, rankMeliTitleCandidates } from './meli-ai-helper';
 
 const AI_CFG = getAIConfig();
 const MODEL = AI_CFG.model;
@@ -36,6 +37,7 @@ export interface ListingContentInput {
 export interface ListingContentOutput {
     title: string;
     family_name: string;
+    title_candidates?: string[];
     description: string;
     ai_used: boolean;
     tokens_used?: number;
@@ -62,10 +64,27 @@ export async function generateListingContent(
     input: ListingContentInput,
     context?: { marketplace_id?: string | null; categoria?: string | null },
 ): Promise<ListingContentOutput> {
-    const fallbackTitle = [input.marca, input.nombre].filter(Boolean).join(' ').slice(0, 60);
-    const fallback = {
+    const titleProfile = await loadPromptProfile('title', context);
+    const descProfile = await loadPromptProfile('description', context);
+    const maxChars = Math.max(20, titleProfile.max_chars || 60);
+    const minTarget = Math.max(45, maxChars - 6);
+    const includeBrand = titleProfile.include_brand !== false;
+    const includeModel = titleProfile.include_model === true;
+    const sanitizeOpts = {
+        maxChars,
+        marca: input.marca,
+        modelo: input.modelo,
+        includeBrand,
+        includeModel,
+    };
+
+    const rawFallback = [input.nombre, includeBrand ? input.marca : ''].filter(Boolean).join(' ');
+    const fallbackTitle = sanitizeAndScoreMeliTitle(rawFallback, sanitizeOpts).text
+        || input.nombre.slice(0, maxChars).trim();
+    const fallback: ListingContentOutput = {
         title: fallbackTitle,
-        family_name: input.nombre.slice(0, 50),
+        family_name: fallbackTitle,
+        title_candidates: fallbackTitle ? [fallbackTitle] : [],
         description: input.descripcion || '',
         ai_used: false,
     };
@@ -80,27 +99,44 @@ export async function generateListingContent(
     });
     const user = buildUser(input);
 
-    // Perfiles independientes: título y descripción (respeta overrides por cuenta/categoría)
-    const titleProfile = await loadPromptProfile('title', context);
-    const descProfile = await loadPromptProfile('description', context);
-
-    let title = fallback.title;
+    let titleCandidates: string[] = [];
+    let bestTitle = fallbackTitle;
     let description = fallback.description;
     let tokensUsed = 0;
 
-    // 1) Título
+    // 1) Título (3 candidatos optimizados entre 54 y maxChars caracteres)
     try {
+        const titleInstruction = `${ANTI_HALLUCINATION_BLOCK}
+
+${titleProfile.system_prompt}
+
+REGLAS ESTRICTAS DE FORMATO:
+- Genera 3 candidatos distintos en "title_candidates", cada uno entre ${minTarget} y ${maxChars} caracteres INCLUYENDO ESPACIOS (máximo ${maxChars}, sin cortar palabras).
+- ${includeBrand ? 'Incluye la marca UNA sola vez al final (evita duplicarla si ya viene en el nombre).' : 'NO incluyas la marca.'}
+- ${includeModel ? 'Incluye el modelo si aporta valor.' : 'NUNCA uses modelo, SKU ni códigos internos.'}
+- Pulgadas siempre con '' (dos apóstrofos), nunca con comilla doble (").
+Responde SOLO JSON sin markdown:
+{ "title": "mejor candidato", "title_candidates": ["opción 1", "opción 2", "opción 3"] }`;
+
         const r = await openai.chat.completions.create({
             model: MODEL,
             temperature: titleProfile.temperature,
             response_format: { type: 'json_object' },
             messages: [
-                { role: 'system', content: `${ANTI_HALLUCINATION_BLOCK}\n\n${titleProfile.system_prompt}` },
+                { role: 'system', content: titleInstruction },
                 { role: 'user', content: user },
             ],
         });
-        const raw = JSON.parse(r.choices[0].message.content || '{}');
-        title = String(raw.title || fallback.title).trim().slice(0, titleProfile.max_chars || 60);
+        let rawText = r.choices[0].message.content || '{}';
+        rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const raw = JSON.parse(rawText);
+        const rawList = [
+            ...(Array.isArray(raw.title_candidates) ? raw.title_candidates : []),
+            raw.title,
+            raw.family_name,
+        ];
+        titleCandidates = rankMeliTitleCandidates(rawList, sanitizeOpts);
+        bestTitle = titleCandidates[0] || fallbackTitle;
         tokensUsed += r.usage?.total_tokens ?? 0;
     } catch (err: any) {
         console.error('[listing-ai] Fallo en título:', err.message);
@@ -124,10 +160,11 @@ export async function generateListingContent(
         console.error('[listing-ai] Fallo en descripción:', err.message);
     }
 
-    const ai_used = title !== fallback.title || description !== fallback.description;
+    const ai_used = bestTitle !== fallback.title || description !== fallback.description;
     return {
-        title,
-        family_name: title.slice(0, 50),
+        title: bestTitle,
+        family_name: bestTitle,
+        title_candidates: titleCandidates.length > 0 ? titleCandidates : (bestTitle ? [bestTitle] : []),
         description,
         ai_used,
         tokens_used: tokensUsed,

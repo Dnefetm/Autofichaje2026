@@ -18,6 +18,17 @@ export function toHighResMeliUrl(url: string): string {
     return url;
 }
 
+/**
+ * Devuelve la versión original sin recomprimir (-O) de una imagen en el CDN de MercadoLibre.
+ */
+export function toOriginalMeliUrl(url: string): string {
+    if (!url || typeof url !== 'string') return url;
+    if (url.includes('mlstatic.com')) {
+        return url.replace(/-[IVMCFO]\.(jpg|jpeg|png|webp)$/i, '-O.$1');
+    }
+    return url;
+}
+
 /** Mide las dimensiones reales de una imagen por URL (eleva a alta resolución si es de MeLi). */
 export async function measureImage(url: string): Promise<ImageSize | null> {
     const targetUrl = toHighResMeliUrl(url);

@@ -20,6 +20,7 @@ interface PricingAuditCardProps {
     draftDetails?: any;
     pricingStatus: string | null;
     lastCalcAt: string | null;
+    logisticType?: string | null;
     onOverrideUpdated: () => void;
 }
 
@@ -32,6 +33,7 @@ export default function PricingAuditCard({
     draftDetails,
     pricingStatus, 
     lastCalcAt,
+    logisticType,
     onOverrideUpdated 
 }: PricingAuditCardProps) {
     const [loading, setLoading] = useState(true);
@@ -215,7 +217,11 @@ export default function PricingAuditCard({
         setRecalculating(true);
         try {
             // 1. Refrescar el envío real desde MeLi (igual que el publicador cotiza envío)
-            await fetch(`/api/catalog/external/${publicacionId}/refresh-shipping`, { method: 'POST' });
+            const shipRes = await fetch(`/api/catalog/external/${publicacionId}/refresh-shipping`, { method: 'POST' });
+            const shipData = await shipRes.json().catch(() => null);
+            if (shipData?.motivo === 'fulfillment_sin_tarifa_me2') {
+                toast.info('Publicación en Full: Mercado Libre no reporta tarifa ME2 estándar en shipping_options.');
+            }
             // 2. Recalcular el precio con el envío ya actualizado
             const res = await fetch(`/api/catalog/external/${publicacionId}/pricing`, { method: 'PUT' });
             if (!res.ok) {
@@ -553,7 +559,11 @@ export default function PricingAuditCard({
                                 </div>
                                 <div className="flex justify-between text-[var(--text-muted)] border-b border-[var(--border)] pb-1.5 mb-1.5">
                                     <span>Envío Real MeLi</span>
-                                    <span>{fmt(detailsMods?.shipping_cost_final ?? draftDetails.shipping_cost ?? 0)}</span>
+                                    <span>
+                                        {logisticType === 'fulfillment' && Number(detailsMods?.shipping_cost_final ?? draftDetails.shipping_cost ?? 0) === 0
+                                            ? 'Full (tarifa bodega MeLi)'
+                                            : fmt(detailsMods?.shipping_cost_final ?? draftDetails.shipping_cost ?? 0)}
+                                    </span>
                                 </div>
                                 
                                 <div className="flex justify-between text-[var(--text)] font-semibold pt-0.5">

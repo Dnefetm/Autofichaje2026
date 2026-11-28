@@ -228,8 +228,9 @@ export function FiscalVitrinaCard({
             changes.push({ field: 'invoice_product_name', value: nextInvoiceName });
         }
 
+        const prevPedimento = (fiscal?.import_declaration_number ?? '').replace(/\D/g, '').slice(0, 18);
         const nextPedimento = pedimento.replace(/\D/g, '').slice(0, 18);
-        if (nextPedimento && nextPedimento !== (fiscal?.import_declaration_number ?? '').trim()) {
+        if (nextPedimento !== prevPedimento) {
             changes.push({ field: 'import_declaration_number', value: nextPedimento });
         }
 
@@ -484,15 +485,26 @@ export function FiscalVitrinaCard({
                             </label>
 
                             <label className="block sm:col-span-2">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                                    Número de pedimento de importación (opcional)
-                                </span>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                                        Número de pedimento de importación (opcional)
+                                    </span>
+                                    {pedimento.trim().length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setPedimento('')}
+                                            className="text-[10px] font-bold text-[var(--err)] hover:underline"
+                                        >
+                                            Limpiar
+                                        </button>
+                                    )}
+                                </div>
                                 <input
                                     type="text"
                                     value={pedimento}
                                     onChange={(e) => setPedimento(e.target.value)}
                                     maxLength={20}
-                                    placeholder="Solo si eres importador de primera mano"
+                                    placeholder="Solo si eres importador de primera mano (vacío = limpiar)"
                                     className="mt-0.5 w-full h-9 px-2.5 text-sm border border-[var(--border)] rounded-[var(--radius)] bg-[var(--surface-2)] font-mono focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                                 />
                             </label>

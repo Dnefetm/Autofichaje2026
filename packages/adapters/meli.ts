@@ -440,12 +440,17 @@ export class MeliAdapter implements MarketplaceAdapter {
                 peso_gramos: dims?.weight ? Math.round(Number(dims.weight) * 1000) : 1000,
                 item_price: Number(item?.price ?? pub.precio_venta ?? 0),
                 listing_type_id: String(item?.listing_type_id ?? pub.listing_type_id ?? 'gold_special'),
-                mode: String(item?.shipping?.mode ?? pub.logistic_type ?? 'me2'),
+                mode: String(item?.shipping?.mode || 'me2'),
                 free_shipping: isFree,
             });
 
             const listingType = String(item?.listing_type_id ?? pub.listing_type_id ?? '');
             const listCost = cotizacion.list_cost;
+            const isFulfillment = item?.shipping?.logistic_type === 'fulfillment' || pub.logistic_type === 'fulfillment';
+
+            if (isFulfillment && (listCost == null || Number(listCost) === 0)) {
+                return { actualizado: false, list_cost: null, motivo: 'fulfillment_sin_tarifa_me2', detalle: { logistic_type: 'fulfillment' } };
+            }
 
             if (cotizacion.status !== 200 && listCost == null) {
                 logger.error({ accountId, itemId, status: cotizacion.status, raw: cotizacion.raw },
@@ -2250,6 +2255,123 @@ export class MeliAdapter implements MarketplaceAdapter {
         );
         logger.info({ accountId, itemId, tiers: tiers.length }, 'addPriceByQuantity completado');
         return resp.data;
+    }
+
+    /**
+     * getItemDetails — Obtiene health, costs y visits (30 días) de una publicación
+     * usando el token descifrado de marketplace_tokens (con auto-refresh).
+     */
+    async getItemDetails(accountId: string, itemId: string): Promise<{
+        health: any | null;
+        costs: any | null;
+        visits: any | null;
+    }> {
+        const accessToken = await this.getAccessToken(accountId);
+        const headers = { Authorization: `Bearer ${accessToken}` };
+
+        const now = new Date();
+        const dateFrom = new Date(now);
+        dateFrom.setDate(dateFrom.getDate() - 30);
+        const dateTo = now.toISOString().split('T')[0];
+        const dateFromS = dateFrom.toISOString().split('T')[0];
+
+        const [healthResult, costsResult, visitsResult] = await Promise.allSettled([
+            axios.get(`https://api.mercadolibre.com/items/${itemId}/health`, { headers, timeout: 8000 }),
+            axios.get(`https://api.mercadolibre.com/items/${itemId}/costs?quantity=1`, { headers, timeout: 8000 }),
+            axios.get(
+                `https://api.mercadolibre.com/visits/items/${itemId}?date_from=${dateFromS}&date_to=${dateTo}`,
+                { headers, timeout: 8000 },
+            ),
+        ]);
+
+        const health = healthResult.status === 'fulfilled' ? healthResult.value.data : null;
+        const costs = costsResult.status === 'fulfilled' ? costsResult.value.data : null;
+        let visits = visitsResult.status === 'fulfilled' ? visitsResult.value.data : null;
+
+        if (!visits || visits.total_visits == null) {
+            try {
+                const fallbackResp = await axios.get(
+                    `https://api.mercadolibre.com/items/${itemId}/visits/time_window?last=30&unit=day`,
+                    { headers, timeout: 8000 },
+                );
+                if (fallbackResp.data) visits = fallbackResp.data;
+            } catch { /* best-effort */ }
+        }
+
+        return { health, costs, visits };
+    }
+
+    /**
+     * getCompatibilities — Lee compatibilidades vehiculares de un ítem / User Product origen en MeLi
+     * para poder replicarlas al copiar entre cuentas si no existen localmente en BD.
+     */
+    async getCompatibilities(
+        accountId: string,
+        itemId: string,
+        userProductId?: string | null,
+    ): Promise<{ products?: any[]; products_families?: any[]; domain_id?: string } | null> {
+        const accessToken = await this.getAccessToken(accountId);
+        const headers = { Authorization: `Bearer ${accessToken}` };
+        const endpoints = [
+            ...(userProductId ? [`https://api.mercadolibre.com/user-products/${userProductId}/compatibilities`] : []),
+            `https://api.mercadolibre.com/items/${itemId}/compatibilities`,
+        ];
+
+        let rawData: any = null;
+        for (const ep of endpoints) {
+            try {
+                const resp = await axios.get(ep, { headers, timeout: 8000 });
+                if (resp.data && ((resp.data.products?.length ?? 0) > 0 || (resp.data.products_families?.length ?? 0) > 0)) {
+                    rawData = resp.data;
+                    break;
+                }
+            } catch {
+                // 404 / no compatibilidades en este endpoint; intentar fallback
+            }
+        }
+        if (!rawData) return null;
+
+        const products = Array.isArray(rawData.products)
+            ? rawData.products
+                .map((p: any) => {
+                    const pid = p?.catalog_product_id || p?.id;
+                    if (!pid) return null;
+                    return {
+                        id: pid,
+                        ...(p.domain_id ? { domain_id: p.domain_id } : {}),
+                        ...(p.note ? { note: p.note } : {}),
+                        ...(p.restrictions ? { restrictions: p.restrictions } : {}),
+                    };
+                })
+                .filter(Boolean)
+            : [];
+
+        const products_families = Array.isArray(rawData.products_families)
+            ? rawData.products_families
+                .map((f: any) => {
+                    if (!Array.isArray(f?.attributes) || f.attributes.length === 0) return null;
+                    return {
+                        ...(f.domain_id ? { domain_id: f.domain_id } : {}),
+                        attributes: f.attributes,
+                        ...(f.note ? { note: f.note } : {}),
+                        ...(f.restrictions ? { restrictions: f.restrictions } : {}),
+                    };
+                })
+                .filter(Boolean)
+            : [];
+
+        if (products.length === 0 && products_families.length === 0) return null;
+
+        const domain_id = rawData.domain_id
+            || products[0]?.domain_id
+            || products_families[0]?.domain_id
+            || 'MLM-CARS_AND_VANS_FOR_COMPATIBILITIES';
+
+        return {
+            ...(products.length > 0 ? { products } : {}),
+            ...(products_families.length > 0 ? { products_families } : {}),
+            domain_id,
+        };
     }
 
     async refreshToken(accountId: string): Promise<void> {

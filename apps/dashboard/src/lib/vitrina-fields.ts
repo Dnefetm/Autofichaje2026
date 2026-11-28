@@ -365,10 +365,12 @@ export const VITRINA_FIELDS: EditableField[] = [
         maxLength: 18,
         canEdit: () => yes,
         getValue: (ctx) => attrName(ctx, 'IMPORT_DECLARATION_NUMBER'),
-        toMeliPatch: (value) => ({
-            id: 'IMPORT_DECLARATION_NUMBER',
-            value_name: String(value ?? '').replace(/\D/g, '').slice(0, 18),
-        }),
+        toMeliPatch: (value) => {
+            const digits = String(value ?? '').replace(/\D/g, '').slice(0, 18);
+            return digits.length > 0
+                ? { id: 'IMPORT_DECLARATION_NUMBER', value_name: digits }
+                : { id: 'IMPORT_DECLARATION_NUMBER', value_id: null, value_name: null };
+        },
     },
 ];
 
