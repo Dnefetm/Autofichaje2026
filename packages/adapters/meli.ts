@@ -166,6 +166,13 @@ export class MeliAdapter implements MarketplaceAdapter {
         });
     }
 
+    async closeListing(accountId: string, itemId: string): Promise<void> {
+        const accessToken = await this.getAccessToken(accountId);
+        await axios.put(`https://api.mercadolibre.com/items/${itemId}`, { status: 'closed' }, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+    }
+
     async getAccountItems(accountId: string): Promise<string[]> {
         const accessToken = await this.getAccessToken(accountId);
         let itemIds: string[] = [];

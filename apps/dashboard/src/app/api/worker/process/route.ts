@@ -10,6 +10,8 @@ import { MeliTokenManager } from '@gestor/adapters/meli-tokens';
 import { SKU_Service } from '@gestor/shared/sku-service';
 import { AutomationManager } from '@gestor/sync/automations';
 import { runReconciliation } from '@gestor/sync/reconciliation';
+import { checkPublishDuplicates } from '@/lib/publish-duplicates';
+import { normalizeReplicationPolicies, syncReplicationBatchProgress } from '@/lib/replication-batch';
 import logger from '@/lib/logger';
 import axios from 'axios';
 
@@ -376,10 +378,27 @@ async function handleCatalogOptin(job: any, meli: MeliAdapter): Promise<{ done: 
         const intento = Number(job.payload.intento || 0);
         const backoffNext = [180_000, 480_000, 1_200_000]; // 3min, 8min, 20min
         if (intento >= backoffNext.length) {
+            const failMsg = `Optin de catálogo: la tradicional ${item_id} sigue sin activarse tras ${intento + 1} reintentos.`;
             await supabaseAdmin.from('jobs').update({
                 status: 'failed',
-                error_log: `Optin de catálogo: la tradicional ${item_id} sigue sin activarse tras ${intento + 1} reintentos.`,
+                error_log: failMsg,
             }).eq('id', job.id);
+            try {
+                const { data: rbRows } = await supabaseAdmin
+                    .from('replication_batch_items')
+                    .update({
+                        status: 'optin_failed',
+                        error_code: 'optin_timeout',
+                        error_message: 'Tradicional creada y viva; MeLi no activó imágenes a tiempo para optin de catálogo tras 4 intentos',
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq('target_item_id', item_id)
+                    .eq('status', 'waiting_optin')
+                    .select('batch_id');
+                for (const bid of new Set((rbRows || []).map((r: any) => r.batch_id).filter(Boolean))) {
+                    await syncReplicationBatchProgress(supabaseAdmin, bid as string);
+                }
+            } catch { /* no bloqueante */ }
             return { done: true, rescheduled: true };
         }
         await supabaseAdmin.from('jobs').update({
@@ -460,6 +479,23 @@ async function handleCatalogOptin(job: any, meli: MeliAdapter): Promise<{ done: 
             await supabaseAdmin.rpc('recalcular_catalog_count', { p_account_id: marketplace_id, p_item_ids: pairIds });
             await supabaseAdmin.rpc('recalcular_associated_count', { p_account_id: marketplace_id, p_item_ids: pairIds });
         } catch { /* no bloqueante */ }
+
+        // Sincronizar lote de replicación si venía esperando optin
+        try {
+            const { data: rbRows } = await supabaseAdmin
+                .from('replication_batch_items')
+                .update({
+                    status: 'completed',
+                    target_catalog_item_id: catItemId,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('target_item_id', item_id)
+                .eq('status', 'waiting_optin')
+                .select('batch_id');
+            for (const bid of new Set((rbRows || []).map((r: any) => r.batch_id).filter(Boolean))) {
+                await syncReplicationBatchProgress(supabaseAdmin, bid as string);
+            }
+        } catch { /* no bloqueante */ }
     }
 
     // Si la publicación se solicitó pausada / con stock 0, aplicarlo ahora que terminó el optin.
@@ -491,6 +527,301 @@ async function handleCatalogOptin(job: any, meli: MeliAdapter): Promise<{ done: 
         } catch { /* no bloqueante: el optin ya quedó hecho */ }
     }
 
+    return { done: true };
+}
+
+function extractDuplicateItemIdFromMeli(json: any): string | null {
+    if (json?.publicacion_existente) return String(json.publicacion_existente);
+    const causes = Array.isArray(json?.meli_error?.cause) ? json.meli_error.cause : [];
+    for (const c of causes) {
+        const refs = Array.isArray(c?.references) ? c.references : [];
+        for (const r of refs) {
+            const m = String(r || '').match(/MLM\d+/i);
+            if (m) return m[0].toUpperCase();
+        }
+        const msgMatch = String(c?.message || '').match(/MLM\d+/i);
+        if (msgMatch) return msgMatch[0].toUpperCase();
+    }
+    return null;
+}
+
+async function handleReplicateItem(
+    job: any,
+    meli: MeliAdapter,
+): Promise<{ done: boolean; rescheduled?: boolean }> {
+    const { batch_id, batch_item_id } = job.payload || {};
+    if (!batch_id || !batch_item_id) {
+        throw new Error('replicate_item: batch_id o batch_item_id faltante');
+    }
+
+    const [{ data: batch }, { data: batchItem }] = await Promise.all([
+        supabaseAdmin.from('replication_batches').select('*').eq('id', batch_id).maybeSingle(),
+        supabaseAdmin.from('replication_batch_items').select('*').eq('id', batch_item_id).maybeSingle(),
+    ]);
+
+    if (!batch || !batchItem) {
+        return { done: true };
+    }
+
+    // Guardia de parada / pausa / cancelación del lote
+    if (batch.status !== 'running') {
+        if ((batch.status === 'cancelled' || batch.status === 'rolled_back') && batchItem.status === 'pending') {
+            await supabaseAdmin
+                .from('replication_batch_items')
+                .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+                .eq('id', batchItem.id);
+        }
+        await syncReplicationBatchProgress(supabaseAdmin, batch.id);
+        return { done: true };
+    }
+
+    if (batchItem.status !== 'pending' && batchItem.status !== 'processing') {
+        await syncReplicationBatchProgress(supabaseAdmin, batch.id);
+        return { done: true };
+    }
+
+    await supabaseAdmin
+        .from('replication_batch_items')
+        .update({ status: 'processing', updated_at: new Date().toISOString() })
+        .eq('id', batchItem.id);
+
+    const policies = normalizeReplicationPolicies(batch.policies);
+    const meta = (batchItem.metadata && typeof batchItem.metadata === 'object') ? batchItem.metadata : {};
+
+    // 1. Verificación idempotente antes de llamar a MeLi
+    if (!meta.force_duplicate) {
+        const gtinList = meta.gtin && /^\d{8,14}$/.test(String(meta.gtin).trim()) ? [String(meta.gtin).trim()] : [];
+        const dupMap = await checkPublishDuplicates(supabaseAdmin, {
+            marketplace_ids: [batch.target_marketplace_id],
+            articulo_id: batchItem.articulo_id || null,
+            seller_sku: meta.seller_sku || null,
+            gtins: gtinList,
+            listing_type_id: meta.listing_type_id || 'gold_special',
+            cantidad_requerida: batchItem.cantidad_requerida || 1,
+        });
+        const dupStatus = dupMap[batch.target_marketplace_id];
+        if (dupStatus?.level === 'exact') {
+            const top = dupStatus.matches[0];
+            let targetPubId: string | null = null;
+            if (top?.external_item_id) {
+                const { data: pRow } = await supabaseAdmin
+                    .from('publicaciones_externas')
+                    .select('id')
+                    .eq('marketplace_id', batch.target_marketplace_id)
+                    .eq('external_item_id', top.external_item_id)
+                    .eq('external_variation_id', '0')
+                    .maybeSingle();
+                targetPubId = pRow?.id ?? null;
+            }
+            await supabaseAdmin
+                .from('replication_batch_items')
+                .update({
+                    status: 'linked_existing',
+                    target_publicacion_id: targetPubId,
+                    target_item_id: top?.external_item_id ?? null,
+                    error_message: 'Ya existía en la cuenta destino; vinculada sin duplicar',
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', batchItem.id);
+            await syncReplicationBatchProgress(supabaseAdmin, batch.id);
+            return { done: true };
+        }
+    }
+
+    // 2. Buffer anti-race (stock físico === 1 -> pausar con stock 0 en secundaria)
+    let forcePausedBuffer = false;
+    let forceZeroStock = false;
+    if (policies.stock_buffer_two_accounts && batchItem.articulo_id && !meta.force_active_single_unit) {
+        const { data: inv } = await supabaseAdmin
+            .from('inventory_snapshot')
+            .select('physical_stock, dropship_stock, reserved_stock')
+            .eq('sku', batchItem.articulo_id)
+            .maybeSingle();
+        if (inv) {
+            const avail = Math.max(0, Number(inv.physical_stock || 0) + Number(inv.dropship_stock || 0) - Number(inv.reserved_stock || 0));
+            if (avail <= 1) {
+                forcePausedBuffer = true;
+                forceZeroStock = true;
+            }
+        }
+    }
+
+    // Throttling cortés entre ítems (anti-429)
+    await new Promise(r => setTimeout(r, 250));
+
+    // 3. Construir body para /api/publish en memoria
+    const publishBody: Record<string, any> = {
+        marketplace_id: batch.target_marketplace_id,
+        source_marketplace_id: batch.source_marketplace_id,
+        source_item_id: batchItem.source_item_id,
+        ...(batchItem.articulo_id ? { articulo_id: batchItem.articulo_id } : {}),
+        cantidad_requerida: batchItem.cantidad_requerida || 1,
+        listing_type_id: meta.listing_type_id || 'gold_special',
+        free_shipping: Boolean(meta.free_shipping),
+        dry_run: false,
+        force_duplicate: Boolean(meta.force_duplicate),
+    };
+
+    if (policies.price_policy === 'keep_source' && meta.source_price != null && Number(meta.source_price) > 0) {
+        publishBody.price_override = Number(meta.source_price);
+    }
+
+    if (policies.catalog_policy === 'traditional_only') {
+        publishBody.catalog_listing = false;
+        publishBody.auto_search_catalog = false;
+    } else if (meta.effective_catalog_product_id) {
+        publishBody.catalog_product_id = meta.effective_catalog_product_id;
+        publishBody.catalog_listing = true;
+    } else {
+        publishBody.auto_search_catalog = true;
+    }
+
+    if (policies.title_policy === 'keep_source' && batchItem.source_title) {
+        publishBody.family_name_override = String(batchItem.source_title).slice(0, 60);
+    }
+
+    if (policies.initial_state_policy === 'paused' || forcePausedBuffer || Boolean(meta.create_paused)) {
+        publishBody.create_paused = true;
+    }
+    if (forceZeroStock) {
+        publishBody.stock_override = 0;
+    }
+
+    const { POST: publishPost } = await import('@/app/api/publish/route');
+    const invokePublish = async () => {
+        const req = new NextRequest('http://localhost/api/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(publishBody),
+        });
+        const res = await publishPost(req);
+        const json = await res.json().catch(() => ({}));
+        return { res, json };
+    };
+
+    let attemptRes = await invokePublish();
+
+    // Manejo de token 401/403 con 1 refresh automático
+    const rawErrText = `${attemptRes.json?.error || ''} ${attemptRes.json?.message || ''} ${(attemptRes.json?.errores || []).join(' ')}`.toLowerCase();
+    const isAuth = attemptRes.res.status === 401 || attemptRes.res.status === 403 || rawErrText.includes('token') || rawErrText.includes('unauthorized');
+    if (attemptRes.res.status >= 400 && isAuth) {
+        try {
+            await meli.refreshToken(batch.target_marketplace_id);
+            attemptRes = await invokePublish();
+        } catch {
+            // sigue al bloqueo de auth del lote abajo
+        }
+        if (attemptRes.res.status >= 400) {
+            await supabaseAdmin
+                .from('replication_batch_items')
+                .update({
+                    status: 'failed_error',
+                    error_code: 'auth_401',
+                    error_message: attemptRes.json?.error || 'Error de autenticación/token en cuenta destino',
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', batchItem.id);
+            await supabaseAdmin
+                .from('replication_batches')
+                .update({ status: 'paused_auth_error', updated_at: new Date().toISOString() })
+                .eq('id', batch.id);
+            await syncReplicationBatchProgress(supabaseAdmin, batch.id);
+            return { done: true };
+        }
+    }
+
+    // Manejo de 429 rate-limit con backoff exponencial + jitter (no cae como poison pill)
+    const errAfterAuth = `${attemptRes.json?.error || ''} ${attemptRes.json?.message || ''} ${JSON.stringify(attemptRes.json?.meli_error || {})}`.toLowerCase();
+    const is429 = attemptRes.res.status === 429 || errAfterAuth.includes('too_many_requests') || errAfterAuth.includes('rate limit') || errAfterAuth.includes('429');
+    if (attemptRes.res.status >= 400 && is429) {
+        const nextAttempt = (job.attempts || 0) + 1;
+        if (nextAttempt <= 4) {
+            const jitter = 100 + Math.floor(Math.random() * 400);
+            const delayMs = 15_000 * Math.pow(2, nextAttempt - 1) + jitter;
+            await supabaseAdmin.from('jobs').update({
+                status: 'pending',
+                attempts: nextAttempt,
+                scheduled_at: new Date(Date.now() + delayMs).toISOString(),
+                error_log: `Replicación 429: reintento ${nextAttempt}/4 en ${Math.round(delayMs / 1000)}s`,
+            }).eq('id', job.id);
+            await supabaseAdmin
+                .from('replication_batch_items')
+                .update({ status: 'pending', updated_at: new Date().toISOString() })
+                .eq('id', batchItem.id);
+            return { done: true, rescheduled: true };
+        }
+    }
+
+    // Manejo de 409 / ítem existente referenciado
+    const existingItemId = (attemptRes.res.status === 409 || attemptRes.res.status === 422)
+        ? extractDuplicateItemIdFromMeli(attemptRes.json)
+        : null;
+    if (attemptRes.res.status === 409 && existingItemId) {
+        await supabaseAdmin
+            .from('replication_batch_items')
+            .update({
+                status: 'linked_existing',
+                target_item_id: existingItemId,
+                error_message: attemptRes.json?.error || 'Publicación ya existente en cuenta destino (409)',
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', batchItem.id);
+        await syncReplicationBatchProgress(supabaseAdmin, batch.id);
+        return { done: true };
+    }
+
+    // Poison-pill isolation (400/422): NO reintenta ni tumba el lote
+    if (attemptRes.res.status >= 400 || !attemptRes.json?.ok) {
+        const errs = Array.isArray(attemptRes.json?.errores) ? attemptRes.json.errores.join(' | ') : '';
+        const msg = [attemptRes.json?.error, errs].filter(Boolean).join(': ') || `HTTP ${attemptRes.res.status}`;
+        const isValidation = attemptRes.res.status === 400 || attemptRes.res.status === 422;
+        await supabaseAdmin
+            .from('replication_batch_items')
+            .update({
+                status: isValidation ? 'failed_validation' : 'failed_error',
+                error_code: `http_${attemptRes.res.status}`,
+                error_message: msg.slice(0, 1500),
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', batchItem.id);
+        await syncReplicationBatchProgress(supabaseAdmin, batch.id);
+        return { done: true };
+    }
+
+    // Éxito
+    const okJson = attemptRes.json;
+    const optinDeferred = Boolean(okJson.trace?.paso_14c_optin_diferido?.encolado);
+    let targetPubId: string | null = null;
+    if (okJson.item_id) {
+        const { data: pRow } = await supabaseAdmin
+            .from('publicaciones_externas')
+            .select('id')
+            .eq('marketplace_id', batch.target_marketplace_id)
+            .eq('external_item_id', okJson.item_id)
+            .eq('external_variation_id', '0')
+            .maybeSingle();
+        targetPubId = pRow?.id ?? null;
+    }
+
+    const appliedPrice = okJson.trace?.paso_9_titulo?.price_final ?? okJson.trace?.paso_3_precio?.sale_price ?? null;
+    const appliedTitle = okJson.trace?.paso_9_titulo?.family_name_up || okJson.trace?.paso_9_titulo?.title_legacy || okJson.title || null;
+
+    await supabaseAdmin
+        .from('replication_batch_items')
+        .update({
+            status: optinDeferred ? 'waiting_optin' : 'completed',
+            target_publicacion_id: targetPubId,
+            target_item_id: okJson.item_id ?? null,
+            target_catalog_item_id: okJson.item_id_catalogo ?? null,
+            applied_price: appliedPrice != null ? Number(appliedPrice) : null,
+            applied_title: appliedTitle,
+            error_code: null,
+            error_message: optinDeferred ? 'Tradicional creada; catálogo diferido en cola de optin' : null,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', batchItem.id);
+
+    await syncReplicationBatchProgress(supabaseAdmin, batch.id);
     return { done: true };
 }
 
@@ -549,6 +880,9 @@ await handleConfirmMatchingBatch(job);
 break;
 case 'publish_item':
 await handlePublishItem(job);
+break;
+case 'replicate_item':
+resume = await handleReplicateItem(job, meli);
 break;
 case 'catalog_optin':
 resume = await handleCatalogOptin(job, meli);

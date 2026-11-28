@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import {
     Search, RefreshCw, AlertCircle, CheckCircle2, Link2,
     SlidersHorizontal, ExternalLink, MoreVertical, Truck,
-    ChevronDown, ChevronRight, Package, Layers, Clock, Send
+    ChevronDown, ChevronRight, Package, Layers, Clock, Send, Copy, X
 } from 'lucide-react';
 import Link from 'next/link';
 import MappingModal from '@/components/mapping-modal';
@@ -518,11 +518,15 @@ function GroupedListingRows({
     onMapear,
     mappingIds,
     onPriceAudited,
+    selected,
+    onToggleSelect,
 }: {
     group: GroupedListing;
     onMapear: (l: any) => void;
     mappingIds: Set<string>;
     onPriceAudited?: (id: string) => void;
+    selected: boolean;
+    onToggleSelect: (p: any) => void;
 }) {
     const [expanded, setExpanded] = useState(false);
     const [auditingPrice, setAuditingPrice] = useState(false);
@@ -620,7 +624,17 @@ function GroupedListingRows({
 
     return (
         <>
-            <tr className="hover:bg-[var(--bg)]/70 transition-colors group">
+            <tr className={cn("hover:bg-[var(--bg)]/70 transition-colors group", selected && "bg-[var(--accent)]/5")}>
+                {/* 0 — SELECCIÓN */}
+                <td className="w-10 px-3 py-3 align-top">
+                    <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => onToggleSelect(parent)}
+                        aria-label={`Seleccionar ${parent.external_item_id} para replicar`}
+                        className="mt-1 h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                    />
+                </td>
                 {/* 1 — ESTADO */}
                 <td className="px-4 py-3 align-top">
                     <div className="flex flex-col gap-1">
@@ -789,6 +803,7 @@ function GroupedListingRows({
                 const stocksDiffer = variations.some(x => x.stock_publicado !== v.stock_publicado);
                 return (
                     <tr key={v.id} className="bg-[var(--accent)]/10 border-t border-[var(--border)]">
+                        <td className="w-10 px-3 py-2" />
                         {/* Estado + ID */}
                         <td className="px-4 py-2 pl-12 align-top">
                             <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[v.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
@@ -832,6 +847,7 @@ function GroupedListingRows({
                 const isCatalog = rel.tipo_publicacion === 'catalogo' || rel.tipo_publicacion === 'catalogo_derivada';
                 return (
                     <tr key={rel.id} className={cn('border-t', isCatalog ? 'bg-[var(--accent)]/10 border-[var(--accent)]/30' : 'bg-[var(--ok)]/10 border-[var(--ok)]/30')}>
+                        <td className="w-10 px-3 py-2" />
                         <td className="px-4 py-2 pl-10 align-top">
                             <div className="flex flex-col gap-0.5">
                                 <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border', statusColors[rel.status_externo] || 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]')}>
@@ -942,6 +958,29 @@ export default function VirtualCatalogPage() {
     const [showFilters, setShowFilters] = useState(false);
     // Publicaciones cuyo mapeo se está guardando en background.
     const [mappingIds, setMappingIds] = useState<Set<string>>(new Set());
+    // Selección múltiple para replicar entre cuentas (máx 50 por lote).
+    const [selectedPubs, setSelectedPubs] = useState<Map<string, string>>(new Map());
+    const MAX_REPLICAR_SELECT = 50;
+    const toggleSelectPub = (pub: any) => {
+        setSelectedPubs(prev => {
+            const next = new Map(prev);
+            if (next.has(pub.id)) {
+                next.delete(pub.id);
+                return next;
+            }
+            if (next.size >= MAX_REPLICAR_SELECT) {
+                toast.warning(`Máximo ${MAX_REPLICAR_SELECT} publicaciones por bloque de replicación.`);
+                return prev;
+            }
+            const existingSource = next.values().next().value as string | undefined;
+            if (existingSource && pub.marketplace_id && pub.marketplace_id !== existingSource) {
+                toast.warning('Todas las publicaciones seleccionadas deben pertenecer a la misma cuenta origen.');
+                return prev;
+            }
+            next.set(pub.id, pub.marketplace_id || '');
+            return next;
+        });
+    };
     const toggleMapping = (id: string, inProgress: boolean) => {
         setMappingIds(prev => {
             const next = new Set(prev);
@@ -1372,6 +1411,12 @@ export default function VirtualCatalogPage() {
                     actions={
                         <>
                             <Link
+                                href="/catalog/replicar"
+                                className="touch-target inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-all px-3 py-2 text-sm bg-[var(--surface-2)] text-[var(--text)] border border-[var(--border)] hover:bg-[var(--border)]/60"
+                            >
+                                <Copy className="w-4 h-4 text-[var(--accent)]" /> Replicar Cuentas
+                            </Link>
+                            <Link
                                 href="/catalog/publicar"
                                 className="touch-target inline-flex items-center justify-center gap-2 rounded-lg font-bold transition-all px-3 py-2 text-sm bg-[var(--accent)] text-[var(--accent-ink)] hover:brightness-110 shadow-sm"
                             >
@@ -1433,6 +1478,40 @@ export default function VirtualCatalogPage() {
                                 <table className="w-full text-left text-sm hidden md:table">
                                     <thead className="bg-[var(--bg)] text-[var(--text-muted)] border-b border-[var(--border)]">
                                         <tr>
+                                            <th className="w-10 px-3 py-3">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={grouped.length > 0 && grouped.every(g => selectedPubs.has(g.parent.id))}
+                                                    onChange={() => {
+                                                        const allSel = grouped.length > 0 && grouped.every(g => selectedPubs.has(g.parent.id));
+                                                        if (allSel) {
+                                                            setSelectedPubs(prev => {
+                                                                const next = new Map(prev);
+                                                                for (const g of grouped) next.delete(g.parent.id);
+                                                                return next;
+                                                            });
+                                                            return;
+                                                        }
+                                                        setSelectedPubs(prev => {
+                                                            const next = new Map(prev);
+                                                            let activeSource = next.values().next().value as string | undefined;
+                                                            for (const g of grouped) {
+                                                                if (next.size >= MAX_REPLICAR_SELECT) break;
+                                                                const mId = g.parent.marketplace_id || '';
+                                                                if (!activeSource && mId) activeSource = mId;
+                                                                if (activeSource && mId && mId !== activeSource) continue;
+                                                                next.set(g.parent.id, mId);
+                                                            }
+                                                            if (grouped.length > MAX_REPLICAR_SELECT && next.size >= MAX_REPLICAR_SELECT) {
+                                                                toast.info(`Se seleccionaron hasta ${MAX_REPLICAR_SELECT} publicaciones (límite por lote).`);
+                                                            }
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    aria-label="Seleccionar página actual para replicar"
+                                                    className="h-4 w-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                                                />
+                                            </th>
                                             <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Estado</th>
                                             <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Producto</th>
                                             <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wider">Marca / SKU</th>
@@ -1467,6 +1546,8 @@ export default function VirtualCatalogPage() {
                                                     onMapear={setSelectedListing}
                                                     mappingIds={mappingIds}
                                                     onPriceAudited={handlePriceAudited}
+                                                    selected={selectedPubs.has(group.parent.id)}
+                                                    onToggleSelect={toggleSelectPub}
                                                 />
                                             ))
                                         )}
@@ -1497,8 +1578,15 @@ export default function VirtualCatalogPage() {
                                         const sku = !esSkuBasuraUI(p.seller_custom_field) ? p.seller_custom_field
                                             : !esSkuBasuraUI(p.seller_sku) ? p.seller_sku : null;
                                         return (
-                                            <div key={p.id} className="px-4 py-3 space-y-2">
+                                            <div key={p.id} className={cn("px-4 py-3 space-y-2", selectedPubs.has(p.id) && "bg-[var(--accent)]/5")}>
                                                 <div className="flex items-start gap-3">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedPubs.has(p.id)}
+                                                        onChange={() => toggleSelectPub(p)}
+                                                        aria-label={`Seleccionar ${p.external_item_id} para replicar`}
+                                                        className="mt-1 h-4 w-4 shrink-0 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                                                    />
                                                     {p.url_imagen ? (
                                                         <img src={p.url_imagen} alt="" className="w-12 h-12 rounded-lg object-cover border border-[var(--border)] shrink-0" />
                                                     ) : (
@@ -1593,6 +1681,28 @@ export default function VirtualCatalogPage() {
                             </div>
                         ))}
                     </div>
+                </div>
+            )}
+
+            {/* Barra flotante de selección múltiple para replicar */}
+            {selectedPubs.size > 0 && (
+                <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-[var(--surface)] border border-[var(--accent)]/50 shadow-xl backdrop-blur-md">
+                    <span className="text-xs font-bold text-[var(--text)]">
+                        {selectedPubs.size}/{MAX_REPLICAR_SELECT} seleccionadas
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => setSelectedPubs(new Map())}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-[var(--text-muted)] hover:bg-[var(--surface-2)]"
+                    >
+                        <X className="w-3.5 h-3.5" /> Limpiar
+                    </button>
+                    <Link
+                        href={`/catalog/replicar?ids=${encodeURIComponent(Array.from(selectedPubs.keys()).join(','))}${selectedPubs.values().next().value ? `&source=${encodeURIComponent(selectedPubs.values().next().value as string)}` : ''}`}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:brightness-110 transition-all shadow-sm"
+                    >
+                        <Copy className="w-3.5 h-3.5" /> Copiar seleccionadas a otra cuenta →
+                    </Link>
                 </div>
             )}
 

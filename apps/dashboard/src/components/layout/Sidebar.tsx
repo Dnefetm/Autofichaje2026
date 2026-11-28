@@ -10,7 +10,7 @@ import {
     Package, PlusCircle, RefreshCcw, Store,
     ChevronLeft, ChevronRight, ShoppingCart, FileText,
     Upload, ClipboardList, Users, ReceiptText, ShoppingBag, UserPlus,
-    MessageSquare, Truck, ArrowUpDown, Send,
+    MessageSquare, Truck, ArrowUpDown, Send, Copy,
 } from 'lucide-react';
 
 export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
@@ -70,6 +70,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
         { name: 'Ingresos y Egresos', icon: ArrowUpDown,   href: '/movimientos' },
         { name: 'Vitrinas MeLi',   icon: Store,            href: '/catalog/external' },
         { name: 'Publicar',        icon: Send,             href: '/catalog/publicar' },
+        { name: 'Replicar Cuentas', icon: Copy,            href: '/catalog/replicar' },
         { name: 'Ventas MeLi',      icon: ShoppingCart,    href: '/ventas' },
         { name: 'Clientes',         icon: Users,           href: '/ventas/clientes' },
         { name: 'Pedidos',          icon: ReceiptText,     href: '/ventas/pedidos' },
@@ -134,7 +135,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: {
                         : item.href === '/ventas'
                             ? pathname === '/ventas'
                             : item.href === '/catalog'
-                                ? pathname === '/catalog' || (pathname.startsWith('/catalog/') && !pathname.startsWith('/catalog/external') && !pathname.startsWith('/catalog/publicar'))
+                                ? pathname === '/catalog' || (pathname.startsWith('/catalog/') && !pathname.startsWith('/catalog/external') && !pathname.startsWith('/catalog/publicar') && !pathname.startsWith('/catalog/replicar'))
                                 : item.href === '/catalog/external'
                                     ? pathname.startsWith('/catalog/external') && !pathname.startsWith('/catalog/external/pendientes')
                                     : pathname.startsWith(item.href);
